@@ -1,0 +1,36 @@
+name: pr-check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  pr-rules:
+    name: pr-rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: PR 제목과 대상 브랜치 검사
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+        run: |
+          if [[ "$BASE" == "main" && "$HEAD" != "develop" ]]; then
+            echo "::error::main으로는 develop에서 오는 PR만 보낼 수 있습니다. PR 제목 옆 Edit에서 대상 브랜치(base)를 develop으로 바꾸세요."
+            exit 1
+          fi
+          # 종류를 바꾸면 CLAUDE.md와 docs/guide.md의 표도 같이 고친다.
+          if [[ "$BASE" == "main" ]]; then
+            pattern='^release: .+'
+            example='release: 중간 발표 버전'
+          else
+            pattern='^(feat|fix|docs|refactor|test|chore): .+'
+            example='feat: 로그인 화면 추가'
+          fi
+          if [[ ! "$TITLE" =~ $pattern ]]; then
+            echo "::error::PR 제목은 '${example}' 형식이어야 합니다. 제목을 고치면 검사가 다시 돌아갑니다. 종류 목록은 CLAUDE.md를 보세요."
+            exit 1
+          fi
