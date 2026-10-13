@@ -15,7 +15,7 @@ main    ────────────────────────
 1. develop에서 내 작업 브랜치를 만듭니다.
 2. 브랜치에서 코드를 고치고 커밋합니다.
 3. GitHub에 올리고 develop으로 PR을 보냅니다.
-4. 검사(`pr-rules`)가 통과하고 리뷰어로 지정한 팀원 1명이 승인하면, 내가 직접 **Squash and merge**를 누릅니다.
+4. 검사(`pr-rules`, `leak-check`)가 통과하고 리뷰어로 지정한 팀원 1명이 승인하면, 내가 직접 **Squash and merge**를 누릅니다.
 5. 발표나 제출 때는 develop을 main으로 올립니다. 이때는 팀원 1명이 승인해야 합니다.
 
 main과 develop에 직접 push하면 GitHub가 거부하므로, 잘못 push해도 두 브랜치는 망가지지 않습니다.
@@ -33,6 +33,7 @@ main과 develop에 직접 push하면 GitHub가 거부하므로, 잘못 push해�
    cd cnu-ai-assistant
    ```
 4. **Claude Code는 꼭 이 레포 폴더에서 실행합니다.** 다른 폴더에서 열면 CLAUDE.md를 읽지 못해 규칙을 모릅니다.
+5. 앱을 돌리려면 Flutter 같은 준비물이 더 필요합니다. 준비물과 실행 명령은 [docs/architecture.md](architecture.md)의 '실행 방법'에, 커밋하지 않는 Firebase 설정 파일 세 개를 팀 비공개 채널에서 받아 넣는 안내는 같은 절의 '처음 한 번'에 있습니다. 설치가 막히면 Claude Code에게 "architecture.md 준비물 설치 도와줘"라고 하면 됩니다.
 
 ## 작업 한 바퀴: Claude에게 이렇게 말하세요
 
@@ -81,6 +82,7 @@ Claude는 대화가 끝나면 내용을 잊습니다. 다른 팀원의 Claude는
 | 팀 규칙 | `CLAUDE.md` | 모든 Claude가 세션을 시작할 때마다 자동으로 읽음 |
 | 폴더 구조, 실행 방법, 앱-서버 API | `docs/architecture.md` | CLAUDE.md가 불러와서 자동으로 읽음 |
 | 팀이 정한 것과 이유 | `docs/decisions.md` | CLAUDE.md가 불러와서 자동으로 읽음 |
+| 사캠 연동 동작 규칙 | `docs/lms.md` | 자동으로 읽히지는 않음. `app/lib/lms/`나 PC 확장처럼 사캠을 부르는 코드를 고치기 전에 Claude가 읽음(architecture.md가 가리킴) |
 | 이번 작업에서 한 일과 이유 | PR 본문 | 리뷰하는 사람, 나중에 기록을 찾는 사람 |
 
 요령은 이렇습니다.
@@ -93,7 +95,7 @@ Claude는 대화가 끝나면 내용을 잊습니다. 다른 팀원의 Claude는
 
 ## 리뷰와 병합
 
-- **develop으로 가는 PR**: GitHub는 승인 없이도 병합을 허용하지만, 팀 약속으로 리뷰어 1명을 지정하고 승인을 받은 뒤 병합합니다. 리뷰어는 PR 페이지 오른쪽 **Reviewers**에서 지정합니다(Claude에게 맡기면 PR을 만들 때 지정해 줍니다). 검사(`pr-rules`)가 초록색이고 승인을 받으면 작성자가 직접 **Squash and merge**를 누릅니다(버튼 이름이 다르면 옆 ▼에서 고릅니다).
+- **develop으로 가는 PR**: GitHub는 승인 없이도 병합을 허용하지만, 팀 약속으로 리뷰어 1명을 지정하고 승인을 받은 뒤 병합합니다. 리뷰어는 PR 페이지 오른쪽 **Reviewers**에서 지정합니다(Claude에게 맡기면 PR을 만들 때 지정해 줍니다). 검사(`pr-rules`, `leak-check`)가 초록색이고 승인을 받으면 작성자가 직접 **Squash and merge**를 누릅니다(버튼 이름이 다르면 옆 ▼에서 고릅니다).
 - **main으로 가는 PR**: 발표나 제출 전에 만듭니다. 작성자가 아닌 팀원 1명이 **Approve**해야 병합됩니다. 병합 방식은 **Create a merge commit**입니다.
 - 리뷰를 부탁받으면 PR 페이지의 **Files changed** 탭에서 바뀐 코드를 보고, 괜찮으면 **Review changes → Approve → Submit review**를 누릅니다.
 
@@ -103,6 +105,7 @@ Claude는 대화가 끝나면 내용을 잊습니다. 다른 팀원의 Claude는
 |---|---|---|
 | push하면 `GH013` / `repository rule violations` 오류 | main이나 develop에 직접 push하려 함 | Claude에게 "방금 커밋을 새 브랜치로 옮겨줘" |
 | PR에 `pr-rules` 빨간 X | 제목 형식이 틀렸거나, 작업 브랜치에서 main으로 PR을 보냄 | PR 제목 옆 **Edit**에서 제목이나 대상 브랜치(base)를 고치면 자동으로 다시 검사. Claude에게 "PR 검사 실패한 거 고쳐줘"라고 해도 됨 |
+| PR에 `leak-check` 빨간 X | 추가한 줄에 쿠키 헤더, 토큰, 사캠 쿠키 이름으로 보이는 문자열이 있음(사캠 쿠키 이름은 레포 Actions 비밀값 `LMS_COOKIE_NAMES`를 설정한 뒤부터 찾음) | 표시된 파일에서 그 줄을 쿠키 헤더 꼴과 토큰 모양이 아닌 합성 값으로 바꿉니다. 실제 값이었으면 맨 아래 'API 키나 `.env`를 올림' 줄대로 먼저 폐기합니다. 그 값은 PR 댓글에 붙여 넣지 않습니다 |
 | PR에 `This branch has conflicts` | 다른 사람이 같은 곳을 먼저 고침 | Claude에게 "develop 최신 내용 받아서 충돌 해결해줘" |
 | Merge 버튼이 회색 | 검사 실패, 충돌, 또는 승인 필요(main) | PR 페이지 아래쪽 안내 문구를 확인 |
 | API 키나 `.env`를 올림 | | 바로 팀에 알리고 그 키를 발급한 곳에서 폐기. 지우는 것보다 폐기가 먼저 |
