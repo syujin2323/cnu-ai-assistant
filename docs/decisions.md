@@ -60,7 +60,7 @@
 ## 2026-10-12 앱 뼈대 약속
 
 - 결정: 위젯은 pub.dev의 `material_ui` 패키지(Flutter 3.47과 함께 1.0)를 처음부터 쓰고 `package:flutter/material.dart`는 import하지 않는다. Riverpod은 코드 생성 없이 `flutter_riverpod`만 쓴다. drift가 만드는 `*.g.dart`는 커밋해 `flutter pub get` 뒤 바로 빌드되게 한다. 하단 탭은 go_router의 `StatefulShellRoute.indexedStack`으로 만든다. 린트는 `flutter_lints` 기본 규칙이고, CI(GitHub Actions)에 `app/`의 `dart format`·`flutter analyze`·`flutter test`, `functions/`·`extension/`의 린트·테스트, `pr-check`의 `leak-check` 잡을 더한다.
-- 이유: Flutter SDK에 든 Material·Cupertino 라이브러리는 다음 안정판(11월)에서 공식 폐기 예정이라, 지금 `material_ui`로 시작해 R0 도중 전 파일의 import를 옮기는 일을 피한다. 코드 생성 단계를 줄여 첫 실행과 CI에서 build_runner 없이 빌드되게 한다.
+- 이유: Flutter SDK에 든 Material·Cupertino 라이브러리는 3.44부터 고치지 않고 앞으로의 안정판에서 공식 폐기될 예정이라(시점은 아직 발표되지 않았다), 지금 `material_ui`로 시작해 R0 도중 전 파일의 import를 옮기는 일을 피한다. 코드 생성 단계를 줄여 첫 실행과 CI에서 build_runner 없이 빌드되게 한다.
 - 다른 후보: `package:flutter/material.dart`로 시작해 폐기 뒤 `dart fix --apply --code=migrate_design_widgets`로 이동(전 파일 변경 PR이 생김), riverpod_generator(빌드 단계와 생성 파일이 늘어남), 생성 파일 미커밋(CI와 첫 실행마다 build_runner가 필요).
 
 ## 2026-10-12 라이선스
