@@ -1,3 +1,42 @@
 .env
 .env.*
 !.env.example
+
+# Firebase 설정 파일과 로컬 비밀값 (docs/architecture.md)
+firebase_options.dart
+google-services.json
+GoogleService-Info.plist
+.secret.local
+
+# 앱 서명 파일
+key.properties
+*.jks
+*.keystore
+
+# OS·IDE 파일, 기기마다 다른 로컬 설정
+.DS_Store
+.idea/
+*.iml
+local.properties
+
+# 의존성과 빌드 산출물 (docs/architecture.md 실행 방법)
+node_modules/
+.dart_tool/
+build/
+coverage/
+functions/lib/
+functions/src/schema/
+extension/dist/
+
+# 로그, Firebase CLI·에뮬레이터 로컬 산출물
+*.log
+.firebase/
+
+# iOS 서명·배포 파일, Firebase 서비스 계정 키
+*.p12
+*.p8
+*.mobileprovision
+*-adminsdk-*.json
+
+# 네트워크 캡처 파일 (쿠키와 실제 응답이 들어간다, docs/lms.md)
+*.har
