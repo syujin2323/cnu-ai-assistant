@@ -34,3 +34,37 @@ jobs:
             echo "::error::PR 제목은 '${example}' 형식이어야 합니다. 제목을 고치면 검사가 다시 돌아갑니다. 종류 목록은 CLAUDE.md를 보세요."
             exit 1
           fi
+
+  leak-check:
+    name: leak-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # 사캠 쿠키 이름은 이 파일에 적지 않는다. 레포 Settings → Secrets and variables → Actions → Secrets에
+      # LMS_COOKIE_NAMES를 '이름1|이름2' 형식으로 둔다(변수는 로그에 그대로 찍히므로 쓰지 않는다).
+      # 비어 있으면(포크 PR 포함) 쿠키 헤더와 JWT 모양만 검사한다.
+      - name: 쿠키 헤더와 토큰 모양 검사
+        env:
+          BASE: ${{ github.base_ref }}
+          LMS_COOKIE_NAMES: ${{ secrets.LMS_COOKIE_NAMES }}
+        run: |
+          pattern='cookie"?:[[:space:]]*"?[A-Za-z0-9_.-]+=|eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'
+          if [[ -n "$LMS_COOKIE_NAMES" ]]; then
+            pattern="$pattern|($LMS_COOKIE_NAMES)"
+          fi
+          files="$RUNNER_TEMP/changed-files"
+          git diff -z --name-only --diff-filter=d "origin/$BASE...HEAD" -- . ':!.github/workflows/pr-check.yml' > "$files"
+          found=0
+          while IFS= read -r -d '' file; do
+            # 값이 로그에 남지 않도록 일치한 줄은 출력하지 않고 파일 이름만 알린다.
+            if git diff --unified=0 "origin/$BASE...HEAD" -- "$file" | grep -E '^\+' | grep -Ei "$pattern" > /dev/null; then
+              echo "::error file=$file::추가된 줄에 쿠키 헤더, 토큰, 사캠 쿠키 이름으로 보이는 문자열이 있습니다. 쿠키 헤더 꼴과 토큰 모양이 아닌 합성 값으로 바꾸고, 실제 값이었으면 발급한 곳에서 폐기하세요."
+              found=1
+            fi
+          done < "$files"
+          exit "$found"

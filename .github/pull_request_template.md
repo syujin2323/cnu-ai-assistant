@@ -16,5 +16,5 @@
 ## 체크 (작성자가 직접 확인하고 체크)
 
 - [ ] 바뀐 코드를 직접 한 번 읽어 봤다 (AI가 쓴 코드 포함)
-- [ ] API 키, 토큰, `.env`가 들어 있지 않다
-- [ ] 구조·실행 방법·API가 바뀌었으면 `docs/architecture.md`를, 팀이 정한 것이 있으면 `docs/decisions.md`를 고쳤다
+- [ ] API 키, 토큰, `.env`, 사캠 요청 상수·실제 응답·쿠키·학번이 들어 있지 않다 (스크린샷 포함)
+- [ ] 구조·실행 방법·API가 바뀌었으면 `docs/architecture.md`를, 팀이 정한 것이 있으면 `docs/decisions.md`를, 사캠 동작 규칙이 바뀌었으면 `docs/lms.md`를 고쳤다
