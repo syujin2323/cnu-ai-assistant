@@ -82,7 +82,7 @@ Claude는 대화가 끝나면 내용을 잊습니다. 다른 팀원의 Claude는
 | 팀 규칙 | `CLAUDE.md` | 모든 Claude가 세션을 시작할 때마다 자동으로 읽음 |
 | 폴더 구조, 실행 방법, 앱-서버 API | `docs/architecture.md` | CLAUDE.md가 불러와서 자동으로 읽음 |
 | 팀이 정한 것과 이유 | `docs/decisions.md` | CLAUDE.md가 불러와서 자동으로 읽음 |
-| 사캠 연동 동작 규칙 | `docs/lms.md` | 자동으로 읽히지는 않음. `app/lib/lms/`나 PC 확장처럼 사캠을 부르는 코드를 고치기 전에 Claude가 읽음(architecture.md가 가리킴) |
+| 사캠 연동 동작 규칙 | `docs/lms.md` | 자동으로 읽히지는 않음. `app/lib/lms/`처럼 사캠을 부르는 코드를 고치기 전에 Claude가 읽음(architecture.md가 가리킴) |
 | 이번 작업에서 한 일과 이유 | PR 본문 | 리뷰하는 사람, 나중에 기록을 찾는 사람 |
 
 요령은 이렇습니다.
