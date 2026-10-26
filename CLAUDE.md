@@ -2,7 +2,7 @@
 
 충남대학교 심화프로젝트랩 팀 프로젝트다. Claude는 아래 규칙을 지키며 작업한다. Git과 GitHub 작업은 무엇을 왜 하는지 한 줄로 설명하면서 진행한다. 사용자가 규칙에 어긋나는 일을 요청하면 이유를 한 줄로 설명한 뒤 규칙에 맞는 방법을 제안한다.
 
-팀이 정한 구조와 결정은 아래 두 문서에 있다. 작업 전에 관련 부분을 확인하고, 여기와 다른 방향으로 가야 하면 먼저 사용자에게 묻는다. 사캠 동작 규칙은 `docs/lms.md`에 있다. `app/lib/lms/`, `extension/`, `functions/src/relay/`를 고칠 때는 그 문서를 먼저 읽는다.
+팀이 정한 구조와 결정은 아래 두 문서에 있다. 작업 전에 관련 부분을 확인하고, 여기와 다른 방향으로 가야 하면 먼저 사용자에게 묻는다. 사캠 동작 규칙은 `docs/lms.md`에 있다. `app/lib/lms/`를 고칠 때는 그 문서를 먼저 읽는다.
 
 @docs/architecture.md
 @docs/decisions.md
@@ -62,7 +62,7 @@
 
 - 작업 브랜치는 develop으로 PR을 보낸다. 제목은 커밋과 같은 `종류: 설명` 형식이다. develop에는 squash로 병합되므로 PR 제목이 develop에 남는 커밋 제목이 된다.
 - 본문은 `.github/pull_request_template.md`의 틀대로 쓴다. `gh pr create`는 템플릿을 자동으로 넣지 않는다. 체크 칸은 사용자가 직접 확인하고 체크하도록 비워 둔다.
-- PR을 만들기 전에 바뀐 폴더의 확인 명령을 돌린다(`docs/architecture.md`의 '확인과 CI'와 같다). `app/`은 `dart format --output=none --set-exit-if-changed .`, `flutter analyze`, `flutter test`이고, `functions/`와 `extension/`은 `npm run lint`, `npm test`다. 하나라도 실패하면 PR을 만들지 않고 사용자에게 알린다.
+- PR을 만들기 전에 바뀐 폴더의 확인 명령을 돌린다(`docs/architecture.md`의 '확인과 CI'와 같다). `app/`은 `dart format --output=none --set-exit-if-changed .`, `flutter analyze`, `flutter test`이고, `functions/`는 `npm run lint`, `npm test`다. 하나라도 실패하면 PR을 만들지 않고 사용자에게 알린다.
 - PR을 만들기 전에 브랜치 이름, 제목, 본문을 사용자에게 보여 주고 확인을 받는다. 리뷰어로 지정할 팀원 1명의 GitHub 아이디도 묻는다. 본문은 레포 안에 파일을 만들지 말고 표준 입력으로 넘긴다.
   ```bash
   git push -u origin feat/login-screen
@@ -84,7 +84,7 @@
 
 다른 팀원도, 다음 세션의 Claude도 이 대화를 볼 수 없다. 남겨야 할 것은 레포에 적는다.
 
-- 폴더 구조, 실행 방법, 앱-서버 API, 환경 변수 이름, 폰 DB 표, 라우트 표, 디자인 토큰 등 `docs/architecture.md`에 적힌 것이 바뀌면 같은 PR에서 `docs/architecture.md`를 고친다. 사캠 동작 규칙(로그인, 쿠키 금고, 응답 판별, 세션 복원, 동기화, 호출 예산, PC 확장)이 바뀌면 같은 PR에서 `docs/lms.md`를 고친다.
+- 폴더 구조, 실행 방법, 앱-서버 API, 환경 변수 이름, 폰 DB 표, 라우트 표, 디자인 토큰 등 `docs/architecture.md`에 적힌 것이 바뀌면 같은 PR에서 `docs/architecture.md`를 고친다. 사캠 동작 규칙(로그인, 자동 재로그인, 쿠키 금고, 응답 판별, 세션 복원, 동기화, 시간표, 호출 예산)이 바뀌면 같은 PR에서 `docs/lms.md`를 고친다.
 - 팀이 무언가를 정하면(라이브러리, 화면 흐름, API 모양 등) `docs/decisions.md` 맨 아래에 새 항목을 추가한다. 기존 항목은 고치지 않는다. 결정이 바뀌면 새 항목으로 적는다.
 - PR 본문의 "무엇을, 왜"는 다음 사람이 읽을 기록이다. 코드만 봐서는 알 수 없는 이유를 적는다.
 - 이 파일(CLAUDE.md)은 팀 규칙이다. 사용자가 명시적으로 요청할 때만 고치고, 고친 내용은 PR로 올린다.
@@ -92,7 +92,7 @@
 ## 비밀값
 
 - 공개 레포다. API 키, 토큰, 비밀번호, `.env` 파일, Firebase 설정 파일, 서명 파일, 네트워크 캡처(`.har`), 사캠의 실제 응답·쿠키 값·학번·요청 상수·엔드포인트 경로는 커밋하지 않는다. 테스트에는 직접 만든 합성 샘플만, PR 스크린샷에는 데모 모드 화면만 쓴다. 한 번 올라가면 지워도 기록에 남는다.
-- 비밀값은 Functions에서는 Secret Manager에 둔다(`functions/src/params.ts`의 `defineSecret`, `firebase functions:secrets:set <이름>`). 로컬 에뮬레이터용 값은 `functions/.secret.local`에 둔다. `functions/.env`에는 비밀이 아닌 설정값만 두고 이름과 기본값은 `functions/.env.example`에 적는다. Firebase 설정 파일(`firebase_options.dart`, `google-services.json`, `GoogleService-Info.plist`)과 Android 서명 파일은 팀 비공개 채널에서 받아 `docs/architecture.md`의 '실행 방법'·'테스트 배포' 자리에 넣는다. 이 파일들은 모두 `.gitignore`에 들어 있다. 변수 이름과 용도는 `docs/architecture.md`의 '환경 변수' 표에 적고 값은 적지 않는다. 앱과 확장 코드에는 키를 두지 않는다.
+- 비밀값은 Functions에서는 Secret Manager에 둔다(`functions/src/params.ts`의 `defineSecret`, `firebase functions:secrets:set <이름>`). 로컬 에뮬레이터용 값은 `functions/.secret.local`에 둔다. `functions/.env`에는 비밀이 아닌 설정값만 두고 이름과 기본값은 `functions/.env.example`에 적는다. Firebase 설정 파일(`firebase_options.dart`, `google-services.json`, `GoogleService-Info.plist`)과 Android 서명 파일은 팀 비공개 채널에서 받아 `docs/architecture.md`의 '실행 방법'·'테스트 배포' 자리에 넣는다. 이 파일들은 모두 `.gitignore`에 들어 있다. 변수 이름과 용도는 `docs/architecture.md`의 '환경 변수' 표에 적고 값은 적지 않는다. 앱 코드에는 키를 두지 않고, 학교 비밀번호는 자동 로그인을 켠 사용자의 기기 보안 저장소에만 둔다.
 - 커밋 전에 `git diff --staged`에 비밀값이 없는지 확인한다.
 
 ## 실수했을 때
