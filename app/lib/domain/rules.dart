@@ -12,23 +12,21 @@ import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/models/rule.dart';
 import 'package:cnu_ai_assistant/domain/models/task.dart';
 
-/// 규칙 값의 허용 범위. 팀이 정한 값이 아니라 임시값이다(사용자 테스트 뒤 정한다).
+/// 규칙 값의 허용 범위(양끝 포함). 팀이 정한 값이 아니라 임시값이다(사용자 테스트 뒤 정한다).
+///
+/// 이 코드베이스에서 `...Min`은 분을 뜻하므로 범위의 양끝은 `low`·`high`로 적는다.
 abstract final class RuleLimits {
   /// 분 값의 기본 범위.
-  static const int minutesMin = 0;
-  static const int minutesMax = 240;
+  static const minutes = (low: 0, high: 240);
 
   /// 하루 최대 공부량(`daily_cap`)의 분 범위.
-  static const int dailyCapMin = 30;
-  static const int dailyCapMax = 720;
+  static const dailyCap = (low: 30, high: 720);
 
   /// 한 번에 할 최대 시간(`max_block`)의 분 범위.
-  static const int maxBlockMin = 25;
-  static const int maxBlockMax = 240;
+  static const maxBlock = (low: 25, high: 240);
 
   /// 알림 하루 상한(`notifyCap`)의 범위.
-  static const int notifyCapMin = 0;
-  static const int notifyCapMax = 20;
+  static const notifyCap = (low: 0, high: 20);
 }
 
 /// 규칙 값 검사에서 걸린 이유.
@@ -103,12 +101,12 @@ List<RuleIssue> validateRule(
 
   final minutes = params.minutes;
   if (minutes != null) {
-    final (min, max) = switch (kind) {
-      RuleKind.dailyCap => (RuleLimits.dailyCapMin, RuleLimits.dailyCapMax),
-      RuleKind.maxBlock => (RuleLimits.maxBlockMin, RuleLimits.maxBlockMax),
-      _ => (RuleLimits.minutesMin, RuleLimits.minutesMax),
+    final limit = switch (kind) {
+      RuleKind.dailyCap => RuleLimits.dailyCap,
+      RuleKind.maxBlock => RuleLimits.maxBlock,
+      _ => RuleLimits.minutes,
     };
-    if (minutes < min || minutes > max) {
+    if (!_within(minutes, limit)) {
       issues.add(const RuleIssue('minutes', RuleIssueKind.outOfRange));
     }
   }
@@ -126,9 +124,7 @@ List<RuleIssue> validateRule(
     issues.add(const RuleIssue('briefingMin', RuleIssueKind.outOfRange));
   }
   final notifyCap = params.notifyCap;
-  if (notifyCap != null &&
-      (notifyCap < RuleLimits.notifyCapMin ||
-          notifyCap > RuleLimits.notifyCapMax)) {
+  if (notifyCap != null && !_within(notifyCap, RuleLimits.notifyCap)) {
     issues.add(const RuleIssue('notifyCap', RuleIssueKind.outOfRange));
   }
 
@@ -226,7 +222,8 @@ final class DayPlanRules {
 
 /// 배치 엔진이 받는 설정. 기본값([Defaults]) 위에 켜진 규칙을 덮은 것이다.
 ///
-/// 식사 고정 일정이 식사 보호를 대신하는 것, 비대면 수업만 있는 날 이동 시간을 빼는 것은
+/// 식사 고정 일정이 식사 보호를 대신하는 것, 비대면 수업만 있는 날 이동 시간을 빼는 것,
+/// 같은 수업 앞뒤에 이동 시간(`every_class`)과 수업 앞뒤 여유가 함께 걸리면 큰 값만 쓰는 것은
 /// 그날의 일정을 아는 배치 엔진이 한다.
 final class PlannerConfig {
   PlannerConfig._({
@@ -476,6 +473,9 @@ void _checkRange(
 }
 
 bool _isMinuteOfDay(int value) => value >= 0 && value < _minutesPerDay;
+
+bool _within(int value, ({int low, int high}) limit) =>
+    value >= limit.low && value <= limit.high;
 
 int _byStartThenEnd(MinuteRange a, MinuteRange b) {
   final byStart = a.startMin.compareTo(b.startMin);

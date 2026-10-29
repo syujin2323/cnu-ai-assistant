@@ -124,12 +124,12 @@ void main() {
         ], reason: '$bad');
       }
 
-      expectMinutes(RuleKind.classBuffer, RuleLimits.minutesMin, -1);
-      expectMinutes(RuleKind.classBuffer, RuleLimits.minutesMax, 241);
-      expectMinutes(RuleKind.dailyCap, RuleLimits.dailyCapMin, 29);
-      expectMinutes(RuleKind.dailyCap, RuleLimits.dailyCapMax, 721);
-      expectMinutes(RuleKind.maxBlock, RuleLimits.maxBlockMin, 24);
-      expectMinutes(RuleKind.maxBlock, RuleLimits.maxBlockMax, 241);
+      expectMinutes(RuleKind.classBuffer, RuleLimits.minutes.low, -1);
+      expectMinutes(RuleKind.classBuffer, RuleLimits.minutes.high, 241);
+      expectMinutes(RuleKind.dailyCap, RuleLimits.dailyCap.low, 29);
+      expectMinutes(RuleKind.dailyCap, RuleLimits.dailyCap.high, 721);
+      expectMinutes(RuleKind.maxBlock, RuleLimits.maxBlock.low, 24);
+      expectMinutes(RuleKind.maxBlock, RuleLimits.maxBlock.high, 241);
     });
 
     test('시각은 하루 안에서 시작하고 끝이 늦되 하루를 넘지 않는다', () {
@@ -166,7 +166,7 @@ void main() {
       expect(
         issues(
           RuleKind.notify,
-          const RuleParams(notifyCap: RuleLimits.notifyCapMax + 1),
+          const RuleParams(notifyCap: RuleLimits.notifyCap.high + 1),
         ),
         [issue('notifyCap', RuleIssueKind.outOfRange)],
       );
