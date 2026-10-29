@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12 이상의 클라우드 백업과 기기 간 이전에서 앱 데이터를 모두 뺀다.
+  전체 백업은 도메인마다 따로 훑으므로 root 제외만으로는 files/(file), databases/(database),
+  shared_prefs/(sharedpref)와 기기 보호 저장소 쪽의 같은 폴더(device_*)를 덮지 못한다.
+  그래서 아홉 도메인을 모두 뺀다. 폰 DB(app_flutter/), WebView 저장소(app_webview/)는 root,
+  설정(shared_preferences)과 쿠키 금고(flutter_secure_storage)는 shared_prefs/에 있다.
+  Android 11 이하는 AndroidManifest.xml의 android:allowBackup="false"가 막는다.
+  (docs/architecture.md '플랫폼 프로젝트 설정', docs/lms.md '쿠키 금고')
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="device_file" path="." />
+        <exclude domain="device_database" path="." />
+        <exclude domain="device_sharedpref" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="device_file" path="." />
+        <exclude domain="device_database" path="." />
+        <exclude domain="device_sharedpref" path="." />
+    </device-transfer>
+</data-extraction-rules>
