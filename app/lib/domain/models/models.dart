@@ -1,0 +1,19 @@
+// 도메인 모델 모음. 폰 DB(drift)는 `@UseRowClass`로 이 클래스들을 행으로 쓴다.
+export 'package:cnu_ai_assistant/domain/models/app_settings.dart';
+export 'package:cnu_ai_assistant/domain/models/briefing.dart';
+export 'package:cnu_ai_assistant/domain/models/class_exception.dart';
+export 'package:cnu_ai_assistant/domain/models/class_slot.dart';
+export 'package:cnu_ai_assistant/domain/models/course.dart';
+export 'package:cnu_ai_assistant/domain/models/entry_source.dart';
+export 'package:cnu_ai_assistant/domain/models/event.dart';
+export 'package:cnu_ai_assistant/domain/models/fixed_block.dart';
+export 'package:cnu_ai_assistant/domain/models/lms_item.dart';
+export 'package:cnu_ai_assistant/domain/models/lms_item_change.dart';
+export 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
+export 'package:cnu_ai_assistant/domain/models/plan_block.dart';
+export 'package:cnu_ai_assistant/domain/models/rule.dart';
+export 'package:cnu_ai_assistant/domain/models/sync_lease.dart';
+export 'package:cnu_ai_assistant/domain/models/sync_run.dart';
+export 'package:cnu_ai_assistant/domain/models/task.dart';
+export 'package:cnu_ai_assistant/domain/models/undo_log_entry.dart';
+export 'package:cnu_ai_assistant/domain/models/value_codec.dart';
