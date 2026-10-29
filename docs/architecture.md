@@ -65,6 +65,7 @@ cnu-ai-assistant/
 │   ├── src/push/             서버 신호 푸시(FCM, R1)
 │   └── eval/                 한국어 일정 문장 평가 세트
 ├── schema/                   앱·서버 공용 JSON Schema: parse_result.schema.json, briefing_result.schema.json, extract_result.schema.json(R1), samples/(합성 예시)
+├── Makefile                  개발 명령(`make check` 등). 아래 '확인과 CI'의 명령과 같습니다
 ├── firebase.json, firestore.rules, firestore.indexes.json
 └── docs/
 ```
@@ -348,7 +349,7 @@ npm run serve
 ## 확인과 CI
 
 - 린트는 `flutter_lints` 6의 기본 규칙 그대로입니다(`app/analysis_options.yaml`: `include: package:flutter_lints/flutter.yaml`). 같은 파일의 `analyzer.exclude`(`build/**`, `android/**`, `ios/**`)는 Flutter 3.47.8 도구가 `flutter pub get` 때마다 다시 써 넣으므로 지우지 않고 둡니다. 규칙을 더하거나 끄면 decisions.md에 적습니다. Functions는 `typescript-eslint` recommended와 Prettier 기본값입니다. 코드는 `dart format`·Prettier로 맞춘 뒤 커밋합니다.
-- 확인 명령은 `app/`에서 `dart format --output=none --set-exit-if-changed lib test`, `flutter analyze`(경고 0), `flutter test`이고, `functions/`에서 `npm run lint`, `npm test`입니다. PR 전에 로컬에서 통과시킵니다. `dart format`의 대상을 `.`이 아니라 `lib test`로 두는 것은 macOS의 `flutter pub get`이 `app/build/ios/SourcePackages`에 만드는 패키지 사본까지 `.`에 잡혀 검사가 늘 실패하기 때문입니다.
+- 확인 명령은 `app/`에서 `dart format --output=none --set-exit-if-changed lib test`, `flutter analyze`(경고 0), `flutter test`이고, `functions/`에서 `npm run lint`, `npm test`입니다. PR 전에 로컬에서 통과시킵니다. 레포 루트에서 `make check`가 `app/`의 세 명령을 차례로 돌리고 처음 실패한 곳에서 멈춥니다(`make lint`, `make test`, `make format`, `make gen`도 있습니다). 명령을 바꾸면 `Makefile`과 `app-check.yml`을 같은 PR에서 함께 고칩니다. `dart format`의 대상을 `.`이 아니라 `lib test`로 두는 것은 macOS의 `flutter pub get`이 `app/build/ios/SourcePackages`에 만드는 패키지 사본까지 `.`에 잡혀 검사가 늘 실패하기 때문입니다.
 - `test/`는 `lib/`와 같은 경로를 따르고 파일 이름은 `<원본>_test.dart`입니다(`lib/domain/free_slots.dart` → `test/domain/free_slots_test.dart`). `domain/`·`lms/` 코드는 단위 테스트를 같은 PR에 넣고, 사캠 응답 판별 테스트는 합성 샘플만 씁니다. 화면 테스트는 `motionLevelProvider`를 `off`로 덮어쓴 `ProviderScope` 안에서 돌립니다. 글자 배율 2.0에서도 돌립니다. 뼈대 PR에는 앱이 뜨고 네 탭이 보이는 화면 테스트 하나와 `settings` 기본값 테스트 하나를 넣습니다. Functions 테스트는 `vitest`, 파일은 `*.test.ts`이고 네트워크 없이 제공사 어댑터를 가짜로 바꿔 돌립니다.
 - CI는 GitHub Actions입니다. `pr-check`(`pr-rules` 잡)는 그대로 두고, 같은 워크플로에 쿠키 헤더와 토큰 모양(JWT 등)을 찾는 `leak-check` 잡을 더합니다. 사캠 쿠키 이름은 워크플로 파일에 적지 않고 Actions 비밀값 `LMS_COOKIE_NAMES`로 둡니다. `app/**`가 바뀐 PR에서는 `.github/workflows/app-check.yml`이 `subosito/flutter-action`(`flutter-version-file: app/pubspec.yaml`, `cache: true`. 비밀값을 파일로 쓰는 잡이라 태그 대신 릴리스 커밋 SHA로 고정합니다)으로 Flutter를 받고, 커밋한 `pubspec.lock` 그대로 패키지를 받은 뒤(`flutter pub get --enforce-lockfile`. `pubspec.yaml`과 맞지 않으면 실패합니다) 위 세 명령을 돌립니다. `flutter build`는 하지 않습니다. CI용 `app/lib/firebase_options.dart`는 Actions 비밀값 `FIREBASE_OPTIONS_DART`의 내용을 파일로 쓰는 단계 하나로 만들고, `google-services.json`·`GoogleService-Info.plist`는 CI에 두지 않습니다. `functions/**`가 바뀐 PR에서는 `functions-check.yml`이 `npm ci`, `npm run lint`, `npm test`를 돌립니다. `app-check.yml`은 앱 뼈대 PR에서 더했고, `functions-check.yml`은 아직 없어 `functions/` 코드를 처음 넣는 PR에서 더합니다. 지금 레포의 워크플로는 `pr-check.yml`(`pr-rules`, `leak-check`)과 `app-check.yml`입니다.
 

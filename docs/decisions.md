@@ -115,3 +115,9 @@
 - 결정: Flutter를 3.47.0에서 3.47.8로, Functions의 Node를 22에서 24로 바꾼다. 팀 전체와 CI가 같은 정확한 버전을 쓰는 규칙(`app/pubspec.yaml`의 `environment.flutter`, `functions/package.json`의 `engines.node`)은 그대로이고, 버전은 앞으로도 그 줄을 고치는 `chore:` PR로 함께 올린다.
 - 이유: 3.47.0은 기획할 때 그 시점 기준으로 적은 값이라 고집할 이유가 없다. 3.47.8은 같은 3.47의 최신 수정판이다(2026-10-23). Node 24는 Cloud Functions for Firebase가 정식(GA) 지원하고 지원 종료 예정일이 2028-04-30으로 22(2027-04-30)보다 길다. Node 26은 아직 Functions 배포를 지원하지 않는다.
 - 다른 후보: 3.47.0과 Node 22 유지(수정판을 놓치고 Node 지원 기간이 짧음), 버전을 정하지 않고 각자 최신 stable 쓰기(Dart 버전이 다르면 CI의 `dart format` 검사가 기기마다 다르게 실패할 수 있음).
+
+## 2026-10-29 개발 명령 Makefile
+
+- 결정: 레포 루트 `Makefile`에 `app/`의 확인 명령을 모은다. `make check`(= `make lint` + `make test`)가 PR 전 확인이고, `make format`, `make gen`(drift 생성 파일)을 둔다. CI(`app-check.yml`)는 지금처럼 명령을 직접 돌리고, 명령을 바꾸면 두 곳을 같은 PR에서 고친다. `functions/` 대상은 서버 코드를 처음 넣는 PR에서 더한다.
+- 이유: 확인 명령이 길어 손으로 치다 틀리기 쉽고, 여러 명령을 한 줄로 이으면 앞 명령의 실패를 놓칠 수 있다. `make`는 처음 실패한 단계에서 멈춘다.
+- 다른 후보: CI도 `make check`를 부르기(명령이 한 곳에 모이지만 CI 설정을 바꿔야 함), 셸 스크립트(Windows에서도 따로 실행 환경이 필요한 것은 같음), 두지 않기(지금처럼 명령을 외워 씀). Windows에서 `make`가 없으면 위 명령을 그대로 쓴다.
