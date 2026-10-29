@@ -10,6 +10,8 @@
 //
 // 시각은 자정 기준 분(09:30 → 570)이다. 자정을 넘는 구간은 끝에 1440을 더한다.
 
+import 'package:cnu_ai_assistant/domain/models/task.dart';
+
 /// 도메인 기본값(임시값). 위 머리말을 본다.
 abstract final class Defaults {
   // 하루
@@ -53,6 +55,19 @@ abstract final class Defaults {
 
   /// 브리핑 문장의 추천 수.
   static const int briefingPickCount = 2;
+
+  /// 예상 시간을 모를 때(사용자 입력·`estimate` 규칙이 없을 때) 쓰는 종류별 예상 시간(분).
+  /// 이 값을 쓰면 화면이 한 번 묻는다(30분 / 1시간 / 2시간 / 3시간 이상).
+  static const Map<TaskKind, int> taskEstimateMin = {
+    TaskKind.assignment: 120,
+    TaskKind.video: 60,
+    TaskKind.quiz: 30,
+    TaskKind.team: 120,
+    TaskKind.discussion: 30,
+    TaskKind.exam: 180,
+    TaskKind.material: 30,
+    TaskKind.personal: 60,
+  };
 
   /// 끝 시각이 이만큼(분) 지나도 `done`이 아닌 확정 블록은 다음 재계산 때 `missed`로 본다.
   static const int missedAfterMin = 30;
