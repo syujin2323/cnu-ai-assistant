@@ -36,7 +36,7 @@ flowchart LR
 
 - Dart 패키지 이름은 `cnu_ai_assistant`입니다(`app/pubspec.yaml`의 `name`, import는 `package:cnu_ai_assistant/...`). Android `applicationId`와 iOS bundle identifier는 둘 다 `io.github.syujin2323.cnuaiassistant`입니다. Firebase 앱 등록, App Check, iOS 기기 등록 배포가 이 값에 묶이므로 바꾸지 않습니다. 앱 표시 이름은 `일정 비서`(Android `android:label`, iOS `CFBundleDisplayName`)입니다. 임시 표시 이름입니다. 앱 이름이 정해지면 바꿉니다. 식별자는 앱 이름이 정해져도 바꾸지 않습니다. 앱 이름과 아이콘에 학교 이름과 로고를 쓰지 않습니다.
 - 프로젝트는 `flutter create --org io.github.syujin2323 --project-name cnu_ai_assistant --platforms android,ios app`으로 만듭니다. web·desktop 폴더는 두지 않습니다.
-- Flutter 버전은 `app/pubspec.yaml`의 `environment`에 정확한 버전 `flutter: 3.47.0`으로 적습니다(범위 표기는 쓰지 않습니다. CI의 `subosito/flutter-action`이 `flutter-version-file`로 정확한 값을 읽습니다). `sdk` 제약은 `flutter create`가 쓴 값을 그대로 둡니다. 로컬의 `flutter --version`이 이 값과 같아야 하고, Flutter를 올릴 때는 이 줄을 고치는 `chore:` PR 하나로 팀 전체가 함께 올립니다. `functions/package.json`과 `extension/package.json`의 `engines.node`는 `"22"`입니다. `pubspec.lock`과 `package-lock.json`은 커밋합니다.
+- Flutter 버전은 `app/pubspec.yaml`의 `environment`에 정확한 버전 `flutter: 3.47.8`로 적습니다(범위 표기는 쓰지 않습니다. CI의 `subosito/flutter-action`이 `flutter-version-file`로 정확한 값을 읽습니다). `sdk` 제약은 `flutter create`가 쓴 값을 그대로 둡니다. 로컬의 `flutter --version`이 이 값과 같아야 하고, Flutter를 올릴 때는 이 줄을 고치는 `chore:` PR 하나로 팀 전체가 함께 올립니다. `functions/package.json`의 `engines.node`는 `"24"`입니다. `pubspec.lock`과 `package-lock.json`은 커밋합니다.
 - 앱 버전은 `app/pubspec.yaml`의 `version: X.Y.Z+N`입니다. R0는 `0.1.x`, R1은 `0.2.x`, R2는 `1.0.0`부터이고 `N`은 테스터에게 주는 빌드마다 1씩 올립니다. Remote Config의 `min_app_version`은 `X.Y.Z` 문자열이고 앱은 세 숫자를 앞에서부터 차례로 비교합니다(R1).
 - 줄 끝은 LF입니다. 레포 루트 `.gitattributes`에 `* text=auto eol=lf`와 `*.bat text eol=crlf`를 둡니다.
 
@@ -310,7 +310,7 @@ cnu-ai-assistant/
 
 ## 실행 방법
 
-준비물: Flutter 3.47.0(`app/pubspec.yaml`의 `environment.flutter`와 같은 버전), Android Studio(Android SDK), Node.js 22, Firebase CLI(`npm install -g firebase-tools`). iOS 빌드는 Mac과 Xcode가 있어야 합니다.
+준비물: Flutter 3.47.8(`app/pubspec.yaml`의 `environment.flutter`와 같은 버전), Android Studio(Android SDK), Node.js 24, Firebase CLI(`npm install -g firebase-tools`). iOS 빌드는 Mac과 Xcode가 있어야 합니다.
 
 처음 한 번: 팀 비공개 채널에서 Firebase 설정 파일 세 개를 받아 이 자리에 둡니다. 없으면 빌드가 되지 않습니다.
 

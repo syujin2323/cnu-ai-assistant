@@ -26,7 +26,6 @@ build/
 coverage/
 functions/lib/
 functions/src/schema/
-extension/dist/
 
 # 로그, Firebase CLI·에뮬레이터 로컬 산출물
 *.log
