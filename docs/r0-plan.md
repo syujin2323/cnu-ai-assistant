@@ -168,4 +168,3 @@
 
 - Flutter 3.47.8(`flutter --version`이 `app/pubspec.yaml`의 `environment.flutter`와 같아야 합니다), Node 24, Firebase CLI, GitHub CLI(`gh`).
 - 팀 비공개 채널에서 `app/lib/firebase_options.dart`, `app/android/app/google-services.json`, `app/ios/Runner/GoogleService-Info.plist`를 받아 넣습니다. 없으면 앱이 빌드되지 않습니다(`flutter test`는 Firebase 없이 돕니다).
-- 실제 파일을 받기 전에 화면만 볼 때는 같은 세 경로에 가짜 값 파일을 둡니다. 세 파일 모두 `.gitignore`에 있어 커밋되지 않고, 코드는 고치지 않습니다. `bootstrap.dart`가 App Check·Remote Config 실패를 로그만 남기고 넘어가므로 앱은 기본값으로 뜹니다(사캠 연결은 "설정을 받는 중이에요"로 막힙니다). 세 파일의 API 키·앱 ID·프로젝트 ID는 서로 같아야 하고(네이티브 자동 초기화와 Dart 초기화가 같은 앱이어야 합니다), API 키는 `AIza`로 시작하는 39자, 앱 ID는 `1:<숫자>:android:<16진수>` 모양이어야 Firebase SDK가 형식 오류를 내지 않습니다. 실제 파일을 받으면 덮어씁니다.
