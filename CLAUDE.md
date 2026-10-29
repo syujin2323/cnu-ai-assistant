@@ -62,7 +62,7 @@
 
 - 작업 브랜치는 develop으로 PR을 보낸다. 제목은 커밋과 같은 `종류: 설명` 형식이다. develop에는 squash로 병합되므로 PR 제목이 develop에 남는 커밋 제목이 된다.
 - 본문은 `.github/pull_request_template.md`의 틀대로 쓴다. `gh pr create`는 템플릿을 자동으로 넣지 않는다. 체크 칸은 사용자가 직접 확인하고 체크하도록 비워 둔다.
-- PR을 만들기 전에 바뀐 폴더의 확인 명령을 돌린다(`docs/architecture.md`의 '확인과 CI'와 같다). `app/`은 `dart format --output=none --set-exit-if-changed .`, `flutter analyze`, `flutter test`이고, `functions/`는 `npm run lint`, `npm test`다. 하나라도 실패하면 PR을 만들지 않고 사용자에게 알린다.
+- PR을 만들기 전에 바뀐 폴더의 확인 명령을 돌린다(`docs/architecture.md`의 '확인과 CI'와 같다). `app/`은 `dart format --output=none --set-exit-if-changed lib test`, `flutter analyze`, `flutter test`이고, `functions/`는 `npm run lint`, `npm test`다. 하나라도 실패하면 PR을 만들지 않고 사용자에게 알린다.
 - PR을 만들기 전에 브랜치 이름, 제목, 본문을 사용자에게 보여 주고 확인을 받는다. 리뷰어로 지정할 팀원 1명의 GitHub 아이디도 묻는다. 본문은 레포 안에 파일을 만들지 말고 표준 입력으로 넘긴다.
   ```bash
   git push -u origin feat/login-screen

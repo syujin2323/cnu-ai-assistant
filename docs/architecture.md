@@ -35,6 +35,7 @@ flowchart LR
 ## 앱 식별자와 버전
 
 - Dart 패키지 이름은 `cnu_ai_assistant`입니다(`app/pubspec.yaml`의 `name`, import는 `package:cnu_ai_assistant/...`). Android `applicationId`와 iOS bundle identifier는 둘 다 `io.github.syujin2323.cnuaiassistant`입니다. Firebase 앱 등록, App Check, iOS 기기 등록 배포가 이 값에 묶이므로 바꾸지 않습니다. 앱 표시 이름은 `일정 비서`(Android `android:label`, iOS `CFBundleDisplayName`)입니다. 임시 표시 이름입니다. 앱 이름이 정해지면 바꿉니다. 식별자는 앱 이름이 정해져도 바꾸지 않습니다. 앱 이름과 아이콘에 학교 이름과 로고를 쓰지 않습니다.
+- Android의 `namespace`와 `MainActivity` 패키지는 `flutter create` 템플릿 값 `io.github.syujin2323.cnu_ai_assistant` 그대로 두고, `applicationId`만 `io.github.syujin2323.cnuaiassistant`입니다.
 - 프로젝트는 `flutter create --org io.github.syujin2323 --project-name cnu_ai_assistant --platforms android,ios app`으로 만듭니다. web·desktop 폴더는 두지 않습니다.
 - Flutter 버전은 `app/pubspec.yaml`의 `environment`에 정확한 버전 `flutter: 3.47.8`로 적습니다(범위 표기는 쓰지 않습니다. CI의 `subosito/flutter-action`이 `flutter-version-file`로 정확한 값을 읽습니다). `sdk` 제약은 `flutter create`가 쓴 값을 그대로 둡니다. 로컬의 `flutter --version`이 이 값과 같아야 하고, Flutter를 올릴 때는 이 줄을 고치는 `chore:` PR 하나로 팀 전체가 함께 올립니다. `functions/package.json`의 `engines.node`는 `"24"`입니다. `pubspec.lock`과 `package-lock.json`은 커밋합니다.
 - 앱 버전은 `app/pubspec.yaml`의 `version: X.Y.Z+N`입니다. R0는 `0.1.x`, R1은 `0.2.x`, R2는 `1.0.0`부터이고 `N`은 테스터에게 주는 빌드마다 1씩 올립니다. Remote Config의 `min_app_version`은 `X.Y.Z` 문자열이고 앱은 세 숫자를 앞에서부터 차례로 비교합니다(R1).
@@ -52,7 +53,7 @@ cnu-ai-assistant/
 │   │   ├── features/         화면 단위 (onboarding, briefing, today, calendar, tasks, assistant, me, lms_connect; R1에 suggest). 대응표는 아래 '화면과 기능 폴더'
 │   │   ├── domain/           순수 Dart: 모델, 빈 시간 계산, 배치 엔진, 내 규칙(rules.dart)
 │   │   ├── data/             폰 DB(drift), 저장소, 서버 API 클라이언트
-│   │   ├── lms/              사캠(R0). lms_config.dart(Remote Config 읽기), lms_feature.dart(빌드 상수), response_classifier.dart(판별), parsers/(해석), sync_coordinator.dart(동기화·sync_lease), cookie_bridge.dart(플랫폼 채널), cookie_vault.dart(쿠키·비밀번호 보안 저장소), login_flow.dart(WebView 로그인 성공 감지·쿠키 수집·자동 재로그인), hidden_webview.dart(숨은 복원), lms_client.dart(dio·쿠키 주입), session_state.dart(상태 enum·전이), session_manager.dart(복원·재로그인), timetable.dart(통합정보시스템 시간표)
+│   │   ├── lms/              사캠(R0). lms_config.dart(Remote Config 읽기), lms_feature.dart(빌드 상수), response_classifier.dart(판별), parsers/(해석), sync_coordinator.dart(동기화·sync_lease), cookie_bridge.dart(플랫폼 채널), cookie_vault.dart(쿠키·비밀번호 보안 저장소), login_flow.dart(WebView 로그인 성공 감지·쿠키 수집·자동 재로그인), hidden_webview.dart(숨은 복원), lms_client.dart(dio·쿠키 주입), session_state.dart(상태 전이. 상태 enum `LmsSessionState`는 `settings`를 읽는 domain 모델이 쓰고 domain은 lms를 import하지 않으므로 `domain/models/lms_session_state.dart`에 둡니다), session_manager.dart(복원·재로그인), timetable.dart(통합정보시스템 시간표)
 │   │   └── platform/         notifications.dart(채널, 예약, 탭 처리, 알림 액션(R1)), background.dart(workmanager 진입점, R1), push.dart(FCM 백그라운드 처리, R1), 알림 감지 연결(R1)
 │   ├── test/                 domain·lms 단위 테스트, 화면 테스트
 │   ├── assets/fonts/         Pretendard 1.3.9 정적 OTF 네 개(Regular 400, Medium 500, SemiBold 600, Bold 700)와 OFL.txt
@@ -76,7 +77,7 @@ cnu-ai-assistant/
 
 ## 앱 코드 규약
 
-- 상태 관리는 `flutter_riverpod` 3만 씁니다. 코드 생성(`riverpod_annotation`·`riverpod_generator`)과 legacy provider(`StateProvider`, `StateNotifierProvider`, `ChangeNotifierProvider`)는 쓰지 않습니다. provider는 `Provider`(의존성·설정), `NotifierProvider`·`AsyncNotifierProvider`(화면 상태·동작), `StreamProvider`(drift `watch()` 결과) 셋뿐입니다. 화면은 `ConsumerWidget`이 `StreamProvider`로 DB를 보고, 동기화·AI 호출은 노티파이어가 뒤에서 하고 결과를 DB에 씁니다. `ProviderScope`는 `main.dart`의 루트 한 곳뿐이고, 테스트는 `overrides`로 `databaseProvider`·`motionLevelProvider`를 바꿉니다. 데모 모드는 `overrides`를 쓰지 않고 `databaseProvider`가 `appModeProvider`를 보고 파일을 고릅니다(아래 '데모 모드'). 앱 전역 provider(`databaseProvider`, `settingsProvider`, `appModeProvider`, `motionLevelProvider`, `apiProvider`)는 `app/lib/app/providers.dart`에, 기능별 provider는 그 기능 폴더의 `<화면>_controller.dart`에 둡니다.
+- 상태 관리는 `flutter_riverpod` 3만 씁니다. 코드 생성(`riverpod_annotation`·`riverpod_generator`)과 legacy provider(`StateProvider`, `StateNotifierProvider`, `ChangeNotifierProvider`)는 쓰지 않습니다. provider는 `Provider`(의존성·설정), `NotifierProvider`·`AsyncNotifierProvider`(화면 상태·동작), `StreamProvider`(drift `watch()` 결과) 셋뿐입니다. 화면은 `ConsumerWidget`이 `StreamProvider`로 DB를 보고, 동기화·AI 호출은 노티파이어가 뒤에서 하고 결과를 DB에 씁니다. 루트 provider scope는 `main.dart` 한 곳뿐이고, `bootstrap.dart`가 만든 `ProviderContainer`(`sharedPreferencesProvider`를 덮어쓰고 폰 DB를 열어 둔 것)를 `UncontrolledProviderScope`로 붙입니다. 테스트는 `ProviderScope`의 `overrides`로 `databaseProvider`·`motionLevelProvider`를 바꿉니다. 데모 모드는 `overrides`를 쓰지 않고 `databaseProvider`가 `appModeProvider`를 보고 파일을 고릅니다(아래 '데모 모드'). 앱 전역 provider(`databaseProvider`, `settingsProvider`, `appModeProvider`, `motionLevelProvider`, `apiProvider`)는 `app/lib/app/providers.dart`에, 기능별 provider는 그 기능 폴더의 `<화면>_controller.dart`에 둡니다.
 - 오류 처리: 저장소, API 클라이언트, `lms/`는 예외를 던지지 않고 sealed class `Result<T>`(`Ok(value)` / `Err(error)`)를 돌려줍니다. 오류 타입은 `ApiError(status, code)`, `LmsOutcome`(lms.md의 일곱 가지), `StorageError`이고 `domain/errors.dart`에 둡니다. `lms/` 안에서 `FormatException`(메시지에 원문 일부가 들어감)과 `DioException`(요청 주소가 들어감)을 잡아 `LmsOutcome`으로 바꾸고 밖으로 던지지 않습니다. 화면은 `Err`를 받으면 기존 데이터를 그대로 두고 상태 문구만 바꿉니다. 예외는 프로그래밍 오류에만 씁니다.
 - 시각 규칙: 앱의 모든 `DateTime`은 기기 로컬 시각(한국 시간)으로 만들고 UTC로 바꾸지 않습니다. '오늘'과 '이번 주'(월요일 시작)는 하루 경계 설정값을 반영한 `domain/clock.dart`의 함수로만 구하고, `DateTime.now()`는 그 파일 밖에서 부르지 않습니다. 날짜·시각·요일 표기와 조사 보정(을/를, 이/가, 은/는, 와/과, 으로/로, 이라/라, 이나/나, 이에요/예요)은 `domain/text/`의 함수만 씁니다. 날짜·시각 표시는 `intl`의 `ko_KR` 형식입니다.
 - 문구: 위젯 코드에 직접 쓰고 ARB 번역 파일과 `flutter gen-l10n`은 쓰지 않습니다. 두 화면 이상이 쓰는 문구만 `design/strings.dart`에 모읍니다. 말투는 차분한 존댓말("~해요")이고 숫자·시각을 먼저 말하며 못 한 일을 탓하지 않습니다.
@@ -89,7 +90,7 @@ cnu-ai-assistant/
 
 - 최소 지원은 iOS 15, Android 7.0(API 24)입니다. Flutter 3.47과 Firebase SDK의 최소값과 같으므로 내릴 수 없습니다.
 - Android: `minSdk 24`, `compileSdk`·`targetSdk 36`(Flutter 3.47 템플릿 값), Kotlin DSL(`build.gradle.kts`), Java 17. `AndroidManifest.xml`의 `<application>`에 `android:label="일정 비서"`, `android:enableOnBackInvokedCallback="true"`(예측 뒤로 가기), `android:allowBackup="false"`, `android:dataExtractionRules="@xml/data_extraction_rules"`(클라우드 백업과 기기 이전 모두 제외)를 둡니다. 권한은 `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`, `USE_EXACT_ALARM`(Android 13 이상, R0 APK), `SCHEDULE_EXACT_ALARM`(Android 12와 스토어가 `USE_EXACT_ALARM`을 인정하지 않을 때)입니다. `<application>`에는 flutter_local_notifications의 `ScheduledNotificationReceiver`와 `ScheduledNotificationBootReceiver`(`android:exported="false"`, `BOOT_COMPLETED`·`MY_PACKAGE_REPLACED`·`QUICKBOOT_POWERON` intent-filter)를 두고(없으면 예약 알림이 뜨지 않습니다), R1 알림 버튼에는 `ActionBroadcastReceiver`를 더합니다. `app/android/app/build.gradle.kts`에는 `isCoreLibraryDesugaringEnabled = true`와 `coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:<플러그인 README의 버전>")`을 둡니다.
-- iOS: 배포 대상 `15.0`, Swift, UIScene 생명주기(Flutter 3.41부터 기본, `FlutterSceneDelegate`). `AppDelegate`는 템플릿을 바탕으로 쓰고, 플러그인 등록은 `didInitializeImplicitFlutterEngine`에서 하며, workmanager의 BGTask 등록(R1)은 `didFinishLaunchingWithOptions`에서 합니다(앱 시작이 끝나기 전에 등록해야 합니다). 같은 곳에서 `WorkmanagerPlugin.setPluginRegistrantCallback { registry in GeneratedPluginRegistrant.register(with: registry) }`도 부릅니다(R1. 없으면 백그라운드 작업 엔진에서 Firebase·drift·보안 저장소를 부를 수 없습니다). (R1) 알림 버튼을 앱을 열지 않고 처리하려면 `didInitializeImplicitFlutterEngine`에서 `GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)` 앞에 `FlutterLocalNotificationsPlugin.setPluginRegistrantCallback { registry in GeneratedPluginRegistrant.register(with: registry) }`를 둡니다. 없으면 액션 isolate에서 플러그인을 부를 수 없습니다. Info.plist에 `BGTaskSchedulerPermittedIdentifiers`와 백그라운드 모드(fetch·processing·remote-notification)를 둡니다(R1). `CFBundleDisplayName`은 `일정 비서`(임시 표시 이름)입니다. 폰 DB 파일(R0)과 WebView 데이터 폴더(R0)에는 Swift에서 `isExcludedFromBackup`을 겁니다.
+- iOS: 배포 대상 `15.0`, Swift, UIScene 생명주기(Flutter 3.41부터 기본, `FlutterSceneDelegate`). `AppDelegate`는 템플릿을 바탕으로 쓰고, 플러그인 등록은 `didInitializeImplicitFlutterEngine`에서 하며, workmanager의 BGTask 등록(R1)은 `didFinishLaunchingWithOptions`에서 합니다(앱 시작이 끝나기 전에 등록해야 합니다). 같은 곳에서 `WorkmanagerPlugin.setPluginRegistrantCallback { registry in GeneratedPluginRegistrant.register(with: registry) }`도 부릅니다(R1. 없으면 백그라운드 작업 엔진에서 Firebase·drift·보안 저장소를 부를 수 없습니다). (R1) 알림 버튼을 앱을 열지 않고 처리하려면 `didInitializeImplicitFlutterEngine`에서 `GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)` 앞에 `FlutterLocalNotificationsPlugin.setPluginRegistrantCallback { registry in GeneratedPluginRegistrant.register(with: registry) }`를 둡니다. 없으면 액션 isolate에서 플러그인을 부를 수 없습니다. Info.plist에 `BGTaskSchedulerPermittedIdentifiers`와 백그라운드 모드(fetch·processing·remote-notification)를 둡니다(R1). `CFBundleDisplayName`은 `일정 비서`(임시 표시 이름)입니다. 폰 DB와 WebView 데이터는 백업에서 뺍니다(R0). `AppDelegate.swift`가 앱을 켤 때마다 폰 DB가 있는 Documents 폴더 전체와 WebView 데이터 폴더(`Library/WebKit`, `Library/Cookies`)에 폴더 단위로 `isExcludedFromBackup`을 겁니다. SQLite의 -wal·-shm 파일은 지워졌다 다시 생겨 파일에 건 속성이 사라지므로 폴더에 겁니다. 그래서 Documents에 두는 파일은 모두 백업에서 빠집니다.
 - 쿠키 브리지(Kotlin·Swift)는 R0 사캠 연결 PR에서 더합니다. 앱 뼈대 PR의 Kotlin·Swift는 백업 제외 설정과 템플릿뿐입니다.
 
 ## 화면 이동
@@ -98,6 +99,7 @@ cnu-ai-assistant/
 
 | 경로 | 화면 | 위치 |
 |---|---|---|
+| `/` | 없음. 시작 위치를 정하는 자리(`Routes.root`)이고 `redirect`가 곧바로 아래 규칙의 경로로 보냅니다 | 셸 밖 |
 | `/onboarding` | 온보딩 | 셸 밖 |
 | `/today` | 02 홈 | 오늘 탭 |
 | `/today/day/:date` | 09 일간 (`:date`는 `YYYY-MM-DD`) | 오늘 탭 |
@@ -113,7 +115,7 @@ cnu-ai-assistant/
 
 - 캘린더 탭은 R0부터 있습니다. R0에는 08 월간과 09 일간, R1에 주간 화면(캔버스에 없어 새로 디자인합니다)을 더합니다. 09 일간은 오늘 탭에서 날짜를 넘기거나 월간에서 날짜를 누르면 열립니다. 일간은 시간축에 수업·고정 일정·일정·블록(제안·확정)을 보여 주고, 블록을 누르면 근거 시트, 빈 시간을 누르면 일정이나 할 일 블록을 더합니다. 월간은 날짜마다 마감과 블록을 표시하고 날짜를 누르면 그날 일간으로 갑니다. 월간의 학사일정 표기는 R1입니다.
 - 블록 근거 시트, AI 동의, 07 알림 제안(R1), 사캠 연결·재연결 시트(앱 안 WebView 공식 로그인)는 라우트가 아니라 `showModalBottomSheet`로 띄웁니다. 새 화면은 이 표에 먼저 더합니다.
-- 시작 위치는 `redirect` 한 곳에서만 정합니다. 알림으로 켜졌으면 그 payload 경로, 온보딩을 끝내지 않았으면 `/onboarding`, 끝냈고 오늘(논리적 하루)의 브리핑을 아직 열지 않았으면 `/briefing`, 그 밖에는 `/today`입니다.
+- 시작 위치는 `redirect` 한 곳에서만 정합니다. 알림으로 켜졌으면 그 payload 경로, 온보딩을 끝내지 않았으면 `/onboarding`, 끝냈고 오늘(논리적 하루)의 브리핑을 아직 열지 않았으면 `/briefing`, 그 밖에는 `/today`입니다. `redirect`는 이 순서를 시작 위치 `/`에서만 따르고 다른 경로는 막지 않습니다. 그래서 온보딩 중에도 `/me/timetable`을 열 수 있고, payload로 연 화면이 온보딩에 덮이지 않습니다. 온보딩을 끝냈거나 데모 모드면 `/onboarding`으로 가는 이동만 `/briefing`이나 `/today`로 돌립니다.
 - 화면 전환은 `ThemeData.pageTransitionsTheme`에 iOS `CupertinoPageTransitionsBuilder`(왼쪽 끝 스와이프 뒤로), Android `PredictiveBackPageTransitionsBuilder`를 둡니다. 뒤로 가기 제어는 `PopScope`만 씁니다. 탭 전환에는 화면 전환 애니메이션을 쓰지 않고 탭바 모션만 씁니다.
 
 ## 화면과 기능 폴더
@@ -136,7 +138,7 @@ cnu-ai-assistant/
 
 ### 온보딩
 
-- 단계는 이 순서이고 모두 건너뛸 수 있습니다. 건너뛴 단계는 홈 위 카드로 남습니다.
+- 단계는 이 순서이고 모두 건너뛸 수 있습니다. 건너뛴 단계는 홈 위 카드로 남습니다. 1단계(소개)는 '시작하기'·'둘러보기'로 넘어가므로 '건너뛰기' 버튼이 없습니다.
   1. 두 약속 소개. 첫 화면이며 '시작하기'와 '둘러보기'(데모) 버튼, 화면 아래에 '충남대 비공식 앱 · 학교와 관계없는 학생 프로젝트'를 둡니다.
   2. 개인정보 한 장("로그인은 학교 공식 화면에서 하고, 자동 로그인을 켜면 비밀번호를 이 기기에만 저장해요. 서버로 보내지 않아요")
   3. 사캠 연결(앱 안 학교 공식 로그인 화면에서 직접 로그인합니다. '자동 로그인 유지'를 켜면 비밀번호를 기기 보안 저장소에 저장해 끊길 때 다시 로그인하고, 끄면 끊길 때마다 다시 로그인합니다. "로그인하면 PC·웹에서 보던 사캠이 풀릴 수 있어요"를 늘 보여 줍니다. 건너뛰면 할 일을 직접 입력합니다)
@@ -146,14 +148,14 @@ cnu-ai-assistant/
   7. 브리핑 시각과 알림 권한(브리핑 시각은 `notify` 규칙으로 저장합니다)
   8. 첫 브리핑 미리보기
 - 각 단계는 `features/onboarding/steps/` 아래 한 파일씩이고 `OnboardingScreen`이 `PageView`로 넘깁니다. 뼈대 PR에서는 1·2·7 단계의 틀과 나머지 단계의 빈 자리(제목과 '건너뛰기' 버튼)만 만듭니다.
-- 온보딩 완료 여부는 `shared_preferences`의 `onboarding_done` 키입니다. 보안 저장소에는 두지 않습니다(iOS Keychain 값은 앱을 지워도 남습니다). 건너뛴 단계 목록은 `settings`의 `onboardingSkipped`에 둡니다.
+- 온보딩 완료 여부는 `shared_preferences`의 `onboarding_done` 키입니다. 보안 저장소에는 두지 않습니다(iOS Keychain 값은 앱을 지워도 남습니다). 건너뛴 단계 목록은 `settings`의 `onboardingSkipped`에 단계 번호(1–8)의 배열로 둡니다.
 - '충남대 비공식 앱' 표시는 온보딩 첫 화면 아래, 나 탭 맨 위 앱 이름 옆, 사캠 연결·재연결 시트 세 곳입니다.
 
 ### 데모 모드
 
 실제 계정 없이 샘플 학생의 하루로 모든 R0 화면이 도는 모드입니다. 발표·심사·스크린샷에 씁니다.
 
-- 온보딩 첫 화면의 '둘러보기'로 들어가고, 화면 위에 '데모' 띠를 늘 보여 줍니다. 띠의 '끝내기'로 나오면 데모 DB를 지우고 들어온 곳(아래 `demo_entry`)으로 돌아갑니다.
+- 온보딩 첫 화면의 '둘러보기'로 들어가고, 화면 위에 '데모' 띠를 늘 보여 줍니다. 띠의 '끝내기'로 나오면 데모 DB의 모든 표를 비우고 들어온 곳(아래 `demo_entry`)으로 돌아갑니다. 데모 DB 파일은 지우지 않고, 열린 연결 그대로 한 트랜잭션 안에서 표를 비웁니다.
 - 앱 모드는 `AppMode { real, demo }`이고 `shared_preferences`의 `app_mode` 키에 둡니다. `appModeProvider`가 이 값을 읽고 `databaseProvider`는 모드에 따라 `app.sqlite`(real) 또는 `app_demo.sqlite`(demo)를 엽니다. 두 파일은 서로 읽지 않으므로 데이터가 섞이지 않습니다. 저장소 층 위로는 같은 코드가 돕니다.
 - `appModeProvider`가 `demo`면 `redirect`는 `onboarding_done`을 보지 않고 그날 브리핑을 아직 열지 않았으면 `/briefing`, 아니면 `/today`로 보냅니다. 데모에 들어갈 때 `platform/notifications.dart`가 예약된 알림을 모두 취소하고(`cancelAll`), 나갈 때 실제 DB로 다시 계산해 예약합니다. '끝내기'는 들어온 곳으로 돌아갑니다. 온보딩 첫 화면의 '둘러보기'로 들어왔으면(`onboarding_done` false) 온보딩 첫 화면으로, 나 탭의 '데모 모드 들어가기'(`features/me/`)로 들어왔으면 `/me`로 돌아갑니다. 들어온 곳은 `shared_preferences`의 `demo_entry`(`onboarding`/`me`)에 둡니다.
 - 샘플 데이터는 `app/lib/data/demo/demo_seed.dart`의 Dart 코드이고 JSON 파일은 두지 않습니다. 데모 DB를 처음 열 때 넣고, 날짜는 들어가는 날의 논리적 하루를 기준으로 상대적으로 만듭니다. 내용은 과목 4개, 시간표, 과제 4개·영상 2개·퀴즈 1개, 고정 일정 2개(점심·알바), 개인 일정 2개, 제안·확정 블록, 내 규칙 1개(이동 시간 `travel`), 오늘 브리핑 1개(템플릿 문장)입니다.
@@ -161,7 +163,7 @@ cnu-ai-assistant/
 
 ## 디자인 토큰
 
-이 절의 값은 임시 결정입니다. 정해진 디자인이 아니라 캔버스 v3에서 뽑은 작업용 값이며, 디자인이 확정되면 이 표와 `tokens.dart`를 함께 바꿉니다. 확정 전까지는 이 표를 코드의 원본으로 씁니다. 토큰은 `app/lib/design/tokens.dart`에 `AppColors`, `AppText`, `AppSpace`, `AppRadius` 상수로 두고, 화면 코드는 값을 직접 쓰지 않고 토큰만 씁니다. 테마는 `app/lib/app/theme.dart`에서 `ThemeData`에 토큰을 입힌 것 하나이고, R0는 밝은 테마만 있어 `themeMode: ThemeMode.light`로 고정합니다. 다크 토큰은 R1에 더합니다. 값을 바꾸면 이 절도 같은 PR에서 고칩니다.
+이 절의 값은 임시 결정입니다. 정해진 디자인이 아니라 캔버스 v3에서 뽑은 작업용 값이며, 디자인이 확정되면 이 표와 `tokens.dart`를 함께 바꿉니다. 확정 전까지는 이 표를 코드의 원본으로 씁니다. 토큰은 `app/lib/design/tokens.dart`에 `AppColors`, `AppText`, `AppSpace`, `AppRadius`, `AppSize`(크기), `AppGlass`(하단 탭바 유리) 상수로 두고, 화면 코드는 값을 직접 쓰지 않고 토큰만 씁니다. 테마는 `app/lib/app/theme.dart`에서 `ThemeData`에 토큰을 입힌 것 하나이고, R0는 밝은 테마만 있어 `themeMode: ThemeMode.light`로 고정합니다. 다크 토큰은 R1에 더합니다. 값을 바꾸면 이 절도 같은 PR에서 고칩니다.
 
 | 토큰 | 값 | 쓰는 곳 |
 |---|---|---|
@@ -186,7 +188,7 @@ cnu-ai-assistant/
 - 종류별 색은 늘 아이콘이나 글자와 함께 씁니다. 색만으로 구분하지 않습니다. 제안 블록은 종류 색에 점선 테두리, 확정 블록은 실선 테두리로 구분합니다(임시).
 - 글자(Pretendard): `caption` 12 · `small` 13 · `body` 15 · `bodyLarge` 17 · `title` 20 · `heading` 24 · `display` 30 · `hero` 40. 무게는 제목(`title` 이상) 600, 본문 400, 강조 500입니다. 제목 자간은 `hero` −1.6px, `display`·`heading`·`title` −0.6px, `bodyLarge` −0.3px이고 글자 그림자는 쓰지 않습니다. 시스템 글자 크기 200%에서도 줄이 깨지지 않게 글자 영역에 고정 높이를 쓰지 않습니다.
 - 간격은 4pt 격자. `AppSpace`는 4 · 8 · 12 · 16 · 20 · 24 · 32이고, 화면 좌우 여백은 20, 카드 안 여백은 16입니다.
-- 모서리: 카드 24 · 작은 카드 18 · 칩·입력 14 · 시트 32 · 알약 999. 누를 수 있는 것은 48×48pt 이상입니다. 앱은 `MediaQuery`의 `textScaler`를 덮어쓰거나 깎지 않습니다. 글자 없는 버튼·아이콘·칩에는 `tooltip`이나 `Semantics(label:)`을 답니다. 화면 테스트는 `MediaQuery(data: MediaQueryData(textScaler: TextScaler.linear(2.0)))` 안에서도 한 번 더 돌려 넘침(RenderFlex overflow) 예외가 없어야 통과입니다. 하단 탭바는 흰색 32%에 blur 18px입니다.
+- 모서리: 카드 24 · 작은 카드 18 · 칩·입력 14 · 시트 32 · 알약 999. 누를 수 있는 것은 48×48pt 이상입니다(`AppSize.minTouch`). 크기 토큰 `AppSize`는 누를 수 있는 것의 최소 한 변 48, 아이콘 기본 24(캔버스 SVG의 viewBox), 하단 탭바 아이콘 20입니다. 앱은 `MediaQuery`의 `textScaler`를 덮어쓰거나 깎지 않습니다. 글자 없는 버튼·아이콘·칩에는 `tooltip`이나 `Semantics(label:)`을 답니다. 화면 테스트는 `MediaQuery(data: MediaQueryData(textScaler: TextScaler.linear(2.0)))` 안에서도 한 번 더 돌려 넘침(RenderFlex overflow) 예외가 없어야 통과입니다. 하단 탭바는 흰색 32%에 blur 18px입니다(`AppGlass.fill`, `AppGlass.blur`. blur는 CSS `blur(18px)`의 표준편차와 같은 시그마).
 
 ### 모션 프리셋
 
@@ -211,7 +213,7 @@ cnu-ai-assistant/
 | `stagger.word` | 단어당 26ms 간격, 단어당 700ms blur-in (R1) |
 
 - 프리셋 위젯은 `design/motion/`의 `Press`, `Rise`, `Pop`, `NavDrop`(R0), `WordIn`, `Sheet`(R1)이고 `AnimationController`와 `CurvedAnimation`으로 만듭니다.
-- 모션 등급은 `MotionLevel { full, light, off }`이고 `motionLevelProvider`로 읽습니다. `MediaQuery.disableAnimationsOf(context)`가 true면 `off`, Android는 `device_info_plus`의 `AndroidDeviceInfo.version.sdkInt`가 29 미만(Android 10 미만)이면 `light`, 그 밖에는 `full`입니다. `settings`의 `motionLevel`이 `auto`가 아니면 그 값이 우선합니다. `light`는 blur를 빼고 stagger 간격을 절반으로 줄이며, `off`는 모든 시간을 0으로 둡니다. `light`·`off`와 OS 투명도 줄이기에서는 탭바를 유리 대신 흰 배경으로 그립니다. 판정 기준은 이 값 하나뿐이고 RAM·Vulkan·프레임 측정은 보지 않습니다.
+- 모션 등급은 `MotionLevel { full, light, off }`이고 `motionLevelProvider`로 읽습니다. OS가 애니메이션을 끄라고 하면(iOS '동작 줄이기', Android '애니메이션 삭제') `off`입니다. provider에는 `BuildContext`가 없으므로 `MediaQuery.disableAnimationsOf(context)` 대신 그 값의 원천인 `PlatformDispatcher.accessibilityFeatures.disableAnimations`를 읽고, 설정이 바뀌면(`didChangeAccessibilityFeatures`) 다시 계산합니다. 그렇지 않으면 Android는 `device_info_plus`의 `AndroidDeviceInfo.version.sdkInt`가 29 미만(Android 10 미만)이면 `light`, 그 밖에는 `full`입니다. `settings`의 `motionLevel`이 `auto`가 아니면 그 값이 우선합니다. `light`는 blur를 빼고 stagger 간격을 절반으로 줄이며, `off`는 모든 시간을 0으로 둡니다. `light`·`off`와 OS 투명도 줄이기에서는 탭바를 유리 대신 흰 배경으로 그립니다. 판정 기준은 이 값 하나뿐이고 RAM·Vulkan·프레임 측정은 보지 않습니다.
 - 유리(blur) 효과는 하단 탭바 한 곳뿐이고 로그인 WebView 화면에서는 쓰지 않습니다. 첫 의미 있는 내용은 300ms 안에 보이고, 등장 중에도 누를 수 있어야 하며, 한 화면 전체 등장은 1.6초를 넘지 않습니다.
 
 ## 폰 DB (drift)
@@ -219,11 +221,11 @@ cnu-ai-assistant/
 - 파일은 앱 문서 폴더의 `app.sqlite`(데모는 `app_demo.sqlite`)이고 `drift_flutter`의 `driftDatabase(name: 'app')`로 엽니다. 테이블 정의는 `app/lib/data/db/tables.dart`, 데이터베이스 클래스는 `app/lib/data/db/database.dart`(`AppDatabase`), 저장소는 `app/lib/data/repositories/`입니다. 화면 쪽 인스턴스는 `databaseProvider` 하나로만 만듭니다.
 - 생성 파일(`*.g.dart`)은 커밋합니다. 테이블이나 drift 쿼리를 바꾸면 `dart run build_runner build -d`를 돌려 생성 파일을 같은 PR에 넣습니다. 생성 파일이 충돌하면 손으로 고치지 않고 다시 생성합니다.
 - R0 첫 테스트 배포 전까지 `schemaVersion`은 1이고, 테이블이 바뀌면 개발 기기의 앱을 지우고 다시 설치합니다. 첫 배포 뒤부터는 테이블을 바꿀 때 `schemaVersion`을 1 올리고 `MigrationStrategy.onUpgrade`에 그 버전으로 올리는 단계를 더합니다. 지난 단계는 고치지 않습니다.
-- 공통 규칙: 기본 키는 `id`(`IntColumn autoIncrement`). 시각은 `DateTimeColumn`이고 `app/build.yaml`에 `store_date_time_values_as_text: true`를 켜 ISO 8601 문자열로 저장합니다(로컬 값은 `+09:00` 오프셋이 붙어 저장되고 읽을 때 로컬로 돌아옵니다). 날짜만 있는 값은 `TextColumn` `YYYY-MM-DD`, 하루 안의 시각(시간표·고정 일정)은 자정 기준 분 `IntColumn`입니다(09:30 → 570). `startMin`은 0–1439이고 `weekday`·`weekdays`는 블록이 시작하는 달력일의 요일입니다. 블록이 자정을 넘으면 `endMin`에 1440을 더해 한 행으로 적습니다(22:00–02:00 → 1320–1560). 따라서 `endMin > startMin`이 늘 성립하고 저장값은 하루 경계 설정과 무관합니다. 블록이 어느 논리적 하루에 속하는지는 `domain/clock.dart`만 계산합니다(하루 경계 전에 시작하는 새벽 블록은 전날의 논리적 하루). 요일은 `IntColumn` 1(월)–7(일), 불리언은 `BoolColumn`, 열거형은 Dart enum 이름(camelCase)과 snake_case 문자열을 오가는 공용 `TypeConverter`(`app/lib/data/db/enum_converter.dart`)를 건 `TextColumn`(값은 아래 영문 snake_case), 구조가 있는 값은 `TextColumn`에 JSON 문자열입니다. `?`는 null 허용이고 빠진 값은 0이 아니라 null로 둡니다. 테이블 이름은 snake_case 복수형, 열 이름은 camelCase getter(생성 열 이름은 snake_case)입니다. 테이블이나 열을 바꾸면 같은 PR에서 이 표도 고칩니다.
+- 공통 규칙: 기본 키는 `id`(`IntColumn autoIncrement`). 시각은 `DateTimeColumn`이고 `app/build.yaml`에 `store_date_time_values_as_text: true`를 켜 ISO 8601 문자열로 저장합니다(로컬 값은 `+09:00` 오프셋이 붙어 저장되고 읽을 때 로컬로 돌아옵니다). 날짜만 있는 값은 `TextColumn` `YYYY-MM-DD`, 하루 안의 시각(시간표·고정 일정)은 자정 기준 분 `IntColumn`입니다(09:30 → 570). `startMin`은 0–1439이고 `weekday`·`weekdays`는 블록이 시작하는 달력일의 요일입니다. 블록이 자정을 넘으면 `endMin`에 1440을 더해 한 행으로 적습니다(22:00–02:00 → 1320–1560). 따라서 `endMin > startMin`이 늘 성립하고 저장값은 하루 경계 설정과 무관합니다. 블록이 어느 논리적 하루에 속하는지는 `domain/clock.dart`만 계산합니다(하루 경계 전에 시작하는 새벽 블록은 전날의 논리적 하루). 요일은 `IntColumn` 1(월)–7(일), 불리언은 `BoolColumn`, 열거형은 Dart enum 이름(camelCase)과 snake_case 문자열을 오가는 공용 `TypeConverter`(`app/lib/data/db/enum_converter.dart`)를 건 `TextColumn`(값은 아래 영문 snake_case), 구조가 있는 값은 `TextColumn`에 JSON 문자열입니다. `?`는 null 허용이고 빠진 값은 0이 아니라 null로 둡니다. 테이블 이름은 snake_case 복수형, 열 이름은 camelCase getter(생성 열 이름은 snake_case)입니다. drift `Table`의 멤버와 이름이 겹치는 두 열은 Dart getter 이름만 바꾸고 SQL 열 이름은 표대로 둡니다. `briefings.text`의 getter는 `body`(`Table.text()`와 겹침)이고, `undo_log.tableName`의 getter는 `targetTable`(SQL 열 `table_name`, `Table.tableName`과 겹침)입니다. 테이블이나 열을 바꾸면 같은 PR에서 이 표도 고칩니다.
 
 | 테이블 | 컬럼 | 단계 |
 |---|---|---|
-| `courses` | id, remoteId?(사캠 과목 ID), semester?(사캠 과목 목록 응답의 학기 값 그대로. 직접 만든 과목은 null), name, alias?, color?, lastSeenAt? | R0 |
+| `courses` | id, remoteId?(사캠 과목 ID), semester?(사캠 과목 목록 응답의 학기 값 그대로. 직접 만든 과목은 null), name, alias?, color?(ARGB 32비트 정수), lastSeenAt? | R0 |
 | `class_slots` | id, courseId→courses, weekday, startMin, endMin, place?, campus(`daedeok`/`boun`), online(실시간 비대면이면 버퍼 0), repeatRule?(JSON, R1), source(`manual`/`auto`) | R0 |
 | `class_exceptions` | id, date, classSlotId→class_slots, kind(`cancelled`/`makeup`/`exam`/`place_change`), place?, source(`manual`/`ai`) | R0 |
 | `fixed_blocks` | id, name, weekdays(JSON 배열, 1–7), startMin, endMin, bufferMin, kind(`meal`/`work`/`exercise`/`commute`/`other`), prep?(준비물. `exercise`의 기본값은 '운동복'), source(`manual`/`ai`) | R0 |
@@ -242,7 +244,7 @@ cnu-ai-assistant/
 | `suggestions`, `public_calendar` | R1에 더합니다. 뼈대에서 만들지 않습니다 | R1 |
 
 - 학기 값의 형식은 사캠 응답을 따르고 코드에 적지 않습니다. 동기화가 받은 과목 가운데 학기 값이 가장 최근(정렬했을 때 가장 큰)인 과목과 `name`이 같고 `remoteId`가 null인 행이 있으면 그 행에 `remoteId`와 `semester`를 채워 합치고, 없으면 새 행을 만듭니다. 시간표·빈 시간 계산은 `class_slots`가 있는 과목을 학기와 무관하게 쓰고, `/v1/parse`의 `courses`와 과목 고르기 화면은 `remoteId`가 null이거나 학기 값이 가장 최근인 과목만 씁니다. 학기별로 나누어 보여 주는 것은 R2입니다.
-- 아래 기본값 가운데 하루 경계 값 `dayBoundaryMin`은 팀이 정한 값이 아니라 임시값이며 사용자 테스트 뒤 정합니다. `settings` 키와 기본값: `dayBoundaryMin` 240, `aiEnabled` false, `aiConsentAt` null, `metricsEnabled` false(R1), `metricsLastSentOn` null(R1, 마지막으로 지표를 보낸 날짜), `lmsMode` `none`(R0는 `none`/`phone`), `lmsSessionState` `disconnected`([lms.md](lms.md) '세션 상태'), `lmsAutoLogin` false(자동 로그인 유지. 켜면 비밀번호를 보안 저장소에 저장해 세션이 끊길 때 다시 로그인하고, 끄면 저장하지 않고 끊길 때마다 로그인 화면을 띄움), `lmsLastSuccessAt` null(화면의 '마지막 확인 시각'. `normal`·`empty`·`partial`로 끝난 동기화의 시작 시각. 지금 값보다 늦을 때만 바꿉니다), `lmsLastConnectedAt` null(마지막으로 `connecting`에서 `active`가 된 시각. 지표의 '마지막 사캠 재연결 뒤 지난 날 수'에 씁니다), `checkinMin` null(R1, null이면 `domain/defaults.dart`의 저녁 체크인 시각), `dueTodayTimeSensitive` false(R1), `motionLevel` `auto`, `onboardingSkipped` [], `installedAt` null(첫 실행 때 보안 저장소를 비운 뒤 적는 설치 표식, lms.md). 하루 창·브리핑 시각·수업 버퍼·식사·알림 하루 상한·조용한 시간은 `settings`에 두지 않습니다. 이 값들의 기본값은 `domain/defaults.dart`(임시값)에 있고, 사용자가 바꾼 값은 `rules`에 둡니다(아래 '내 규칙'). 키를 더하면 이 목록에 적습니다.
+- 아래 기본값 가운데 하루 경계 값 `dayBoundaryMin`은 팀이 정한 값이 아니라 임시값이며 사용자 테스트 뒤 정합니다. `settings` 키와 기본값: `dayBoundaryMin` 240, `aiEnabled` false, `aiConsentAt` null, `metricsEnabled` false(R1), `metricsLastSentOn` null(R1, 마지막으로 지표를 보낸 날짜), `lmsMode` `none`(R0는 `none`/`phone`), `lmsSessionState` `disconnected`([lms.md](lms.md) '세션 상태'), `lmsAutoLogin` false(자동 로그인 유지. 켜면 비밀번호를 보안 저장소에 저장해 세션이 끊길 때 다시 로그인하고, 끄면 저장하지 않고 끊길 때마다 로그인 화면을 띄움), `lmsLastSuccessAt` null(화면의 '마지막 확인 시각'. `normal`·`empty`·`partial`로 끝난 동기화의 시작 시각. 지금 값보다 늦을 때만 바꿉니다), `lmsLastConnectedAt` null(마지막으로 `connecting`에서 `active`가 된 시각. 지표의 '마지막 사캠 재연결 뒤 지난 날 수'에 씁니다), `checkinMin` null(R1, null이면 `domain/defaults.dart`의 저녁 체크인 시각), `dueTodayTimeSensitive` false(R1), `motionLevel` `auto`, `onboardingSkipped` [], `installedAt` null(첫 실행 때 보안 저장소를 비운 뒤 적는 설치 표식, lms.md). `value`의 JSON 형식은 시각이면 `DateTimeColumn`과 같은 문자열(로컬 시각에 UTC 오프셋), 날짜만 있는 값(`metricsLastSentOn`)이면 `YYYY-MM-DD` 문자열, 열거형이면 snake_case 문자열, `onboardingSkipped`면 건너뛴 온보딩 단계 번호(1–8)의 배열입니다. 하루 창·브리핑 시각·수업 버퍼·식사·알림 하루 상한·조용한 시간은 `settings`에 두지 않습니다. 이 값들의 기본값은 `domain/defaults.dart`(임시값)에 있고, 사용자가 바꾼 값은 `rules`에 둡니다(아래 '내 규칙'). 키를 더하면 이 목록에 적습니다.
 - `sync_runs`·`lms_item_changes`·`briefings`·`notification_events`(R1)는 90일이 지난 행을 앱 시작 때 지웁니다. `plan_blocks`의 `dismissed` 행은 그 논리적 하루가 끝나면 지웁니다. 나머지 테이블은 로그아웃·데이터 삭제 때만 지웁니다.
 - 되돌리기는 한 방식뿐입니다. 사용자나 앱이 `events`·`tasks`·`fixed_blocks`·`plan_blocks`·`class_exceptions`·`rules`를 추가·수정·삭제·완료·확정·옮김할 때마다 저장소 층(`data/repositories/`)이 직전 상태를 `undo_log` 한 행으로 덮어쓰고, 화면은 10초 동안 스낵바 '되돌리기'를 보여 줍니다. 여러 행을 한 번에 바꾸는 동작('모두 확정', 이전 규칙을 끄는 규칙 저장)은 `rowId`를 null로 두고 `beforeJson`에 바뀐 행들의 직전 상태 배열을 담아 한 번에 되돌립니다. 저장소의 `undoLast()`는 마지막 동작 하나만 되살리고, 10초가 지나거나 다음 동작이 오면 기록을 버립니다. 동기화가 바꾼 `lms_items`와 `tasks`의 복사 열은 되돌리기 대상이 아닙니다.
 - 동기화는 `lms_items`, `lms_item_changes`, `courses`, `sync_runs`, `sync_lease`, `settings`의 `lms*` 키와 `tasks`의 아래 네 열만 씁니다. 사캠 항목을 할 일로 만드는 규칙: 동기화가 끝날 때마다 마지막 단계에서 `domain/lms_to_task.dart`의 순수 함수 `tasksFromLmsItems`를 불러, `kind`가 `material`이 아닌 `lms_items`마다 `lmsKey`가 같은 `tasks` 행(`hidden` 포함)이 없을 때만 한 행을 만들고(`status` `todo`), 있으면 `title`·`kind`·`dueAt`·`dueTimeUnknown`만 원본에서 다시 복사합니다. `estimateMin`·`spentMin`·`status`는 사용자 값이라 동기화가 바꾸지 않습니다. 사용자가 사캠 할 일을 지우면 행을 지우지 않고 `status`를 `hidden`으로 둡니다. 영상 길이·진도·공식 완료·제출·공개일·사라짐은 복사하지 않고 화면과 배치 엔진이 `lmsKey`로 `lms_items`를 함께 읽습니다. 설치 토큰, 저장된 비밀번호(자동 로그인), 쿠키는 이 DB가 아니라 보안 저장소(`flutter_secure_storage`, iOS 접근 수준 `first_unlock_this_device`)에 둡니다.
@@ -345,10 +347,10 @@ npm run serve
 
 ## 확인과 CI
 
-- 린트는 `flutter_lints` 6의 기본 규칙 그대로입니다(`app/analysis_options.yaml`: `include: package:flutter_lints/flutter.yaml`). 규칙을 더하거나 끄면 decisions.md에 적습니다. Functions는 `typescript-eslint` recommended와 Prettier 기본값입니다. 코드는 `dart format`·Prettier로 맞춘 뒤 커밋합니다.
-- 확인 명령은 `app/`에서 `dart format --output=none --set-exit-if-changed .`, `flutter analyze`(경고 0), `flutter test`이고, `functions/`에서 `npm run lint`, `npm test`입니다. PR 전에 로컬에서 통과시킵니다.
+- 린트는 `flutter_lints` 6의 기본 규칙 그대로입니다(`app/analysis_options.yaml`: `include: package:flutter_lints/flutter.yaml`). 같은 파일의 `analyzer.exclude`(`build/**`, `android/**`, `ios/**`)는 Flutter 3.47.8 도구가 `flutter pub get` 때마다 다시 써 넣으므로 지우지 않고 둡니다. 규칙을 더하거나 끄면 decisions.md에 적습니다. Functions는 `typescript-eslint` recommended와 Prettier 기본값입니다. 코드는 `dart format`·Prettier로 맞춘 뒤 커밋합니다.
+- 확인 명령은 `app/`에서 `dart format --output=none --set-exit-if-changed lib test`, `flutter analyze`(경고 0), `flutter test`이고, `functions/`에서 `npm run lint`, `npm test`입니다. PR 전에 로컬에서 통과시킵니다. `dart format`의 대상을 `.`이 아니라 `lib test`로 두는 것은 macOS의 `flutter pub get`이 `app/build/ios/SourcePackages`에 만드는 패키지 사본까지 `.`에 잡혀 검사가 늘 실패하기 때문입니다.
 - `test/`는 `lib/`와 같은 경로를 따르고 파일 이름은 `<원본>_test.dart`입니다(`lib/domain/free_slots.dart` → `test/domain/free_slots_test.dart`). `domain/`·`lms/` 코드는 단위 테스트를 같은 PR에 넣고, 사캠 응답 판별 테스트는 합성 샘플만 씁니다. 화면 테스트는 `motionLevelProvider`를 `off`로 덮어쓴 `ProviderScope` 안에서 돌립니다. 글자 배율 2.0에서도 돌립니다. 뼈대 PR에는 앱이 뜨고 네 탭이 보이는 화면 테스트 하나와 `settings` 기본값 테스트 하나를 넣습니다. Functions 테스트는 `vitest`, 파일은 `*.test.ts`이고 네트워크 없이 제공사 어댑터를 가짜로 바꿔 돌립니다.
-- CI는 GitHub Actions입니다. `pr-check`(`pr-rules` 잡)는 그대로 두고, 같은 워크플로에 쿠키 헤더와 토큰 모양(JWT 등)을 찾는 `leak-check` 잡을 더합니다. 사캠 쿠키 이름은 워크플로 파일에 적지 않고 Actions 비밀값 `LMS_COOKIE_NAMES`로 둡니다. `app/**`가 바뀐 PR에서는 `.github/workflows/app-check.yml`이 `subosito/flutter-action`(`flutter-version-file: app/pubspec.yaml`, `cache: true`)으로 Flutter를 받은 뒤 위 세 명령을 돌립니다. `flutter build`는 하지 않습니다. CI용 `app/lib/firebase_options.dart`는 Actions 비밀값 `FIREBASE_OPTIONS_DART`의 내용을 파일로 쓰는 단계 하나로 만들고, `google-services.json`·`GoogleService-Info.plist`는 CI에 두지 않습니다. `functions/**`가 바뀐 PR에서는 `functions-check.yml`이 `npm ci`, `npm run lint`, `npm test`를 돌립니다. 이 두 워크플로는 아직 없고, `app/`·`functions/` 코드를 처음 넣는 PR에서 각각 더합니다. 지금 레포의 워크플로는 `pr-check.yml`(`pr-rules`, `leak-check`)뿐입니다.
+- CI는 GitHub Actions입니다. `pr-check`(`pr-rules` 잡)는 그대로 두고, 같은 워크플로에 쿠키 헤더와 토큰 모양(JWT 등)을 찾는 `leak-check` 잡을 더합니다. 사캠 쿠키 이름은 워크플로 파일에 적지 않고 Actions 비밀값 `LMS_COOKIE_NAMES`로 둡니다. `app/**`가 바뀐 PR에서는 `.github/workflows/app-check.yml`이 `subosito/flutter-action`(`flutter-version-file: app/pubspec.yaml`, `cache: true`. 비밀값을 파일로 쓰는 잡이라 태그 대신 릴리스 커밋 SHA로 고정합니다)으로 Flutter를 받고, 커밋한 `pubspec.lock` 그대로 패키지를 받은 뒤(`flutter pub get --enforce-lockfile`. `pubspec.yaml`과 맞지 않으면 실패합니다) 위 세 명령을 돌립니다. `flutter build`는 하지 않습니다. CI용 `app/lib/firebase_options.dart`는 Actions 비밀값 `FIREBASE_OPTIONS_DART`의 내용을 파일로 쓰는 단계 하나로 만들고, `google-services.json`·`GoogleService-Info.plist`는 CI에 두지 않습니다. `functions/**`가 바뀐 PR에서는 `functions-check.yml`이 `npm ci`, `npm run lint`, `npm test`를 돌립니다. `app-check.yml`은 앱 뼈대 PR에서 더했고, `functions-check.yml`은 아직 없어 `functions/` 코드를 처음 넣는 PR에서 더합니다. 지금 레포의 워크플로는 `pr-check.yml`(`pr-rules`, `leak-check`)과 `app-check.yml`입니다.
 
 ## 테스트 배포
 
@@ -492,7 +494,7 @@ AI 경로(`/v1/parse`, `/v1/briefing`, `/v1/extract`)는 `settings`의 `aiEnable
 
 - Functions 설정값과 비밀값은 `functions/src/params.ts`에서 `firebase-functions/params`의 `defineInt`·`defineString`(기본값 포함, 예: `defineInt("AI_DAILY_LIMIT_PER_INSTALL", { default: 30 })`)과 `defineSecret("LLM_API_KEY")`로 선언하고 `process.env`와 제거된 `functions.config()`는 쓰지 않습니다. 비밀값은 쓰는 함수의 `secrets` 옵션에 묶고 `firebase functions:secrets:set <이름>`으로 Secret Manager에 넣습니다. 모든 값은 핸들러 안에서 `.value()`로 읽고 모듈 최상위에서는 읽지 않습니다(배포가 실패합니다). 설정값의 원본은 코드의 기본값이고 바꿀 때는 기본값을 고치는 PR로 합니다. 다른 값을 잠깐 쓸 때만 `functions/.env`(커밋하지 않음)에 적고, 이름과 기본값은 `functions/.env.example`에 적습니다.
 - 로컬 에뮬레이터용 비밀값은 `functions/.secret.local`의 `이름=값` 줄로 두고 커밋하지 않습니다.
-- Firebase 설정 파일(`firebase_options.dart`, `google-services.json`, `GoogleService-Info.plist`)은 커밋하지 않습니다. 팀 비공개 채널에서 받아 '실행 방법'의 자리에 넣고, CI는 GitHub Actions 비밀값 `FIREBASE_OPTIONS_DART`로 `firebase_options.dart`만 만듭니다.
+- Firebase 설정 파일(`firebase_options.dart`, `google-services.json`, `GoogleService-Info.plist`)은 커밋하지 않습니다. 팀 비공개 채널에서 받아 '실행 방법'의 자리에 넣고, CI는 GitHub Actions 비밀값 `FIREBASE_OPTIONS_DART`로 `firebase_options.dart`만 만듭니다. `flutterfire configure`를 돌리면 생기는 `app/firebase.json`(프로젝트 ID·앱 ID 기록)도 `.gitignore`에 넣어 커밋하지 않습니다. 레포 루트의 `firebase.json`(에뮬레이터 설정)은 커밋합니다.
 - 앱 안에는 LLM 키를 두지 않습니다.
 - Remote Config 앱 기본값은 `app/lib/data/remote_config.dart`에서 `setDefaults`로 넣습니다. `lms_enabled=true`, `lms_sync_budget`은 아래 기본값 JSON, `min_app_version="0.0.0"`, `lms_request_params`·`lms_login_success_pattern`은 빈 문자열입니다. 요청 상수가 비어 있는 동안에는 사캠 연결 버튼을 비활성으로 두고 "설정을 받는 중이에요"를 보여 줍니다. `minimumFetchInterval`은 15분입니다(기본 12시간이면 다음 실행 때도 옛 값이 남습니다). `fetchTimeout`은 5초입니다(기본 1분).
 - `lms_request_params`는 JSON 문자열이고 여기에는 구조만 적습니다. 값은 Remote Config 콘솔에만 있고 레포 어디에도 적지 않습니다. 읽는 코드는 `app/lib/lms/lms_config.dart` 하나입니다.
