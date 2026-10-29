@@ -166,7 +166,7 @@ void main() {
       expect(
         issues(
           RuleKind.notify,
-          const RuleParams(notifyCap: RuleLimits.notifyCap.high + 1),
+          RuleParams(notifyCap: RuleLimits.notifyCap.high + 1),
         ),
         [issue('notifyCap', RuleIssueKind.outOfRange)],
       );
