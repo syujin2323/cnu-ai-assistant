@@ -43,6 +43,12 @@ void main() {
   }
 
   // 기본값(임시값)이 바뀌어도 기대값이 그대로이도록 하루 창 09:00–18:00, 수업 여유 10분을 규칙으로 둔다.
+  // 식사 보호는 '식사 보호' 묶음에서만 보도록, 기본 점심을 0분으로 바꾼 규칙도 둔다([free]의 meals).
+  final noLunch = rule(
+    RuleKind.meal,
+    const RuleParams(startMin: 690, endMin: 810, minutes: 0),
+    id: 3,
+  );
   final baseRules = [
     rule(
       RuleKind.workWindow,
@@ -56,10 +62,11 @@ void main() {
     Schedule schedule, {
     List<Rule> rules = const [],
     int day = monday,
+    bool meals = false,
   }) => freeSlots(
     DateTime(2026, 10, day),
     schedule: schedule,
-    config: PlannerConfig.from([...baseRules, ...rules]),
+    config: PlannerConfig.from([...baseRules, if (!meals) noLunch, ...rules]),
     dayBoundaryMin: Defaults.dayBoundaryMin,
   );
 
@@ -115,17 +122,23 @@ void main() {
         source: BlockSource.auto,
       );
 
-  test('일정이 없으면 기본 하루 창 전체가 빈 시간이다', () {
+  test('일정이 없으면 기본 하루 창에서 기본 식사 시간만 뺀다', () {
     final slots = freeSlots(
       DateTime(2026, 10, monday, 15, 30),
       schedule: const Schedule(),
       config: PlannerConfig.from(const []),
       dayBoundaryMin: Defaults.dayBoundaryMin,
     );
+    // 하루 창 전체가 비어 있으면 식사는 식사 시간대의 시작에 둔다.
+    DateTime minute(int value) => DateTime(2026, 10, monday, 0, value);
     expect(slots, [
       span(
-        DateTime(2026, 10, monday, 0, Defaults.dayWindowStartMin),
-        DateTime(2026, 10, monday, 0, Defaults.dayWindowEndMin),
+        minute(Defaults.dayWindowStartMin),
+        minute(Defaults.mealWindowStartMin),
+      ),
+      span(
+        minute(Defaults.mealWindowStartMin + Defaults.mealMin),
+        minute(Defaults.dayWindowEndMin),
       ),
     ]);
   });
@@ -374,6 +387,115 @@ void main() {
           at(monday, 20),
           DateTime(2026, 10, monday + 1, 0, Defaults.dayBoundaryMin),
         ),
+      ]);
+    });
+  });
+
+  group('식사 보호', () {
+    // 점심 11:30–13:30 사이 40분.
+    final lunch = rule(
+      RuleKind.meal,
+      const RuleParams(startMin: 690, endMin: 810, minutes: 40),
+    );
+
+    List<TimeSpan> withLunch(
+      Schedule schedule, {
+      List<Rule> rules = const [],
+    }) => free(schedule, rules: [lunch, ...rules], meals: true);
+
+    test('시간대 양쪽이 트여 있으면 시간대 시작에 둔다', () {
+      expect(withLunch(const Schedule()), [
+        span(at(monday, 9), at(monday, 11, 30)),
+        span(at(monday, 12, 10), at(monday, 18)),
+      ]);
+    });
+
+    test('시간대 안에서 수업이 끝나면 수업 직후에 둔다', () {
+      final schedule = Schedule(
+        classSlots: [classSlot(startMin: 600, endMin: 720)],
+      );
+      expect(withLunch(schedule), [
+        span(at(monday, 9), at(monday, 9, 50)),
+        span(at(monday, 12, 50), at(monday, 18)),
+      ]);
+    });
+
+    test('시간대 안에서 수업이 시작하면 수업 직전에 둔다', () {
+      final schedule = Schedule(
+        classSlots: [classSlot(startMin: 780, endMin: 900)],
+      );
+      expect(withLunch(schedule), [
+        span(at(monday, 9), at(monday, 12, 10)),
+        span(at(monday, 15, 10), at(monday, 18)),
+      ]);
+    });
+
+    test('식사 시간이 들어갈 조각이 없으면 가장 긴 조각을 비운다', () {
+      // 11:00–12:00, 12:30–14:00 수업 사이에 10분만 빈다.
+      final schedule = Schedule(
+        classSlots: [
+          classSlot(id: 1, startMin: 660, endMin: 720),
+          classSlot(id: 2, startMin: 750, endMin: 840),
+        ],
+      );
+      expect(withLunch(schedule), [
+        span(at(monday, 9), at(monday, 10, 50)),
+        span(at(monday, 14, 10), at(monday, 18)),
+      ]);
+    });
+
+    test('점심을 거르는 날: 시간대에 빈 조각이 없으면 비울 것이 없다', () {
+      final schedule = Schedule(
+        classSlots: [classSlot(startMin: 660, endMin: 840)],
+      );
+      expect(withLunch(schedule), [
+        span(at(monday, 9), at(monday, 10, 50)),
+        span(at(monday, 14, 10), at(monday, 18)),
+      ]);
+    });
+
+    test('그날 겹치는 식사 고정 일정이 있으면 고정 일정이 대신한다', () {
+      FixedBlock lunchBlock(int weekday) => FixedBlock(
+        id: 1,
+        name: '점심',
+        weekdays: [weekday],
+        startMin: 720,
+        endMin: 750,
+        bufferMin: 0,
+        kind: FixedBlockKind.meal,
+        source: EntrySource.manual,
+      );
+      expect(withLunch(Schedule(fixedBlocks: [lunchBlock(DateTime.monday)])), [
+        span(at(monday, 9), at(monday, 12)),
+        span(at(monday, 12, 30), at(monday, 18)),
+      ]);
+      // 다른 요일의 식사 고정 일정은 이날의 식사를 대신하지 않는다.
+      expect(withLunch(Schedule(fixedBlocks: [lunchBlock(DateTime.tuesday)])), [
+        span(at(monday, 9), at(monday, 11, 30)),
+        span(at(monday, 12, 10), at(monday, 18)),
+      ]);
+    });
+
+    test('식사가 아닌 고정 일정은 식사를 대신하지 않는다', () {
+      final schedule = Schedule(
+        fixedBlocks: [fixedBlock(startMin: 720, endMin: 750)],
+      );
+      // 11:30–12:00(30분)에는 들어가지 않으므로 알바 직후 12:30–13:10에 둔다.
+      expect(withLunch(schedule), [
+        span(at(monday, 9), at(monday, 12)),
+        span(at(monday, 13, 10), at(monday, 18)),
+      ]);
+    });
+
+    test('저녁 규칙은 점심에 더해 비우고, 하루 창 끝에 붙어 있으면 끝에 둔다', () {
+      final dinner = rule(
+        RuleKind.meal,
+        const RuleParams(startMin: 1020, endMin: 1140, minutes: 60),
+        id: 101,
+      );
+      expect(withLunch(const Schedule(), rules: [dinner]), [
+        span(at(monday, 9), at(monday, 11, 30)),
+        span(at(monday, 12, 10), at(monday, 17)),
       ]);
     });
   });
