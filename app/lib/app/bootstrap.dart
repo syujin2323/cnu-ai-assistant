@@ -1,16 +1,22 @@
 // 앱 시작 순서. docs/architecture.md '실행 방법'.
 //
 // `Firebase.initializeApp` → App Check `activate` → Remote Config 설정·지난 실행에서 받은 값 적용 →
-// 폰 DB 열기까지만 기다린 뒤 `runApp`을 부른다(`main.dart`). Remote Config `fetchAndActivate()`는
+// 폰 DB 열기까지만 기다린 뒤 `runApp`을 부른다(`main.dart`). 알림 플러그인 준비와 앱을 켠 알림의
+// payload 읽기는 Firebase와 함께 시작하고, 브리핑 알림 예약은 기다리지 않는다. Remote Config `fetchAndActivate()`는
 // runApp 뒤에 시작하고 화면은 기다리지 않는다([fetchRemoteConfigAfterLaunch]).
 // 위젯 테스트는 Firebase 없이 `RootApp`만 띄우므로 이 파일을 부르지 않는다.
 
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
+import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/data/remote_config.dart';
+import 'package:cnu_ai_assistant/domain/clock.dart';
+import 'package:cnu_ai_assistant/features/me/me_controller.dart';
 import 'package:cnu_ai_assistant/firebase_options.dart';
+import 'package:cnu_ai_assistant/platform/notifications.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -34,6 +40,14 @@ Future<ProviderContainer> bootstrap() async {
   final preferences = SharedPreferences.getInstance();
   final dateFormatting = initializeDateFormatting('ko');
   final androidSdkInt = _readAndroidSdkInt();
+  // 알림 플러그인·시간대를 준비하고, 앱을 켠 알림이 있으면 그 payload를 읽는다.
+  // 앱이 켜져 있을 때 알림을 누르면 payload 경로로 이동한다(알림 코드는 화면을 직접 부르지 않는다).
+  final notifications = LocalNotificationPlugin(const Clock());
+  ProviderContainer? started;
+  final launchPayload = _initNotifications(
+    notifications,
+    onTap: (payload) => started?.read(routerProvider).push(payload),
+  );
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await _activateAppCheck();
@@ -43,12 +57,29 @@ Future<ProviderContainer> bootstrap() async {
     overrides: [
       sharedPreferencesProvider.overrideWithValue(await preferences),
       androidSdkIntProvider.overrideWithValue(await androidSdkInt),
+      notificationPluginProvider.overrideWithValue(notifications),
+      launchPayloadProvider.overrideWithValue(await launchPayload),
     ],
   );
+  started = container;
   await dateFormatting;
   // 폰 DB를 연다(처음이면 표를 만든다). 첫 화면이 기다리지 않고 DB를 읽게 여기서 끝낸다.
   await container.read(databaseProvider).customSelect('SELECT 1').get();
+  // 앱을 열 때 데일리 브리핑 알림을 다시 예약하고(데모면 모두 지운다), 데모에 들어가고 나올 때도
+  // 다시 예약하게 켜 둔다. 화면은 예약을 기다리지 않는다.
+  container.read(briefingSyncOnModeChangeProvider);
+  unawaited(container.read(briefingSyncProvider)());
   return container;
+}
+
+/// 알림 플러그인을 준비하고 앱을 켠 알림의 payload를 돌려준다. 실패해도 앱은 뜬다(플러그인이
+/// 로그만 남긴다).
+Future<String?> _initNotifications(
+  NotificationPlugin notifications, {
+  required void Function(String payload) onTap,
+}) async {
+  await notifications.initialize(onTap: onTap);
+  return notifications.launchPayload();
 }
 
 /// runApp 뒤에 부른다. Remote Config 값을 받아 적용하고, 끝나면(실패·시간 초과 포함) 알린다.
