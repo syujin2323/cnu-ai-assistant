@@ -315,21 +315,11 @@ Future<void> _dispose(WidgetTester tester, AppDatabase db) async {
   await db.close();
 }
 
-/// 월간 그리드나 선택일 패널에 [title]이 있는지. 글자가 크면 패널 아래 행은 아직 그려지지
-/// 않으므로 패널을 맨 위부터 끝까지 내리며 찾고, 다 본 뒤 맨 위로 돌려놓는다.
+/// 월간 그리드나 선택일 패널에 [title]이 있는지. 패널 목록은 화면 밖 행까지 한 번에 그리므로
+/// 내리지 않고 찾는다.
 Future<bool> _onMonth(WidgetTester tester, String title) async {
-  final panel = find
-      .byWidgetPredicate(
-        (widget) =>
-            widget is Scrollable &&
-            widget.axisDirection == AxisDirection.down &&
-            widget.physics is! NeverScrollableScrollPhysics,
-      )
-      .last;
-  final found = await _scrollTo(tester, panel, find.text(title));
-  tester.state<ScrollableState>(panel).position.jumpTo(0);
   await tester.pump();
-  return found;
+  return find.text(title).evaluate().isNotEmpty;
 }
 
 /// [scrollable]을 맨 위부터 내리며 [target]을 찾는다. 찾으면 그 자리에서 멈춘다.

@@ -5,6 +5,7 @@
 // 둔다. 시간표는 0~24시(지금 선, 지난 일정은 흐리게)이고 처음에는 지금 1시간 전(오늘이 아니면 8시)이
 // 위에 오게 스크롤한다. To-Do는 그날의 확정 블록과 그날 마감인 할 일이고, 체크하면 블록은 `done`,
 // 할 일은 완료로 바꾸고 10초 동안 '되돌리기' 스낵바를 띄운다. 지금 시각은 1분마다 바뀐다.
+// 세로 칸은 맨 위에서 더 당기면 넘친 만큼을 알려, 월간이 그만큼 패널을 끌어내려 접는다.
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/data/repositories/plan_repository.dart';
@@ -23,6 +24,12 @@ import 'package:cnu_ai_assistant/features/calendar/widgets/item_colors.dart';
 import 'package:cnu_ai_assistant/features/calendar/widgets/time_grid.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+
+/// 세로 칸의 스크롤 물리. 줄이 짧아 넘치지 않는 칸도 끌 수 있고, 맨 위에서 더 당기면 튕기지 않고
+/// 넘친 만큼을 알린다([OverscrollNotification]). 월간은 이 알림으로 패널을 끌어 접는다.
+const ScrollPhysics _pullPhysics = AlwaysScrollableScrollPhysics(
+  parent: ClampingScrollPhysics(),
+);
 
 /// 데일리 스케줄 본문(실시간 시간표 · To-Do · 오늘 미배정 할 일).
 class LiveDay extends ConsumerStatefulWidget {
@@ -130,6 +137,7 @@ class _LiveDayState extends ConsumerState<LiveDay> {
               Expanded(
                 child: SingleChildScrollView(
                   controller: _scroll,
+                  physics: _pullPhysics,
                   padding: const EdgeInsets.fromLTRB(
                     AppSpace.screen,
                     AppSpace.s8,
@@ -360,6 +368,7 @@ class _Region extends StatelessWidget {
   Widget build(BuildContext context) {
     // 하루치 줄이라 짧으므로 한 번에 그린다(화면 읽기도 모든 줄을 읽는다).
     return SingleChildScrollView(
+      physics: _pullPhysics,
       padding: const EdgeInsets.fromLTRB(
         AppSpace.screen,
         AppSpace.s8,

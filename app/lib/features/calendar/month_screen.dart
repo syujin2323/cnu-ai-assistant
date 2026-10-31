@@ -3,13 +3,15 @@
 // 세 가지 모양을 위아래로 넘겨 바꾼다(삼성 캘린더와 같다).
 // - 기본: 위는 둥근 타일의 월 그리드, 아래는 선택한 날의 일정 패널, 맨 아래 하단 바. 그리드 칸에는
 //   제목 없이 일정마다 종류 색의 얇은 막대만 세 개까지 그린다.
-// - 데일리 스케줄: 기본에서 그리드나 패널 손잡이를 위로 넘기면 패널이 상단바 아래를 모두 덮는다.
+// - 데일리 스케줄: 기본에서 그리드나 패널(손잡이가 아니어도 본문 어디든)을 위로 넘기면 패널이 상단바
+//   아래를 모두 덮는다. 패널은 손가락을 따라 올라오고 놓으면 절반·빠르기로 정한다.
 //   맨 위 고정 머리줄('29일 목요일 데일리 스케줄', 닫기 X) 아래에 실시간 시간표 · To-Do · 오늘 미배정
-//   할 일을 5:2:2로 둔다(`widgets/live_day.dart`). 하단 바는 숨긴다. 손잡이를 아래로 끌거나 누르거나
-//   X를 누르면 기본으로 돌아간다.
-// - 전체 달: 기본에서 그리드를 아래로 넘기면 패널이 사라지고 그리드가 본문을 모두 쓴다. 날짜 칸마다
+//   할 일을 5:2:2로 둔다(`widgets/live_day.dart`). 하단 바는 숨긴다. 손잡이나 머리줄을 아래로 끌거나,
+//   맨 위에 닿은 칸을 아래로 더 당기거나, 손잡이·X를 누르면 기본으로 돌아간다.
+// - 전체 달: 기본에서 그리드를 아래로 넘기거나, 맨 위까지 올린 패널 목록을 아래로 당기면 패널이
+//   사라지고 그리드가 본문을 모두 쓴다. 날짜 칸마다
 //   일정 제목을 두 줄까지 색선과 함께 보여 준다. 일요일 칸은 숫자 아래에 음력('9.22')을 적는다
-//   (라우터가 [MonthScreen.daySubtitle]로 넘긴다). 위로 넘기면 기본으로 돌아간다.
+//   (라우터가 [MonthScreen.daySubtitle]로 넘긴다). 위로 넘기면(아래 빈 자리도) 기본으로 돌아간다.
 // 기본 모양 패널 머리는 '16 월요일' 옆에 작게 '음력 10월 8일'을 적는다(삼성 캘린더와 같다).
 // 좌우로 넘기거나 휠을 굴리면 달이 바뀌고, 모션이 켜져 있으면 그리드가 옆으로 밀린다. 선택한 날을
 // 한 번 더 누르면 그날 일간으로 간다.
@@ -85,6 +87,20 @@ class _MonthScreenState extends ConsumerState<MonthScreen> {
   /// 휠로 한 번에 여러 달이 넘어가지 않게 마지막으로 넘긴 때를 둔다.
   DateTime? _lastWheel;
 
+  /// 기본 모양 패널 목록. 손으로 끌면 목록 대신 패널이 움직이므로, 목록은 아래로 끌 때 되감거나
+  /// 휠·화면 읽기 초점([Scrollable.ensureVisible])으로만 움직인다.
+  final ScrollController _list = ScrollController();
+
+  /// 기본 모양 패널 본문을 아래로 끈 거리 중 목록이 맨 위에 닿은 뒤 더 당긴 몫.
+  double _pull = 0;
+
+  /// 패널 본문 끌기를 시작할 때 목록이 맨 위였는지. 맨 위에서 시작했을 때만 빠르게 튕겨도
+  /// 전체 달로 간다.
+  bool _pullFromTop = false;
+
+  /// 데일리 스케줄에서 맨 위에 닿은 칸을 더 당겨 패널을 끌어내리는 중인지.
+  bool _scrollPull = false;
+
   static const double _flingVelocity = 300;
 
   /// 이만큼 끌면 빠르기와 상관없이 넘긴다.
@@ -96,6 +112,12 @@ class _MonthScreenState extends ConsumerState<MonthScreen> {
     super.initState();
     final selected = ref.read(selectedDateProvider);
     _month = DateTime(selected.year, selected.month);
+  }
+
+  @override
+  void dispose() {
+    _list.dispose();
+    super.dispose();
   }
 
   void _shiftMonth(int by) {
@@ -167,6 +189,72 @@ class _MonthScreenState extends ConsumerState<MonthScreen> {
       _mode = expand ? _MonthMode.daily : _MonthMode.normal;
       _dragHeight = null;
     });
+  }
+
+  void _onBodyDragStart(DragStartDetails details) {
+    _pull = 0;
+    _pullFromTop = !_list.hasClients || _list.offset <= 0;
+  }
+
+  /// 기본 모양 패널 본문을 끄는 동안. 위로 끌면 손잡이처럼 패널이 따라 올라온다. 아래로 끌면
+  /// 내려 둔 목록을 먼저 되감고, 맨 위에 닿은 뒤 더 당긴 거리를 모은다(놓을 때 전체 달로 갈지 본다).
+  void _onBodyDrag(DragUpdateDetails details) {
+    final dy = details.delta.dy;
+    if (_dragHeight == null && (dy > 0 || _pull > 0)) {
+      var rest = dy;
+      if (dy > 0 && _list.hasClients && _list.offset > 0) {
+        final used = dy < _list.offset ? dy : _list.offset;
+        _list.jumpTo(_list.offset - used);
+        rest -= used;
+      }
+      _pull = (_pull + rest).clamp(0, double.infinity);
+      return;
+    }
+    _onPanelDrag(dy);
+  }
+
+  /// 기본 모양 패널 본문을 놓았을 때. 패널을 끌어올렸으면 손잡이와 같이 정하고, 맨 위에서 그리드와
+  /// 같은 거리(없으면 빠르기)만큼 당겼으면 전체 달로 간다.
+  void _onBodyDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    final pull = _pull;
+    _pull = 0;
+    if (_dragHeight != null) {
+      _onPanelDragEnd(velocity);
+      return;
+    }
+    if (pull >= _swipeDistance ||
+        (_pullFromTop && pull > 0 && velocity >= _flingVelocity)) {
+      setState(() => _mode = _MonthMode.fullMonth);
+    }
+  }
+
+  /// 기본 모양 패널 목록 위에서 휠을 굴렸을 때. 목록만 움직인다.
+  void _onListWheel(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent || !_list.hasClients) return;
+    final position = _list.position;
+    _list.jumpTo(
+      (position.pixels + event.scrollDelta.dy).clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      ),
+    );
+  }
+
+  /// 데일리 스케줄 칸들의 스크롤 알림. 맨 위에 닿은 칸을 아래로 더 당기면(넘친 만큼) 패널이 손가락을
+  /// 따라 내려오고, 놓으면 손잡이와 같이 절반·빠르기로 접을지 정한다. 옆으로 미는 상황 줄은 뺀다.
+  bool _onDailyScroll(ScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) return false;
+    if (notification is OverscrollNotification &&
+        notification.dragDetails != null &&
+        (_scrollPull || notification.overscroll < 0)) {
+      _scrollPull = true;
+      _onPanelDrag(-notification.overscroll);
+    } else if (notification is ScrollEndNotification && _scrollPull) {
+      _scrollPull = false;
+      _onPanelDragEnd(notification.dragDetails?.primaryVelocity ?? 0);
+    }
+    return false;
   }
 
   void _setExpanded(bool expanded) =>
@@ -277,6 +365,9 @@ class _MonthScreenState extends ConsumerState<MonthScreen> {
                                 child: Listener(
                                   onPointerSignal: _onWheel,
                                   child: GestureDetector(
+                                    // 전체 달 아래의 빈 자리(하단 바 높이만큼)를 끌어도 넘어가게
+                                    // 칸 사이·여백까지 받는다.
+                                    behavior: HitTestBehavior.opaque,
                                     onPanUpdate: (d) => _gridDrag += d.delta,
                                     onPanEnd: _onGridDragEnd,
                                     child: Padding(
@@ -313,6 +404,12 @@ class _MonthScreenState extends ConsumerState<MonthScreen> {
                           onClose: () => _setExpanded(false),
                           onDrag: _onPanelDrag,
                           onDragEnd: _onPanelDragEnd,
+                          list: _list,
+                          onBodyDragStart: _onBodyDragStart,
+                          onBodyDrag: _onBodyDrag,
+                          onBodyDragEnd: _onBodyDragEnd,
+                          onListWheel: _onListWheel,
+                          onDailyScroll: _onDailyScroll,
                         ),
                 ),
               ),
@@ -622,6 +719,10 @@ class _TallChip extends StatelessWidget {
 /// 선택한 날의 일정 패널. 손잡이를 끌면 따라 움직이고, 놓은 위치(절반 넘게 올렸는지)나 튕긴 방향으로
 /// 데일리 스케줄로 펼치거나 접는다. 손잡이를 누르면 펼침·접힘이 바뀐다. 펼치면 손잡이 아래에
 /// 고정 머리줄('29일 목요일 데일리 스케줄'과 닫기 X)을 두고 그 아래를 [LiveDay]가 채운다.
+///
+/// 손잡이가 아니어도 넘기면 모양이 바뀐다(삼성 캘린더와 같다). 기본 모양에서는 본문 어디든 위로 끌면
+/// 손잡이처럼 펼치고, 아래로 끌면 목록을 먼저 되감은 뒤 맨 위에서 더 당긴 만큼으로 전체 달로 간다.
+/// 데일리 스케줄에서는 머리줄을 아래로 끌거나, 맨 위에 닿은 칸을 아래로 더 당기면 손잡이처럼 접는다.
 class _DayPanel extends StatelessWidget {
   const _DayPanel({
     required this.day,
@@ -631,6 +732,12 @@ class _DayPanel extends StatelessWidget {
     required this.onClose,
     required this.onDrag,
     required this.onDragEnd,
+    required this.list,
+    required this.onBodyDragStart,
+    required this.onBodyDrag,
+    required this.onBodyDragEnd,
+    required this.onListWheel,
+    required this.onDailyScroll,
   });
 
   final DateTime day;
@@ -646,6 +753,20 @@ class _DayPanel extends StatelessWidget {
 
   /// 손잡이를 놓았을 때의 세로 빠르기(위가 음수).
   final ValueChanged<double> onDragEnd;
+
+  /// 기본 모양 목록의 스크롤. 손으로 끌어서는 움직이지 않는다.
+  final ScrollController list;
+
+  /// 기본 모양 본문 끌기.
+  final GestureDragStartCallback onBodyDragStart;
+  final GestureDragUpdateCallback onBodyDrag;
+  final GestureDragEndCallback onBodyDragEnd;
+
+  /// 기본 모양 목록 위의 휠.
+  final ValueChanged<PointerSignalEvent> onListWheel;
+
+  /// 데일리 스케줄 칸들의 스크롤 알림(맨 위에서 더 당기면 접는다).
+  final NotificationListenerCallback<ScrollNotification> onDailyScroll;
 
   @override
   Widget build(BuildContext context) {
@@ -692,102 +813,122 @@ class _DayPanel extends StatelessWidget {
             ),
           ),
           if (expanded)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpace.screen,
-                0,
-                AppSpace.s4,
-                AppSpace.s4,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Semantics(
-                      header: true,
-                      child: Text(
-                        '${day.day}일 ${weekdayText(day.weekday)}요일 데일리 스케줄',
-                        style: AppText.title,
+            // 머리줄을 끌어도 손잡이처럼 패널이 따라 움직인다. X 누르기는 그대로다.
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              excludeFromSemantics: true,
+              onVerticalDragUpdate: (details) => onDrag(details.delta.dy),
+              onVerticalDragEnd: (details) =>
+                  onDragEnd(details.primaryVelocity ?? 0),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.screen,
+                  0,
+                  AppSpace.s4,
+                  AppSpace.s4,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Semantics(
+                        header: true,
+                        child: Text(
+                          '${day.day}일 ${weekdayText(day.weekday)}요일 데일리 스케줄',
+                          style: AppText.title,
+                        ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: '닫기',
-                    onPressed: onClose,
-                    icon: const AppIcon(
-                      AppIconName.close,
-                      color: AppColors.ink,
+                    IconButton(
+                      tooltip: '닫기',
+                      onPressed: onClose,
+                      icon: const AppIcon(
+                        AppIconName.close,
+                        color: AppColors.ink,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           if (expanded) const Divider(height: 1, color: AppColors.edge),
           Expanded(
             child: expanded
-                ? LiveDay(key: ValueKey(day), day: day)
-                : ListView(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpace.screen,
-                      0,
-                      AppSpace.screen,
-                      CalendarBottomBar.height,
+                ? NotificationListener<ScrollNotification>(
+                    onNotification: onDailyScroll,
+                    child: LiveDay(key: ValueKey(day), day: day),
+                  )
+                : Listener(
+                    onPointerSignal: onListWheel,
+                    child: GestureDetector(
+                      // 행 사이·아래 여백을 끌어도 받는다. 화면 읽기에는 손잡이 단추가 있다.
+                      behavior: HitTestBehavior.opaque,
+                      excludeFromSemantics: true,
+                      onVerticalDragStart: onBodyDragStart,
+                      onVerticalDragUpdate: onBodyDrag,
+                      onVerticalDragEnd: onBodyDragEnd,
+                      child: _dayList(),
                     ),
-                    children: [
-                      Semantics(
-                        header: true,
-                        child: Wrap(
-                          crossAxisAlignment: WrapCrossAlignment.end,
-                          spacing: AppSpace.s8,
-                          children: [
-                            Text('${day.day}', style: AppText.display),
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: AppSpace.s4,
-                              ),
-                              child: Text(
-                                '${weekdayText(day.weekday)}요일',
-                                style: AppText.bodyLarge.copyWith(
-                                  fontWeight: AppText.semibold,
-                                  color: _weekdayColor(
-                                    day.weekday,
-                                    other: AppColors.ink,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            // 삼성 캘린더처럼 요일 옆에 작게 음력을 적는다. 표 범위 밖이면 뺀다.
-                            if (lunarText(day) case final lunar?)
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: AppSpace.s4,
-                                ),
-                                child: Text(
-                                  lunar,
-                                  style: AppText.small.copyWith(
-                                    color: AppColors.muted,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: AppSpace.s8),
-                      if (items.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: AppSpace.s12,
-                          ),
-                          child: Text(
-                            '일정이 없어요.',
-                            style: AppText.body.copyWith(
-                              color: AppColors.muted,
-                            ),
-                          ),
-                        ),
-                      for (final item in items) _ItemRow(item: item),
-                    ],
                   ),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// 기본 모양 목록. 하루치라 짧으므로 한 번에 그린다(화면 읽기 초점이 아래 행으로 가면
+  /// [Scrollable.ensureVisible]로 내려간다).
+  Widget _dayList() {
+    return SingleChildScrollView(
+      controller: list,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.screen,
+        0,
+        AppSpace.screen,
+        CalendarBottomBar.height,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            header: true,
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.end,
+              spacing: AppSpace.s8,
+              children: [
+                Text('${day.day}', style: AppText.display),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpace.s4),
+                  child: Text(
+                    '${weekdayText(day.weekday)}요일',
+                    style: AppText.bodyLarge.copyWith(
+                      fontWeight: AppText.semibold,
+                      color: _weekdayColor(day.weekday, other: AppColors.ink),
+                    ),
+                  ),
+                ),
+                // 삼성 캘린더처럼 요일 옆에 작게 음력을 적는다. 표 범위 밖이면 뺀다.
+                if (lunarText(day) case final lunar?)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpace.s4),
+                    child: Text(
+                      lunar,
+                      style: AppText.small.copyWith(color: AppColors.muted),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpace.s8),
+          if (items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpace.s12),
+              child: Text(
+                '일정이 없어요.',
+                style: AppText.body.copyWith(color: AppColors.muted),
+              ),
+            ),
+          for (final item in items) _ItemRow(item: item),
         ],
       ),
     );

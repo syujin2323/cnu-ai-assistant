@@ -2,7 +2,7 @@
 //
 // 폰 DB(메모리)에 수업·일정·할 일을 넣고 지금을 2026-10-29(목) 10:00으로 고정해 띄운다.
 // 그리드가 날짜마다 색 막대(제목은 전체 달에서만)를, 패널이 선택한 날의 일정을 보여 주는지, 좌우 달 넘기기·위아래 모양
-// 바꾸기(전체 달·데일리 스케줄)·To-Do 체크·오늘 버튼·두 번 눌러 일간 열기·마감 행에서 할 일 상세
+// 바꾸기(전체 달·데일리 스케줄, 손잡이·패널 본문·머리줄·맨 위 칸 어디서 끌어도)·To-Do 체크·오늘 버튼·두 번 눌러 일간 열기·마감 행에서 할 일 상세
 // 열기가 도는지 본다. 글자 배율 1.0과 2.0에서 돌린다.
 
 import 'package:cnu_ai_assistant/app/app.dart';
@@ -535,6 +535,65 @@ void main() {
         await app.dispose(tester);
       });
 
+      testWidgets('손잡이가 아니어도 패널 본문을 위로 끌면 데일리 스케줄, 아래로 끌면 전체 달이다', (
+        tester,
+      ) async {
+        final app = await _pumpMonth(tester, textScale);
+
+        await tester.dragFrom(_panelBody(tester), const Offset(0, -400));
+        await tester.pumpAndSettle();
+        expect(find.text('29일 목요일 데일리 스케줄'), findsOneWidget);
+        expect(find.byType(CalendarBottomBar), findsNothing);
+
+        await tester.tap(find.byTooltip('닫기'));
+        await tester.pumpAndSettle();
+        expect(find.bySemanticsLabel('하루 시간표 펼치기'), findsOneWidget);
+
+        // 목록이 맨 위이므로 아래로 당기면 패널이 사라지고 칸마다 제목이 보인다.
+        await tester.dragFrom(_panelBody(tester), const Offset(0, 300));
+        await tester.pumpAndSettle();
+        expect(find.bySemanticsLabel('하루 시간표 펼치기'), findsNothing);
+        expect(
+          find.descendant(
+            of: find.bySemanticsLabel(RegExp(r'^10월 30일 금요일')),
+            matching: find.text('택배 수령'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.byType(CalendarBottomBar), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('데일리 스케줄에서 머리줄이나 맨 위의 To-Do 칸을 아래로 끌면 기본으로 접힌다', (
+        tester,
+      ) async {
+        final app = await _pumpMonth(tester, textScale);
+
+        await tester.tap(find.bySemanticsLabel('하루 시간표 펼치기'));
+        await tester.pumpAndSettle();
+        await tester.drag(find.text('29일 목요일 데일리 스케줄'), const Offset(0, 500));
+        await tester.pumpAndSettle();
+        expect(find.byType(LiveDay), findsNothing);
+        expect(find.byType(CalendarBottomBar), findsOneWidget);
+        expect(find.bySemanticsLabel('하루 시간표 펼치기'), findsOneWidget);
+
+        await tester.tap(find.bySemanticsLabel('하루 시간표 펼치기'));
+        await tester.pumpAndSettle();
+        // 위로 끌면 칸 안에서 굴러갈 뿐 접히지 않는다. 글자가 크면 머리가 밀려 나가므로 처음 자리를 잡는다.
+        final todo = tester.getCenter(find.text('To-Do'));
+        await tester.dragFrom(todo, const Offset(0, -200));
+        await tester.pumpAndSettle();
+        expect(find.byType(LiveDay), findsOneWidget);
+        // 아래로 끌면 칸을 맨 위로 되감고, 맨 위에서 더 당긴 만큼 패널이 내려와 접힌다.
+        await tester.dragFrom(todo, const Offset(0, 600));
+        await tester.pumpAndSettle();
+        expect(find.byType(LiveDay), findsNothing);
+        expect(find.byType(CalendarBottomBar), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
       testWidgets('천천히 끌어도 손잡이는 놓은 위치로, 그리드는 끈 거리로 달을 넘긴다', (tester) async {
         final app = await _pumpMonth(tester, textScale);
 
@@ -688,23 +747,14 @@ Future<void> _tapInSheet(WidgetTester tester, Finder target) async {
   await tester.pumpAndSettle();
 }
 
-/// 선택일 패널을 [target]이 보일 때까지 내린다(글자가 크면 아래 행은 아직 그려지지 않는다).
+/// 선택일 패널을 [target]이 보이게 내린다. 기본 모양 목록은 끌면 패널이 움직이므로, 화면 읽기
+/// 초점이 옮겨 갈 때처럼 [Scrollable.ensureVisible]로 내린다(목록은 한 번에 모두 그린다).
 Future<void> _scrollPanelTo(WidgetTester tester, Finder target) async {
-  final panel = find
-      .byWidgetPredicate(
-        (widget) =>
-            widget is Scrollable &&
-            widget.axisDirection == AxisDirection.down &&
-            widget.physics is! NeverScrollableScrollPhysics,
-      )
-      .last;
-  // 패널 가운데는 하단 바·추가 알약에 가릴 수 있어 패널 윗부분을 잡고 끈다.
-  for (var i = 0; i < 20 && target.evaluate().isEmpty; i++) {
-    final top = tester.getTopLeft(panel);
-    final width = tester.getSize(panel).width;
-    await tester.dragFrom(top + Offset(width / 2, 24), const Offset(0, -80));
-    await tester.pumpAndSettle();
-  }
   await tester.ensureVisible(target.first);
   await tester.pumpAndSettle();
 }
+
+/// 기본 모양 패널 본문(손잡이가 아닌 곳)에서 끌 위치: 패널 머리의 날짜 숫자('29'). 그리드 칸의
+/// 숫자보다 뒤에 그려진다.
+Offset _panelBody(WidgetTester tester) =>
+    tester.getCenter(find.text('29').last);
