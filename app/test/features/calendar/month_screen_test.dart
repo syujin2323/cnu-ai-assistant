@@ -1,7 +1,7 @@
 // 월간(`/calendar`) 화면 테스트. docs/architecture.md '화면 이동'.
 //
 // 폰 DB(메모리)에 수업·일정·할 일을 넣고 지금을 2026-10-29(목) 10:00으로 고정해 띄운다.
-// 그리드가 날짜마다 칩을, 패널이 선택한 날의 일정을 보여 주는지, 좌우 달 넘기기·위아래 모양
+// 그리드가 날짜마다 색 막대(제목은 전체 달에서만)를, 패널이 선택한 날의 일정을 보여 주는지, 좌우 달 넘기기·위아래 모양
 // 바꾸기(전체 달·데일리 스케줄)·To-Do 체크·오늘 버튼·두 번 눌러 일간 열기·마감 행에서 할 일 상세
 // 열기가 도는지 본다. 글자 배율 1.0과 2.0에서 돌린다.
 
@@ -30,17 +30,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   for (final textScale in [1.0, 2.0]) {
     group('글자 배율 $textScale', () {
-      testWidgets('오늘의 수업·일정·마감이 칩과 패널에 보이고, 다른 날을 고르면 패널이 바뀐다', (
-        tester,
-      ) async {
+      testWidgets('오늘의 수업·일정·마감이 패널에 보이고, 다른 날을 고르면 패널이 바뀐다', (tester) async {
         final app = await _pumpMonth(tester, textScale);
 
         expect(find.text('10월'), findsOneWidget);
         expect(find.text('10월 29일에 추가'), findsOneWidget);
-        // 그리드 칩(제목)과 패널 행이 함께 있다.
-        expect(find.text('자구'), findsWidgets);
+        // 그리드 칸에는 제목이 없으므로 제목은 패널 행에만 있다.
+        expect(find.text('자구'), findsOneWidget);
         await _scrollPanelTo(tester, find.text('마감 · 아직 시간을 정하지 않음'));
-        expect(find.text('과제2'), findsWidgets);
+        expect(find.text('과제2'), findsOneWidget);
         expect(
           find.text('10:00 - 11:15 · 공대5호관 412', skipOffstage: false),
           findsOneWidget,
@@ -50,7 +48,35 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('10월 30일에 추가'), findsOneWidget);
         await _scrollPanelTo(tester, find.text('택배 수령'));
-        expect(find.text('택배 수령'), findsWidgets);
+        expect(find.text('택배 수령'), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('기본 칸에는 제목 없이 색 막대만 있고, 전체 달 칸에는 제목이 있다', (tester) async {
+        final app = await _pumpMonth(tester, textScale);
+        final today = find.bySemanticsLabel(RegExp(r'^10월 29일 목요일'));
+        final tomorrow = find.bySemanticsLabel(RegExp(r'^10월 30일 금요일'));
+        Finder inCell(Finder cell, String title) =>
+            find.descendant(of: cell, matching: find.text(title));
+
+        // 기본: 칸 이름은 일정 수를 알리고, 칸 안에는 제목이 없다.
+        expect(find.bySemanticsLabel('10월 29일 목요일, 오늘, 일정 2개'), findsOneWidget);
+        expect(inCell(today, '자구'), findsNothing);
+        expect(inCell(today, '과제2'), findsNothing);
+        expect(inCell(tomorrow, '택배 수령'), findsNothing);
+        expect(find.text('택배 수령'), findsNothing);
+
+        // 전체 달: 같은 칸에 제목이 보인다.
+        await tester.fling(
+          find.bySemanticsLabel(RegExp(r'^10월 15일')),
+          const Offset(0, 300),
+          1000,
+        );
+        await tester.pumpAndSettle();
+        expect(inCell(today, '자구'), findsOneWidget);
+        expect(inCell(today, '과제2'), findsOneWidget);
+        expect(inCell(tomorrow, '택배 수령'), findsOneWidget);
 
         await app.dispose(tester);
       });
@@ -664,19 +690,20 @@ Future<void> _tapInSheet(WidgetTester tester, Finder target) async {
 
 /// 선택일 패널을 [target]이 보일 때까지 내린다(글자가 크면 아래 행은 아직 그려지지 않는다).
 Future<void> _scrollPanelTo(WidgetTester tester, Finder target) async {
-  if (target.evaluate().isEmpty) {
-    await tester.scrollUntilVisible(
-      target,
-      80,
-      scrollable: find
-          .byWidgetPredicate(
-            (widget) =>
-                widget is Scrollable &&
-                widget.axisDirection == AxisDirection.down &&
-                widget.physics is! NeverScrollableScrollPhysics,
-          )
-          .last,
-    );
+  final panel = find
+      .byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable &&
+            widget.axisDirection == AxisDirection.down &&
+            widget.physics is! NeverScrollableScrollPhysics,
+      )
+      .last;
+  // 패널 가운데는 하단 바·추가 알약에 가릴 수 있어 패널 윗부분을 잡고 끈다.
+  for (var i = 0; i < 20 && target.evaluate().isEmpty; i++) {
+    final top = tester.getTopLeft(panel);
+    final width = tester.getSize(panel).width;
+    await tester.dragFrom(top + Offset(width / 2, 24), const Offset(0, -80));
+    await tester.pumpAndSettle();
   }
   await tester.ensureVisible(target.first);
   await tester.pumpAndSettle();

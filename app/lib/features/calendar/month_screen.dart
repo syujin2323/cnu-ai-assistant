@@ -1,7 +1,8 @@
 // 월간(`/calendar`, 첫 화면). docs/architecture.md '화면 이동'(2026-10-31 삼성 캘린더 골자).
 //
 // 세 가지 모양을 위아래로 넘겨 바꾼다(삼성 캘린더와 같다).
-// - 기본: 위는 둥근 타일의 월 그리드, 아래는 선택한 날의 일정 패널, 맨 아래 하단 바.
+// - 기본: 위는 둥근 타일의 월 그리드, 아래는 선택한 날의 일정 패널, 맨 아래 하단 바. 그리드 칸에는
+//   제목 없이 일정마다 종류 색의 얇은 막대만 세 개까지 그린다.
 // - 데일리 스케줄: 기본에서 그리드나 패널 손잡이를 위로 넘기면 패널이 상단바 아래를 모두 덮는다.
 //   맨 위 고정 머리줄('29일 목요일 데일리 스케줄', 닫기 X) 아래에 실시간 시간표 · To-Do · 오늘 미배정
 //   할 일을 5:2:2로 둔다(`widgets/live_day.dart`). 하단 바는 숨긴다. 손잡이를 아래로 끌거나 누르거나
@@ -49,7 +50,7 @@ class MonthScreen extends ConsumerStatefulWidget {
 
 /// 월간의 세 모양.
 enum _MonthMode {
-  /// 월 그리드 + 선택일 패널 + 하단 바.
+  /// 월 그리드(칸마다 색 막대) + 선택일 패널 + 하단 바.
   normal,
 
   /// 그리드만(칸마다 일정 제목) + 하단 바.
@@ -437,6 +438,10 @@ class _MonthGrid extends StatelessWidget {
   }
 }
 
+/// 월 그리드의 날짜 칸. 숫자 아래에 일정을 세 개까지 그리고, 더 있으면 '+N'을 적는다. 기본 모양은
+/// 제목 없이 종류 색 막대만 두어 날짜와 일정 유무가 한눈에 보이게 하고, 제목은 전체 달에서만
+/// 보여 준다(삼성 캘린더와 같다). 화면 읽기에는 칸 하나가 '10월 29일 목요일, 오늘, 일정 2개'처럼
+/// 한 덩어리로 읽힌다.
 class _DayCell extends StatelessWidget {
   const _DayCell({
     required this.day,
@@ -455,7 +460,7 @@ class _DayCell extends StatelessWidget {
   final bool today;
   final List<CalendarItem> items;
 
-  /// 전체 달 모양이면 제목을 두 줄까지 색선과 함께, 세 개까지 보여 준다.
+  /// 전체 달 모양이면 제목을 두 줄까지 색선과 함께 보여 준다. 아니면 색 막대만 그린다.
   final bool full;
 
   /// 숫자 아래 작은 글(없으면 null).
@@ -464,7 +469,7 @@ class _DayCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxChips = full ? 3 : 2;
+    const maxItems = 3;
     final subtitle = this.subtitle;
     final radius = BorderRadius.circular(AppRadius.dayCell);
     final label =
@@ -506,11 +511,11 @@ class _DayCell extends StatelessWidget {
                       maxLines: 1,
                       style: AppText.tiny.copyWith(color: AppColors.muted),
                     ),
-                  for (final item in items.take(maxChips))
-                    full ? _TallChip(item: item) : _Chip(item: item),
-                  if (items.length > maxChips)
+                  for (final item in items.take(maxItems))
+                    full ? _TallChip(item: item) : _Bar(item: item),
+                  if (items.length > maxItems)
                     Text(
-                      '+${items.length - maxChips}',
+                      '+${items.length - maxItems}',
                       textAlign: TextAlign.center,
                       style: AppText.tiny.copyWith(color: AppColors.muted),
                     ),
@@ -558,30 +563,26 @@ class _DayNumber extends StatelessWidget {
   }
 }
 
-class _Chip extends StatelessWidget {
-  const _Chip({required this.item});
+/// 기본 모양 칸의 일정: 제목 없이 종류 색의 얇은 가로 막대(삼성 캘린더와 같다). 칸 폭에서 양옆을
+/// 조금 비우고 둥글게 그린다. 칸의 이름('일정 N개')이 이미 알려 주므로 화면 읽기에서는 뺀다.
+class _Bar extends StatelessWidget {
+  const _Bar({required this.item});
 
   final CalendarItem item;
 
+  /// 막대 두께.
+  static const double _height = 3;
+
   @override
   Widget build(BuildContext context) {
-    final deadline = item.kind == CalendarItemKind.deadline;
-    return Container(
-      margin: const EdgeInsets.only(top: 2),
-      padding: const EdgeInsets.symmetric(horizontal: 3),
-      decoration: BoxDecoration(
-        color: deadline ? null : itemTint(item.kind),
-        borderRadius: deadline ? null : BorderRadius.circular(AppRadius.tag),
-        border: deadline
-            ? const Border(left: BorderSide(color: AppColors.alert, width: 2))
-            : null,
-      ),
-      child: Text(
-        item.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        softWrap: false,
-        style: AppText.tiny.copyWith(color: AppColors.ink),
+    return ExcludeSemantics(
+      child: Container(
+        height: _height,
+        margin: const EdgeInsets.only(top: 2, left: 2, right: 2),
+        decoration: BoxDecoration(
+          color: itemBar(item.kind),
+          borderRadius: BorderRadius.circular(AppRadius.tag),
+        ),
       ),
     );
   }
