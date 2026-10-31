@@ -14,7 +14,7 @@ class CalendarRepository {
 
   /// 지금 묶음을 내고, 관련 표가 바뀔 때마다 다시 읽어 낸다.
   ///
-  /// `calendarDataProvider`(StreamProvider)가 그대로 받으므로 읽기 실패는 스트림 오류다.
+  /// `calendar_controller.dart`의 묶음 StreamProvider가 그대로 받으므로 읽기 실패는 스트림 오류다.
   ///
   /// 바뀜 감지는 drift의 스트림 쿼리(`readsFrom`)에 맡긴다. 그래야 provider가 정리될 때
   /// 구독이 함께 끝나 DB를 닫을 수 있다.

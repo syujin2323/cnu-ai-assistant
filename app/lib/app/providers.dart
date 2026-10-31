@@ -76,7 +76,7 @@ class AppModeController extends Notifier<AppMode> {
     final preferences = ref.read(sharedPreferencesProvider);
     await preferences.setString(PrefKeys.demoEntry, entry.name);
     await preferences.setString(PrefKeys.appMode, AppMode.demo.name);
-    // 알림 PR에서 여기에 platform/notifications.dart의 예약 알림 모두 취소(cancelAll)를 더한다.
+    // 예약 알림 취소는 모드가 바뀌면 `briefingSyncOnModeChangeProvider`(features/me/me_controller.dart)가 한다.
     if (!ref.mounted) return;
     state = AppMode.demo;
   }
@@ -99,7 +99,7 @@ class AppModeController extends Notifier<AppMode> {
     await _clearDatabase(demoDatabase);
     await preferences.setString(PrefKeys.appMode, AppMode.real.name);
     await preferences.remove(PrefKeys.demoEntry);
-    // 알림 PR에서 여기에 실제 DB로 알림을 다시 계산해 예약하는 일을 더한다.
+    // 실제 DB로 알림을 다시 예약하는 일은 `briefingSyncOnModeChangeProvider`가 한다.
     if (!ref.mounted) return entry;
     state = AppMode.real;
     return entry;

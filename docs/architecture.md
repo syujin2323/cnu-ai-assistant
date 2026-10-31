@@ -52,7 +52,7 @@ cnu-ai-assistant/
 │   │   ├── app/              app.dart(루트 위젯 RootApp), router.dart, theme.dart, providers.dart(앱 전역 provider), config.dart(서버 주소 등 비밀 아닌 설정 상수), bootstrap.dart(Firebase·DB·설정 초기화)
 │   │   ├── design/           tokens.dart(색·글꼴·간격·모서리), motion.dart(모션 프리셋), icons.dart, strings.dart(두 화면 이상이 쓰는 문구), widgets/(공통 위젯)
 │   │   ├── features/         화면 단위 (onboarding, briefing, today, calendar, tasks, assistant, me, lms_connect; R1에 suggest). 대응표는 아래 '화면과 기능 폴더'
-│   │   ├── domain/           순수 Dart: 모델, 빈 시간·여유도 계산, 캘린더 항목(calendar_items.dart), 내 규칙(rules.dart)
+│   │   ├── domain/           순수 Dart: 모델, 빈 시간·여유도 계산, 캘린더 항목(calendar_items.dart, 드로어 캘린더 숨기기 `withoutSources`), 내 규칙(rules.dart), 한국 음력(text/lunar.dart, 1999-12-08–2051-01-12 표 `lunar_data.dart`, 생성 스크립트 `app/tool/gen_lunar_data.js`)
 │   │   ├── data/             폰 DB(drift), 저장소, 서버 API 클라이언트
 │   │   ├── lms/              사캠(R0). lms_config.dart(Remote Config 읽기), lms_feature.dart(빌드 상수), response_classifier.dart(판별), parsers/(해석), sync_coordinator.dart(동기화·sync_lease), cookie_bridge.dart(플랫폼 채널), cookie_vault.dart(쿠키·비밀번호 보안 저장소), login_flow.dart(WebView 로그인 성공 감지·쿠키 수집·자동 재로그인), hidden_webview.dart(숨은 복원), lms_client.dart(dio·쿠키 주입), session_state.dart(상태 전이. 상태 enum `LmsSessionState`는 `settings`를 읽는 domain 모델이 쓰고 domain은 lms를 import하지 않으므로 `domain/models/lms_session_state.dart`에 둡니다), session_manager.dart(복원·재로그인), timetable.dart(통합정보시스템 시간표)
 │   │   └── platform/         notifications.dart(채널, 예약, 탭 처리, 알림 액션(R1)), background.dart(workmanager 진입점, R1), push.dart(FCM 백그라운드 처리, R1), 알림 감지 연결(R1)
@@ -98,12 +98,13 @@ cnu-ai-assistant/
 ## 화면 이동
 
 - 라우터는 `app/lib/app/router.dart` 하나입니다. 하단 탭은 없습니다(2026-10-31 결정). 캘린더 보기들이 첫 화면이고, 보기 전환과 다른 화면은 상단바 왼쪽 메뉴의 드로어(`design/widgets/app_drawer.dart`)에서 엽니다. 경로 문자열은 `Routes` 상수로만 씁니다.
+- 드로어는 위에서부터 닫기·설정(톱니바퀴), 보기(년·월·주·일·일정), 데일리 브리핑·미배정 할 일, 점선 구분선 뒤 '내 폰' 캘린더 넷(수업, 내 일정, 충남대 사이버캠퍼스, 알림에서 추가)입니다. '내 폰'의 각 행은 누를 때마다 그 캘린더를 보이고 숨기며, 채운 원에 체크가 있으면 보이는 상태입니다. 고른 값은 `settings`의 `hiddenCalendars`에 둡니다.
 
 | 경로 | 화면 | 여는 곳 |
 |---|---|---|
 | `/` | 없음. 시작 위치를 정하는 자리(`Routes.root`)이고 `redirect`가 곧바로 아래 규칙의 경로로 보냅니다 | - |
 | `/onboarding` | 온보딩 | 시작 |
-| `/calendar` | 월간 + 선택일 패널(위로 끌면 실시간 시간표 + 오늘 미배정 할 일). 첫 화면 | 시작, 드로어 '월' |
+| `/calendar` | 월간. 첫 화면이고 세 모양이 있습니다. 기본은 월 그리드 + 선택일 패널(날짜 옆에 음력). 기본에서 위로 밀거나 손잡이를 끌어 올리면 데일리 스케줄(상단바 아래를 모두 덮고, 고정 머리 '{n}일 {요일}요일 데일리 스케줄'과 오른쪽 닫기 X, 그 아래 실시간 시간표 : 체크박스 To-Do : 오늘 미배정 할 일을 5:2:2로 나눔. 하단 바는 숨김). 기본에서 아래로 밀면 전체 달(칸마다 일정 제목 최대 3개와 '+N', 일요일 칸에 음력 'M.D', 패널 없음). 전체 달에서 위로 밀면 기본으로, 데일리 스케줄은 손잡이를 내리거나 X로 기본으로 돌아갑니다 | 시작, 드로어 '월' |
 | `/calendar/year` | 연간 | 드로어 '년' |
 | `/calendar/week` | 주간 | 드로어 '주' |
 | `/calendar/day/:date` | 일간 (`:date`는 `YYYY-MM-DD`) | 드로어 '일', 월간에서 선택한 날을 한 번 더 누름 |
@@ -113,13 +114,14 @@ cnu-ai-assistant/
 | `/tasks` | 미배정 할 일 (여유도 순) + 배치됨 | 드로어 |
 | `/tasks/:id` | 할 일 상세 (강의 상세는 R1에 `/lectures/:id`) | 미배정 목록, 일정 행 |
 | `/inbox` | 알림함 (R1, 알림 감지) | 드로어, 중요 브리핑 시트 |
-| `/me` | 나 · 설정 (브리핑 시각, 사캠 연결, 데모 모드 등) | 드로어 톱니바퀴 |
+| `/me` | 나 · 설정. '데일리 브리핑'(브리핑 시각. 고르면 `notify` 규칙에 저장하고 알림을 다시 예약), '사이버캠퍼스'(마지막 동기화 시각 또는 '아직 연결하지 않았어요', '지금 동기화'는 사캠 연결 전까지 누를 수 없음), '설정'(내 규칙, 시간표, 데모 모드, 라이선스) | 드로어 톱니바퀴 |
 | `/me/rules` | 내 규칙 (목록·폼) | 나 |
 | `/me/timetable` | 시간표·고정 일정 편집 (과목을 고르면 통합정보시스템에서 요일·시각·강의실 자동 채움, 확인·수정. 온보딩 4·5단계와 나에서 엽니다) | 나, 온보딩 |
 | `/assistant` | AI 대화 (내 규칙을 말로 정할 때) | 내 규칙 |
 
-- 모든 캘린더 보기의 상단바는 메뉴 · 가운데 제목(월간은 'N월') · 검색 · 오늘(날짜 숫자 상자)입니다. 하단에는 'N월 N일에 추가' 알약 버튼(글자 부분은 직접 입력, +는 말로 입력. 둘 다 추가 시트)과 그 오른쪽 원형 중요 브리핑 버튼(안 본 중요 알림이 있으면 레드닷, 시트가 열리면 같은 자리에서 닫기 X)을 둡니다. 월 그리드는 위아래·좌우로 넘기거나 휠을 굴려 달을 바꿉니다. 월간의 학사일정 표기는 R1입니다.
-- 추가 시트(일정 추가·할 일 배치), 중요 브리핑 시트, AI 동의, 07 알림 제안(R1), 사캠 연결·재연결 시트(앱 안 WebView 공식 로그인)는 라우트가 아니라 `showModalBottomSheet`로 띄웁니다. 시트는 손잡이나 제목을 아래로 끌어 닫습니다. 새 화면은 이 표에 먼저 더합니다.
+- 모든 캘린더 보기의 상단바는 메뉴 · 가운데 제목(월간은 'N월') · 검색 · 오늘(날짜 숫자 상자)입니다. 하단에는 'N월 N일에 추가' 알약 버튼(글자 부분은 직접 입력, +는 말로 입력. 둘 다 추가 시트)과 그 오른쪽 원형 중요 브리핑 버튼(안 본 중요 알림이 있으면 레드닷, 시트가 열리면 같은 자리에서 닫기 X)을 둡니다. 월 그리드는 좌우로 넘기거나 휠을 굴려 달을 바꾸고(모션이 켜져 있으면 옆으로 미끄러짐), 위아래로 밀면 위 표의 세 모양을 오갑니다. 숨긴 '내 폰' 캘린더의 항목은 모든 캘린더 보기·검색·브리핑에서 빠지지만, 미배정 할 일과 추가 시트의 겹침 확인은 모두 봅니다. 월간의 학사일정 표기는 R1입니다.
+- 중요 브리핑 시트는 모달이 아닙니다. `CalendarScaffold`(`design/widgets/calendar_bars.dart`)가 하단 바 아래에 그려 원형 버튼이 그 자리에서 X가 되고, 손잡이를 끌어 내리거나 바깥을 누르거나 뒤로 가기로 닫습니다.
+- 추가 시트(일정 추가·할 일 배치), AI 동의, 07 알림 제안(R1), 사캠 연결·재연결 시트(앱 안 WebView 공식 로그인)는 라우트가 아니라 `showModalBottomSheet`로 띄웁니다. 시트는 손잡이나 제목을 아래로 끌어 닫습니다. 새 화면은 이 표에 먼저 더합니다.
 - 시작 위치는 `redirect` 한 곳에서만 정합니다. 알림으로 켜졌으면 그 payload 경로, 온보딩을 끝내지 않았으면 `/onboarding`, 끝냈고 오늘(논리적 하루)의 브리핑을 아직 열지 않았으면 `/briefing`, 그 밖에는 `/calendar`입니다. `redirect`는 이 순서를 시작 위치 `/`에서만 따르고 다른 경로는 막지 않습니다. 그래서 온보딩 중에도 `/me/timetable`을 열 수 있고, payload로 연 화면이 온보딩에 덮이지 않습니다. 온보딩을 끝냈거나 데모 모드면 `/onboarding`으로 가는 이동만 `/briefing`이나 `/calendar`로 돌립니다.
 - 화면 전환은 `ThemeData.pageTransitionsTheme`에 iOS `CupertinoPageTransitionsBuilder`(왼쪽 끝 스와이프 뒤로), Android `PredictiveBackPageTransitionsBuilder`를 둡니다. 뒤로 가기 제어는 `PopScope`만 씁니다. 드로어에서 캘린더 보기끼리 바꿀 때는 화면 전환 애니메이션 없이 바꿉니다(`go`로 교체).
 
@@ -130,7 +132,7 @@ cnu-ai-assistant/
 | 폴더 | 화면 (캔버스 번호) | 단계 |
 |---|---|---|
 | `features/onboarding/` | 온보딩, 데모 모드 진입 | R0 |
-| `features/calendar/` | 월간·연간·주간·일간·일정 목록, 선택일 패널과 실시간 시간표(`widgets/day_panel.dart`) | R0 |
+| `features/calendar/` | 월간·연간·주간·일간·일정 목록, 선택일 패널(`month_screen.dart`의 `_DayPanel`)과 데일리 스케줄(`widgets/live_day.dart`) | R0 |
 | `features/search/` | 검색 | R0 |
 | `features/add/` | 추가 시트: 일정 추가, 할 일 배치(말·직접 입력, 겹침·마감 검사) | R0 |
 | `features/briefing/` | 데일리 브리핑, 중요 브리핑 시트(`important_sheet.dart`), 템플릿 문장 | R0 (재난문자는 R1) |
@@ -253,9 +255,9 @@ cnu-ai-assistant/
 | `suggestions`, `public_calendar` | R1에 더합니다. 뼈대에서 만들지 않습니다 | R1 |
 
 - 학기 값의 형식은 사캠 응답을 따르고 코드에 적지 않습니다. 동기화가 받은 과목 가운데 학기 값이 가장 최근(정렬했을 때 가장 큰)인 과목과 `name`이 같고 `remoteId`가 null인 행이 있으면 그 행에 `remoteId`와 `semester`를 채워 합치고, 없으면 새 행을 만듭니다. 시간표·빈 시간 계산은 `class_slots`가 있는 과목을 학기와 무관하게 쓰고, `/v1/parse`의 `courses`와 과목 고르기 화면은 `remoteId`가 null이거나 학기 값이 가장 최근인 과목만 씁니다. 학기별로 나누어 보여 주는 것은 R2입니다.
-- 아래 기본값 가운데 하루 경계 값 `dayBoundaryMin`은 팀이 정한 값이 아니라 임시값이며 사용자 테스트 뒤 정합니다. `settings` 키와 기본값: `dayBoundaryMin` 240, `aiEnabled` false, `aiConsentAt` null, `metricsEnabled` false(R1), `metricsLastSentOn` null(R1, 마지막으로 지표를 보낸 날짜), `lmsMode` `none`(R0는 `none`/`phone`), `lmsSessionState` `disconnected`([lms.md](lms.md) '세션 상태'), `lmsAutoLogin` false(자동 로그인 유지. 켜면 비밀번호를 보안 저장소에 저장해 세션이 끊길 때 다시 로그인하고, 끄면 저장하지 않고 끊길 때마다 로그인 화면을 띄움), `lmsLastSuccessAt` null(화면의 '마지막 확인 시각'. `normal`·`empty`·`partial`로 끝난 동기화의 시작 시각. 지금 값보다 늦을 때만 바꿉니다), `lmsLastConnectedAt` null(마지막으로 `connecting`에서 `active`가 된 시각. 지표의 '마지막 사캠 재연결 뒤 지난 날 수'에 씁니다), `checkinMin` null(R1, null이면 `domain/defaults.dart`의 저녁 체크인 시각), `dueTodayTimeSensitive` false(R1), `motionLevel` `auto`, `onboardingSkipped` [], `installedAt` null(첫 실행 때 보안 저장소를 비운 뒤 적는 설치 표식, lms.md), `lastVisitAt` null(마지막 접속 시각. 앱이 백그라운드로 갈 때 적고 데일리 브리핑 범위의 시작으로 씀). `value`의 JSON 형식은 시각이면 `DateTimeColumn`과 같은 문자열(로컬 시각에 UTC 오프셋), 날짜만 있는 값(`metricsLastSentOn`)이면 `YYYY-MM-DD` 문자열, 열거형이면 snake_case 문자열, `onboardingSkipped`면 건너뛴 온보딩 단계 번호(1–8)의 배열입니다. 하루 창·브리핑 시각·수업 버퍼·식사·알림 하루 상한·조용한 시간은 `settings`에 두지 않습니다. 이 값들의 기본값은 `domain/defaults.dart`(임시값)에 있고, 사용자가 바꾼 값은 `rules`에 둡니다(아래 '내 규칙'). 키를 더하면 이 목록에 적습니다.
+- 아래 기본값 가운데 하루 경계 값 `dayBoundaryMin`은 팀이 정한 값이 아니라 임시값이며 사용자 테스트 뒤 정합니다. `settings` 키와 기본값: `dayBoundaryMin` 240, `aiEnabled` false, `aiConsentAt` null, `metricsEnabled` false(R1), `metricsLastSentOn` null(R1, 마지막으로 지표를 보낸 날짜), `lmsMode` `none`(R0는 `none`/`phone`), `lmsSessionState` `disconnected`([lms.md](lms.md) '세션 상태'), `lmsAutoLogin` false(자동 로그인 유지. 켜면 비밀번호를 보안 저장소에 저장해 세션이 끊길 때 다시 로그인하고, 끄면 저장하지 않고 끊길 때마다 로그인 화면을 띄움), `lmsLastSuccessAt` null(화면의 '마지막 확인 시각'. `normal`·`empty`·`partial`로 끝난 동기화의 시작 시각. 지금 값보다 늦을 때만 바꿉니다), `lmsLastConnectedAt` null(마지막으로 `connecting`에서 `active`가 된 시각. 지표의 '마지막 사캠 재연결 뒤 지난 날 수'에 씁니다), `checkinMin` null(R1, null이면 `domain/defaults.dart`의 저녁 체크인 시각), `dueTodayTimeSensitive` false(R1), `motionLevel` `auto`, `onboardingSkipped` [], `installedAt` null(첫 실행 때 보안 저장소를 비운 뒤 적는 설치 표식, lms.md), `lastVisitAt` null(마지막 접속 시각. 앱이 백그라운드로 갈 때 적고 데일리 브리핑 범위의 시작으로 씀), `hiddenCalendars` [](드로어 '내 폰'에서 끈 캘린더. 문자열 배열이고 값은 `classes`(수업·휴강·보강), `mine`(직접·AI 일정, 고정 일정, `lmsKey` 없는 할 일과 그 블록·마감), `lms`(`lmsKey` 있는 할 일과 그 블록·마감), `notification`(알림에서 온 일정). 모르는 값은 무시). `value`의 JSON 형식은 시각이면 `DateTimeColumn`과 같은 문자열(로컬 시각에 UTC 오프셋), 날짜만 있는 값(`metricsLastSentOn`)이면 `YYYY-MM-DD` 문자열, 열거형이면 snake_case 문자열, `onboardingSkipped`면 건너뛴 온보딩 단계 번호(1–8)의 배열입니다. 하루 창·브리핑 시각·수업 버퍼·식사·알림 하루 상한·조용한 시간은 `settings`에 두지 않습니다. 이 값들의 기본값은 `domain/defaults.dart`(임시값)에 있고, 사용자가 바꾼 값은 `rules`에 둡니다(아래 '내 규칙'). 키를 더하면 이 목록에 적습니다.
 - `sync_runs`·`lms_item_changes`·`briefings`·`notification_events`(R1)는 90일이 지난 행을 앱 시작 때 지웁니다. `plan_blocks`의 `dismissed` 행은 그 논리적 하루가 끝나면 지웁니다. 나머지 테이블은 로그아웃·데이터 삭제 때만 지웁니다.
-- 되돌리기는 한 방식뿐입니다. 사용자나 앱이 `events`·`tasks`·`fixed_blocks`·`plan_blocks`·`class_exceptions`·`rules`를 추가·수정·삭제·완료·확정·옮김할 때마다 저장소 층(`data/repositories/`)이 직전 상태를 `undo_log` 한 행으로 덮어쓰고, 화면은 10초 동안 스낵바 '되돌리기'를 보여 줍니다. 여러 행을 한 번에 바꾸는 동작('모두 확정', 이전 규칙을 끄는 규칙 저장)은 `rowId`를 null로 두고 `beforeJson`에 바뀐 행들의 직전 상태 배열을 담아 한 번에 되돌립니다. 저장소의 `undoLast()`는 마지막 동작 하나만 되살리고, 10초가 지나거나 다음 동작이 오면 기록을 버립니다. 동기화가 바꾼 `lms_items`와 `tasks`의 복사 열은 되돌리기 대상이 아닙니다.
+- 되돌리기는 한 방식뿐입니다. 사용자나 앱이 `events`·`tasks`·`fixed_blocks`·`plan_blocks`·`class_exceptions`·`rules`를 추가·수정·삭제·완료·확정·옮김할 때마다 저장소 층(`data/repositories/`)이 직전 상태를 `undo_log` 한 행으로 덮어쓰고, 화면은 10초 동안 스낵바 '되돌리기'를 보여 줍니다. 여러 행을 한 번에 바꾸는 동작('모두 확정', 이전 규칙을 끄는 규칙 저장)은 `rowId`를 null로 두고 `beforeJson`에 바뀐 행들의 직전 상태 배열을 담아 한 번에 되돌립니다. 저장소의 `undoLast()`는 마지막 동작 하나만 되살리고, 10초가 지나거나 다음 동작이 오면 기록을 버립니다. 동기화가 바꾼 `lms_items`와 `tasks`의 복사 열은 되돌리기 대상이 아닙니다. 데일리 스케줄의 To-Do 체크는 `plan_blocks.status`를 `done` ↔ `confirmed`, `tasks.status`를 `done` ↔ `todo`로 바꾸고 `undo_log`에 action `update`, `beforeJson` `{"status":"<직전 값>"}`을 남깁니다. 이 체크는 상태만 바꾸며, 할 일 완료 때 남은 블록 삭제와 알림 취소는 아직 하지 않습니다.
 - 동기화는 `lms_items`, `lms_item_changes`, `courses`, `sync_runs`, `sync_lease`, `settings`의 `lms*` 키와 `tasks`의 아래 네 열만 씁니다. 사캠 항목을 할 일로 만드는 규칙: 동기화가 끝날 때마다 마지막 단계에서 `domain/lms_to_task.dart`의 순수 함수 `tasksFromLmsItems`를 불러, `kind`가 `material`이 아닌 `lms_items`마다 `lmsKey`가 같은 `tasks` 행(`hidden` 포함)이 없을 때만 한 행을 만들고(`status` `todo`), 있으면 `title`·`kind`·`dueAt`·`dueTimeUnknown`만 원본에서 다시 복사합니다. `estimateMin`·`spentMin`·`status`는 사용자 값이라 동기화가 바꾸지 않습니다. 사용자가 사캠 할 일을 지우면 행을 지우지 않고 `status`를 `hidden`으로 둡니다. 영상 길이·진도·공식 완료·제출·공개일·사라짐은 복사하지 않고 화면과 배치 엔진이 `lmsKey`로 `lms_items`를 함께 읽습니다. 설치 토큰, 저장된 비밀번호(자동 로그인), 쿠키는 이 DB가 아니라 보안 저장소(`flutter_secure_storage`, iOS 접근 수준 `first_unlock_this_device`)에 둡니다.
 
 ## 도메인 기본값, 빈 시간과 여유도
@@ -305,6 +307,7 @@ cnu-ai-assistant/
 - Android 알림 채널은 넷으로 고정합니다. `briefing`(아침 브리핑·저녁 체크인, `Importance.high`, 소리 있음), `reminder`(D-3·D-1·시작 10분 전, `Importance.high`, 소리 있음), `due_today`(마감 당일, `Importance.high`, 소리 있음. R1의 '시간 민감' 알림은 이 채널로만), `update`(마감 변경·영상 공개·PC 새 할 일·알림 감지 제안, `Importance.defaultImportance`, 소리 없음). 채널은 앱 시작 때 `platform/notifications.dart`가 한 번에 만들고, 알림을 띄우는 코드는 이 네 ID만 씁니다. 중요도·소리는 만든 뒤 바꿀 수 없으므로 바꿔야 하면 새 ID(`reminder_v2`)를 만들고 옛 채널은 지웁니다. iOS는 같은 네 이름을 `DarwinNotificationDetails`의 `threadIdentifier`로 씁니다.
 - 예약은 `flutter_local_notifications`의 `zonedSchedule`만 쓰고, 시각은 `timezone` 패키지의 `TZDateTime`(`Asia/Seoul` 고정)으로 만듭니다. Android는 `canScheduleExactNotifications()`가 true면 `AndroidScheduleMode.exactAllowWhileIdle`, 아니면 `inexactAllowWhileIdle`로 예약하고, 정확한 알람 권한이 없으면 설정 화면에 "알림이 최대 한 시간 늦을 수 있어요"를 적습니다. 재부팅 뒤 재등록은 플러그인이 하고(`RECEIVE_BOOT_COMPLETED` 권한과 `ScheduledNotificationBootReceiver` 등록이 필요합니다), 앱은 앱을 열 때, 데이터가 바뀔 때, 전날 밤 초안을 만들 때 전체를 다시 계산해 예약합니다. iOS는 발화 시각이 가까운 순으로 64개까지만 예약합니다.
 - 종류와 시각: 브리핑은 설정 시각(기본 08:00, `notify` 규칙)입니다. 마감 리마인더는 D-3·D-1 20:00과 당일 마감 3시간 전(그 시각이 브리핑 시각보다 이르면 브리핑 시각에 보내고, 브리핑 시각이 마감 뒤면 보내지 않습니다)이고, 날은 논리적 하루(04:00 경계)로 셉니다. 시작 10분 전 알림은 확정 블록과 알림 시각이 있는 일정에 보냅니다. 영상 공개 알림은 `lms_items.openAt` 시각에 로컬 알림으로 미리 예약하고 공개일이 바뀌면 다시 예약합니다. 마감 변경은 동기화에서 알아챈 즉시 보내되, 앱이 화면에 있으면 알림 대신 앱 안 배너로 보여 줍니다. PC 새 할 일 알림은 R1입니다.
+- 지금 예약하는 알림은 데일리 브리핑 하나입니다. 고정 ID 1(`NotificationIds`), 채널 `briefing`, payload `/briefing`이고 `notify` 규칙의 브리핑 시각에 매일 되풀이합니다. `BriefingNotifications.sync`가 기존 예약을 지우고 다시 예약하며, 앱 시작 때·설정에서 브리핑 시각을 바꿀 때·앱 모드가 바뀔 때(데모면 모두 취소) 부릅니다. 알림 권한은 앱 시작 때 묻지 않고 설정에서 브리핑 시각을 고를 때 묻습니다. 앱이 백그라운드로 갈 때 다시 예약하는 것과 브리핑 시각 전에 이미 본 날의 알림 취소는 아직 없습니다.
 - 항목을 처음 본 시점에 이미 지난 리마인더는 보내지 않습니다. 완료·삭제하면 남은 알림을 즉시 취소합니다.
 - 하루 상한은 6개(임시 기본값, `notify` 규칙으로 바꿉니다)입니다. 브리핑과 마감 당일 알림은 상한에서 뺍니다. 나머지(D-3·D-1, 시작 10분 전, 마감 변경, 영상 공개)는 상한에 들어갑니다. PC 새 할 일 알림(R1)은 서버가 보내므로 이 상한과 따로 연결당 하루 3개까지입니다. 상한을 넘는 알림은 보내지 않고 다음 브리핑 카드에 넣습니다. 같은 30분 창에 보낼 알림이 둘 이상이면 하나로 묶습니다.
 - 조용한 시간은 23:30–07:00(임시 기본값, `notify` 규칙)입니다. 브리핑, 마감 당일 알림, 확정 블록의 시작 10분 전 알림은 조용한 시간에도 보내고(확정 블록은 사용자가 정한 시간입니다), 그 밖의 알림이 조용한 시간에 걸리면 보내지 않고 다음 브리핑 카드에 넣습니다.

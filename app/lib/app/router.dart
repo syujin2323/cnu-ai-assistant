@@ -89,7 +89,7 @@ abstract final class Routes {
 
 /// 앱을 켠 알림의 payload(go_router 경로 문자열). 알림으로 켜지지 않았으면 null이다.
 ///
-/// 알림 PR에서 bootstrap이 `getNotificationAppLaunchDetails()`로 읽어 덮어쓴다.
+/// bootstrap이 `getNotificationAppLaunchDetails()`로 읽어 덮어쓴다.
 final launchPayloadProvider = Provider<String?>((ref) => null);
 
 /// 앱의 라우터. 한 번 만들고 다시 만들지 않는다(안에서는 `ref.read`만 쓴다).
