@@ -1,15 +1,19 @@
-// 선택일 패널을 끌어올렸을 때의 실시간 하루 시간표. docs/architecture.md '화면 이동'.
+// 선택일 패널을 끌어올렸을 때의 데일리 스케줄 본문. docs/architecture.md '화면 이동'.
 //
-// 위에서부터 날짜·지금 시각, 상황(진행 중·다음 일정·남은 빈 시간), 0~24시 시간표(지금 선,
-// 지난 일정은 흐리게), 오늘 해야 할 미배정 할 일이다. 지금 시각은 1분마다 바뀐다.
-// 처음에는 지금 1시간 전(오늘이 아니면 8시)이 위에 오게 스크롤한다.
+// 위에서부터 실시간 시간표, To-Do, 오늘 해야 할 미배정 할 일 세 칸이 5:2:2 높이로 놓이고 칸마다
+// 따로 스크롤한다. 시간표 칸 맨 위에는 지금 시각과 상황(진행 중·다음 일정·남은 빈 시간)을 한 줄로
+// 둔다. 시간표는 0~24시(지금 선, 지난 일정은 흐리게)이고 처음에는 지금 1시간 전(오늘이 아니면 8시)이
+// 위에 오게 스크롤한다. To-Do는 그날의 확정 블록과 그날 마감인 할 일이고, 체크하면 블록은 `done`,
+// 할 일은 완료로 바꾸고 10초 동안 '되돌리기' 스낵바를 띄운다. 지금 시각은 1분마다 바뀐다.
 
 import 'package:cnu_ai_assistant/app/providers.dart';
+import 'package:cnu_ai_assistant/data/repositories/plan_repository.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
-import 'package:cnu_ai_assistant/design/widgets/calendar_bars.dart';
 import 'package:cnu_ai_assistant/design/widgets/unassigned_task_row.dart';
 import 'package:cnu_ai_assistant/domain/calendar_items.dart';
+import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/free_slots.dart';
+import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/domain/rules.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:cnu_ai_assistant/domain/unassigned_tasks.dart';
@@ -20,7 +24,7 @@ import 'package:cnu_ai_assistant/features/calendar/widgets/time_grid.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// 실시간 하루 시간표.
+/// 데일리 스케줄 본문(실시간 시간표 · To-Do · 오늘 미배정 할 일).
 class LiveDay extends ConsumerStatefulWidget {
   const LiveDay({super.key, required this.day});
 
@@ -34,7 +38,6 @@ class LiveDay extends ConsumerStatefulWidget {
 class _LiveDayState extends ConsumerState<LiveDay> {
   final ScrollController _scroll = ScrollController();
   final GlobalKey _timelineKey = GlobalKey();
-  final GlobalKey _todoKey = GlobalKey();
   bool _scrolledToNow = false;
 
   @override
@@ -63,6 +66,36 @@ class _LiveDayState extends ConsumerState<LiveDay> {
     });
   }
 
+  /// To-Do 한 줄을 체크하거나 풀었을 때. 저장하면 되돌리기 스낵바를 띄운다.
+  Future<void> _toggle(_TodoEntry entry, bool done) async {
+    final container = ProviderScope.containerOf(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final repository = ref.read(planRepositoryProvider);
+    final blockId = entry.blockId;
+    final result = blockId != null
+        ? await repository.setBlockDone(blockId, done: done)
+        : await repository.setTaskDone(entry.taskId, done: done);
+    messenger.hideCurrentSnackBar();
+    if (result is Err) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('저장하지 못했어요. 다시 시도해 주세요.')),
+      );
+      return;
+    }
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          done ? '${entry.title} 완료로 표시했어요' : '${entry.title} 완료를 취소했어요',
+        ),
+        duration: PlanRepository.undoWindow,
+        action: SnackBarAction(
+          label: '되돌리기',
+          onPressed: () => container.read(planRepositoryProvider).undoLast(),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final day = widget.day;
@@ -71,102 +104,129 @@ class _LiveDayState extends ConsumerState<LiveDay> {
     final boundary = ref.watch(dayBoundaryProvider);
     final isToday = day == ref.watch(calendarTodayProvider);
     final items = itemsOn(day, data);
-    final todo = isToday
-        ? todayUnassigned(
-            ref.watch(unassignedTasksProvider),
-            now: now,
-            dayBoundaryMin: boundary,
-          )
-        : const <UnassignedTask>[];
+    final unassigned = todayUnassigned(
+      ref.watch(unassignedTasksProvider),
+      now: now,
+      dayBoundaryMin: boundary,
+    );
     _scrollToNow(isToday ? now : null);
 
-    return ListView(
-      controller: _scroll,
-      padding: const EdgeInsets.fromLTRB(
-        AppSpace.screen,
-        0,
-        AppSpace.screen,
-        CalendarBottomBar.height,
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Semantics(
-          header: true,
-          child: Wrap(
-            crossAxisAlignment: WrapCrossAlignment.end,
-            spacing: AppSpace.s8,
+        Expanded(
+          flex: 5,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('${day.day}', style: AppText.display),
-              Text(
-                '${weekdayText(day.weekday)}요일',
-                style: AppText.bodyLarge.copyWith(fontWeight: AppText.semibold),
+              _StatusLine(
+                lines: isToday
+                    ? [
+                        ('지금', hm(now)),
+                        ..._todayStatus(data, items, now, boundary),
+                      ]
+                    : [_otherDayStatus(day, now, items)],
               ),
-              if (isToday)
-                Text(
-                  '지금 ${hm(now)}',
-                  style: AppText.body.copyWith(
-                    color: AppColors.alert,
-                    fontWeight: AppText.semibold,
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: _scroll,
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpace.screen,
+                    AppSpace.s8,
+                    AppSpace.screen,
+                    AppSpace.s16,
                   ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _AllDayStrip(items: items),
+                      TimeGrid(
+                        key: _timelineKey,
+                        days: [day],
+                        data: data,
+                        now: isToday ? now : null,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, color: AppColors.edge),
+        Expanded(
+          flex: 2,
+          child: _Region(
+            title: 'To-Do',
+            empty: '이날 할 일이 없어요.',
+            children: [
+              for (final entry in _todoOn(day, data))
+                _TodoRow(
+                  entry: entry,
+                  onChanged: (done) => _toggle(entry, done),
                 ),
             ],
           ),
         ),
-        const SizedBox(height: AppSpace.s8),
-        _StatusCard(
-          lines: isToday
-              ? _todayStatus(data, items, now, boundary)
-              : [_otherDayStatus(day, now, items)],
-          todoCount: isToday ? todo.length : null,
-          onJumpToTodo: () {
-            final target = _todoKey.currentContext;
-            if (target != null) {
-              Scrollable.ensureVisible(
-                target,
-                duration: const Duration(milliseconds: 250),
-              );
-            }
-          },
-        ),
-        const SizedBox(height: AppSpace.s12),
-        _AllDayStrip(items: items),
-        TimeGrid(
-          key: _timelineKey,
-          days: [day],
-          data: data,
-          now: isToday ? now : null,
-        ),
-        if (isToday) ...[
-          const SizedBox(height: AppSpace.s16),
-          Semantics(
-            key: _todoKey,
-            header: true,
-            child: Text(
-              '오늘 해야 할 미배정 할 일 ${todo.length}개',
-              style: AppText.small.copyWith(color: AppColors.muted),
-            ),
+        const Divider(height: 1, color: AppColors.edge),
+        Expanded(
+          flex: 2,
+          child: _Region(
+            title: '오늘 해야 할 미배정 할 일 ${unassigned.length}개',
+            empty: '오늘 시간을 정해야 할 할 일이 없어요.',
+            children: [
+              for (final item in unassigned)
+                UnassignedTaskRow(
+                  item: item,
+                  now: now,
+                  dayBoundaryMin: boundary,
+                  onPlace: () =>
+                      showAddSheet(context, day: day, taskId: item.task.id),
+                ),
+            ],
           ),
-          if (todo.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpace.s12),
-              child: Text(
-                '오늘 시간을 정해야 할 할 일이 없어요.',
-                style: AppText.body.copyWith(color: AppColors.muted),
-              ),
-            ),
-          for (final item in todo)
-            UnassignedTaskRow(
-              item: item,
-              now: now,
-              dayBoundaryMin: boundary,
-              onPlace: () =>
-                  showAddSheet(context, day: day, taskId: item.task.id),
-            ),
-        ],
+        ),
       ],
     );
   }
 
-  /// 오늘의 상황 줄: 진행 중, 다음, 남은 빈 시간.
+  /// [day]의 To-Do: 확정·완료 블록과 그날 마감인 할 일(할 일·완료). 시각 순이다.
+  static List<_TodoEntry> _todoOn(DateTime day, CalendarData data) {
+    final next = DateTime(day.year, day.month, day.day + 1);
+    final taskById = {for (final task in data.tasks) task.id: task};
+    final entries = <_TodoEntry>[
+      for (final block in data.schedule.planBlocks)
+        if ((block.status == PlanBlockStatus.confirmed ||
+                block.status == PlanBlockStatus.done) &&
+            block.startAt.isBefore(next) &&
+            block.endAt.isAfter(day))
+          _TodoEntry(
+            title: taskById[block.taskId]?.title ?? '할 일',
+            meta: '${hm(block.startAt)} - ${hm(block.endAt)}',
+            at: block.startAt,
+            done: block.status == PlanBlockStatus.done,
+            taskId: block.taskId,
+            blockId: block.id,
+          ),
+      for (final task in data.tasks)
+        if ((task.status == TaskStatus.todo ||
+                task.status == TaskStatus.done) &&
+            task.dueAt != null &&
+            !task.dueAt!.isBefore(day) &&
+            task.dueAt!.isBefore(next))
+          _TodoEntry(
+            title: task.title,
+            meta: '${hm(task.dueAt!)} 마감',
+            at: task.dueAt!,
+            done: task.status == TaskStatus.done,
+            taskId: task.id,
+          ),
+    ];
+    entries.sort((a, b) => a.at.compareTo(b.at));
+    return entries;
+  }
+
+  /// 오늘의 상황: 진행 중, 다음, 남은 빈 시간.
   List<(String, String)> _todayStatus(
     CalendarData data,
     List<CalendarItem> items,
@@ -202,7 +262,7 @@ class _LiveDayState extends ConsumerState<LiveDay> {
             ? '오늘 남은 일정 없음'
             : '${next.title} · ${durationText(next.start!.difference(now).inMinutes)} 뒤 (${hm(next.start!)})',
       ),
-      ('빈 시간', '오늘 남은 빈 시간 ${durationText(free)}'),
+      ('빈 시간', '남은 빈 시간 ${durationText(free)}'),
     ];
   }
 
@@ -216,52 +276,168 @@ class _LiveDayState extends ConsumerState<LiveDay> {
   }
 }
 
-class _StatusCard extends StatelessWidget {
-  const _StatusCard({
-    required this.lines,
-    required this.todoCount,
-    required this.onJumpToTodo,
+/// To-Do 한 줄의 값.
+final class _TodoEntry {
+  const _TodoEntry({
+    required this.title,
+    required this.meta,
+    required this.at,
+    required this.done,
+    required this.taskId,
+    this.blockId,
   });
+
+  final String title;
+
+  /// 블록이면 시각 범위, 마감이면 '23:59 마감'.
+  final String meta;
+
+  /// 정렬 기준(블록 시작, 마감 시각).
+  final DateTime at;
+  final bool done;
+  final int taskId;
+
+  /// 블록이면 그 블록 id, 마감이면 null.
+  final int? blockId;
+}
+
+/// 상황 한 줄. 넘치면 옆으로 민다.
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({required this.lines});
 
   final List<(String, String)> lines;
 
-  /// 오늘이면 미배정 할 일 수, 아니면 null(바로가기 없음).
-  final int? todoCount;
-  final VoidCallback onJumpToTodo;
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: AppColors.tint,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.screen,
+          vertical: AppSpace.s8,
+        ),
+        child: Text.rich(
+          TextSpan(
+            children: [
+              for (final (i, (label, text)) in lines.indexed) ...[
+                if (i > 0) const TextSpan(text: '   '),
+                TextSpan(
+                  text: '$label ',
+                  style: TextStyle(
+                    color: label == '지금' ? AppColors.alert : AppColors.accent,
+                    fontWeight: AppText.semibold,
+                  ),
+                ),
+                TextSpan(text: text),
+              ],
+            ],
+          ),
+          maxLines: 1,
+          softWrap: false,
+          style: AppText.small,
+        ),
+      ),
+    );
+  }
+}
+
+/// To-Do와 미배정 할 일 칸. 제목과 함께 칸 안에서 따로 스크롤한다.
+class _Region extends StatelessWidget {
+  const _Region({
+    required this.title,
+    required this.empty,
+    required this.children,
+  });
+
+  final String title;
+
+  /// 줄이 없을 때의 문장.
+  final String empty;
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    final todoCount = this.todoCount;
-    return Container(
-      padding: const EdgeInsets.all(AppSpace.s12),
-      decoration: BoxDecoration(
-        color: AppColors.tint,
-        borderRadius: BorderRadius.circular(AppRadius.chip),
+    // 하루치 줄이라 짧으므로 한 번에 그린다(화면 읽기도 모든 줄을 읽는다).
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.screen,
+        AppSpace.s8,
+        AppSpace.screen,
+        AppSpace.s8,
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final (label, text) in lines)
-            Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: '$label  ',
-                    style: const TextStyle(
-                      color: AppColors.accent,
-                      fontWeight: AppText.semibold,
+          Semantics(
+            header: true,
+            child: Text(
+              title,
+              style: AppText.small.copyWith(
+                color: AppColors.muted,
+                fontWeight: AppText.semibold,
+              ),
+            ),
+          ),
+          if (children.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpace.s8),
+              child: Text(
+                empty,
+                style: AppText.body.copyWith(color: AppColors.muted),
+              ),
+            ),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _TodoRow extends StatelessWidget {
+  const _TodoRow({required this.entry, required this.onChanged});
+
+  final _TodoEntry entry;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final done = entry.done;
+    return InkWell(
+      onTap: () => onChanged(!done),
+      child: Row(
+        children: [
+          Checkbox(
+            value: done,
+            semanticLabel: entry.title,
+            activeColor: AppColors.accent,
+            onChanged: (value) => onChanged(value ?? false),
+          ),
+          const SizedBox(width: AppSpace.s4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 제목은 체크 칸의 이름으로 읽으므로 따로 읽지 않는다.
+                ExcludeSemantics(
+                  child: Text(
+                    entry.title,
+                    style: AppText.body.copyWith(
+                      color: done ? AppColors.muted : AppColors.ink,
+                      decoration: done ? TextDecoration.lineThrough : null,
                     ),
                   ),
-                  TextSpan(text: text),
-                ],
-              ),
-              style: AppText.body,
+                ),
+                Text(
+                  entry.meta,
+                  style: AppText.caption.copyWith(
+                    color: AppColors.muted,
+                    decoration: done ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+              ],
             ),
-          if (todoCount != null)
-            TextButton(
-              onPressed: onJumpToTodo,
-              child: Text('오늘 미배정 $todoCount개 보기'),
-            ),
+          ),
         ],
       ),
     );

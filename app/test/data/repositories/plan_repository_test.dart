@@ -76,4 +76,43 @@ void main() {
     expect(await db.select(db.events).get(), hasLength(1));
     expect(await db.select(db.undoLog).get(), isEmpty);
   });
+
+  test('블록·할 일을 완료로 바꾸면 직전 상태가 되돌리기 기록에 남고, 되돌리면 돌아간다', () async {
+    final taskId = await addTask();
+    await repository.placeTask(
+      taskId: taskId,
+      startAt: DateTime(2026, 10, 29, 14),
+      endAt: DateTime(2026, 10, 29, 16),
+      source: BlockSource.manual,
+    );
+    final blockId = (await db.select(db.planBlocks).getSingle()).id;
+
+    expect(await repository.setBlockDone(blockId, done: true), isA<Ok<void>>());
+    expect(
+      (await db.select(db.planBlocks).getSingle()).status,
+      PlanBlockStatus.done,
+    );
+    var undo = await db.select(db.undoLog).getSingle();
+    expect(undo.targetTable, 'plan_blocks');
+    expect(undo.action, UndoAction.update);
+    expect(undo.rowId, blockId);
+    expect(undo.beforeJson, '{"status":"confirmed"}');
+    expect((await repository.undoLast() as Ok<bool>).value, isTrue);
+    expect(
+      (await db.select(db.planBlocks).getSingle()).status,
+      PlanBlockStatus.confirmed,
+    );
+
+    await repository.setTaskDone(taskId, done: true);
+    expect((await db.select(db.tasks).getSingle()).status, TaskStatus.done);
+    undo = await db.select(db.undoLog).getSingle();
+    expect(undo.targetTable, 'tasks');
+    expect(undo.beforeJson, '{"status":"todo"}');
+    await repository.setTaskDone(taskId, done: false);
+    expect((await db.select(db.tasks).getSingle()).status, TaskStatus.todo);
+    expect(
+      (await db.select(db.undoLog).getSingle()).beforeJson,
+      '{"status":"done"}',
+    );
+  });
 }

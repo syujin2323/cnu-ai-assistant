@@ -1,14 +1,16 @@
 // 월간(`/calendar`) 화면 테스트. docs/architecture.md '화면 이동'.
 //
 // 폰 DB(메모리)에 수업·일정·할 일을 넣고 지금을 2026-10-29(목) 10:00으로 고정해 띄운다.
-// 그리드가 날짜마다 칩을, 패널이 선택한 날의 일정을 보여 주는지, 달 넘기기·오늘 버튼·두 번 눌러
-// 일간 열기·마감 행에서 할 일 상세 열기가 도는지 본다. 글자 배율 1.0과 2.0에서 돌린다.
+// 그리드가 날짜마다 칩을, 패널이 선택한 날의 일정을 보여 주는지, 좌우 달 넘기기·위아래 모양
+// 바꾸기(전체 달·데일리 스케줄)·To-Do 체크·오늘 버튼·두 번 눌러 일간 열기·마감 행에서 할 일 상세
+// 열기가 도는지 본다. 글자 배율 1.0과 2.0에서 돌린다.
 
 import 'package:cnu_ai_assistant/app/app.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
+import 'package:cnu_ai_assistant/design/widgets/calendar_bars.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_controller.dart';
@@ -68,19 +70,19 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('그리드를 위로 넘기면 다음 달, 아래로 넘기면 이전 달이고 오늘 버튼으로 돌아온다', (
+      testWidgets('그리드를 왼쪽으로 넘기면 다음 달, 오른쪽은 이전 달이고 휠·오늘 버튼으로도 바뀐다', (
         tester,
       ) async {
         final app = await _pumpMonth(tester, textScale);
         final grid = find.bySemanticsLabel(RegExp(r'^10월 15일'));
 
-        await tester.fling(grid, const Offset(0, -200), 1000);
+        await tester.fling(grid, const Offset(-300, 0), 1000);
         await tester.pumpAndSettle();
         expect(find.text('11월'), findsOneWidget);
 
         await tester.fling(
           find.bySemanticsLabel(RegExp(r'^11월 15일')),
-          const Offset(0, 200),
+          const Offset(300, 0),
           1000,
         );
         await tester.pumpAndSettle();
@@ -98,7 +100,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('10월'), findsOneWidget);
 
-        await tester.fling(grid, const Offset(0, -200), 1000);
+        await tester.fling(grid, const Offset(-300, 0), 1000);
         await tester.pumpAndSettle();
         await tester.tap(find.byTooltip('오늘로 이동'));
         await tester.pumpAndSettle();
@@ -108,33 +110,150 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('손잡이를 누르면 실시간 시간표로 펼쳐져 진행 중·다음·오늘 미배정 할 일이 보이고, '
-          '다시 누르면 접힌다', (tester) async {
+      testWidgets('그리드를 아래로 넘기면 전체 달, 위로 넘기면 기본, 한 번 더 위로 넘기면 데일리 스케줄이다', (
+        tester,
+      ) async {
+        final app = await _pumpMonth(tester, textScale);
+        final grid = find.bySemanticsLabel(RegExp(r'^10월 15일'));
+
+        await tester.fling(grid, const Offset(0, 300), 1000);
+        await tester.pumpAndSettle();
+        // 패널이 사라지고, 칸마다 일정 제목이 보이며 하단 바는 그대로다.
+        expect(find.bySemanticsLabel('하루 시간표 펼치기'), findsNothing);
+        expect(find.text('10:00 - 11:15 · 공대5호관 412'), findsNothing);
+        expect(find.text('자구'), findsWidgets);
+        expect(find.text('과제2'), findsWidgets);
+        expect(find.byType(CalendarBottomBar), findsOneWidget);
+        expect(find.text('10월'), findsOneWidget);
+
+        // 전체 달에서도 좌우로 달이 바뀐다.
+        await tester.fling(grid, const Offset(-300, 0), 1000);
+        await tester.pumpAndSettle();
+        expect(find.text('11월'), findsOneWidget);
+        await tester.fling(
+          find.bySemanticsLabel(RegExp(r'^11월 15일')),
+          const Offset(300, 0),
+          1000,
+        );
+        await tester.pumpAndSettle();
+
+        await tester.fling(grid, const Offset(0, -300), 1000);
+        await tester.pumpAndSettle();
+        expect(find.bySemanticsLabel('하루 시간표 펼치기'), findsOneWidget);
+        expect(find.text('10월'), findsOneWidget);
+
+        await tester.fling(grid, const Offset(0, -300), 1000);
+        await tester.pumpAndSettle();
+        expect(find.text('29일 목요일 데일리 스케줄'), findsOneWidget);
+        expect(find.byType(CalendarBottomBar), findsNothing);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('손잡이를 누르면 데일리 스케줄로 펼쳐져 시간표·To-Do·오늘 미배정 할 일이 보이고 '
+          '하단 바가 숨으며, X로 접으면 돌아온다', (tester) async {
         final app = await _pumpMonth(tester, textScale);
 
         await tester.tap(find.bySemanticsLabel('하루 시간표 펼치기'));
         await tester.pumpAndSettle();
 
-        // 그리드는 숨고 패널이 화면을 채운다.
+        // 그리드와 하단 바는 숨고 패널이 상단바 아래를 채운다.
         expect(find.bySemanticsLabel(RegExp(r'^10월 15일')), findsNothing);
-        // 처음에는 지금 1시간 전이 위에 오게 스크롤돼 있으므로 맨 위로 올린다.
-        await tester.drag(find.byType(LiveDay), const Offset(0, 5000));
-        await tester.pumpAndSettle();
-        expect(find.text('지금 10:00'), findsOneWidget);
+        expect(find.byType(CalendarBottomBar), findsNothing);
+        expect(find.text('10월'), findsOneWidget);
+        expect(find.text('29일 목요일 데일리 스케줄'), findsOneWidget);
+        expect(find.byType(LiveDay), findsOneWidget);
         expect(
           find.textContaining('자구 · 1시간 15분 남음', findRichText: true),
           findsOneWidget,
         );
-
+        expect(find.text('To-Do'), findsOneWidget);
+        expect(_checkbox('과제2'), findsOneWidget);
         final todoHeader = find.text('오늘 해야 할 미배정 할 일 1개');
-        await _scrollPanelTo(tester, todoHeader);
+        await tester.ensureVisible(todoHeader);
         expect(todoHeader, findsOneWidget);
-        await _scrollPanelTo(tester, find.text('오늘 마감 · 남은 2시간'));
+        await tester.ensureVisible(find.text('오늘 마감 · 남은 2시간'));
         expect(find.text('오늘 마감 · 남은 2시간'), findsOneWidget);
 
-        await tester.tap(find.bySemanticsLabel('하루 시간표 접기'));
+        await tester.tap(find.byTooltip('닫기'));
         await tester.pumpAndSettle();
         expect(find.bySemanticsLabel(RegExp(r'^10월 15일')), findsOneWidget);
+        expect(find.byType(CalendarBottomBar), findsOneWidget);
+        expect(find.text('29일 목요일 데일리 스케줄'), findsNothing);
+
+        // 손잡이를 다시 누르면 펼치고, 한 번 더 누르면 접힌다.
+        await tester.tap(find.bySemanticsLabel('하루 시간표 펼치기'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.bySemanticsLabel('하루 시간표 접기'));
+        await tester.pumpAndSettle();
+        expect(find.byType(CalendarBottomBar), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('To-Do에서 블록과 마감을 체크하면 완료로 저장되고, 풀거나 되돌리면 원래대로다', (
+        tester,
+      ) async {
+        final app = await _pumpMonth(tester, textScale);
+        final blockId = await app.db
+            .into(app.db.planBlocks)
+            .insert(
+              PlanBlocksCompanion.insert(
+                taskId: app.taskId,
+                startAt: DateTime(2026, 10, 29, 14),
+                endAt: DateTime(2026, 10, 29, 16),
+                status: PlanBlockStatus.confirmed,
+                source: BlockSource.manual,
+              ),
+            );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.bySemanticsLabel('하루 시간표 펼치기'));
+        await tester.pumpAndSettle();
+        // 블록(14:00)이 먼저, 그날 마감(23:59)이 다음이다.
+        expect(_checkbox('과제2'), findsNWidgets(2));
+        Future<void> tapBox(int index) async {
+          await tester.ensureVisible(_checkbox('과제2').at(index));
+          await tester.pumpAndSettle();
+          await tester.tap(_checkbox('과제2').at(index));
+          await tester.pumpAndSettle();
+        }
+
+        Future<PlanBlockStatus> blockStatus() async => (await (app.db.select(
+          app.db.planBlocks,
+        )..where((b) => b.id.equals(blockId))).getSingle()).status;
+        Future<TaskStatus> taskStatus() async =>
+            (await app.db.select(app.db.tasks).getSingle()).status;
+
+        await tapBox(0);
+        expect(await blockStatus(), PlanBlockStatus.done);
+        final undo = await app.db.select(app.db.undoLog).getSingle();
+        expect(undo.action, UndoAction.update);
+        expect(undo.beforeJson, '{"status":"confirmed"}');
+        expect(
+          find.byWidgetPredicate(
+            (w) =>
+                w is Text &&
+                w.data == '과제2' &&
+                w.style?.decoration == TextDecoration.lineThrough,
+          ),
+          findsOneWidget,
+        );
+        await tapBox(0);
+        expect(await blockStatus(), PlanBlockStatus.confirmed);
+
+        await tapBox(1);
+        expect(await taskStatus(), TaskStatus.done);
+        await tapBox(1);
+        expect(await taskStatus(), TaskStatus.todo);
+
+        // 체크한 뒤 스낵바의 되돌리기로도 돌아간다.
+        await tapBox(1);
+        expect(await taskStatus(), TaskStatus.done);
+        expect(find.text('과제2 완료로 표시했어요'), findsOneWidget);
+        await tester.tap(find.text('되돌리기'));
+        await tester.pumpAndSettle();
+        expect(await taskStatus(), TaskStatus.todo);
 
         await app.dispose(tester);
       });
@@ -337,7 +456,36 @@ void main() {
 
         await app.dispose(tester);
       });
-      testWidgets('천천히 끌어도 손잡이는 놓은 위치로, 그리드는 끈 거리로 동작한다', (tester) async {
+
+      testWidgets('모션이 켜져 있으면 달이 옆으로 밀리며 바뀌고, 데일리 스케줄도 펼쳐진다', (tester) async {
+        final app = await _pumpMonth(
+          tester,
+          textScale,
+          motion: MotionLevel.full,
+        );
+
+        await tester.fling(
+          find.bySemanticsLabel(RegExp(r'^10월 15일')),
+          const Offset(-300, 0),
+          1000,
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        // 밀리는 동안은 두 달이 함께 있다.
+        expect(find.bySemanticsLabel(RegExp(r'^10월 15일')), findsOneWidget);
+        expect(find.bySemanticsLabel(RegExp(r'^11월 15일')), findsOneWidget);
+        await tester.pumpAndSettle();
+        expect(find.text('11월'), findsOneWidget);
+        expect(find.bySemanticsLabel(RegExp(r'^10월 15일')), findsNothing);
+
+        await tester.tap(find.bySemanticsLabel('하루 시간표 펼치기'));
+        await tester.pumpAndSettle();
+        expect(find.text('29일 목요일 데일리 스케줄'), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('천천히 끌어도 손잡이는 놓은 위치로, 그리드는 끈 거리로 달을 넘긴다', (tester) async {
         final app = await _pumpMonth(tester, textScale);
 
         final handle = find.bySemanticsLabel('하루 시간표 펼치기');
@@ -368,7 +516,7 @@ void main() {
 
         await tester.timedDrag(
           find.bySemanticsLabel(RegExp(r'^10월 15일')),
-          const Offset(0, -120),
+          const Offset(-120, 0),
           const Duration(seconds: 2),
         );
         await tester.pumpAndSettle();
@@ -399,7 +547,11 @@ class _MonthApp {
 }
 
 /// 2026-10-29(목) 10:00, 온보딩·오늘 브리핑을 마친 상태로 앱을 띄운다(첫 화면 월간).
-Future<_MonthApp> _pumpMonth(WidgetTester tester, double textScale) async {
+Future<_MonthApp> _pumpMonth(
+  WidgetTester tester,
+  double textScale, {
+  MotionLevel motion = MotionLevel.off,
+}) async {
   tester.view.physicalSize = const Size(1170, 2532);
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
@@ -452,7 +604,7 @@ Future<_MonthApp> _pumpMonth(WidgetTester tester, double textScale) async {
       overrides: [
         sharedPreferencesProvider.overrideWithValue(preferences),
         databaseProvider.overrideWithValue(db),
-        motionLevelProvider.overrideWithValue(MotionLevel.off),
+        motionLevelProvider.overrideWithValue(motion),
         briefingOpenedTodayProvider.overrideWithValue(() async => true),
         clockProvider.overrideWithValue(FixedClock(DateTime(2026, 10, 29, 10))),
       ],
@@ -472,6 +624,11 @@ Future<_MonthApp> _pumpMonth(WidgetTester tester, double textScale) async {
   );
   return _MonthApp(db, container, taskId);
 }
+
+/// 이름이 [label]인 To-Do 체크 칸.
+Finder _checkbox(String label) => find.byWidgetPredicate(
+  (widget) => widget is Checkbox && widget.semanticLabel == label,
+);
 
 /// 시트 안의 [target]이 보이게 한 뒤 누른다(글자가 크면 아래 버튼은 스크롤해야 보인다).
 Future<void> _tapInSheet(WidgetTester tester, Finder target) async {

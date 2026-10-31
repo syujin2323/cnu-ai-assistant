@@ -1,6 +1,8 @@
 // 캘린더 보기(년·주·일·일정) 하나의 틀. 상단바·드로어·하단 바와 선택한 날, 추가 시트, 중요 브리핑을
 // 한곳에서 잇는다. 월간도 같은 것을 쓴다. docs/architecture.md '화면 이동'.
 
+import 'package:cnu_ai_assistant/app/providers.dart';
+import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_drawer.dart';
 import 'package:cnu_ai_assistant/design/widgets/calendar_bars.dart';
 import 'package:cnu_ai_assistant/features/add/add_sheet.dart';
@@ -18,6 +20,7 @@ class CalendarFrame extends ConsumerWidget {
     required this.title,
     required this.body,
     this.onToday,
+    this.showBottomBar = true,
   });
 
   final CalendarView view;
@@ -26,6 +29,9 @@ class CalendarFrame extends ConsumerWidget {
 
   /// 오늘 버튼. 없으면 선택한 날을 오늘로 돌린다.
   final VoidCallback? onToday;
+
+  /// 하단 바를 그리는지(월간의 데일리 스케줄을 펼친 동안은 false).
+  final bool showBottomBar;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -38,8 +44,10 @@ class CalendarFrame extends ConsumerWidget {
       onToday: onToday ?? ref.read(selectedDateProvider.notifier).today,
       onAdd: (sentence) =>
           showAddSheet(context, day: selected, sentenceFirst: sentence),
-      onBriefing: () => showImportantSheet(context),
+      importantBriefing: (context, close) => ImportantSheet(onClose: close),
       hasUnseenAlerts: ref.watch(hasUnseenAlertsProvider),
+      showBottomBar: showBottomBar,
+      animate: ref.watch(motionLevelProvider) != MotionLevel.off,
       body: body,
     );
   }

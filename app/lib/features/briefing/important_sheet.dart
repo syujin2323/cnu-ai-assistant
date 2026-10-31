@@ -1,6 +1,7 @@
 // 중요 브리핑 시트. docs/architecture.md '데일리 브리핑과 중요 브리핑'.
 //
-// 캘린더 하단 원형 버튼으로 연다. 일정 배치가 아니라 '브리핑 이후 지금까지 무슨 일이 있었나'를 글로
+// 캘린더 하단 원형 버튼으로 연다. 모달이 아니라 캘린더 틀(`design/widgets/calendar_bars.dart`)이
+// 하단 바 아래 겹으로 띄우므로, 열린 동안 원형 버튼이 같은 자리에서 닫기 X가 된다. 일정 배치가 아니라 '브리핑 이후 지금까지 무슨 일이 있었나'를 글로
 // 알려 준다. 위에서부터 제목과 '데일리 브리핑 보기', 중요 알림 카드(긴급은 빨강, 안 본 것은 NEW),
 // '지금까지 요약'(서버를 붙이기 전이라 템플릿 문장)이다. 열면 지금까지의 알림을 본 것으로 둔다.
 // 알림함 버튼은 알림 감지(R1)와 함께 더한다.
@@ -20,25 +21,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// 중요 브리핑 시트를 띄운다.
-Future<void> showImportantSheet(BuildContext context) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    useSafeArea: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(
-        top: Radius.circular(AppRadius.sheet),
-      ),
-    ),
-    builder: (context) => const ImportantSheet(),
-  );
-}
-
-/// 중요 브리핑 시트 본문.
+/// 중요 브리핑 시트 본문. 겉(손잡이·모서리)은 캘린더 틀이 그린다.
 class ImportantSheet extends ConsumerStatefulWidget {
-  const ImportantSheet({super.key});
+  const ImportantSheet({super.key, required this.onClose});
+
+  /// 시트를 닫는다('데일리 브리핑 보기'로 넘어갈 때도 먼저 닫는다).
+  final VoidCallback onClose;
 
   @override
   ConsumerState<ImportantSheet> createState() => _ImportantSheetState();
@@ -98,7 +86,7 @@ class _ImportantSheetState extends ConsumerState<ImportantSheet> {
               ),
               TextButton(
                 onPressed: () {
-                  Navigator.of(context).pop();
+                  widget.onClose();
                   context.push(Routes.briefing);
                 },
                 child: const Text('${AppStrings.dailyBriefing} 보기'),

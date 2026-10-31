@@ -143,10 +143,30 @@ void main() {
         await tester.ensureVisible(find.text('지금까지 요약'));
         expect(find.textContaining('지금(오전 10시)까지 상황이에요.'), findsOneWidget);
 
-        Navigator.of(tester.element(find.text('중요 브리핑'))).pop();
+        // 열린 동안 원형 버튼은 같은 자리의 닫기 X이고, 누르면 닫힌다.
+        expect(find.byTooltip('중요 브리핑 닫기'), findsOneWidget);
+        await tester.tap(find.byTooltip('중요 브리핑 닫기'));
         await tester.pumpAndSettle();
+        expect(find.text('긴급'), findsNothing);
         expect(find.byTooltip('중요 브리핑'), findsOneWidget);
         expect(find.byTooltip('중요 브리핑, 새 알림 있음'), findsNothing);
+
+        // 바깥(위쪽 어둡게 한 곳)을 눌러도 닫힌다.
+        await tester.tap(find.byTooltip('중요 브리핑'));
+        await tester.pumpAndSettle();
+        expect(find.text('긴급'), findsOneWidget);
+        await tester.tapAt(const Offset(200, 20));
+        await tester.pumpAndSettle();
+        expect(find.text('긴급'), findsNothing);
+
+        // 손잡이를 아래로 끌어도 닫힌다.
+        await tester.tap(find.byTooltip('중요 브리핑'));
+        await tester.pumpAndSettle();
+        final sheetTop = tester.getTopLeft(find.text('중요 브리핑')).dy;
+        await tester.dragFrom(Offset(200, sheetTop - 16), const Offset(0, 200));
+        await tester.pumpAndSettle();
+        expect(find.text('긴급'), findsNothing);
+        expect(find.byTooltip('중요 브리핑'), findsOneWidget);
 
         await app.dispose(tester);
       });
