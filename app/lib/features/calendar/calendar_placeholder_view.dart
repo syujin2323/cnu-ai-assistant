@@ -4,6 +4,7 @@
 import 'package:cnu_ai_assistant/design/widgets/app_drawer.dart';
 import 'package:cnu_ai_assistant/design/widgets/calendar_bars.dart';
 import 'package:cnu_ai_assistant/design/widgets/screen_placeholder.dart';
+import 'package:cnu_ai_assistant/features/add/add_sheet.dart';
 import 'package:cnu_ai_assistant/features/calendar/calendar_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -21,12 +22,15 @@ class CalendarPlaceholderView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(selectedDateProvider);
     return CalendarScaffold(
       view: view,
       title: title,
-      selected: ref.watch(selectedDateProvider),
+      selected: selected,
       today: ref.watch(calendarTodayProvider),
       onToday: ref.read(selectedDateProvider.notifier).today,
+      onAdd: (sentence) =>
+          showAddSheet(context, day: selected, sentenceFirst: sentence),
       body: const ScreenPlaceholder(),
     );
   }

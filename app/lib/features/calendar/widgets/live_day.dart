@@ -15,6 +15,7 @@ import 'package:cnu_ai_assistant/domain/free_slots.dart';
 import 'package:cnu_ai_assistant/domain/rules.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:cnu_ai_assistant/domain/unassigned_tasks.dart';
+import 'package:cnu_ai_assistant/features/add/add_sheet.dart';
 import 'package:cnu_ai_assistant/features/calendar/calendar_controller.dart';
 import 'package:cnu_ai_assistant/features/calendar/widgets/item_colors.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -159,7 +160,13 @@ class _LiveDayState extends ConsumerState<LiveDay> {
               ),
             ),
           for (final item in todo)
-            UnassignedTaskRow(item: item, now: now, dayBoundaryMin: boundary),
+            UnassignedTaskRow(
+              item: item,
+              now: now,
+              dayBoundaryMin: boundary,
+              onPlace: () =>
+                  showAddSheet(context, day: day, taskId: item.task.id),
+            ),
         ],
       ],
     );

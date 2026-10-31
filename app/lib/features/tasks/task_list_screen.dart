@@ -7,6 +7,7 @@ import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/unassigned_task_row.dart';
+import 'package:cnu_ai_assistant/features/add/add_sheet.dart';
 import 'package:cnu_ai_assistant/features/calendar/calendar_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -43,7 +44,16 @@ class TaskListScreen extends ConsumerWidget {
                 ),
               ),
             for (final item in items)
-              UnassignedTaskRow(item: item, now: now, dayBoundaryMin: boundary),
+              UnassignedTaskRow(
+                item: item,
+                now: now,
+                dayBoundaryMin: boundary,
+                onPlace: () => showAddSheet(
+                  context,
+                  day: ref.read(calendarTodayProvider),
+                  taskId: item.task.id,
+                ),
+              ),
           ],
         ),
       ),

@@ -2,11 +2,11 @@
 // docs/architecture.md '도메인 기본값, 빈 시간과 여유도' 3단계.
 //
 // 제목, 마감·남은 시간, 급한 정도(글자로도 적어 색만으로 나누지 않음)와 '배치' 버튼이다.
-// 줄을 누르면 할 일 상세로 간다. 배치 시트는 다음 PR에서 만들고 그전까지는 자리 시트를 띄운다.
+// 줄을 누르면 할 일 상세로 간다. '배치'는 부르는 화면이 [UnassignedTaskRow.onPlace]로 넘긴다
+// (추가 시트).
 
 import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
-import 'package:cnu_ai_assistant/design/widgets/calendar_bars.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:cnu_ai_assistant/domain/unassigned_tasks.dart';
@@ -20,11 +20,15 @@ class UnassignedTaskRow extends StatelessWidget {
     required this.item,
     required this.now,
     required this.dayBoundaryMin,
+    required this.onPlace,
   });
 
   final UnassignedTask item;
   final DateTime now;
   final int dayBoundaryMin;
+
+  /// '배치'를 눌렀을 때.
+  final VoidCallback onPlace;
 
   static String urgencyText(Urgency urgency) => switch (urgency) {
     Urgency.high => '급함',
@@ -83,10 +87,7 @@ class UnassignedTaskRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppSpace.s4),
-            TextButton(
-              onPressed: () => showInProgressSheet(context, '할 일 배치'),
-              child: const Text('배치'),
-            ),
+            TextButton(onPressed: onPlace, child: const Text('배치')),
           ],
         ),
       ),

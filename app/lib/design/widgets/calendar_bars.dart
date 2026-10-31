@@ -2,7 +2,8 @@
 //
 // 상단바는 메뉴 · 가운데 제목 · 검색 · 오늘(날짜 숫자 상자)이다. 하단에는 'N월 N일에 추가'
 // 알약(글자 부분은 직접 입력, +는 말로 입력)과 그 오른쪽 원형 중요 브리핑 버튼을 띄운다.
-// 추가 시트와 중요 브리핑 시트는 다음 PR에서 만들고, 그전까지는 만들고 있다는 시트를 띄운다.
+// 추가 시트는 부르는 화면이 [CalendarScaffold.onAdd]로 넘긴다. 중요 브리핑 시트는 다음 PR에서
+// 만들고, 그전까지는 만들고 있다는 시트를 띄운다.
 
 import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/design/icons.dart';
@@ -21,6 +22,7 @@ class CalendarScaffold extends StatelessWidget {
     required this.selected,
     required this.today,
     required this.onToday,
+    required this.onAdd,
     required this.body,
   });
 
@@ -38,6 +40,9 @@ class CalendarScaffold extends StatelessWidget {
 
   /// 오늘 버튼을 눌렀을 때.
   final VoidCallback onToday;
+
+  /// 추가 알약을 눌렀을 때. 인자는 말로 입력(+)인지다.
+  final ValueChanged<bool> onAdd;
 
   /// 본문. 아래 [CalendarBottomBar.height] 만큼은 하단 바가 덮는다.
   final Widget body;
@@ -60,7 +65,7 @@ class CalendarScaffold extends StatelessWidget {
               left: 0,
               right: 0,
               bottom: 0,
-              child: CalendarBottomBar(selected: selected),
+              child: CalendarBottomBar(selected: selected, onAdd: onAdd),
             ),
           ],
         ),
@@ -143,12 +148,19 @@ class _TopBar extends StatelessWidget {
 
 /// 하단의 추가 알약과 원형 중요 브리핑 버튼.
 class CalendarBottomBar extends StatelessWidget {
-  const CalendarBottomBar({super.key, required this.selected});
+  const CalendarBottomBar({
+    super.key,
+    required this.selected,
+    required this.onAdd,
+  });
 
   /// 하단 바가 덮는 높이(본문 목록의 아래 여백에 쓴다).
   static const double height = AppSize.bottomBar + AppSpace.s16 * 2;
 
   final DateTime selected;
+
+  /// 인자는 말로 입력(+)인지다.
+  final ValueChanged<bool> onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -170,7 +182,7 @@ class CalendarBottomBar extends StatelessWidget {
                     Expanded(
                       child: InkWell(
                         borderRadius: pillRadius,
-                        onTap: () => showInProgressSheet(context, '일정 추가'),
+                        onTap: () => onAdd(false),
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(
                             minHeight: AppSize.bottomBar,
@@ -196,7 +208,7 @@ class CalendarBottomBar extends StatelessWidget {
                     ),
                     IconButton(
                       tooltip: '말로 일정 추가',
-                      onPressed: () => showInProgressSheet(context, '말로 일정 추가'),
+                      onPressed: () => onAdd(true),
                       icon: const AppIcon(
                         AppIconName.plus,
                         color: AppColors.ink,

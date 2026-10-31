@@ -12,6 +12,7 @@ import 'package:cnu_ai_assistant/design/widgets/calendar_bars.dart';
 import 'package:cnu_ai_assistant/domain/calendar_items.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
+import 'package:cnu_ai_assistant/features/add/add_sheet.dart';
 import 'package:cnu_ai_assistant/features/calendar/calendar_controller.dart';
 import 'package:cnu_ai_assistant/features/calendar/widgets/item_colors.dart';
 import 'package:cnu_ai_assistant/features/calendar/widgets/live_day.dart';
@@ -101,6 +102,8 @@ class _MonthScreenState extends ConsumerState<MonthScreen> {
       selected: selected,
       today: today,
       onToday: _onToday,
+      onAdd: (sentence) =>
+          showAddSheet(context, day: selected, sentenceFirst: sentence),
       body: Column(
         children: [
           if (!_expanded) ...[
@@ -560,6 +563,12 @@ class _ItemRow extends StatelessWidget {
       ),
     );
     if (taskId == null) return row;
-    return InkWell(onTap: () => context.push(Routes.task(taskId)), child: row);
+    // 시간을 정하지 않은 마감은 배치 시트를, 그 밖(정한 마감·블록)은 할 일 상세를 연다.
+    return InkWell(
+      onTap: deadline && !item.placed
+          ? () => showAddSheet(context, day: item.start!, taskId: taskId)
+          : () => context.push(Routes.task(taskId)),
+      child: row,
+    );
   }
 }

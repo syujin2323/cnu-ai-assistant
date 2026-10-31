@@ -15,7 +15,6 @@ import 'package:cnu_ai_assistant/features/briefing/briefing_controller.dart';
 import 'package:cnu_ai_assistant/features/calendar/day_screen.dart';
 import 'package:cnu_ai_assistant/features/calendar/month_screen.dart';
 import 'package:cnu_ai_assistant/features/calendar/widgets/live_day.dart';
-import 'package:cnu_ai_assistant/features/tasks/task_detail_screen.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -153,7 +152,38 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('마감 행을 누르면 그 할 일 상세가 열린다', (tester) async {
+      testWidgets('시간을 정하지 않은 마감 행을 누르면 배치 시트가 열리고, 말로 정해 저장하면 '
+          '확정 블록이 생기며 되돌리기로 지운다', (tester) async {
+        final app = await _pumpMonth(tester, textScale);
+
+        final row = find.text('마감 · 아직 시간을 정하지 않음');
+        await _scrollPanelTo(tester, row);
+        await tester.tap(row);
+        await tester.pumpAndSettle();
+        expect(find.text('할 일 배치'), findsOneWidget);
+
+        await tester.enterText(find.byType(TextField).first, '오늘 오후 2시부터 2시간');
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+        await _tapInSheet(tester, find.text('저장'));
+
+        final blocks = await app.db.select(app.db.planBlocks).get();
+        expect(blocks.single.taskId, app.taskId);
+        expect(blocks.single.startAt, DateTime(2026, 10, 29, 14));
+        expect(blocks.single.endAt, DateTime(2026, 10, 29, 16));
+        expect(blocks.single.source, BlockSource.ai);
+        expect(find.text('10월 29일 목요일 오후 2시에 시간을 정했어요'), findsOneWidget);
+        await _scrollPanelTo(tester, find.text('마감 · 시간 정함'));
+        expect(find.text('마감 · 시간 정함'), findsOneWidget);
+
+        await tester.tap(find.text('되돌리기'));
+        await tester.pumpAndSettle();
+        expect(await app.db.select(app.db.planBlocks).get(), isEmpty);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('마감 뒤로 정하면 저장할 수 없고, 겹치는 일정은 경고한다', (tester) async {
         final app = await _pumpMonth(tester, textScale);
 
         final row = find.text('마감 · 아직 시간을 정하지 않음');
@@ -161,11 +191,75 @@ void main() {
         await tester.tap(row);
         await tester.pumpAndSettle();
 
-        expect(find.byType(TaskDetailScreen), findsOneWidget);
+        await tester.enterText(find.byType(TextField).first, '오전 10시부터 1시간');
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+        expect(find.textContaining('겹치는 일정: 자구 10:00–11:15'), findsOneWidget);
+
+        await tester.enterText(find.byType(TextField).first, '내일 오후 3시');
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+        expect(find.textContaining('마감 전으로 정해 주세요'), findsOneWidget);
+        await tester.ensureVisible(find.text('저장'));
         expect(
-          tester.widget<TaskDetailScreen>(find.byType(TaskDetailScreen)).taskId,
-          app.taskId,
+          tester
+              .widget<FilledButton>(
+                find.ancestor(
+                  of: find.text('저장'),
+                  matching: find.byType(FilledButton),
+                ),
+              )
+              .onPressed,
+          isNull,
         );
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('추가 알약(직접 입력)으로 일정을 더하면 패널에 보인다', (tester) async {
+        final app = await _pumpMonth(tester, textScale);
+
+        await tester.tap(find.text('10월 29일에 추가'));
+        await tester.pumpAndSettle();
+        expect(find.text('일정 추가'), findsOneWidget);
+
+        await tester.enterText(find.widgetWithText(TextField, '제목'), '헬스');
+        await tester.pumpAndSettle();
+        await _tapInSheet(tester, find.text('저장'));
+
+        final events = await app.db.select(app.db.events).get();
+        expect(events.map((e) => e.title), contains('헬스'));
+        final added = events.firstWhere((e) => e.title == '헬스');
+        expect(added.startAt, DateTime(2026, 10, 29, 11));
+        expect(added.source, EventSource.manual);
+        await _scrollPanelTo(tester, find.text('헬스'));
+        expect(find.text('헬스'), findsWidgets);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('+(말로 입력)로 문장을 해석하면 제목·시각·장소가 채워진다', (tester) async {
+        final app = await _pumpMonth(tester, textScale);
+
+        await tester.tap(find.byTooltip('말로 일정 추가'));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byType(TextField).first,
+          '내일 저녁 7시 공대5호관에서 팀플 2시간',
+        );
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+        expect(find.text('10월 30일 금요일'), findsOneWidget);
+        expect(find.text('오후 7시 시작'), findsOneWidget);
+        expect(find.text('오후 9시 끝'), findsOneWidget);
+        await _tapInSheet(tester, find.text('저장'));
+
+        final event = (await app.db.select(app.db.events).get()).firstWhere(
+          (e) => e.title == '팀플',
+        );
+        expect(event.place, '공대5호관');
+        expect(event.source, EventSource.ai);
+        expect(event.endAt, DateTime(2026, 10, 30, 21));
 
         await app.dispose(tester);
       });
@@ -264,6 +358,14 @@ Future<_MonthApp> _pumpMonth(WidgetTester tester, double textScale) async {
     tester.element(find.byType(RootApp)),
   );
   return _MonthApp(db, container, taskId);
+}
+
+/// 시트 안의 [target]이 보이게 한 뒤 누른다(글자가 크면 아래 버튼은 스크롤해야 보인다).
+Future<void> _tapInSheet(WidgetTester tester, Finder target) async {
+  await tester.ensureVisible(target);
+  await tester.pumpAndSettle();
+  await tester.tap(target);
+  await tester.pumpAndSettle();
 }
 
 /// 선택일 패널을 [target]이 보일 때까지 내린다(글자가 크면 아래 행은 아직 그려지지 않는다).

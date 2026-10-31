@@ -4,8 +4,9 @@ import 'package:cnu_ai_assistant/domain/models/value_codec.dart';
 /// 그 논리적 하루가 끝나면 지운다.
 enum PlanBlockStatus { suggested, confirmed, done, missed, dismissed }
 
-/// 블록을 누가 놓았는지. [auto]는 배치 엔진이다.
-enum BlockSource { auto, manual }
+/// 블록을 누가 놓았는지. [manual]은 직접 입력, [ai]는 말로 입력한 것이다. [auto](배치 엔진)는
+/// 2026-10-31 결정으로 더 만들지 않고, 값 정리는 스키마를 고치는 PR에서 한다.
+enum BlockSource { auto, manual, ai }
 
 /// 배치 엔진이 이 자리를 고른 이유.
 enum BlockFactor {
