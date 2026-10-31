@@ -116,7 +116,8 @@ class _AddSheetState extends ConsumerState<AddSheet> {
   @override
   void initState() {
     super.initState();
-    final data = ref.read(calendarDataProvider).value ?? const CalendarData();
+    final data =
+        ref.read(calendarDataAllProvider).value ?? const CalendarData();
     final taskId = widget.taskId;
     if (taskId != null) {
       _task = data.tasks.where((t) => t.id == taskId).firstOrNull;
@@ -286,7 +287,8 @@ class _AddSheetState extends ConsumerState<AddSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final data = ref.watch(calendarDataProvider).value ?? const CalendarData();
+    final data =
+        ref.watch(calendarDataAllProvider).value ?? const CalendarData();
     final overlaps = _overlaps(data);
     final blocker = _blocker;
     final task = _task;

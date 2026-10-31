@@ -37,6 +37,7 @@ abstract final class SettingKeys {
   static const onboardingSkipped = 'onboardingSkipped';
   static const installedAt = 'installedAt';
   static const lastVisitAt = 'lastVisitAt';
+  static const hiddenCalendars = 'hiddenCalendars';
 
   /// 모든 키. docs/architecture.md '폰 DB'의 목록과 같은 순서다.
   static const List<String> all = [
@@ -56,6 +57,7 @@ abstract final class SettingKeys {
     onboardingSkipped,
     installedAt,
     lastVisitAt,
+    hiddenCalendars,
   ];
 }
 
@@ -78,6 +80,7 @@ class AppSettings {
     required this.onboardingSkipped,
     required this.installedAt,
     required this.lastVisitAt,
+    required this.hiddenCalendars,
   });
 
   /// 표가 비어 있을 때의 값. docs/architecture.md '폰 DB'의 키별 기본값이다.
@@ -98,6 +101,7 @@ class AppSettings {
     onboardingSkipped: [],
     installedAt: null,
     lastVisitAt: null,
+    hiddenCalendars: [],
   );
 
   /// `settings` 표의 값(키별로 JSON을 풀어 둔 값)으로 만든다.
@@ -151,6 +155,9 @@ class AppSettings {
           tryDecodeDateTime(values[SettingKeys.installedAt]) ?? d.installedAt,
       lastVisitAt:
           tryDecodeDateTime(values[SettingKeys.lastVisitAt]) ?? d.lastVisitAt,
+      hiddenCalendars:
+          _stringListOrNull(values[SettingKeys.hiddenCalendars]) ??
+          d.hiddenCalendars,
     );
   }
 
@@ -205,6 +212,11 @@ class AppSettings {
   /// (docs/architecture.md '데일리 브리핑과 중요 브리핑').
   final DateTime? lastVisitAt;
 
+  /// 드로어 '내 폰'에서 끈 캘린더의 이름(`CalendarSource`의 이름). 그 캘린더의 항목은
+  /// 캘린더 보기와 검색에서 숨기고, 미배정 할 일과 빈 시간 계산은 그대로 본다.
+  /// 모르는 이름은 무시한다.
+  final List<String> hiddenCalendars;
+
   /// [key]에 쓸 Dart 값을 `settings` 표의 JSON 값으로 바꾼다.
   ///
   /// 값의 형은 그 키의 필드와 같아야 한다. 예를 들어 `lmsSessionState`에는
@@ -238,6 +250,9 @@ class AppSettings {
       SettingKeys.onboardingSkipped => List<int>.of(
         _require<List<int>>(key, value),
       ),
+      SettingKeys.hiddenCalendars => List<String>.of(
+        _require<List<String>>(key, value),
+      ),
       _ => throw ArgumentError.value(key, 'key', 'Unknown settings key'),
     };
   }
@@ -264,6 +279,7 @@ class AppSettings {
     SettingKeys.onboardingSkipped => onboardingSkipped,
     SettingKeys.installedAt => installedAt,
     SettingKeys.lastVisitAt => lastVisitAt,
+    SettingKeys.hiddenCalendars => hiddenCalendars,
     _ => throw ArgumentError.value(key, 'key', 'Unknown settings key'),
   };
 
@@ -285,6 +301,7 @@ class AppSettings {
     List<int>? onboardingSkipped,
     Object? installedAt = _keep,
     Object? lastVisitAt = _keep,
+    List<String>? hiddenCalendars,
   }) {
     return AppSettings(
       dayBoundaryMin: dayBoundaryMin ?? this.dayBoundaryMin,
@@ -318,6 +335,7 @@ class AppSettings {
       lastVisitAt: identical(lastVisitAt, _keep)
           ? this.lastVisitAt
           : lastVisitAt as DateTime?,
+      hiddenCalendars: hiddenCalendars ?? this.hiddenCalendars,
     );
   }
 
@@ -337,9 +355,10 @@ class AppSettings {
       other.checkinMin == checkinMin &&
       other.dueTodayTimeSensitive == dueTodayTimeSensitive &&
       other.motionLevel == motionLevel &&
-      _sameInts(other.onboardingSkipped, onboardingSkipped) &&
+      _sameList(other.onboardingSkipped, onboardingSkipped) &&
       other.installedAt == installedAt &&
-      other.lastVisitAt == lastVisitAt;
+      other.lastVisitAt == lastVisitAt &&
+      _sameList(other.hiddenCalendars, hiddenCalendars);
 
   @override
   int get hashCode => Object.hash(
@@ -359,6 +378,7 @@ class AppSettings {
     Object.hashAll(onboardingSkipped),
     installedAt,
     lastVisitAt,
+    Object.hashAll(hiddenCalendars),
   );
 
   @override
@@ -379,6 +399,12 @@ List<int>? _intListOrNull(Object? value) {
   if (value is! List) return null;
   if (!value.every((element) => element is int)) return null;
   return List<int>.unmodifiable(value.cast<int>());
+}
+
+List<String>? _stringListOrNull(Object? value) {
+  if (value is! List) return null;
+  if (!value.every((element) => element is String)) return null;
+  return List<String>.unmodifiable(value.cast<String>());
 }
 
 T _require<T>(String key, Object? value) {
@@ -402,7 +428,7 @@ String _requireIsoDate(String key, Object? value) {
   return text;
 }
 
-bool _sameInts(List<int> a, List<int> b) {
+bool _sameList<T>(List<T> a, List<T> b) {
   if (a.length != b.length) return false;
   for (var i = 0; i < a.length; i++) {
     if (a[i] != b[i]) return false;

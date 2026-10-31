@@ -80,6 +80,70 @@ final class CalendarData {
   final List<Rule> rules;
 }
 
+/// 드로어 '내 폰'에서 켜고 끄는 캘린더. 이름(`name`)을 `settings`의 `hiddenCalendars`에 적는다.
+enum CalendarSource {
+  /// 수업(시간표 칸과 그 예외).
+  classes,
+
+  /// 내 일정. 직접·말로 넣은 일정, 고정 일정, 사캠이 아닌 할 일과 그 블록·마감.
+  mine,
+
+  /// 충남대 사이버캠퍼스. `lmsKey`가 있는 할 일과 그 블록·마감.
+  lms,
+
+  /// 알림에서 추가한 일정.
+  notification;
+
+  /// `settings`에 적힌 이름들을 캘린더로 바꾼다. 모르는 이름은 버린다.
+  static Set<CalendarSource> parse(Iterable<String> names) => {
+    for (final source in values)
+      if (names.contains(source.name)) source,
+  };
+}
+
+/// [hidden] 캘린더의 항목을 뺀 묶음. 캘린더 보기와 검색이 쓰고, 미배정 할 일과 빈 시간
+/// 계산은 빼지 않은 묶음을 쓴다. 강의·사캠 항목·규칙은 그대로 둔다.
+CalendarData withoutSources(CalendarData data, Set<CalendarSource> hidden) {
+  if (hidden.isEmpty) return data;
+  final schedule = data.schedule;
+  bool taskHidden(Task task) => hidden.contains(
+    task.lmsKey == null ? CalendarSource.mine : CalendarSource.lms,
+  );
+  final hiddenTaskIds = {
+    for (final task in data.tasks)
+      if (taskHidden(task)) task.id,
+  };
+  bool eventHidden(Event event) => hidden.contains(switch (event.source) {
+    EventSource.manual || EventSource.ai => CalendarSource.mine,
+    EventSource.notification => CalendarSource.notification,
+  });
+  final hideClasses = hidden.contains(CalendarSource.classes);
+  return CalendarData(
+    schedule: Schedule(
+      classSlots: hideClasses ? const [] : schedule.classSlots,
+      classExceptions: hideClasses ? const [] : schedule.classExceptions,
+      fixedBlocks: hidden.contains(CalendarSource.mine)
+          ? const []
+          : schedule.fixedBlocks,
+      events: [
+        for (final event in schedule.events)
+          if (!eventHidden(event)) event,
+      ],
+      planBlocks: [
+        for (final block in schedule.planBlocks)
+          if (!hiddenTaskIds.contains(block.taskId)) block,
+      ],
+    ),
+    courses: data.courses,
+    tasks: [
+      for (final task in data.tasks)
+        if (!hiddenTaskIds.contains(task.id)) task,
+    ],
+    lmsItems: data.lmsItems,
+    rules: data.rules,
+  );
+}
+
 /// [date](시각은 보지 않음)에 그릴 항목. 종일 항목이 먼저, 그다음 시작 시각 순이다.
 List<CalendarItem> itemsOn(DateTime date, CalendarData data) {
   final day = DateTime(date.year, date.month, date.day);

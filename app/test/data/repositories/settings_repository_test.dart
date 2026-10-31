@@ -60,6 +60,7 @@ void main() {
       expect(settings.motionLevel, MotionLevelSetting.auto);
       expect(settings.onboardingSkipped, isEmpty);
       expect(settings.installedAt, isNull);
+      expect(settings.hiddenCalendars, isEmpty);
       expect(settings, AppSettings.defaults);
     });
 
@@ -81,6 +82,7 @@ void main() {
         'onboardingSkipped': <int>[],
         'installedAt': null,
         'lastVisitAt': null,
+        'hiddenCalendars': <String>[],
       });
       expect(SettingKeys.all, AppSettings.defaults.toValues().keys.toList());
     });
@@ -101,6 +103,7 @@ void main() {
       await writeOk(SettingKeys.checkinMin, 1350);
       await writeOk(SettingKeys.motionLevel, MotionLevelSetting.off);
       await writeOk(SettingKeys.onboardingSkipped, [3, 4]);
+      await writeOk(SettingKeys.hiddenCalendars, ['lms']);
 
       expect(
         await readOk(),
@@ -114,6 +117,7 @@ void main() {
           checkinMin: 1350,
           motionLevel: MotionLevelSetting.off,
           onboardingSkipped: [3, 4],
+          hiddenCalendars: ['lms'],
         ),
       );
     });
@@ -176,6 +180,7 @@ void main() {
         (SettingKeys.aiConsentAt, '2026-10-29'),
         (SettingKeys.metricsLastSentOn, '2026-10-32'),
         (SettingKeys.onboardingSkipped, null),
+        (SettingKeys.hiddenCalendars, [1]),
       ];
       for (final (key, value) in invalid) {
         await expectLater(
@@ -197,6 +202,7 @@ void main() {
       await putRaw(SettingKeys.lmsSessionState, '"reconnectRequired"');
       await putRaw(SettingKeys.motionLevel, '"fast"');
       await putRaw(SettingKeys.onboardingSkipped, '[1, "x"]');
+      await putRaw(SettingKeys.hiddenCalendars, '"lms"');
       await putRaw(SettingKeys.installedAt, '"yesterday"');
       await putRaw(SettingKeys.metricsLastSentOn, '"2026-02-30"');
       await putRaw('unknownKey', '1');
