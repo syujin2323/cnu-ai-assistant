@@ -14,6 +14,8 @@ import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_controller.dart';
 import 'package:cnu_ai_assistant/features/calendar/day_screen.dart';
 import 'package:cnu_ai_assistant/features/calendar/month_screen.dart';
+import 'package:cnu_ai_assistant/features/calendar/week_screen.dart';
+import 'package:cnu_ai_assistant/features/search/search_screen.dart';
 import 'package:cnu_ai_assistant/features/calendar/widgets/live_day.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
@@ -260,6 +262,78 @@ void main() {
         expect(event.place, '공대5호관');
         expect(event.source, EventSource.ai);
         expect(event.endAt, DateTime(2026, 10, 30, 21));
+
+        await app.dispose(tester);
+      });
+      testWidgets('주간·일간은 시간표에 일정을 그리고, 요일을 누르거나 넘기면 그날로 간다', (tester) async {
+        final app = await _pumpMonth(tester, textScale);
+
+        app.router.go(Routes.calendarWeek);
+        await tester.pumpAndSettle();
+        expect(find.byType(WeekScreen), findsOneWidget);
+        expect(
+          find.bySemanticsLabel('택배 수령, 14:00부터 16:00까지', skipOffstage: false),
+          findsOneWidget,
+        );
+        await tester.tap(find.bySemanticsLabel(RegExp(r'^10월 30일 금요일')));
+        await tester.pumpAndSettle();
+        expect(app.router.state.uri.path, Routes.calendarDay('2026-10-30'));
+        expect(find.byType(DayScreen), findsOneWidget);
+
+        app.router.go(Routes.calendarDay('2026-10-29'));
+        await tester.pumpAndSettle();
+        expect(
+          find.bySemanticsLabel('자구, 10:00부터 11:15까지', skipOffstage: false),
+          findsOneWidget,
+        );
+        await tester.fling(find.byType(DayScreen), const Offset(-300, 0), 1000);
+        await tester.pumpAndSettle();
+        expect(app.router.state.uri.path, Routes.calendarDay('2026-10-30'));
+        expect(find.text('10월 30일에 추가'), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('연간에서 달을 누르면 그 달 월간이고, 일정 목록은 날짜별로 모은다', (tester) async {
+        final app = await _pumpMonth(tester, textScale);
+
+        app.router.go(Routes.calendarYear);
+        await tester.pumpAndSettle();
+        expect(find.text('2026년'), findsOneWidget);
+        await tester.tap(find.bySemanticsLabel('2026년 11월'));
+        await tester.pumpAndSettle();
+        expect(find.byType(MonthScreen), findsOneWidget);
+        expect(find.text('11월'), findsOneWidget);
+
+        app.router.go(Routes.calendarAgenda);
+        await tester.pumpAndSettle();
+        expect(find.text('10월 29일 목요일 · 오늘'), findsOneWidget);
+        expect(find.text('택배 수령', skipOffstage: false), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('검색은 제목으로 찾고 종류로 거르며, 결과를 누르면 월간에서 그날을 고른다', (tester) async {
+        final app = await _pumpMonth(tester, textScale);
+
+        await tester.tap(find.byTooltip('검색'));
+        await tester.pumpAndSettle();
+        expect(find.byType(SearchScreen), findsOneWidget);
+
+        await tester.tap(find.widgetWithText(FilterChip, '마감'));
+        await tester.pumpAndSettle();
+        expect(find.text('1건'), findsOneWidget);
+        expect(find.text('과제2'), findsOneWidget);
+        await tester.tap(find.widgetWithText(FilterChip, '마감'));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(find.byType(TextField), '택배');
+        await tester.pumpAndSettle();
+        expect(find.text('1건'), findsOneWidget);
+        await tester.tap(find.text('택배 수령'));
+        await tester.pumpAndSettle();
+        expect(find.byType(MonthScreen), findsOneWidget);
+        expect(find.text('10월 30일에 추가'), findsOneWidget);
 
         await app.dispose(tester);
       });

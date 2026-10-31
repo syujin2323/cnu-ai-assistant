@@ -13,9 +13,8 @@ import 'package:cnu_ai_assistant/domain/calendar_items.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:cnu_ai_assistant/features/add/add_sheet.dart';
-import 'package:cnu_ai_assistant/features/briefing/briefing_controller.dart';
-import 'package:cnu_ai_assistant/features/briefing/important_sheet.dart';
 import 'package:cnu_ai_assistant/features/calendar/calendar_controller.dart';
+import 'package:cnu_ai_assistant/features/calendar/calendar_frame.dart';
 import 'package:cnu_ai_assistant/features/calendar/widgets/item_colors.dart';
 import 'package:cnu_ai_assistant/features/calendar/widgets/live_day.dart';
 import 'package:flutter/gestures.dart'
@@ -92,22 +91,23 @@ class _MonthScreenState extends ConsumerState<MonthScreen> {
   @override
   Widget build(BuildContext context) {
     final data = ref.watch(calendarDataProvider).value ?? const CalendarData();
+    // 다른 보기(연간·일간·검색)에서 고른 날이 보이는 달 밖이면 그 달로 옮긴다. 월간은 하위 경로 아래에
+    // 살아 있으므로 다시 만들어지지 않는다.
+    ref.listen(selectedDateProvider, (previous, next) {
+      if (next.year != _month.year || next.month != _month.month) {
+        setState(() => _month = DateTime(next.year, next.month));
+      }
+    });
     final selected = ref.watch(selectedDateProvider);
     final today = ref.watch(calendarTodayProvider);
     final title = _month.year == today.year
         ? '${_month.month}월'
         : '${_month.year}년 ${_month.month}월';
 
-    return CalendarScaffold(
+    return CalendarFrame(
       view: CalendarView.month,
       title: title,
-      selected: selected,
-      today: today,
       onToday: _onToday,
-      onAdd: (sentence) =>
-          showAddSheet(context, day: selected, sentenceFirst: sentence),
-      onBriefing: () => showImportantSheet(context),
-      hasUnseenAlerts: ref.watch(hasUnseenAlertsProvider),
       body: Column(
         children: [
           if (!_expanded) ...[
