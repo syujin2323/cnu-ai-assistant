@@ -13,6 +13,8 @@ import 'package:cnu_ai_assistant/domain/calendar_items.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:cnu_ai_assistant/features/add/add_sheet.dart';
+import 'package:cnu_ai_assistant/features/briefing/briefing_controller.dart';
+import 'package:cnu_ai_assistant/features/briefing/important_sheet.dart';
 import 'package:cnu_ai_assistant/features/calendar/calendar_controller.dart';
 import 'package:cnu_ai_assistant/features/calendar/widgets/item_colors.dart';
 import 'package:cnu_ai_assistant/features/calendar/widgets/live_day.dart';
@@ -104,6 +106,8 @@ class _MonthScreenState extends ConsumerState<MonthScreen> {
       onToday: _onToday,
       onAdd: (sentence) =>
           showAddSheet(context, day: selected, sentenceFirst: sentence),
+      onBriefing: () => showImportantSheet(context),
+      hasUnseenAlerts: ref.watch(hasUnseenAlertsProvider),
       body: Column(
         children: [
           if (!_expanded) ...[

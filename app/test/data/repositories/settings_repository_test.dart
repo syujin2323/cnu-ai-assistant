@@ -80,6 +80,7 @@ void main() {
         'motionLevel': 'auto',
         'onboardingSkipped': <int>[],
         'installedAt': null,
+        'lastVisitAt': null,
       });
       expect(SettingKeys.all, AppSettings.defaults.toValues().keys.toList());
     });

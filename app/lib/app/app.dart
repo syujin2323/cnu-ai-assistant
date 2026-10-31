@@ -9,6 +9,7 @@ import 'package:cnu_ai_assistant/app/theme.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/widgets/demo_band.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
+import 'package:cnu_ai_assistant/features/briefing/visit_recorder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -33,7 +34,9 @@ class RootApp extends ConsumerWidget {
         // 1.8.0의 폐기 안내는 '의존성이 material_ui로 옮겨 가는 동안만 쓰는 임시 도구'라는 뜻이다.
         // 의존성이 모두 옮겨 가면 이 줄을 지운다.
         // ignore: deprecated_member_use
-        return MaterialUiCompatibilityBridge(child: _DemoFrame(child: child!));
+        return MaterialUiCompatibilityBridge(
+          child: VisitRecorder(child: _DemoFrame(child: child!)),
+        );
       },
     );
   }

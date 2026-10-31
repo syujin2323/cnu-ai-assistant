@@ -2,12 +2,11 @@
 //
 // 상단바는 메뉴 · 가운데 제목 · 검색 · 오늘(날짜 숫자 상자)이다. 하단에는 'N월 N일에 추가'
 // 알약(글자 부분은 직접 입력, +는 말로 입력)과 그 오른쪽 원형 중요 브리핑 버튼을 띄운다.
-// 추가 시트는 부르는 화면이 [CalendarScaffold.onAdd]로 넘긴다. 중요 브리핑 시트는 다음 PR에서
-// 만들고, 그전까지는 만들고 있다는 시트를 띄운다.
+// 추가 시트와 중요 브리핑 시트는 부르는 화면이 [CalendarScaffold.onAdd]·[CalendarScaffold.onBriefing]
+// 으로 넘긴다. 안 본 중요 알림이 있으면 원형 버튼에 레드닷을 단다.
 
 import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/design/icons.dart';
-import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_drawer.dart';
 import 'package:go_router/go_router.dart';
@@ -23,6 +22,8 @@ class CalendarScaffold extends StatelessWidget {
     required this.today,
     required this.onToday,
     required this.onAdd,
+    required this.onBriefing,
+    required this.hasUnseenAlerts,
     required this.body,
   });
 
@@ -43,6 +44,12 @@ class CalendarScaffold extends StatelessWidget {
 
   /// 추가 알약을 눌렀을 때. 인자는 말로 입력(+)인지다.
   final ValueChanged<bool> onAdd;
+
+  /// 원형 중요 브리핑 버튼을 눌렀을 때.
+  final VoidCallback onBriefing;
+
+  /// 안 본 중요 알림이 있는지(레드닷).
+  final bool hasUnseenAlerts;
 
   /// 본문. 아래 [CalendarBottomBar.height] 만큼은 하단 바가 덮는다.
   final Widget body;
@@ -65,7 +72,12 @@ class CalendarScaffold extends StatelessWidget {
               left: 0,
               right: 0,
               bottom: 0,
-              child: CalendarBottomBar(selected: selected, onAdd: onAdd),
+              child: CalendarBottomBar(
+                selected: selected,
+                onAdd: onAdd,
+                onBriefing: onBriefing,
+                hasUnseenAlerts: hasUnseenAlerts,
+              ),
             ),
           ],
         ),
@@ -152,6 +164,8 @@ class CalendarBottomBar extends StatelessWidget {
     super.key,
     required this.selected,
     required this.onAdd,
+    required this.onBriefing,
+    this.hasUnseenAlerts = false,
   });
 
   /// 하단 바가 덮는 높이(본문 목록의 아래 여백에 쓴다).
@@ -161,6 +175,11 @@ class CalendarBottomBar extends StatelessWidget {
 
   /// 인자는 말로 입력(+)인지다.
   final ValueChanged<bool> onAdd;
+
+  final VoidCallback onBriefing;
+
+  /// 안 본 중요 알림이 있으면 원형 버튼에 레드닷을 단다.
+  final bool hasUnseenAlerts;
 
   @override
   Widget build(BuildContext context) {
@@ -227,10 +246,34 @@ class CalendarBottomBar extends StatelessWidget {
             elevation: 3,
             child: SizedBox.square(
               dimension: AppSize.bottomBar,
-              child: IconButton(
-                tooltip: '중요 브리핑',
-                onPressed: () => showInProgressSheet(context, '중요 브리핑'),
-                icon: const AppIcon(AppIconName.briefing, color: AppColors.ink),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    tooltip: hasUnseenAlerts ? '중요 브리핑, 새 알림 있음' : '중요 브리핑',
+                    onPressed: onBriefing,
+                    icon: const AppIcon(
+                      AppIconName.briefing,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                  if (hasUnseenAlerts)
+                    const Positioned(
+                      top: AppSpace.s12,
+                      right: AppSpace.s12,
+                      child: IgnorePointer(
+                        child: SizedBox.square(
+                          dimension: AppSpace.s8,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: AppColors.alert,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -238,39 +281,4 @@ class CalendarBottomBar extends StatelessWidget {
       ),
     );
   }
-}
-
-/// 아직 만들지 않은 시트 자리. [title]과 '이 화면은 아직 만들고 있어요'를 보여 준다.
-Future<void> showInProgressSheet(BuildContext context, String title) {
-  return showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(
-        top: Radius.circular(AppRadius.sheet),
-      ),
-    ),
-    builder: (context) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpace.screen,
-          0,
-          AppSpace.screen,
-          AppSpace.s24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: AppText.title),
-            const SizedBox(height: AppSpace.s8),
-            Text(
-              AppStrings.inProgress,
-              style: AppText.body.copyWith(color: AppColors.muted),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
 }

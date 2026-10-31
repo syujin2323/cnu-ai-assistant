@@ -1,4 +1,4 @@
-/// 하루의 아침 브리핑. `briefings` 표의 한 행.
+/// 하루의 데일리 브리핑. `briefings` 표의 한 행.
 class Briefing {
   const Briefing({
     required this.id,
@@ -8,7 +8,7 @@ class Briefing {
     required this.cardsJson,
     required this.usedTemplate,
     this.openedAt,
-    this.confirmedAt,
+    this.fromAt,
   });
 
   final int id;
@@ -30,6 +30,6 @@ class Briefing {
   /// 브리핑을 연 시각.
   final DateTime? openedAt;
 
-  /// 브리핑에서 계획을 확정한 시각.
-  final DateTime? confirmedAt;
+  /// 요약 범위의 시작(그날 브리핑 전 마지막 접속 시각). 기록이 없으면 null이다.
+  final DateTime? fromAt;
 }

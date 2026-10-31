@@ -5,6 +5,8 @@ import 'package:cnu_ai_assistant/design/widgets/app_drawer.dart';
 import 'package:cnu_ai_assistant/design/widgets/calendar_bars.dart';
 import 'package:cnu_ai_assistant/design/widgets/screen_placeholder.dart';
 import 'package:cnu_ai_assistant/features/add/add_sheet.dart';
+import 'package:cnu_ai_assistant/features/briefing/briefing_controller.dart';
+import 'package:cnu_ai_assistant/features/briefing/important_sheet.dart';
 import 'package:cnu_ai_assistant/features/calendar/calendar_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -31,6 +33,8 @@ class CalendarPlaceholderView extends ConsumerWidget {
       onToday: ref.read(selectedDateProvider.notifier).today,
       onAdd: (sentence) =>
           showAddSheet(context, day: selected, sentenceFirst: sentence),
+      onBriefing: () => showImportantSheet(context),
+      hasUnseenAlerts: ref.watch(hasUnseenAlertsProvider),
       body: const ScreenPlaceholder(),
     );
   }

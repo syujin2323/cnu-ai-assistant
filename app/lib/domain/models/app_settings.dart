@@ -36,6 +36,7 @@ abstract final class SettingKeys {
   static const motionLevel = 'motionLevel';
   static const onboardingSkipped = 'onboardingSkipped';
   static const installedAt = 'installedAt';
+  static const lastVisitAt = 'lastVisitAt';
 
   /// 모든 키. docs/architecture.md '폰 DB'의 목록과 같은 순서다.
   static const List<String> all = [
@@ -54,6 +55,7 @@ abstract final class SettingKeys {
     motionLevel,
     onboardingSkipped,
     installedAt,
+    lastVisitAt,
   ];
 }
 
@@ -75,6 +77,7 @@ class AppSettings {
     required this.motionLevel,
     required this.onboardingSkipped,
     required this.installedAt,
+    required this.lastVisitAt,
   });
 
   /// 표가 비어 있을 때의 값. docs/architecture.md '폰 DB'의 키별 기본값이다.
@@ -94,6 +97,7 @@ class AppSettings {
     motionLevel: MotionLevelSetting.auto,
     onboardingSkipped: [],
     installedAt: null,
+    lastVisitAt: null,
   );
 
   /// `settings` 표의 값(키별로 JSON을 풀어 둔 값)으로 만든다.
@@ -145,6 +149,8 @@ class AppSettings {
           d.onboardingSkipped,
       installedAt:
           tryDecodeDateTime(values[SettingKeys.installedAt]) ?? d.installedAt,
+      lastVisitAt:
+          tryDecodeDateTime(values[SettingKeys.lastVisitAt]) ?? d.lastVisitAt,
     );
   }
 
@@ -195,6 +201,10 @@ class AppSettings {
   /// 설치 표식. 첫 실행 때 보안 저장소를 비운 뒤 적는다(docs/lms.md '쿠키 금고').
   final DateTime? installedAt;
 
+  /// 마지막 접속 시각. 앱이 백그라운드로 갈 때 적고, 데일리 브리핑이 범위의 시작으로 쓴다
+  /// (docs/architecture.md '데일리 브리핑과 중요 브리핑').
+  final DateTime? lastVisitAt;
+
   /// [key]에 쓸 Dart 값을 `settings` 표의 JSON 값으로 바꾼다.
   ///
   /// 값의 형은 그 키의 필드와 같아야 한다. 예를 들어 `lmsSessionState`에는
@@ -213,7 +223,8 @@ class AppSettings {
       SettingKeys.aiConsentAt ||
       SettingKeys.lmsLastSuccessAt ||
       SettingKeys.lmsLastConnectedAt ||
-      SettingKeys.installedAt =>
+      SettingKeys.installedAt ||
+      SettingKeys.lastVisitAt =>
         value == null ? null : encodeDateTime(_require<DateTime>(key, value)),
       SettingKeys.metricsLastSentOn =>
         value == null ? null : _requireIsoDate(key, value),
@@ -252,6 +263,7 @@ class AppSettings {
     SettingKeys.motionLevel => motionLevel,
     SettingKeys.onboardingSkipped => onboardingSkipped,
     SettingKeys.installedAt => installedAt,
+    SettingKeys.lastVisitAt => lastVisitAt,
     _ => throw ArgumentError.value(key, 'key', 'Unknown settings key'),
   };
 
@@ -272,6 +284,7 @@ class AppSettings {
     MotionLevelSetting? motionLevel,
     List<int>? onboardingSkipped,
     Object? installedAt = _keep,
+    Object? lastVisitAt = _keep,
   }) {
     return AppSettings(
       dayBoundaryMin: dayBoundaryMin ?? this.dayBoundaryMin,
@@ -302,6 +315,9 @@ class AppSettings {
       installedAt: identical(installedAt, _keep)
           ? this.installedAt
           : installedAt as DateTime?,
+      lastVisitAt: identical(lastVisitAt, _keep)
+          ? this.lastVisitAt
+          : lastVisitAt as DateTime?,
     );
   }
 
@@ -322,7 +338,8 @@ class AppSettings {
       other.dueTodayTimeSensitive == dueTodayTimeSensitive &&
       other.motionLevel == motionLevel &&
       _sameInts(other.onboardingSkipped, onboardingSkipped) &&
-      other.installedAt == installedAt;
+      other.installedAt == installedAt &&
+      other.lastVisitAt == lastVisitAt;
 
   @override
   int get hashCode => Object.hash(
@@ -341,6 +358,7 @@ class AppSettings {
     motionLevel,
     Object.hashAll(onboardingSkipped),
     installedAt,
+    lastVisitAt,
   );
 
   @override

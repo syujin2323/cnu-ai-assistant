@@ -165,7 +165,20 @@ class Briefings extends Table {
   TextColumn get cardsJson => text()();
   BoolColumn get usedTemplate => boolean()();
   DateTimeColumn get openedAt => dateTime().nullable()();
-  DateTimeColumn get confirmedAt => dateTime().nullable()();
+  DateTimeColumn get fromAt => dateTime().nullable()();
+}
+
+@UseRowClass(Alert)
+class Alerts extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get level => text().map(const EnumConverter(AlertLevel.values))();
+  TextColumn get source =>
+      text().map(const EnumConverter(AlertSource.values))();
+  DateTimeColumn get createdAt => dateTime()();
+  // drift `Table`의 `text()`와 이름이 겹쳐 getter는 body이고, SQL 열 이름은 표대로 text다.
+  TextColumn get body => text().named('text')();
+  IntColumn get refId => integer().nullable()();
+  DateTimeColumn get seenAt => dateTime().nullable()();
 }
 
 @UseRowClass(SyncRun)

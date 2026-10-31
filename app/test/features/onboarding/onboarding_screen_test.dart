@@ -105,7 +105,8 @@ void main() {
       expect(tester.takeException(), isNull);
 
       await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
+      // drift는 스트림 쿼리 구독이 끝난 뒤 짧은 타이머로 정리한다(끝내면 브리핑 화면이 DB를 본다).
+      await tester.pump(const Duration(seconds: 1));
       await db.close();
     });
   }

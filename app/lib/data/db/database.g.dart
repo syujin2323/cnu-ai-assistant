@@ -3916,12 +3916,10 @@ class $BriefingsTable extends Briefings
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _confirmedAtMeta = const VerificationMeta(
-    'confirmedAt',
-  );
+  static const VerificationMeta _fromAtMeta = const VerificationMeta('fromAt');
   @override
-  late final GeneratedColumn<DateTime> confirmedAt = GeneratedColumn<DateTime>(
-    'confirmed_at',
+  late final GeneratedColumn<DateTime> fromAt = GeneratedColumn<DateTime>(
+    'from_at',
     aliasedName,
     true,
     type: DriftSqlType.dateTime,
@@ -3936,7 +3934,7 @@ class $BriefingsTable extends Briefings
     cardsJson,
     usedTemplate,
     openedAt,
-    confirmedAt,
+    fromAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4002,13 +4000,10 @@ class $BriefingsTable extends Briefings
         openedAt.isAcceptableOrUnknown(data['opened_at']!, _openedAtMeta),
       );
     }
-    if (data.containsKey('confirmed_at')) {
+    if (data.containsKey('from_at')) {
       context.handle(
-        _confirmedAtMeta,
-        confirmedAt.isAcceptableOrUnknown(
-          data['confirmed_at']!,
-          _confirmedAtMeta,
-        ),
+        _fromAtMeta,
+        fromAt.isAcceptableOrUnknown(data['from_at']!, _fromAtMeta),
       );
     }
     return context;
@@ -4048,9 +4043,9 @@ class $BriefingsTable extends Briefings
         DriftSqlType.dateTime,
         data['${effectivePrefix}opened_at'],
       ),
-      confirmedAt: attachedDatabase.typeMapping.read(
+      fromAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
-        data['${effectivePrefix}confirmed_at'],
+        data['${effectivePrefix}from_at'],
       ),
     );
   }
@@ -4069,7 +4064,7 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
   final Value<String> cardsJson;
   final Value<bool> usedTemplate;
   final Value<DateTime?> openedAt;
-  final Value<DateTime?> confirmedAt;
+  final Value<DateTime?> fromAt;
   const BriefingsCompanion({
     this.id = const Value.absent(),
     this.date = const Value.absent(),
@@ -4078,7 +4073,7 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
     this.cardsJson = const Value.absent(),
     this.usedTemplate = const Value.absent(),
     this.openedAt = const Value.absent(),
-    this.confirmedAt = const Value.absent(),
+    this.fromAt = const Value.absent(),
   });
   BriefingsCompanion.insert({
     this.id = const Value.absent(),
@@ -4088,7 +4083,7 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
     required String cardsJson,
     required bool usedTemplate,
     this.openedAt = const Value.absent(),
-    this.confirmedAt = const Value.absent(),
+    this.fromAt = const Value.absent(),
   }) : date = Value(date),
        createdAt = Value(createdAt),
        body = Value(body),
@@ -4102,7 +4097,7 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
     Expression<String>? cardsJson,
     Expression<bool>? usedTemplate,
     Expression<DateTime>? openedAt,
-    Expression<DateTime>? confirmedAt,
+    Expression<DateTime>? fromAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -4112,7 +4107,7 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
       if (cardsJson != null) 'cards_json': cardsJson,
       if (usedTemplate != null) 'used_template': usedTemplate,
       if (openedAt != null) 'opened_at': openedAt,
-      if (confirmedAt != null) 'confirmed_at': confirmedAt,
+      if (fromAt != null) 'from_at': fromAt,
     });
   }
 
@@ -4124,7 +4119,7 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
     Value<String>? cardsJson,
     Value<bool>? usedTemplate,
     Value<DateTime?>? openedAt,
-    Value<DateTime?>? confirmedAt,
+    Value<DateTime?>? fromAt,
   }) {
     return BriefingsCompanion(
       id: id ?? this.id,
@@ -4134,7 +4129,7 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
       cardsJson: cardsJson ?? this.cardsJson,
       usedTemplate: usedTemplate ?? this.usedTemplate,
       openedAt: openedAt ?? this.openedAt,
-      confirmedAt: confirmedAt ?? this.confirmedAt,
+      fromAt: fromAt ?? this.fromAt,
     );
   }
 
@@ -4162,8 +4157,8 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
     if (openedAt.present) {
       map['opened_at'] = Variable<DateTime>(openedAt.value);
     }
-    if (confirmedAt.present) {
-      map['confirmed_at'] = Variable<DateTime>(confirmedAt.value);
+    if (fromAt.present) {
+      map['from_at'] = Variable<DateTime>(fromAt.value);
     }
     return map;
   }
@@ -4178,7 +4173,304 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
           ..write('cardsJson: $cardsJson, ')
           ..write('usedTemplate: $usedTemplate, ')
           ..write('openedAt: $openedAt, ')
-          ..write('confirmedAt: $confirmedAt')
+          ..write('fromAt: $fromAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AlertsTable extends Alerts with TableInfo<$AlertsTable, Alert> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AlertsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<AlertLevel, String> level =
+      GeneratedColumn<String>(
+        'level',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      ).withConverter<AlertLevel>($AlertsTable.$converterlevel);
+  @override
+  late final GeneratedColumnWithTypeConverter<AlertSource, String> source =
+      GeneratedColumn<String>(
+        'source',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      ).withConverter<AlertSource>($AlertsTable.$convertersource);
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
+  @override
+  late final GeneratedColumn<String> body = GeneratedColumn<String>(
+    'text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _refIdMeta = const VerificationMeta('refId');
+  @override
+  late final GeneratedColumn<int> refId = GeneratedColumn<int>(
+    'ref_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _seenAtMeta = const VerificationMeta('seenAt');
+  @override
+  late final GeneratedColumn<DateTime> seenAt = GeneratedColumn<DateTime>(
+    'seen_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    level,
+    source,
+    createdAt,
+    body,
+    refId,
+    seenAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'alerts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Alert> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('text')) {
+      context.handle(
+        _bodyMeta,
+        body.isAcceptableOrUnknown(data['text']!, _bodyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bodyMeta);
+    }
+    if (data.containsKey('ref_id')) {
+      context.handle(
+        _refIdMeta,
+        refId.isAcceptableOrUnknown(data['ref_id']!, _refIdMeta),
+      );
+    }
+    if (data.containsKey('seen_at')) {
+      context.handle(
+        _seenAtMeta,
+        seenAt.isAcceptableOrUnknown(data['seen_at']!, _seenAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Alert map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Alert(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      level: $AlertsTable.$converterlevel.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}level'],
+        )!,
+      ),
+      source: $AlertsTable.$convertersource.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}source'],
+        )!,
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      body: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}text'],
+      )!,
+      refId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ref_id'],
+      ),
+      seenAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}seen_at'],
+      ),
+    );
+  }
+
+  @override
+  $AlertsTable createAlias(String alias) {
+    return $AlertsTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<AlertLevel, String> $converterlevel =
+      const EnumConverter(AlertLevel.values);
+  static TypeConverter<AlertSource, String> $convertersource =
+      const EnumConverter(AlertSource.values);
+}
+
+class AlertsCompanion extends UpdateCompanion<Alert> {
+  final Value<int> id;
+  final Value<AlertLevel> level;
+  final Value<AlertSource> source;
+  final Value<DateTime> createdAt;
+  final Value<String> body;
+  final Value<int?> refId;
+  final Value<DateTime?> seenAt;
+  const AlertsCompanion({
+    this.id = const Value.absent(),
+    this.level = const Value.absent(),
+    this.source = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.body = const Value.absent(),
+    this.refId = const Value.absent(),
+    this.seenAt = const Value.absent(),
+  });
+  AlertsCompanion.insert({
+    this.id = const Value.absent(),
+    required AlertLevel level,
+    required AlertSource source,
+    required DateTime createdAt,
+    required String body,
+    this.refId = const Value.absent(),
+    this.seenAt = const Value.absent(),
+  }) : level = Value(level),
+       source = Value(source),
+       createdAt = Value(createdAt),
+       body = Value(body);
+  static Insertable<Alert> custom({
+    Expression<int>? id,
+    Expression<String>? level,
+    Expression<String>? source,
+    Expression<DateTime>? createdAt,
+    Expression<String>? body,
+    Expression<int>? refId,
+    Expression<DateTime>? seenAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (level != null) 'level': level,
+      if (source != null) 'source': source,
+      if (createdAt != null) 'created_at': createdAt,
+      if (body != null) 'text': body,
+      if (refId != null) 'ref_id': refId,
+      if (seenAt != null) 'seen_at': seenAt,
+    });
+  }
+
+  AlertsCompanion copyWith({
+    Value<int>? id,
+    Value<AlertLevel>? level,
+    Value<AlertSource>? source,
+    Value<DateTime>? createdAt,
+    Value<String>? body,
+    Value<int?>? refId,
+    Value<DateTime?>? seenAt,
+  }) {
+    return AlertsCompanion(
+      id: id ?? this.id,
+      level: level ?? this.level,
+      source: source ?? this.source,
+      createdAt: createdAt ?? this.createdAt,
+      body: body ?? this.body,
+      refId: refId ?? this.refId,
+      seenAt: seenAt ?? this.seenAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (level.present) {
+      map['level'] = Variable<String>(
+        $AlertsTable.$converterlevel.toSql(level.value),
+      );
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(
+        $AlertsTable.$convertersource.toSql(source.value),
+      );
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (body.present) {
+      map['text'] = Variable<String>(body.value);
+    }
+    if (refId.present) {
+      map['ref_id'] = Variable<int>(refId.value);
+    }
+    if (seenAt.present) {
+      map['seen_at'] = Variable<DateTime>(seenAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AlertsCompanion(')
+          ..write('id: $id, ')
+          ..write('level: $level, ')
+          ..write('source: $source, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('body: $body, ')
+          ..write('refId: $refId, ')
+          ..write('seenAt: $seenAt')
           ..write(')'))
         .toString();
   }
@@ -5250,6 +5542,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $RulesTable rules = $RulesTable(this);
   late final $LmsItemChangesTable lmsItemChanges = $LmsItemChangesTable(this);
   late final $BriefingsTable briefings = $BriefingsTable(this);
+  late final $AlertsTable alerts = $AlertsTable(this);
   late final $SyncRunsTable syncRuns = $SyncRunsTable(this);
   late final $SyncLeasesTable syncLeases = $SyncLeasesTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
@@ -5270,6 +5563,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     rules,
     lmsItemChanges,
     briefings,
+    alerts,
     syncRuns,
     syncLeases,
     settings,
@@ -9122,7 +9416,7 @@ typedef $$BriefingsTableCreateCompanionBuilder = BriefingsCompanion Function({
   required String cardsJson,
   required bool usedTemplate,
   Value<DateTime?> openedAt,
-  Value<DateTime?> confirmedAt,
+  Value<DateTime?> fromAt,
 });
 typedef $$BriefingsTableUpdateCompanionBuilder = BriefingsCompanion Function({
   Value<int> id,
@@ -9132,7 +9426,7 @@ typedef $$BriefingsTableUpdateCompanionBuilder = BriefingsCompanion Function({
   Value<String> cardsJson,
   Value<bool> usedTemplate,
   Value<DateTime?> openedAt,
-  Value<DateTime?> confirmedAt,
+  Value<DateTime?> fromAt,
 });
 
 class $$BriefingsTableFilterComposer
@@ -9179,8 +9473,8 @@ class $$BriefingsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get confirmedAt => $composableBuilder(
-    column: $table.confirmedAt,
+  ColumnFilters<DateTime> get fromAt => $composableBuilder(
+    column: $table.fromAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -9229,8 +9523,8 @@ class $$BriefingsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<DateTime> get confirmedAt => $composableBuilder(
-    column: $table.confirmedAt,
+  ColumnOrderings<DateTime> get fromAt => $composableBuilder(
+    column: $table.fromAt,
     builder: (column) => ColumnOrderings(column),
   );
 }
@@ -9267,10 +9561,8 @@ class $$BriefingsTableAnnotationComposer
   GeneratedColumn<DateTime> get openedAt =>
       $composableBuilder(column: $table.openedAt, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get confirmedAt => $composableBuilder(
-    column: $table.confirmedAt,
-    builder: (column) => column,
-  );
+  GeneratedColumn<DateTime> get fromAt =>
+      $composableBuilder(column: $table.fromAt, builder: (column) => column);
 }
 
 class $$BriefingsTableTableManager
@@ -9308,7 +9600,7 @@ class $$BriefingsTableTableManager
                 Value<String> cardsJson = const Value.absent(),
                 Value<bool> usedTemplate = const Value.absent(),
                 Value<DateTime?> openedAt = const Value.absent(),
-                Value<DateTime?> confirmedAt = const Value.absent(),
+                Value<DateTime?> fromAt = const Value.absent(),
               }) => BriefingsCompanion(
                 id: id,
                 date: date,
@@ -9317,7 +9609,7 @@ class $$BriefingsTableTableManager
                 cardsJson: cardsJson,
                 usedTemplate: usedTemplate,
                 openedAt: openedAt,
-                confirmedAt: confirmedAt,
+                fromAt: fromAt,
               ),
           createCompanionCallback:
               ({
@@ -9328,7 +9620,7 @@ class $$BriefingsTableTableManager
                 required String cardsJson,
                 required bool usedTemplate,
                 Value<DateTime?> openedAt = const Value.absent(),
-                Value<DateTime?> confirmedAt = const Value.absent(),
+                Value<DateTime?> fromAt = const Value.absent(),
               }) => BriefingsCompanion.insert(
                 id: id,
                 date: date,
@@ -9337,7 +9629,7 @@ class $$BriefingsTableTableManager
                 cardsJson: cardsJson,
                 usedTemplate: usedTemplate,
                 openedAt: openedAt,
-                confirmedAt: confirmedAt,
+                fromAt: fromAt,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -9368,6 +9660,241 @@ typedef $$BriefingsTableProcessedTableManager =
       $$BriefingsTableUpdateCompanionBuilder,
       (Briefing, BaseReferences<_$AppDatabase, $BriefingsTable, Briefing>),
       Briefing,
+      PrefetchHooks Function()
+    >;
+typedef $$AlertsTableCreateCompanionBuilder = AlertsCompanion Function({
+  Value<int> id,
+  required AlertLevel level,
+  required AlertSource source,
+  required DateTime createdAt,
+  required String body,
+  Value<int?> refId,
+  Value<DateTime?> seenAt,
+});
+typedef $$AlertsTableUpdateCompanionBuilder = AlertsCompanion Function({
+  Value<int> id,
+  Value<AlertLevel> level,
+  Value<AlertSource> source,
+  Value<DateTime> createdAt,
+  Value<String> body,
+  Value<int?> refId,
+  Value<DateTime?> seenAt,
+});
+
+class $$AlertsTableFilterComposer
+    extends Composer<_$AppDatabase, $AlertsTable> {
+  $$AlertsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<AlertLevel, AlertLevel, String> get level =>
+      $composableBuilder(
+        column: $table.level,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnWithTypeConverterFilters<AlertSource, AlertSource, String> get source =>
+      $composableBuilder(
+        column: $table.source,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get refId => $composableBuilder(
+    column: $table.refId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get seenAt => $composableBuilder(
+    column: $table.seenAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AlertsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AlertsTable> {
+  $$AlertsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get level => $composableBuilder(
+    column: $table.level,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get refId => $composableBuilder(
+    column: $table.refId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get seenAt => $composableBuilder(
+    column: $table.seenAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AlertsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AlertsTable> {
+  $$AlertsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<AlertLevel, String> get level =>
+      $composableBuilder(column: $table.level, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<AlertSource, String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get body =>
+      $composableBuilder(column: $table.body, builder: (column) => column);
+
+  GeneratedColumn<int> get refId =>
+      $composableBuilder(column: $table.refId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get seenAt =>
+      $composableBuilder(column: $table.seenAt, builder: (column) => column);
+}
+
+class $$AlertsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AlertsTable,
+          Alert,
+          $$AlertsTableFilterComposer,
+          $$AlertsTableOrderingComposer,
+          $$AlertsTableAnnotationComposer,
+          $$AlertsTableCreateCompanionBuilder,
+          $$AlertsTableUpdateCompanionBuilder,
+          (Alert, BaseReferences<_$AppDatabase, $AlertsTable, Alert>),
+          Alert,
+          PrefetchHooks Function()
+        > {
+  $$AlertsTableTableManager(_$AppDatabase db, $AlertsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AlertsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AlertsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AlertsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<AlertLevel> level = const Value.absent(),
+                Value<AlertSource> source = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<String> body = const Value.absent(),
+                Value<int?> refId = const Value.absent(),
+                Value<DateTime?> seenAt = const Value.absent(),
+              }) => AlertsCompanion(
+                id: id,
+                level: level,
+                source: source,
+                createdAt: createdAt,
+                body: body,
+                refId: refId,
+                seenAt: seenAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required AlertLevel level,
+                required AlertSource source,
+                required DateTime createdAt,
+                required String body,
+                Value<int?> refId = const Value.absent(),
+                Value<DateTime?> seenAt = const Value.absent(),
+              }) => AlertsCompanion.insert(
+                id: id,
+                level: level,
+                source: source,
+                createdAt: createdAt,
+                body: body,
+                refId: refId,
+                seenAt: seenAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$AlertsTable, Alert>(table),
+                  BaseReferences<_$AppDatabase, $AlertsTable, Alert>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AlertsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AlertsTable,
+      Alert,
+      $$AlertsTableFilterComposer,
+      $$AlertsTableOrderingComposer,
+      $$AlertsTableAnnotationComposer,
+      $$AlertsTableCreateCompanionBuilder,
+      $$AlertsTableUpdateCompanionBuilder,
+      (Alert, BaseReferences<_$AppDatabase, $AlertsTable, Alert>),
+      Alert,
       PrefetchHooks Function()
     >;
 typedef $$SyncRunsTableCreateCompanionBuilder = SyncRunsCompanion Function({
@@ -10218,6 +10745,8 @@ class $AppDatabaseManager {
       $$LmsItemChangesTableTableManager(_db, _db.lmsItemChanges);
   $$BriefingsTableTableManager get briefings =>
       $$BriefingsTableTableManager(_db, _db.briefings);
+  $$AlertsTableTableManager get alerts =>
+      $$AlertsTableTableManager(_db, _db.alerts);
   $$SyncRunsTableTableManager get syncRuns =>
       $$SyncRunsTableTableManager(_db, _db.syncRuns);
   $$SyncLeasesTableTableManager get syncLeases =>

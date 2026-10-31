@@ -28,6 +28,7 @@ part 'database.g.dart';
     LmsItems,
     LmsItemChanges,
     Briefings,
+    Alerts,
     SyncRuns,
     SyncLeases,
     Settings,

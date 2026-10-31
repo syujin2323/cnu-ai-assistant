@@ -65,6 +65,7 @@ void main() {
         'lms_items',
         'lms_item_changes',
         'briefings',
+        'alerts',
         'sync_runs',
         'sync_lease',
         'settings',
