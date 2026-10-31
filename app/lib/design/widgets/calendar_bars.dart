@@ -275,16 +275,17 @@ class _TopBar extends StatelessWidget {
         AppSpace.s4,
         AppSpace.s8,
       ),
-      child: Row(
+      // 제목은 바 전체 너비의 가운데에 둔다(삼성 캘린더). 왼쪽 버튼은 하나, 오른쪽은 둘이라
+      // 줄에 끼우면 버튼 하나만큼 왼쪽으로 치우치므로, 겹쳐 놓고 양옆을 버튼 둘 너비만큼
+      // 비워 버튼과 겹치지 않게 한다.
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          Builder(
-            builder: (context) => IconButton(
-              tooltip: '메뉴',
-              onPressed: () => Scaffold.of(context).openDrawer(),
-              icon: const AppIcon(AppIconName.menu, color: AppColors.ink),
+          _buttons(context),
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSize.minTouch * 2,
             ),
-          ),
-          Expanded(
             child: Semantics(
               header: true,
               child: Text(
@@ -296,33 +297,48 @@ class _TopBar extends StatelessWidget {
               ),
             ),
           ),
-          IconButton(
-            tooltip: '검색',
-            onPressed: () => context.push(Routes.search),
-            icon: const AppIcon(AppIconName.search, color: AppColors.ink),
+        ],
+      ),
+    );
+  }
+
+  Widget _buttons(BuildContext context) {
+    return Row(
+      children: [
+        Builder(
+          builder: (context) => IconButton(
+            tooltip: '메뉴',
+            onPressed: () => Scaffold.of(context).openDrawer(),
+            icon: const AppIcon(AppIconName.menu, color: AppColors.ink),
           ),
-          IconButton(
-            tooltip: '오늘로 이동',
-            onPressed: onToday,
-            icon: Container(
-              width: AppSize.icon + AppSpace.s4,
-              height: AppSize.icon + AppSpace.s4,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                border: Border.all(color: AppColors.ink, width: 1.6),
-                borderRadius: BorderRadius.circular(AppRadius.tag + 3),
-              ),
-              child: ExcludeSemantics(
-                child: Text(
-                  '${today.day}',
-                  style: AppText.caption.copyWith(fontWeight: AppText.semibold),
-                  textScaler: TextScaler.noScaling,
-                ),
+        ),
+        const Spacer(),
+        IconButton(
+          tooltip: '검색',
+          onPressed: () => context.push(Routes.search),
+          icon: const AppIcon(AppIconName.search, color: AppColors.ink),
+        ),
+        IconButton(
+          tooltip: '오늘로 이동',
+          onPressed: onToday,
+          icon: Container(
+            width: AppSize.icon + AppSpace.s4,
+            height: AppSize.icon + AppSpace.s4,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.ink, width: 1.6),
+              borderRadius: BorderRadius.circular(AppRadius.tag + 3),
+            ),
+            child: ExcludeSemantics(
+              child: Text(
+                '${today.day}',
+                style: AppText.caption.copyWith(fontWeight: AppText.semibold),
+                textScaler: TextScaler.noScaling,
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
