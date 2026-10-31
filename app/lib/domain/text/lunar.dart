@@ -41,3 +41,11 @@ String? lunarText(DateTime date) {
   final leap = lunar.leap ? '윤' : '';
   return '음력 $leap${lunar.month}월 ${lunar.day}일';
 }
+
+/// 월 그리드 칸에 쓰는 짧은 꼴. '9.22', 윤달이면 '윤6.3'. 표 범위 밖이면 null.
+String? lunarShort(DateTime date) {
+  final lunar = koreanLunar(date);
+  if (lunar == null) return null;
+  final leap = lunar.leap ? '윤' : '';
+  return '$leap${lunar.month}.${lunar.day}';
+}

@@ -150,6 +150,30 @@ void main() {
         await app.dispose(tester);
       });
 
+      testWidgets('패널 머리에 음력이, 전체 달의 일요일 칸에만 짧은 음력이 보인다', (tester) async {
+        final app = await _pumpMonth(tester, textScale);
+        final grid = find.bySemanticsLabel(RegExp(r'^10월 15일'));
+
+        // 기본: 선택한 날(10월 29일 목) 머리에 음력. 그리드 칸에는 음력이 없다.
+        expect(find.text('음력 9월 19일'), findsOneWidget);
+        expect(find.text('9.15'), findsNothing);
+        await tester.tap(find.bySemanticsLabel(RegExp(r'^10월 30일 금요일')));
+        await tester.pumpAndSettle();
+        expect(find.text('음력 9월 20일'), findsOneWidget);
+        expect(find.text('음력 9월 19일'), findsNothing);
+
+        // 전체 달: 일요일 칸(달 밖 9월 27일과 10월 18일·25일)에만 '월.일'.
+        await tester.fling(grid, const Offset(0, 300), 1000);
+        await tester.pumpAndSettle();
+        expect(find.text('8.17'), findsOneWidget);
+        expect(find.text('9.15'), findsOneWidget);
+        expect(find.text('9.8'), findsOneWidget);
+        // 일요일이 아닌 날(10월 29일 목, 음력 9월 19일)에는 적지 않는다.
+        expect(find.text('9.19'), findsNothing);
+
+        await app.dispose(tester);
+      });
+
       testWidgets('손잡이를 누르면 데일리 스케줄로 펼쳐져 시간표·To-Do·오늘 미배정 할 일이 보이고 '
           '하단 바가 숨으며, X로 접으면 돌아온다', (tester) async {
         final app = await _pumpMonth(tester, textScale);

@@ -10,6 +10,7 @@
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
+import 'package:cnu_ai_assistant/domain/text/lunar.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_screen.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_controller.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_screen.dart';
@@ -133,8 +134,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       // 캘린더 보기끼리는 드로어에서 go로 바꾸므로 화면 전환 애니메이션을 쓰지 않는다.
       GoRoute(
         path: Routes.calendar,
-        pageBuilder: (context, state) =>
-            const NoTransitionPage(child: MonthScreen()),
+        pageBuilder: (context, state) => const NoTransitionPage(
+          child: MonthScreen(daySubtitle: _sundayLunar),
+        ),
         routes: [
           GoRoute(
             path: Routes._yearSegment,
@@ -190,6 +192,10 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(router.dispose);
   return router;
 });
+
+/// 월간 전체 달 칸의 숫자 아래 글. 삼성 캘린더처럼 일요일 칸에만 짧은 음력('9.22')을 적는다.
+String? _sundayLunar(DateTime day) =>
+    day.weekday == DateTime.sunday ? lunarShort(day) : null;
 
 /// 시작 위치를 정하는 한 곳(docs/architecture.md '화면 이동', '데모 모드').
 ///

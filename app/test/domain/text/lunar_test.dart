@@ -2,6 +2,20 @@ import 'package:cnu_ai_assistant/domain/text/lunar.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('lunarShort', () {
+    test('월 그리드 칸의 짧은 꼴', () {
+      expect(lunarShort(DateTime(2026, 11, 1)), '9.22');
+      expect(lunarShort(DateTime(2026, 10, 11)), '9.1');
+      expect(lunarShort(DateTime(2025, 7, 27)), '윤6.3');
+    });
+
+    test('표 밖이면 null', () {
+      expect(lunarShort(DateTime(1999, 12, 7)), isNull);
+      expect(lunarShort(DateTime(2051, 1, 13)), isNull);
+      expect(lunarShort(DateTime(2051, 1, 12)), '11.30');
+    });
+  });
+
   group('lunarText', () {
     test('삼성 폰 달력과 같은 날', () {
       expect(lunarText(DateTime(2026, 11, 4)), '음력 9월 25일');

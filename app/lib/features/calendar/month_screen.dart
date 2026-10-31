@@ -7,7 +7,9 @@
 //   할 일을 5:2:2로 둔다(`widgets/live_day.dart`). 하단 바는 숨긴다. 손잡이를 아래로 끌거나 누르거나
 //   X를 누르면 기본으로 돌아간다.
 // - 전체 달: 기본에서 그리드를 아래로 넘기면 패널이 사라지고 그리드가 본문을 모두 쓴다. 날짜 칸마다
-//   일정 제목을 두 줄까지 색선과 함께 보여 준다. 위로 넘기면 기본으로 돌아간다.
+//   일정 제목을 두 줄까지 색선과 함께 보여 준다. 일요일 칸은 숫자 아래에 음력('9.22')을 적는다
+//   (라우터가 [MonthScreen.daySubtitle]로 넘긴다). 위로 넘기면 기본으로 돌아간다.
+// 기본 모양 패널 머리는 '16 월요일' 옆에 작게 '음력 10월 8일'을 적는다(삼성 캘린더와 같다).
 // 좌우로 넘기거나 휠을 굴리면 달이 바뀌고, 모션이 켜져 있으면 그리드가 옆으로 밀린다. 선택한 날을
 // 한 번 더 누르면 그날 일간으로 간다.
 
@@ -20,6 +22,7 @@ import 'package:cnu_ai_assistant/design/widgets/app_drawer.dart';
 import 'package:cnu_ai_assistant/design/widgets/calendar_bars.dart';
 import 'package:cnu_ai_assistant/domain/calendar_items.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
+import 'package:cnu_ai_assistant/domain/text/lunar.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:cnu_ai_assistant/features/add/add_sheet.dart';
 import 'package:cnu_ai_assistant/features/calendar/calendar_controller.dart';
@@ -36,8 +39,8 @@ import 'package:material_ui/material_ui.dart';
 class MonthScreen extends ConsumerStatefulWidget {
   const MonthScreen({super.key, this.daySubtitle});
 
-  /// 날짜 칸의 숫자 아래에 적을 작은 글(예: 음력 날짜). null을 돌려주면 아무것도 적지 않는다.
-  /// 어느 칸에 적을지(예: 일요일 열만)는 이 함수가 정한다.
+  /// 전체 달 모양에서 날짜 칸의 숫자 아래에 적을 작은 글(예: 음력 날짜). null을 돌려주면 아무것도
+  /// 적지 않는다. 어느 칸에 적을지(예: 일요일 열만)는 이 함수가 정한다. 기본 모양 칸에는 적지 않는다.
   final String? Function(DateTime day)? daySubtitle;
 
   @override
@@ -380,7 +383,7 @@ class _MonthGrid extends StatelessWidget {
   /// 전체 달 모양인지(칸마다 일정 제목을 두 줄까지).
   final bool full;
 
-  /// 숫자 아래 작은 글. [MonthScreen.daySubtitle].
+  /// 숫자 아래 작은 글. [MonthScreen.daySubtitle]. [full]일 때만 쓴다.
   final String? Function(DateTime day)? subtitle;
   final ValueChanged<DateTime> onTap;
 
@@ -417,7 +420,8 @@ class _MonthGrid extends StatelessWidget {
                               today: day == today,
                               items: itemsOn(day, data),
                               full: full,
-                              subtitle: subtitle?.call(day),
+                              // 기본 모양 칸은 좁아서 전체 달에서만 적는다.
+                              subtitle: full ? subtitle?.call(day) : null,
                               onTap: () => onTap(day),
                             );
                           },
@@ -750,6 +754,19 @@ class _DayPanel extends StatelessWidget {
                                 ),
                               ),
                             ),
+                            // 삼성 캘린더처럼 요일 옆에 작게 음력을 적는다. 표 범위 밖이면 뺀다.
+                            if (lunarText(day) case final lunar?)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: AppSpace.s4,
+                                ),
+                                child: Text(
+                                  lunar,
+                                  style: AppText.small.copyWith(
+                                    color: AppColors.muted,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),
