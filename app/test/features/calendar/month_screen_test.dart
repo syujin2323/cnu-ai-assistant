@@ -337,6 +337,45 @@ void main() {
 
         await app.dispose(tester);
       });
+      testWidgets('천천히 끌어도 손잡이는 놓은 위치로, 그리드는 끈 거리로 동작한다', (tester) async {
+        final app = await _pumpMonth(tester, textScale);
+
+        final handle = find.bySemanticsLabel('하루 시간표 펼치기');
+        await tester.timedDrag(
+          handle,
+          const Offset(0, -400),
+          const Duration(seconds: 2),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(LiveDay), findsOneWidget);
+
+        await tester.timedDrag(
+          find.bySemanticsLabel('하루 시간표 접기'),
+          const Offset(0, 500),
+          const Duration(seconds: 2),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(LiveDay), findsNothing);
+
+        // 절반을 넘지 않게 조금만 올리면 다시 접힌 채로 돌아온다.
+        await tester.timedDrag(
+          find.bySemanticsLabel('하루 시간표 펼치기'),
+          const Offset(0, -60),
+          const Duration(seconds: 1),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(LiveDay), findsNothing);
+
+        await tester.timedDrag(
+          find.bySemanticsLabel(RegExp(r'^10월 15일')),
+          const Offset(0, -120),
+          const Duration(seconds: 2),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('11월'), findsOneWidget);
+
+        await app.dispose(tester);
+      });
     });
   }
 }

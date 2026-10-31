@@ -6,6 +6,7 @@
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
+import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_drawer.dart';
 import 'package:cnu_ai_assistant/design/widgets/calendar_bars.dart';
@@ -38,10 +39,23 @@ class _MonthScreenState extends ConsumerState<MonthScreen> {
   /// 선택일 패널을 끌어올려 실시간 시간표로 펼쳤는지.
   bool _expanded = false;
 
+  /// 손잡이를 끄는 동안의 패널 높이. 끌지 않을 때는 null이다.
+  double? _dragHeight;
+
+  /// 마지막 배치에서의 본문 전체 높이와 접힌 패널 높이.
+  double _total = 0;
+  double _collapsed = 0;
+
+  /// 그리드를 끈 거리(달 넘기기).
+  Offset _gridDrag = Offset.zero;
+
   /// 휠로 한 번에 여러 달이 넘어가지 않게 마지막으로 넘긴 때를 둔다.
   DateTime? _lastWheel;
 
   static const double _flingVelocity = 300;
+
+  /// 이만큼 끌면 빠르기와 상관없이 달을 넘긴다.
+  static const double _swipeDistance = 48;
   static const Duration _wheelGap = Duration(milliseconds: 400);
 
   @override
@@ -55,10 +69,38 @@ class _MonthScreenState extends ConsumerState<MonthScreen> {
     setState(() => _month = DateTime(_month.year, _month.month + by));
   }
 
-  void _onFling(double? velocity) {
-    if (velocity == null || velocity.abs() < _flingVelocity) return;
-    // 위(왼쪽)로 넘기면 다음 달, 아래(오른쪽)로 넘기면 이전 달.
-    _shiftMonth(velocity < 0 ? 1 : -1);
+  /// 그리드 끌기가 끝났을 때. 위(왼쪽)로 넘기면 다음 달, 아래(오른쪽)로 넘기면 이전 달.
+  void _onGridDragEnd(DragEndDetails details) {
+    final drag = _gridDrag;
+    _gridDrag = Offset.zero;
+    final velocity = details.velocity.pixelsPerSecond;
+    final vertical = drag.dy.abs() >= drag.dx.abs();
+    final distance = vertical ? drag.dy : drag.dx;
+    final speed = vertical ? velocity.dy : velocity.dx;
+    if (distance.abs() >= _swipeDistance) {
+      _shiftMonth(distance < 0 ? 1 : -1);
+    } else if (speed.abs() >= _flingVelocity) {
+      _shiftMonth(speed < 0 ? 1 : -1);
+    }
+  }
+
+  void _onPanelDrag(double dy) {
+    final current = _dragHeight ?? (_expanded ? _total : _collapsed);
+    setState(() => _dragHeight = (current - dy).clamp(_collapsed, _total));
+  }
+
+  /// 손잡이를 놓았을 때. 빠르게 튕겼으면 그 방향, 아니면 놓은 위치가 절반을 넘었는지로 정한다.
+  void _onPanelDragEnd(double velocity) {
+    final height = _dragHeight ?? (_expanded ? _total : _collapsed);
+    final expand = velocity <= -_flingVelocity
+        ? true
+        : velocity >= _flingVelocity
+        ? false
+        : height > (_collapsed + _total) / 2;
+    setState(() {
+      _expanded = expand;
+      _dragHeight = null;
+    });
   }
 
   void _onWheel(PointerSignalEvent event) {
@@ -108,38 +150,73 @@ class _MonthScreenState extends ConsumerState<MonthScreen> {
       view: CalendarView.month,
       title: title,
       onToday: _onToday,
-      body: Column(
-        children: [
-          if (!_expanded) ...[
-            const _WeekdayRow(),
-            Expanded(
-              flex: 11,
-              child: Listener(
-                onPointerSignal: _onWheel,
-                child: GestureDetector(
-                  onVerticalDragEnd: (d) => _onFling(d.primaryVelocity),
-                  onHorizontalDragEnd: (d) => _onFling(d.primaryVelocity),
-                  child: _MonthGrid(
-                    month: _month,
-                    selected: selected,
-                    today: today,
-                    data: data,
-                    onTap: _onDayTap,
-                  ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          _total = constraints.maxHeight;
+          _collapsed = _total * 9 / 20;
+          final panel = (_dragHeight ?? (_expanded ? _total : _collapsed))
+              .clamp(0.0, _total);
+          final animate =
+              _dragHeight == null &&
+              ref.watch(motionLevelProvider) != MotionLevel.off;
+          final duration = animate
+              ? const Duration(milliseconds: 220)
+              : Duration.zero;
+          return Column(
+            children: [
+              AnimatedContainer(
+                duration: duration,
+                curve: Curves.easeOut,
+                height: _total - panel,
+                // 패널이 올라오는 동안 그리드는 접힌 때의 크기 그대로 두고 아래를 잘라 낸다.
+                // 패널이 다 덮으면 그리지 않는다(화면 읽기에서도 빠진다).
+                child: panel >= _total - 1
+                    ? const SizedBox.shrink()
+                    : ClipRect(
+                        child: OverflowBox(
+                          alignment: Alignment.topCenter,
+                          minHeight: 0,
+                          maxHeight: _total - _collapsed,
+                          child: Column(
+                            children: [
+                              const _WeekdayRow(),
+                              Expanded(
+                                child: Listener(
+                                  onPointerSignal: _onWheel,
+                                  child: GestureDetector(
+                                    onPanUpdate: (d) => _gridDrag += d.delta,
+                                    onPanEnd: _onGridDragEnd,
+                                    child: _MonthGrid(
+                                      month: _month,
+                                      selected: selected,
+                                      today: today,
+                                      data: data,
+                                      onTap: _onDayTap,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+              ),
+              AnimatedContainer(
+                duration: duration,
+                curve: Curves.easeOut,
+                height: panel,
+                child: _DayPanel(
+                  day: selected,
+                  items: itemsOn(selected, data),
+                  expanded: _expanded,
+                  onToggle: () => setState(() => _expanded = !_expanded),
+                  onDrag: _onPanelDrag,
+                  onDragEnd: _onPanelDragEnd,
                 ),
               ),
-            ),
-          ],
-          Expanded(
-            flex: 9,
-            child: _DayPanel(
-              day: selected,
-              items: itemsOn(selected, data),
-              expanded: _expanded,
-              onExpandedChanged: (value) => setState(() => _expanded = value),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -381,20 +458,28 @@ class _Chip extends StatelessWidget {
   }
 }
 
-/// 선택한 날의 일정 패널. 손잡이를 위로 끌거나 누르면 실시간 시간표로 펼쳐지고, 아래로 끌거나
-/// 다시 누르면 접힌다.
+/// 선택한 날의 일정 패널. 손잡이를 끌면 따라 움직이고, 놓은 위치(절반 넘게 올렸는지)나 튕긴 방향으로
+/// 실시간 시간표로 펼치거나 접는다. 손잡이를 누르면 펼침·접힘이 바뀐다.
 class _DayPanel extends StatelessWidget {
   const _DayPanel({
     required this.day,
     required this.items,
     required this.expanded,
-    required this.onExpandedChanged,
+    required this.onToggle,
+    required this.onDrag,
+    required this.onDragEnd,
   });
 
   final DateTime day;
   final List<CalendarItem> items;
   final bool expanded;
-  final ValueChanged<bool> onExpandedChanged;
+  final VoidCallback onToggle;
+
+  /// 손잡이를 끄는 동안 세로로 움직인 거리(위가 음수).
+  final ValueChanged<double> onDrag;
+
+  /// 손잡이를 놓았을 때의 세로 빠르기(위가 음수).
+  final ValueChanged<double> onDragEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -416,12 +501,10 @@ class _DayPanel extends StatelessWidget {
             excludeSemantics: true,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => onExpandedChanged(!expanded),
-              onVerticalDragEnd: (details) {
-                final velocity = details.primaryVelocity ?? 0;
-                if (velocity < 0) onExpandedChanged(true);
-                if (velocity > 0) onExpandedChanged(false);
-              },
+              onTap: onToggle,
+              onVerticalDragUpdate: (details) => onDrag(details.delta.dy),
+              onVerticalDragEnd: (details) =>
+                  onDragEnd(details.primaryVelocity ?? 0),
               child: const SizedBox(
                 width: double.infinity,
                 height: AppSize.minTouch / 2,
