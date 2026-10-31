@@ -59,17 +59,25 @@ final class CalendarItem {
   bool get allDay => start == null;
 }
 
-/// 캘린더가 읽는 폰 DB 묶음. 저장소가 한 번에 읽어 넘긴다.
+/// 캘린더와 미배정 할 일이 읽는 폰 DB 묶음. 저장소가 한 번에 읽어 넘긴다.
 final class CalendarData {
   const CalendarData({
     this.schedule = const Schedule(),
     this.courses = const [],
     this.tasks = const [],
+    this.lmsItems = const [],
+    this.rules = const [],
   });
 
   final Schedule schedule;
   final List<Course> courses;
   final List<Task> tasks;
+
+  /// 할 일과 `lmsKey`로 이어진 사캠 항목(영상 진도·공개 시각).
+  final List<LmsItem> lmsItems;
+
+  /// 내 규칙(빈 시간 계산에 쓴다).
+  final List<Rule> rules;
 }
 
 /// [date](시각은 보지 않음)에 그릴 항목. 종일 항목이 먼저, 그다음 시작 시각 순이다.

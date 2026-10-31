@@ -14,6 +14,7 @@ import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_controller.dart';
 import 'package:cnu_ai_assistant/features/calendar/day_screen.dart';
 import 'package:cnu_ai_assistant/features/calendar/month_screen.dart';
+import 'package:cnu_ai_assistant/features/calendar/widgets/live_day.dart';
 import 'package:cnu_ai_assistant/features/tasks/task_detail_screen.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
@@ -102,6 +103,52 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('10월'), findsOneWidget);
         expect(find.text('10월 29일에 추가'), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('손잡이를 누르면 실시간 시간표로 펼쳐져 진행 중·다음·오늘 미배정 할 일이 보이고, '
+          '다시 누르면 접힌다', (tester) async {
+        final app = await _pumpMonth(tester, textScale);
+
+        await tester.tap(find.bySemanticsLabel('하루 시간표 펼치기'));
+        await tester.pumpAndSettle();
+
+        // 그리드는 숨고 패널이 화면을 채운다.
+        expect(find.bySemanticsLabel(RegExp(r'^10월 15일')), findsNothing);
+        // 처음에는 지금 1시간 전이 위에 오게 스크롤돼 있으므로 맨 위로 올린다.
+        await tester.drag(find.byType(LiveDay), const Offset(0, 5000));
+        await tester.pumpAndSettle();
+        expect(find.text('지금 10:00'), findsOneWidget);
+        expect(
+          find.textContaining('자구 · 1시간 15분 남음', findRichText: true),
+          findsOneWidget,
+        );
+
+        final todoHeader = find.text('오늘 해야 할 미배정 할 일 1개');
+        await _scrollPanelTo(tester, todoHeader);
+        expect(todoHeader, findsOneWidget);
+        await _scrollPanelTo(tester, find.text('오늘 마감 · 남은 2시간'));
+        expect(find.text('오늘 마감 · 남은 2시간'), findsOneWidget);
+
+        await tester.tap(find.bySemanticsLabel('하루 시간표 접기'));
+        await tester.pumpAndSettle();
+        expect(find.bySemanticsLabel(RegExp(r'^10월 15일')), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('드로어의 미배정 할 일에 시간을 덜 정한 할 일이 급한 순서로 보인다', (tester) async {
+        final app = await _pumpMonth(tester, textScale);
+
+        await tester.tap(find.byTooltip('메뉴'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('미배정 할 일'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('과제2'), findsOneWidget);
+        expect(find.text('오늘 마감 · 남은 2시간'), findsOneWidget);
+        expect(find.text('배치'), findsOneWidget);
 
         await app.dispose(tester);
       });

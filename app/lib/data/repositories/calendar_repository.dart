@@ -2,7 +2,8 @@ import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/domain/calendar_items.dart';
 import 'package:cnu_ai_assistant/domain/planner/schedule.dart';
 
-/// 캘린더 보기가 읽는 표(수업·고정 일정·일정·블록·할 일·과목)를 한 묶음으로 읽는 저장소.
+/// 캘린더 보기와 미배정 할 일이 읽는 표(수업·고정 일정·일정·블록·할 일·과목·사캠 항목·
+/// 내 규칙)를 한 묶음으로 읽는 저장소.
 ///
 /// 학생 한 명의 한 학기 데이터라 행이 적어 기간으로 자르지 않고 모두 읽는다. 날짜별
 /// 펼치기는 `domain/calendar_items.dart`의 [itemsOn]이 한다.
@@ -28,6 +29,8 @@ class CalendarRepository {
           _db.events,
           _db.tasks,
           _db.planBlocks,
+          _db.lmsItems,
+          _db.rules,
         },
       )
       .watch()
@@ -43,5 +46,7 @@ class CalendarRepository {
     ),
     courses: await _db.select(_db.courses).get(),
     tasks: await _db.select(_db.tasks).get(),
+    lmsItems: await _db.select(_db.lmsItems).get(),
+    rules: await _db.select(_db.rules).get(),
   );
 }

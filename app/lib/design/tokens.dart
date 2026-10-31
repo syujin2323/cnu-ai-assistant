@@ -187,4 +187,7 @@ abstract final class AppSize {
 
   /// 하단 바의 추가 알약·원형 버튼 높이.
   static const double bottomBar = 56;
+
+  /// 실시간 시간표의 한 시간 높이.
+  static const double timelineHour = 44;
 }

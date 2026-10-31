@@ -13,6 +13,8 @@ import 'package:cnu_ai_assistant/domain/calendar_items.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:cnu_ai_assistant/features/calendar/calendar_controller.dart';
+import 'package:cnu_ai_assistant/features/calendar/widgets/item_colors.dart';
+import 'package:cnu_ai_assistant/features/calendar/widgets/live_day.dart';
 import 'package:flutter/gestures.dart'
     show PointerScrollEvent, PointerSignalEvent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,6 +32,9 @@ class MonthScreen extends ConsumerStatefulWidget {
 class _MonthScreenState extends ConsumerState<MonthScreen> {
   /// 보이는 달의 1일.
   late DateTime _month;
+
+  /// 선택일 패널을 끌어올려 실시간 시간표로 펼쳤는지.
+  bool _expanded = false;
 
   /// 휠로 한 번에 여러 달이 넘어가지 않게 마지막으로 넘긴 때를 둔다.
   DateTime? _lastWheel;
@@ -98,27 +103,34 @@ class _MonthScreenState extends ConsumerState<MonthScreen> {
       onToday: _onToday,
       body: Column(
         children: [
-          const _WeekdayRow(),
-          Expanded(
-            flex: 11,
-            child: Listener(
-              onPointerSignal: _onWheel,
-              child: GestureDetector(
-                onVerticalDragEnd: (d) => _onFling(d.primaryVelocity),
-                onHorizontalDragEnd: (d) => _onFling(d.primaryVelocity),
-                child: _MonthGrid(
-                  month: _month,
-                  selected: selected,
-                  today: today,
-                  data: data,
-                  onTap: _onDayTap,
+          if (!_expanded) ...[
+            const _WeekdayRow(),
+            Expanded(
+              flex: 11,
+              child: Listener(
+                onPointerSignal: _onWheel,
+                child: GestureDetector(
+                  onVerticalDragEnd: (d) => _onFling(d.primaryVelocity),
+                  onHorizontalDragEnd: (d) => _onFling(d.primaryVelocity),
+                  child: _MonthGrid(
+                    month: _month,
+                    selected: selected,
+                    today: today,
+                    data: data,
+                    onTap: _onDayTap,
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
           Expanded(
             flex: 9,
-            child: _DayPanel(day: selected, items: itemsOn(selected, data)),
+            child: _DayPanel(
+              day: selected,
+              items: itemsOn(selected, data),
+              expanded: _expanded,
+              onExpandedChanged: (value) => setState(() => _expanded = value),
+            ),
           ),
         ],
       ),
@@ -333,23 +345,6 @@ class _DayNumber extends StatelessWidget {
   }
 }
 
-/// 칩·행 색. 색만으로 나누지 않도록 마감은 모양(왼쪽 선·점선 막대)도 다르다.
-Color _tint(CalendarItemKind kind) => switch (kind) {
-  CalendarItemKind.classSession => AppColors.classTint,
-  CalendarItemKind.fixed => AppColors.personalTint,
-  CalendarItemKind.event => AppColors.personalTint,
-  CalendarItemKind.block => AppColors.taskTint,
-  CalendarItemKind.deadline => AppColors.deadlineTint,
-};
-
-Color _bar(CalendarItemKind kind) => switch (kind) {
-  CalendarItemKind.classSession => AppColors.accent,
-  CalendarItemKind.fixed => AppColors.icon,
-  CalendarItemKind.event => AppColors.saturday,
-  CalendarItemKind.block => AppColors.stripe,
-  CalendarItemKind.deadline => AppColors.alert,
-};
-
 class _Chip extends StatelessWidget {
   const _Chip({required this.item});
 
@@ -362,7 +357,7 @@ class _Chip extends StatelessWidget {
       margin: const EdgeInsets.only(top: 2),
       padding: const EdgeInsets.symmetric(horizontal: 3),
       decoration: BoxDecoration(
-        color: deadline ? null : _tint(item.kind),
+        color: deadline ? null : itemTint(item.kind),
         borderRadius: deadline ? null : BorderRadius.circular(AppRadius.tag),
         border: deadline
             ? const Border(left: BorderSide(color: AppColors.alert, width: 2))
@@ -379,12 +374,20 @@ class _Chip extends StatelessWidget {
   }
 }
 
-/// 선택한 날의 일정 패널(접힌 상태).
+/// 선택한 날의 일정 패널. 손잡이를 위로 끌거나 누르면 실시간 시간표로 펼쳐지고, 아래로 끌거나
+/// 다시 누르면 접힌다.
 class _DayPanel extends StatelessWidget {
-  const _DayPanel({required this.day, required this.items});
+  const _DayPanel({
+    required this.day,
+    required this.items,
+    required this.expanded,
+    required this.onExpandedChanged,
+  });
 
   final DateTime day;
   final List<CalendarItem> items;
+  final bool expanded;
+  final ValueChanged<bool> onExpandedChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -400,17 +403,32 @@ class _DayPanel extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const ExcludeSemantics(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: AppSpace.s8),
-              child: SizedBox(
-                width: 40,
-                height: 5,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: AppColors.edge,
-                    borderRadius: BorderRadius.all(
-                      Radius.circular(AppRadius.pill),
+          Semantics(
+            button: true,
+            label: expanded ? '하루 시간표 접기' : '하루 시간표 펼치기',
+            excludeSemantics: true,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onExpandedChanged(!expanded),
+              onVerticalDragEnd: (details) {
+                final velocity = details.primaryVelocity ?? 0;
+                if (velocity < 0) onExpandedChanged(true);
+                if (velocity > 0) onExpandedChanged(false);
+              },
+              child: const SizedBox(
+                width: double.infinity,
+                height: AppSize.minTouch / 2,
+                child: Center(
+                  child: SizedBox(
+                    width: 40,
+                    height: 5,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: AppColors.edge,
+                        borderRadius: BorderRadius.all(
+                          Radius.circular(AppRadius.pill),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -418,58 +436,63 @@ class _DayPanel extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpace.screen,
-                0,
-                AppSpace.screen,
-                CalendarBottomBar.height,
-              ),
-              children: [
-                Semantics(
-                  header: true,
-                  child: Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.end,
-                    spacing: AppSpace.s8,
+            child: expanded
+                ? LiveDay(key: ValueKey(day), day: day)
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpace.screen,
+                      0,
+                      AppSpace.screen,
+                      CalendarBottomBar.height,
+                    ),
                     children: [
-                      Text('${day.day}', style: AppText.display),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpace.s4),
-                        child: Text(
-                          '${weekdayText(day.weekday)}요일',
-                          style: AppText.bodyLarge.copyWith(
-                            fontWeight: AppText.semibold,
-                            color: _weekdayColor(
-                              day.weekday,
-                              other: AppColors.ink,
+                      Semantics(
+                        header: true,
+                        child: Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.end,
+                          spacing: AppSpace.s8,
+                          children: [
+                            Text('${day.day}', style: AppText.display),
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: AppSpace.s4,
+                              ),
+                              child: Text(
+                                '${weekdayText(day.weekday)}요일',
+                                style: AppText.bodyLarge.copyWith(
+                                  fontWeight: AppText.semibold,
+                                  color: _weekdayColor(
+                                    day.weekday,
+                                    other: AppColors.ink,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: AppSpace.s8),
+                      if (items.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: AppSpace.s12,
+                          ),
+                          child: Text(
+                            '일정이 없어요.',
+                            style: AppText.body.copyWith(
+                              color: AppColors.muted,
                             ),
                           ),
                         ),
-                      ),
+                      for (final item in items) _ItemRow(item: item),
                     ],
                   ),
-                ),
-                const SizedBox(height: AppSpace.s8),
-                if (items.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: AppSpace.s12),
-                    child: Text(
-                      '일정이 없어요.',
-                      style: AppText.body.copyWith(color: AppColors.muted),
-                    ),
-                  ),
-                for (final item in items) _ItemRow(item: item),
-              ],
-            ),
           ),
         ],
       ),
     );
   }
 }
-
-String _hm(DateTime at) =>
-    '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
 
 class _ItemRow extends StatelessWidget {
   const _ItemRow({required this.item});
@@ -486,8 +509,8 @@ class _ItemRow extends StatelessWidget {
         final time = start == null
             ? '종일'
             : end == null
-            ? _hm(start)
-            : '${_hm(start)} - ${_hm(end)}';
+            ? hm(start)
+            : '${hm(start)} - ${hm(end)}';
         final place = item.place;
         return place == null ? time : '$time · $place';
     }
@@ -505,7 +528,7 @@ class _ItemRow extends StatelessWidget {
           SizedBox(
             width: 56,
             child: Text(
-              start == null ? '종일' : _hm(start),
+              start == null ? '종일' : hm(start),
               style: AppText.body.copyWith(fontWeight: AppText.medium),
             ),
           ),
@@ -513,9 +536,9 @@ class _ItemRow extends StatelessWidget {
             width: 4,
             height: 36,
             decoration: BoxDecoration(
-              color: deadline && !item.placed ? null : _bar(item.kind),
+              color: deadline && !item.placed ? null : itemBar(item.kind),
               border: deadline && !item.placed
-                  ? Border.all(color: _bar(item.kind), width: 1.5)
+                  ? Border.all(color: itemBar(item.kind), width: 1.5)
                   : null,
               borderRadius: BorderRadius.circular(AppRadius.pill),
             ),

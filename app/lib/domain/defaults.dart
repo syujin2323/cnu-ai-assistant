@@ -50,6 +50,12 @@ abstract final class Defaults {
   /// 배치 지평(일). 마감이 이 기간 안에 있는 할 일을 제안 블록으로 배치한다.
   static const int planHorizonDays = 14;
 
+  /// 미배정 할 일 등급: 여유도가 이 값(분) 미만이면 '높음'.
+  static const int urgencyHighSlackMin = 180;
+
+  /// 미배정 할 일 등급: 여유도가 이 값(분) 미만이면 '보통', 그 밖은 '낮음'.
+  static const int urgencyMediumSlackMin = 720;
+
   /// 과제 상세에서 보여 주는 다른 시간 제안 수.
   static const int alternativeSlotCount = 3;
 
