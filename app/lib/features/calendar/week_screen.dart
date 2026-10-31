@@ -1,17 +1,14 @@
-// 주간(캘린더 탭 `/calendar/week`, R1). 캔버스에 없어 새로 디자인한다. R0에서는 자리만 둔다.
+// 주간(`/calendar/week`). 2026-10-31 결정으로 R0다. 내용은 주간 PR에서 만든다.
 
-import 'package:cnu_ai_assistant/design/widgets/screen_placeholder.dart';
+import 'package:cnu_ai_assistant/design/widgets/app_drawer.dart';
+import 'package:cnu_ai_assistant/features/calendar/calendar_placeholder_view.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// 주간(R1).
+/// 주간.
 class WeekScreen extends StatelessWidget {
   const WeekScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('주간')),
-      body: const SafeArea(child: ScreenPlaceholder()),
-    );
-  }
+  Widget build(BuildContext context) =>
+      const CalendarPlaceholderView(view: CalendarView.week, title: '주간');
 }

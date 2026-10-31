@@ -157,7 +157,7 @@ Iterable<TimeSpan> _classSpans(
   final classes = <({TimeSpan span, ClassSlot slot})>[
     for (final date in dates)
       for (final slot in schedule.classSlots)
-        if (_meets(slot, date, exceptions[(isoDate(date), slot.id)]))
+        if (classMeets(slot, date, exceptions[(isoDate(date), slot.id)]))
           (
             span: TimeSpan(_at(date, slot.startMin), _at(date, slot.endMin)),
             slot: slot,
@@ -197,7 +197,7 @@ Iterable<TimeSpan> _classSpans(
 }
 
 /// [slot]이 [date]에 열리는지. 휴강이면 열리지 않고, 보강이면 요일이 달라도 열린다.
-bool _meets(ClassSlot slot, DateTime date, Set<ClassExceptionKind>? kinds) {
+bool classMeets(ClassSlot slot, DateTime date, Set<ClassExceptionKind>? kinds) {
   if (kinds != null && kinds.contains(ClassExceptionKind.cancelled)) {
     return false;
   }

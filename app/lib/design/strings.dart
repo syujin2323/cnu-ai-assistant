@@ -8,15 +8,18 @@ abstract final class AppStrings {
   /// 앱 표시 이름. 임시 표시 이름이고 앱 이름이 정해지면 바꾼다.
   static const String appName = '일정 비서';
 
-  /// '충남대 비공식 앱' 표시. 온보딩 첫 화면 아래, 나 탭 맨 위 앱 이름 옆,
+  /// '충남대 비공식 앱' 표시. 온보딩 첫 화면 아래, 나 화면 맨 위 앱 이름 옆,
   /// 사캠 연결·재연결 시트 세 곳에 둔다.
   static const String unofficial = '충남대 비공식 앱 · 학교와 관계없는 학생 프로젝트';
 
-  // 하단 탭(오늘 · 캘린더 · 과제 · 나 순서).
-  static const String tabToday = '오늘';
-  static const String tabCalendar = '캘린더';
-  static const String tabTasks = '과제';
-  static const String tabMe = '나';
+  /// 미배정 할 일 화면의 이름. 드로어 항목과 `/tasks`의 제목이 함께 쓴다.
+  static const String unassignedTasks = '미배정 할 일';
+
+  /// 데일리 브리핑 화면의 이름. 드로어 항목과 `/briefing`의 제목이 함께 쓴다.
+  static const String dailyBriefing = '데일리 브리핑';
+
+  /// 나·설정 화면의 이름. 드로어의 톱니바퀴와 `/me`가 함께 쓴다.
+  static const String me = '나';
 
   /// 아직 내용이 없는 화면의 안내.
   static const String inProgress = '이 화면은 아직 만들고 있어요';

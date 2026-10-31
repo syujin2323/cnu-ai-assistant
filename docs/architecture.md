@@ -4,7 +4,7 @@
 
 ## 한눈에 보기
 
-이 앱은 충남대 학부생용 일정 비서 앱입니다. 앱 이름은 아직 정하지 않았습니다(임시 식별자는 레포 이름 `cnu-ai-assistant`입니다). 사이버캠퍼스(사캠)의 마감과 시간표, 개인 일정을 모아 수업 사이 빈 시간에 할 일을 배치하고, 매일 아침 브리핑으로 오늘의 계획을 건넵니다.
+이 앱은 충남대 학부생용 일정 비서 앱입니다. 앱 이름은 아직 정하지 않았습니다(임시 식별자는 레포 이름 `cnu-ai-assistant`입니다). 사이버캠퍼스(사캠)의 마감과 시간표, 개인 일정을 삼성 기본 캘린더와 같은 모양의 캘린더에 모으고, 시간이 정해지지 않은 할 일을 급한 순서로 보여 주어 사용자가 말이나 직접 입력으로 시간을 정하게 합니다. 매일 정한 시각에 데일리 브리핑으로 밤사이 생긴 일과 오늘을 건네고, 낮에 생긴 중요한 일은 중요 브리핑으로 알려 줍니다.
 
 ```mermaid
 flowchart LR
@@ -51,7 +51,7 @@ cnu-ai-assistant/
 │   │   ├── app/              app.dart(루트 위젯 RootApp), router.dart, theme.dart, providers.dart(앱 전역 provider), config.dart(서버 주소 등 비밀 아닌 설정 상수), bootstrap.dart(Firebase·DB·설정 초기화)
 │   │   ├── design/           tokens.dart(색·글꼴·간격·모서리), motion.dart(모션 프리셋), icons.dart, strings.dart(두 화면 이상이 쓰는 문구), widgets/(공통 위젯)
 │   │   ├── features/         화면 단위 (onboarding, briefing, today, calendar, tasks, assistant, me, lms_connect; R1에 suggest). 대응표는 아래 '화면과 기능 폴더'
-│   │   ├── domain/           순수 Dart: 모델, 빈 시간 계산, 배치 엔진, 내 규칙(rules.dart)
+│   │   ├── domain/           순수 Dart: 모델, 빈 시간·여유도 계산, 캘린더 항목(calendar_items.dart), 내 규칙(rules.dart)
 │   │   ├── data/             폰 DB(drift), 저장소, 서버 API 클라이언트
 │   │   ├── lms/              사캠(R0). lms_config.dart(Remote Config 읽기), lms_feature.dart(빌드 상수), response_classifier.dart(판별), parsers/(해석), sync_coordinator.dart(동기화·sync_lease), cookie_bridge.dart(플랫폼 채널), cookie_vault.dart(쿠키·비밀번호 보안 저장소), login_flow.dart(WebView 로그인 성공 감지·쿠키 수집·자동 재로그인), hidden_webview.dart(숨은 복원), lms_client.dart(dio·쿠키 주입), session_state.dart(상태 전이. 상태 enum `LmsSessionState`는 `settings`를 읽는 domain 모델이 쓰고 domain은 lms를 import하지 않으므로 `domain/models/lms_session_state.dart`에 둡니다), session_manager.dart(복원·재로그인), timetable.dart(통합정보시스템 시간표)
 │   │   └── platform/         notifications.dart(채널, 예약, 탭 처리, 알림 액션(R1)), background.dart(workmanager 진입점, R1), push.dart(FCM 백그라운드 처리, R1), 알림 감지 연결(R1)
@@ -96,28 +96,31 @@ cnu-ai-assistant/
 
 ## 화면 이동
 
-- 라우터는 `app/lib/app/router.dart` 하나입니다. 하단 탭은 go_router의 `StatefulShellRoute.indexedStack`이고 가지 순서는 오늘 · 캘린더 · 과제 · 나입니다. R0부터 네 탭을 모두 둡니다. 탭 라벨은 '오늘', '캘린더', '과제', '나'입니다. 경로 문자열은 `Routes` 상수로만 씁니다.
+- 라우터는 `app/lib/app/router.dart` 하나입니다. 하단 탭은 없습니다(2026-10-31 결정). 캘린더 보기들이 첫 화면이고, 보기 전환과 다른 화면은 상단바 왼쪽 메뉴의 드로어(`design/widgets/app_drawer.dart`)에서 엽니다. 경로 문자열은 `Routes` 상수로만 씁니다.
 
-| 경로 | 화면 | 위치 |
+| 경로 | 화면 | 여는 곳 |
 |---|---|---|
-| `/` | 없음. 시작 위치를 정하는 자리(`Routes.root`)이고 `redirect`가 곧바로 아래 규칙의 경로로 보냅니다 | 셸 밖 |
-| `/onboarding` | 온보딩 | 셸 밖 |
-| `/today` | 02 홈 | 오늘 탭 |
-| `/today/day/:date` | 09 일간 (`:date`는 `YYYY-MM-DD`) | 오늘 탭 |
-| `/calendar` | 08 월간 | 캘린더 탭 |
-| `/calendar/week` | 주간 (R1, 새 디자인) | 캘린더 탭 |
-| `/tasks` | 03 과제 목록 | 과제 탭 |
-| `/me` | 10 나 | 나 탭 |
-| `/me/rules` | 내 규칙 (목록·폼. 10 나의 설정에서 엽니다) | 나 탭 |
-| `/briefing` | 01 아침 브리핑 | 셸 밖 전체 화면 |
-| `/tasks/:id` | 04 과제 상세 (05 강의 상세는 R1에 `/lectures/:id`) | 셸 밖 전체 화면 |
-| `/assistant` | 06 AI 대화 (모든 탭의 'AI 비서에게 말하기' 버튼과 03 과제 목록의 '과제 추가' 버튼에서 엽니다) | 셸 밖 전체 화면 |
-| `/me/timetable` | 시간표·고정 일정 편집 (과목을 고르면 통합정보시스템에서 요일·시각·강의실 자동 채움, 확인·수정. 온보딩 4·5단계와 10 나의 설정에서 엽니다) | 셸 밖 전체 화면 |
+| `/` | 없음. 시작 위치를 정하는 자리(`Routes.root`)이고 `redirect`가 곧바로 아래 규칙의 경로로 보냅니다 | - |
+| `/onboarding` | 온보딩 | 시작 |
+| `/calendar` | 월간 + 선택일 패널(위로 끌면 실시간 시간표 + 오늘 미배정 할 일). 첫 화면 | 시작, 드로어 '월' |
+| `/calendar/year` | 연간 | 드로어 '년' |
+| `/calendar/week` | 주간 | 드로어 '주' |
+| `/calendar/day/:date` | 일간 (`:date`는 `YYYY-MM-DD`) | 드로어 '일', 월간에서 선택한 날을 한 번 더 누름 |
+| `/calendar/agenda` | 일정 목록 | 드로어 '일정' |
+| `/search` | 검색 (뒤로가기만 있는 전체 화면, 색상·캘린더 필터, 하단 검색창) | 상단바 검색 |
+| `/briefing` | 데일리 브리핑 (전체 화면, 상단 고정) | 시작, 드로어, 중요 브리핑 시트 |
+| `/tasks` | 미배정 할 일 (여유도 순) + 배치됨 | 드로어 |
+| `/tasks/:id` | 할 일 상세 (강의 상세는 R1에 `/lectures/:id`) | 미배정 목록, 일정 행 |
+| `/inbox` | 알림함 (R1, 알림 감지) | 드로어, 중요 브리핑 시트 |
+| `/me` | 나 · 설정 (브리핑 시각, 사캠 연결, 데모 모드 등) | 드로어 톱니바퀴 |
+| `/me/rules` | 내 규칙 (목록·폼) | 나 |
+| `/me/timetable` | 시간표·고정 일정 편집 (과목을 고르면 통합정보시스템에서 요일·시각·강의실 자동 채움, 확인·수정. 온보딩 4·5단계와 나에서 엽니다) | 나, 온보딩 |
+| `/assistant` | AI 대화 (내 규칙을 말로 정할 때) | 내 규칙 |
 
-- 캘린더 탭은 R0부터 있습니다. R0에는 08 월간과 09 일간, R1에 주간 화면(캔버스에 없어 새로 디자인합니다)을 더합니다. 09 일간은 오늘 탭에서 날짜를 넘기거나 월간에서 날짜를 누르면 열립니다. 일간은 시간축에 수업·고정 일정·일정·블록(제안·확정)을 보여 주고, 블록을 누르면 근거 시트, 빈 시간을 누르면 일정이나 할 일 블록을 더합니다. 월간은 날짜마다 마감과 블록을 표시하고 날짜를 누르면 그날 일간으로 갑니다. 월간의 학사일정 표기는 R1입니다.
-- 블록 근거 시트, AI 동의, 07 알림 제안(R1), 사캠 연결·재연결 시트(앱 안 WebView 공식 로그인)는 라우트가 아니라 `showModalBottomSheet`로 띄웁니다. 새 화면은 이 표에 먼저 더합니다.
-- 시작 위치는 `redirect` 한 곳에서만 정합니다. 알림으로 켜졌으면 그 payload 경로, 온보딩을 끝내지 않았으면 `/onboarding`, 끝냈고 오늘(논리적 하루)의 브리핑을 아직 열지 않았으면 `/briefing`, 그 밖에는 `/today`입니다. `redirect`는 이 순서를 시작 위치 `/`에서만 따르고 다른 경로는 막지 않습니다. 그래서 온보딩 중에도 `/me/timetable`을 열 수 있고, payload로 연 화면이 온보딩에 덮이지 않습니다. 온보딩을 끝냈거나 데모 모드면 `/onboarding`으로 가는 이동만 `/briefing`이나 `/today`로 돌립니다.
-- 화면 전환은 `ThemeData.pageTransitionsTheme`에 iOS `CupertinoPageTransitionsBuilder`(왼쪽 끝 스와이프 뒤로), Android `PredictiveBackPageTransitionsBuilder`를 둡니다. 뒤로 가기 제어는 `PopScope`만 씁니다. 탭 전환에는 화면 전환 애니메이션을 쓰지 않고 탭바 모션만 씁니다.
+- 모든 캘린더 보기의 상단바는 메뉴 · 가운데 제목(월간은 'N월') · 검색 · 오늘(날짜 숫자 상자)입니다. 하단에는 'N월 N일에 추가' 알약 버튼(글자 부분은 직접 입력, +는 말로 입력. 둘 다 추가 시트)과 그 오른쪽 원형 중요 브리핑 버튼(안 본 중요 알림이 있으면 레드닷, 시트가 열리면 같은 자리에서 닫기 X)을 둡니다. 월 그리드는 위아래·좌우로 넘기거나 휠을 굴려 달을 바꿉니다. 월간의 학사일정 표기는 R1입니다.
+- 추가 시트(일정 추가·할 일 배치), 중요 브리핑 시트, AI 동의, 07 알림 제안(R1), 사캠 연결·재연결 시트(앱 안 WebView 공식 로그인)는 라우트가 아니라 `showModalBottomSheet`로 띄웁니다. 시트는 손잡이나 제목을 아래로 끌어 닫습니다. 새 화면은 이 표에 먼저 더합니다.
+- 시작 위치는 `redirect` 한 곳에서만 정합니다. 알림으로 켜졌으면 그 payload 경로, 온보딩을 끝내지 않았으면 `/onboarding`, 끝냈고 오늘(논리적 하루)의 브리핑을 아직 열지 않았으면 `/briefing`, 그 밖에는 `/calendar`입니다. `redirect`는 이 순서를 시작 위치 `/`에서만 따르고 다른 경로는 막지 않습니다. 그래서 온보딩 중에도 `/me/timetable`을 열 수 있고, payload로 연 화면이 온보딩에 덮이지 않습니다. 온보딩을 끝냈거나 데모 모드면 `/onboarding`으로 가는 이동만 `/briefing`이나 `/calendar`로 돌립니다.
+- 화면 전환은 `ThemeData.pageTransitionsTheme`에 iOS `CupertinoPageTransitionsBuilder`(왼쪽 끝 스와이프 뒤로), Android `PredictiveBackPageTransitionsBuilder`를 둡니다. 뒤로 가기 제어는 `PopScope`만 씁니다. 드로어에서 캘린더 보기끼리 바꿀 때는 화면 전환 애니메이션 없이 바꿉니다(`go`로 교체).
 
 ## 화면과 기능 폴더
 
@@ -126,16 +129,17 @@ cnu-ai-assistant/
 | 폴더 | 화면 (캔버스 번호) | 단계 |
 |---|---|---|
 | `features/onboarding/` | 온보딩, 데모 모드 진입 | R0 |
-| `features/briefing/` | 01 아침 브리핑, 템플릿 문장 | R0 |
-| `features/today/` | 02 홈, 09 일간 | R0 |
-| `features/tasks/` | 03 과제 목록, 04 과제 상세, 05 강의 상세 | R0 (05는 R1. R0에서는 04가 영상 길이·인정 시간·시청 시간도 보여 줍니다) |
-| `features/assistant/` | 06 AI 대화 | R0 |
-| `features/me/` | 10 나, 설정, 내 규칙, 시간표 편집, 데모 모드 들어가기 | R0 |
+| `features/calendar/` | 월간·연간·주간·일간·일정 목록, 선택일 패널과 실시간 시간표(`widgets/day_panel.dart`) | R0 |
+| `features/search/` | 검색 | R0 |
+| `features/add/` | 추가 시트: 일정 추가, 할 일 배치(말·직접 입력, 겹침·마감 검사) | R0 |
+| `features/briefing/` | 데일리 브리핑, 중요 브리핑 시트(`important_sheet.dart`), 템플릿 문장 | R0 (재난문자는 R1) |
+| `features/tasks/` | 미배정 할 일, 할 일 상세, 강의 상세 | R0 (강의 상세는 R1. R0에서는 할 일 상세가 영상 길이·인정 시간·시청 시간도 보여 줍니다) |
+| `features/assistant/` | AI 대화 (내 규칙을 말로) | R0 |
+| `features/me/` | 나, 설정, 내 규칙, 시간표 편집, 데모 모드 들어가기 | R0 |
 | `features/lms_connect/` | 사캠 연결·재연결 시트, 자동 로그인 설정 | R0 |
-| `features/calendar/` | 08 월간, 주간 | R0 (주간은 R1) |
-| `features/suggest/` | 07 알림 감지 제안 (Android) | R1. R0 뼈대에서는 만들지 않습니다 |
+| `features/inbox/` | 알림함, 07 알림 감지 제안 (Android) | R1. R0 뼈대에서는 만들지 않습니다 |
 
-기능 폴더 안은 `<화면>_screen.dart`(화면 위젯), `<화면>_controller.dart`(노티파이어와 provider), `widgets/`(그 화면만 쓰는 위젯)입니다. 예: `features/tasks/task_list_screen.dart`, `features/tasks/task_detail_screen.dart`. 두 화면 이상이 쓰는 위젯은 `design/widgets/`에 둡니다. 블록 근거 시트는 `design/widgets/block_sheet.dart`이고 홈·일간·월간·과제 상세가 함께 씁니다.
+기능 폴더 안은 `<화면>_screen.dart`(화면 위젯), `<화면>_controller.dart`(노티파이어와 provider), `widgets/`(그 화면만 쓰는 위젯)입니다. 예: `features/tasks/task_list_screen.dart`, `features/tasks/task_detail_screen.dart`. 두 화면 이상이 쓰는 위젯은 `design/widgets/`에 둡니다. 드로어(`app_drawer.dart`)와 캘린더 상단바·하단 바(`calendar_bars.dart`)는 모든 캘린더 보기가 함께 씁니다.
 
 ### 온보딩
 
@@ -158,13 +162,13 @@ cnu-ai-assistant/
 
 - 온보딩 첫 화면의 '둘러보기'로 들어가고, 화면 위에 '데모' 띠를 늘 보여 줍니다. 띠의 '끝내기'로 나오면 데모 DB의 모든 표를 비우고 들어온 곳(아래 `demo_entry`)으로 돌아갑니다. 데모 DB 파일은 지우지 않고, 열린 연결 그대로 한 트랜잭션 안에서 표를 비웁니다.
 - 앱 모드는 `AppMode { real, demo }`이고 `shared_preferences`의 `app_mode` 키에 둡니다. `appModeProvider`가 이 값을 읽고 `databaseProvider`는 모드에 따라 `app.sqlite`(real) 또는 `app_demo.sqlite`(demo)를 엽니다. 두 파일은 서로 읽지 않으므로 데이터가 섞이지 않습니다. 저장소 층 위로는 같은 코드가 돕니다.
-- `appModeProvider`가 `demo`면 `redirect`는 `onboarding_done`을 보지 않고 그날 브리핑을 아직 열지 않았으면 `/briefing`, 아니면 `/today`로 보냅니다. 데모에 들어갈 때 `platform/notifications.dart`가 예약된 알림을 모두 취소하고(`cancelAll`), 나갈 때 실제 DB로 다시 계산해 예약합니다. '끝내기'는 들어온 곳으로 돌아갑니다. 온보딩 첫 화면의 '둘러보기'로 들어왔으면(`onboarding_done` false) 온보딩 첫 화면으로, 나 탭의 '데모 모드 들어가기'(`features/me/`)로 들어왔으면 `/me`로 돌아갑니다. 들어온 곳은 `shared_preferences`의 `demo_entry`(`onboarding`/`me`)에 둡니다.
+- `appModeProvider`가 `demo`면 `redirect`는 `onboarding_done`을 보지 않고 그날 브리핑을 아직 열지 않았으면 `/briefing`, 아니면 `/calendar`로 보냅니다. 데모에 들어갈 때 `platform/notifications.dart`가 예약된 알림을 모두 취소하고(`cancelAll`), 나갈 때 실제 DB로 다시 계산해 예약합니다. '끝내기'는 들어온 곳으로 돌아갑니다. 온보딩 첫 화면의 '둘러보기'로 들어왔으면(`onboarding_done` false) 온보딩 첫 화면으로, 나의 '데모 모드 들어가기'(`features/me/`)로 들어왔으면 `/me`로 돌아갑니다. 들어온 곳은 `shared_preferences`의 `demo_entry`(`onboarding`/`me`)에 둡니다.
 - 샘플 데이터는 `app/lib/data/demo/demo_seed.dart`의 Dart 코드이고 JSON 파일은 두지 않습니다. 데모 DB를 처음 열 때 넣고, 날짜는 들어가는 날의 논리적 하루를 기준으로 상대적으로 만듭니다. 내용은 과목 4개, 시간표, 과제 4개·영상 2개·퀴즈 1개, 고정 일정 2개(점심·알바), 개인 일정 2개, 제안·확정 블록, 내 규칙 1개(이동 시간 `travel`), 오늘 브리핑 1개(템플릿 문장)입니다.
 - 데모에서는 사캠·서버·AI를 부르지 않고 알림을 예약하지 않습니다. 사캠 연결 버튼은 '데모에서는 연결할 수 없어요'를 띄우고, 말로 추가와 말로 정하는 규칙은 미리 적은 응답 중 가장 비슷한 것을 보여 주며, 동기화 상태 표시는 '사캠 정보 방금'으로 고정합니다.
 
 ## 디자인 토큰
 
-이 절의 값은 임시 결정입니다. 정해진 디자인이 아니라 캔버스 v3에서 뽑은 작업용 값이며, 디자인이 확정되면 이 표와 `tokens.dart`를 함께 바꿉니다. 확정 전까지는 이 표를 코드의 원본으로 씁니다. 토큰은 `app/lib/design/tokens.dart`에 `AppColors`, `AppText`, `AppSpace`, `AppRadius`, `AppSize`(크기), `AppGlass`(하단 탭바 유리) 상수로 두고, 화면 코드는 값을 직접 쓰지 않고 토큰만 씁니다. 테마는 `app/lib/app/theme.dart`에서 `ThemeData`에 토큰을 입힌 것 하나이고, R0는 밝은 테마만 있어 `themeMode: ThemeMode.light`로 고정합니다. 다크 토큰은 R1에 더합니다. 값을 바꾸면 이 절도 같은 PR에서 고칩니다.
+이 절의 값은 임시 결정입니다. 정해진 디자인이 아니라 캔버스 v3에서 뽑은 작업용 값이며, 디자인이 확정되면 이 표와 `tokens.dart`를 함께 바꿉니다. 확정 전까지는 이 표를 코드의 원본으로 씁니다. 토큰은 `app/lib/design/tokens.dart`에 `AppColors`, `AppText`, `AppSpace`, `AppRadius`, `AppSize`(크기) 상수로 두고, 화면 코드는 값을 직접 쓰지 않고 토큰만 씁니다. 테마는 `app/lib/app/theme.dart`에서 `ThemeData`에 토큰을 입힌 것 하나이고, R0는 밝은 테마만 있어 `themeMode: ThemeMode.light`로 고정합니다. 다크 토큰은 R1에 더합니다. 값을 바꾸면 이 절도 같은 PR에서 고칩니다.
 
 | 토큰 | 값 | 쓰는 곳 |
 |---|---|---|
@@ -185,11 +189,13 @@ cnu-ai-assistant/
 | `taskTint` | #F3F0FC | 할 일 |
 | `personalTint` | #FCF2EC | 개인 |
 | `deadlineTint` | #FBEFF2 | 마감·겹침 |
+| `sunday` | #B4475F | 캘린더 일요일 날짜 |
+| `saturday` | #3A63B8 | 캘린더 토요일 날짜 |
 
-- 종류별 색은 늘 아이콘이나 글자와 함께 씁니다. 색만으로 구분하지 않습니다. 제안 블록은 종류 색에 점선 테두리, 확정 블록은 실선 테두리로 구분합니다(임시).
-- 글자(Pretendard): `caption` 12 · `small` 13 · `body` 15 · `bodyLarge` 17 · `title` 20 · `heading` 24 · `display` 30 · `hero` 40. 무게는 제목(`title` 이상) 600, 본문 400, 강조 500입니다. 제목 자간은 `hero` −1.6px, `display`·`heading`·`title` −0.6px, `bodyLarge` −0.3px이고 글자 그림자는 쓰지 않습니다. 시스템 글자 크기 200%에서도 줄이 깨지지 않게 글자 영역에 고정 높이를 쓰지 않습니다.
+- 종류별 색은 늘 아이콘이나 글자와 함께 씁니다. 색만으로 구분하지 않습니다. 미배정 할 일의 마감은 일정 칩과 달리 왼쪽 색선 + 글자, 일정 행에서는 점선 막대로 구분합니다(임시).
+- 글자(Pretendard): `tiny` 10(월 그리드 칩) · `caption` 12 · `small` 13 · `body` 15 · `bodyLarge` 17 · `title` 20 · `heading` 24 · `display` 30 · `hero` 40. 무게는 제목(`title` 이상) 600, 본문 400, 강조 500입니다. 제목 자간은 `hero` −1.6px, `display`·`heading`·`title` −0.6px, `bodyLarge` −0.3px이고 글자 그림자는 쓰지 않습니다. 시스템 글자 크기 200%에서도 줄이 깨지지 않게 글자 영역에 고정 높이를 쓰지 않습니다.
 - 간격은 4pt 격자. `AppSpace`는 4 · 8 · 12 · 16 · 20 · 24 · 32이고, 화면 좌우 여백은 20, 카드 안 여백은 16입니다.
-- 모서리: 카드 24 · 작은 카드 18 · 칩·입력 14 · 시트 32 · 알약 999. 누를 수 있는 것은 48×48pt 이상입니다(`AppSize.minTouch`). 크기 토큰 `AppSize`는 누를 수 있는 것의 최소 한 변 48, 아이콘 기본 24(캔버스 SVG의 viewBox), 하단 탭바 아이콘 20입니다. 앱은 `MediaQuery`의 `textScaler`를 덮어쓰거나 깎지 않습니다. 글자 없는 버튼·아이콘·칩에는 `tooltip`이나 `Semantics(label:)`을 답니다. 화면 테스트는 `MediaQuery(data: MediaQueryData(textScaler: TextScaler.linear(2.0)))` 안에서도 한 번 더 돌려 넘침(RenderFlex overflow) 예외가 없어야 통과입니다. 하단 탭바는 흰색 32%에 blur 18px입니다(`AppGlass.fill`, `AppGlass.blur`. blur는 CSS `blur(18px)`의 표준편차와 같은 시그마).
+- 모서리: 카드 24 · 작은 카드 18 · 칩·입력 14 · 시트 32 · 알약 999 · 월 그리드 날짜 칸 10 · 날짜 칸 안 칩 4. 누를 수 있는 것은 48×48pt 이상입니다(`AppSize.minTouch`). 크기 토큰 `AppSize`는 누를 수 있는 것의 최소 한 변 48, 아이콘 기본 24(캔버스 SVG의 viewBox), 하단 바(추가 알약·원형 버튼) 높이 56입니다. 앱은 `MediaQuery`의 `textScaler`를 덮어쓰거나 깎지 않습니다. 글자 없는 버튼·아이콘·칩에는 `tooltip`이나 `Semantics(label:)`을 답니다. 화면 테스트는 `MediaQuery(data: MediaQueryData(textScaler: TextScaler.linear(2.0)))` 안에서도 한 번 더 돌려 넘침(RenderFlex overflow) 예외가 없어야 통과입니다.
 
 ### 모션 프리셋
 
@@ -215,7 +221,7 @@ cnu-ai-assistant/
 
 - 프리셋 위젯은 `design/motion/`의 `Press`, `Rise`, `Pop`, `NavDrop`(R0), `WordIn`, `Sheet`(R1)이고 `AnimationController`와 `CurvedAnimation`으로 만듭니다.
 - 모션 등급은 `MotionLevel { full, light, off }`이고 `motionLevelProvider`로 읽습니다. OS가 애니메이션을 끄라고 하면(iOS '동작 줄이기', Android '애니메이션 삭제') `off`입니다. provider에는 `BuildContext`가 없으므로 `MediaQuery.disableAnimationsOf(context)` 대신 그 값의 원천인 `PlatformDispatcher.accessibilityFeatures.disableAnimations`를 읽고, 설정이 바뀌면(`didChangeAccessibilityFeatures`) 다시 계산합니다. 그렇지 않으면 Android는 `device_info_plus`의 `AndroidDeviceInfo.version.sdkInt`가 29 미만(Android 10 미만)이면 `light`, 그 밖에는 `full`입니다. `settings`의 `motionLevel`이 `auto`가 아니면 그 값이 우선합니다. `light`는 blur를 빼고 stagger 간격을 절반으로 줄이며, `off`는 모든 시간을 0으로 둡니다. `light`·`off`와 OS 투명도 줄이기에서는 탭바를 유리 대신 흰 배경으로 그립니다. 판정 기준은 이 값 하나뿐이고 RAM·Vulkan·프레임 측정은 보지 않습니다.
-- 유리(blur) 효과는 하단 탭바 한 곳뿐이고 로그인 WebView 화면에서는 쓰지 않습니다. 첫 의미 있는 내용은 300ms 안에 보이고, 등장 중에도 누를 수 있어야 하며, 한 화면 전체 등장은 1.6초를 넘지 않습니다.
+- 유리(blur) 효과는 쓰지 않습니다(쓰던 하단 탭바가 없어졌습니다). 첫 의미 있는 내용은 300ms 안에 보이고, 등장 중에도 누를 수 있어야 하며, 한 화면 전체 등장은 1.6초를 넘지 않습니다.
 
 ## 폰 DB (drift)
 
@@ -232,11 +238,12 @@ cnu-ai-assistant/
 | `fixed_blocks` | id, name, weekdays(JSON 배열, 1–7), startMin, endMin, bufferMin, kind(`meal`/`work`/`exercise`/`commute`/`other`), prep?(준비물. `exercise`의 기본값은 '운동복'), source(`manual`/`ai`) | R0 |
 | `events` | id, title, startAt, endAt, allDay, place?, prep?, reminderMinutes?, source(`manual`/`ai`/`notification`) | R0 (반복 규칙은 두지 않습니다. 반복 일정은 `fixed_blocks`) |
 | `tasks` | id, title, kind(`assignment`/`video`/`quiz`/`team`/`discussion`/`exam`/`material`/`personal`), dueAt?, dueTimeUnknown, estimateMin?, spentMin?, status(`todo`/`done`/`hidden`), lmsKey?→lms_items.remoteKey | R0 |
-| `plan_blocks` | id, taskId→tasks, startAt, endAt, status(`suggested`/`confirmed`/`done`/`missed`/`dismissed`. `dismissed`는 사용자가 지운 블록이나 R1 '미루기'로 뺀 블록이고 그 논리적 하루가 끝나면 지웁니다), source(`auto`/`manual`), reason?(블록 근거 JSON `{slackMin, dueAt, gapMin, rank, factor}`: 여유도, 마감, 그 블록이 들어간 빈 시간의 길이, 그 계산에서 여유도 순으로 몇 번째인지, 고른 이유. `factor`는 `fit`/`near_class`/`unsplit`/`preferred`. 사용자가 직접 놓거나 옮긴 블록은 null) | R0 |
+| `plan_blocks` | id, taskId→tasks, startAt, endAt, status(`confirmed`/`done`/`missed`. 사용자가 배치 시트로 정한 블록은 바로 `confirmed`이고, 지우면 행을 지웁니다), source(`manual` 직접 입력/`ai` 말로 입력) — 2026-10-31 결정으로 `suggested`·`dismissed`·`auto`·`reason`을 뺍니다. 기존 열·값 정리는 화면 코드 PR에서 drift 마이그레이션과 함께 합니다 | R0 |
 | `rules` | id, kind(`travel`/`class_buffer`/`work_window`/`blackout`/`preferred`/`max_block`/`daily_cap`/`meal`/`estimate`/`notify`), params(JSON. 그 종류가 쓰는 값만: `minutes`, `position`(`day_edges`/`every_class`), `startMin`, `endMin`, `courseId`, `taskKind`, `briefingMin`, `notifyCap`, `quietStartMin`, `quietEndMin`), weekdays?(JSON 배열 1–7, null이면 매일), active, source(`manual`/`ai`), sentence?(규칙을 만든 사용자 문장. 폰에만 둡니다), createdAt, updatedAt | R0 |
 | `lms_items` | id, remoteKey(unique. 학기·과목·종류·항목 ID를 `:`로 이은 문자열), courseId→courses, courseName, title, kind(`video`/`assignment`/`quiz`/`team`/`discussion`/`exam`/`material`), dueAt?, dueTimeUnknown, openAt?, videoMin?, requiredMin?, watchedMin?, officiallyDone?, submitted?, link?, firstSeenAt, lastSeenAt, missCount, goneAt?, contentHash | R0 |
 | `lms_item_changes` | id, remoteKey, field, oldValue?, newValue?, changedAt | R0 |
-| `briefings` | id, date(unique), createdAt, text, cardsJson, usedTemplate, openedAt?, confirmedAt? | R0 |
+| `briefings` | id, date(unique), createdAt, text, cardsJson, usedTemplate, openedAt?, fromAt(범위 시작 = 직전 마지막 접속) | R0 |
+| `alerts` | id, level(`urgent`/`schedule`), source(`lms`/`event`/`disaster`(R1)/`notif`(R1)), createdAt, text, refId?, seenAt? — 중요 브리핑의 알림. 90일 보관 | R0 |
 | `sync_runs` | id, startedAt, trigger(`login`/`open`/`periodic`/`background`/`manual`), scope(`list`/`detail`/`full`. `detail`은 과목별 상세 조회이고 `list`가 이어서 한 상세도 `detail` 행으로 따로 남깁니다. lms.md '동기화'), result(`normal`/`empty`/`relogin_required`/`restore_required`/`server_error`/`network_failure`/`parse_failure`/`partial`/`skipped`/`cancelled`. lms.md의 `SyncResult.kind`를 snake_case로 적은 값입니다), changedCount, failedCourseIds?(JSON), elapsedMs, detail?(스키마 실패 필드 이름만) | R0 |
 | `sync_lease` | id(항상 1), holder(`foreground`/`background`), runId?, expiresAt | R0 |
 | `settings` | key(TEXT, 기본 키), value(TEXT, JSON) | R0 |
@@ -250,18 +257,18 @@ cnu-ai-assistant/
 - 되돌리기는 한 방식뿐입니다. 사용자나 앱이 `events`·`tasks`·`fixed_blocks`·`plan_blocks`·`class_exceptions`·`rules`를 추가·수정·삭제·완료·확정·옮김할 때마다 저장소 층(`data/repositories/`)이 직전 상태를 `undo_log` 한 행으로 덮어쓰고, 화면은 10초 동안 스낵바 '되돌리기'를 보여 줍니다. 여러 행을 한 번에 바꾸는 동작('모두 확정', 이전 규칙을 끄는 규칙 저장)은 `rowId`를 null로 두고 `beforeJson`에 바뀐 행들의 직전 상태 배열을 담아 한 번에 되돌립니다. 저장소의 `undoLast()`는 마지막 동작 하나만 되살리고, 10초가 지나거나 다음 동작이 오면 기록을 버립니다. 동기화가 바꾼 `lms_items`와 `tasks`의 복사 열은 되돌리기 대상이 아닙니다.
 - 동기화는 `lms_items`, `lms_item_changes`, `courses`, `sync_runs`, `sync_lease`, `settings`의 `lms*` 키와 `tasks`의 아래 네 열만 씁니다. 사캠 항목을 할 일로 만드는 규칙: 동기화가 끝날 때마다 마지막 단계에서 `domain/lms_to_task.dart`의 순수 함수 `tasksFromLmsItems`를 불러, `kind`가 `material`이 아닌 `lms_items`마다 `lmsKey`가 같은 `tasks` 행(`hidden` 포함)이 없을 때만 한 행을 만들고(`status` `todo`), 있으면 `title`·`kind`·`dueAt`·`dueTimeUnknown`만 원본에서 다시 복사합니다. `estimateMin`·`spentMin`·`status`는 사용자 값이라 동기화가 바꾸지 않습니다. 사용자가 사캠 할 일을 지우면 행을 지우지 않고 `status`를 `hidden`으로 둡니다. 영상 길이·진도·공식 완료·제출·공개일·사라짐은 복사하지 않고 화면과 배치 엔진이 `lmsKey`로 `lms_items`를 함께 읽습니다. 설치 토큰, 저장된 비밀번호(자동 로그인), 쿠키는 이 DB가 아니라 보안 저장소(`flutter_secure_storage`, iOS 접근 수준 `first_unlock_this_device`)에 둡니다.
 
-## 도메인 기본값과 배치 엔진
+## 도메인 기본값, 빈 시간과 여유도
 
 기본값은 `domain/defaults.dart`의 상수이고, 사용자가 바꾼 값은 `rules` 테이블의 규칙이 덮어씁니다(아래 '내 규칙'. 하루 경계만 `settings`의 `dayBoundaryMin`입니다). 이 기본값은 팀이 정한 값이 아니라 임시값입니다. 사용자 테스트 뒤 정합니다. 하루 창 08:00–23:00 · 하루 경계 04:00 · 수업 앞뒤 버퍼 10분(실시간 비대면 수업은 0) · 식사 블록 40분(11:30–13:30 사이, 배치에서 보호) · 배치 최소 조각 25분 · 한 번에 할 최대 시간 120분 · 배치 지평 14일 · 다른 시간 제안 3개, 브리핑 문장 추천 2개 · 브리핑 08:00 · 브리핑 AI 문장 기준 시각 전날 20:00 · 마감 리마인더 D-3·D-1 20:00, 당일 마감 3시간 전 · 블록 시작 10분 전 알림 · 알림 하루 상한 6 · 조용한 시간 23:30–07:00 · 저녁 체크인 22:30(R1) · iOS 예약 알림 64개.
 
-배치는 `app/lib/domain/`의 순수 Dart 코드가 계산하고, 같은 입력이면 늘 같은 계획을 냅니다. 테스트 케이스는 '시간표가 없음', '자정을 넘는 일정', '빈 시간 없음', '시간 부족', '예상 시간 모름', '15분씩 쪼개진 빈 시간', '점심을 거르는 배치', '같은 날 마감 여러 개', '마감에 날짜만 있음·24:00', '공개 전 영상', '진도 필드 없음', '이동 시간 규칙', '피할 시간', '하루 최대 공부량', '제안 블록 지우기', '규칙과 겹치는 확정 블록'을 모두 넣습니다.
+빈 시간과 여유도는 `app/lib/domain/`의 순수 Dart 코드가 계산하고, 같은 입력이면 늘 같은 값을 냅니다. 할 일을 빈 시간에 자동으로 넣지는 않습니다(2026-10-31 결정). 계산 결과는 미배정 할 일의 순서·등급, '시간 부족' 경고, 실시간 시간표의 남은 빈 시간, 배치 시트의 기본 시각과 겹침 검사에 씁니다. 테스트 케이스는 '시간표가 없음', '자정을 넘는 일정', '빈 시간 없음', '시간 부족', '예상 시간 모름', '15분씩 쪼개진 빈 시간', '점심을 거르는 배치', '같은 날 마감 여러 개', '마감에 날짜만 있음·24:00', '공개 전 영상', '진도 필드 없음', '이동 시간 규칙', '피할 시간', '규칙과 겹치는 확정 블록'을 모두 넣습니다.
 
 1. 하루 창에서 수업(앞뒤 버퍼), 이동 시간, 피할 시간, 고정 일정, 일정, 확정·완료(`confirmed`·`done`) 블록을 빼서 빈 구간을 만듭니다. 하루 창은 `work_window`, 수업 앞뒤 버퍼는 `class_buffer`, 이동 시간은 `travel`, 피할 시간은 `blackout`, 식사는 `meal` 규칙을 따르고, 규칙이 없으면 위 기본값을 씁니다. 식사 블록은 고정 일정이 없어도 보호합니다. 시간표가 없으면 빈 시간을 추측하지 않고 배치를 미룹니다. 계산은 `domain/free_slots.dart`의 `freeSlots`가 하고, 세부는 이렇습니다. 이동 시간은 그 논리적 하루의 대면 수업에만 걸고, 같은 수업 앞뒤에 이동 시간과 수업 앞뒤 여유가 함께 걸리면 `position`과 관계없이 큰 값을 씁니다. 휴강한 날의 수업은 바쁜 시간으로 보지 않고, 보강은 그 수업 칸의 평소 시각에 그 날짜의 바쁜 시간으로 봅니다. 종일 일정(`allDay`)과 제안·놓침·지운 블록은 시간을 막지 않습니다. 하루 창이 논리적 하루 밖으로 나가면 그 하루 안으로 잘라 한 빈 시간이 두 날에 함께 잡히지 않게 합니다. 식사는 바쁜 시간을 뺀 뒤에 비웁니다. 식사 시간대 안의 빈 조각 가운데 식사 시간이 들어가는 가장 이른 조각을, 없으면 가장 긴 조각을 고르고, 빈 구간을 쪼개지 않도록 바쁜 시간 쪽 끝(수업 직후나 다음 일정 직전)에 붙여 식사 시간만큼(조각이 짧으면 조각 전체) 비웁니다. 양쪽이 트여 있으면 시간대 시작에 두고, 시간대에 빈 조각이 없으면 비우지 않습니다.
-2. 할 일마다 여유도 = 마감 전까지 남은 빈 시간의 합 − 배치할 시간. 배치할 시간은 남은 작업 시간에서 그 할 일의 아직 끝나지 않은 확정 블록 길이를 뺀 값이고, 0 이하면 제안 블록을 만들지 않습니다. 영상은 남은 인정 시간 max(0, 인정 시간 − 시청 시간)이고, 인정 시간이나 진도가 없으면 영상 길이나 사용자 입력을 씁니다. 과제는 예상 시간에서 한 만큼을 뺀 값이고, 예상 시간을 모르면 그 과목·종류의 `estimate` 규칙을, 그것도 없으면 종류별 기본값을 쓰고 한 번 묻습니다(30분 / 1시간 / 2시간 / 3시간 이상). 할 일마다 사용자가 답한 값이 규칙보다 우선합니다. 한 만큼은 `tasks.spentMin`이고, 블록을 완료하면 그 블록 길이를 더합니다(사용자가 고칠 수 있습니다).
-3. 여유도가 작은 순서로 마감 전 빈 구간에 넣습니다. 여유도가 같으면 마감이 이른 것, 그래도 같으면 남은 작업 시간이 큰 것부터입니다. 점수는 길이 맞음, 선호 시간대, 관련 수업과의 거리, 조각남 정도의 가중합이고, 가중치는 `domain/planner/`의 상수와 단위 테스트로 고정합니다. 선호 시간대는 `preferred` 규칙이 있을 때만 셉니다. 큰 일은 25분 이상 조각으로 나누고, 25분 미만 빈 구간에는 영상 일부나 퀴즈 복습 같은 가벼운 일만 넣습니다. 조각 길이는 `max_block` 규칙(기본 120분)을 넘지 않고, 하루에 배치하는 작업 시간 합은 `daily_cap` 규칙을 넘지 않습니다.
-4. 출력은 `planRange(from, days)`와 `suggestSlots(task)`입니다. `planRange`는 계산할 때마다 마감이 앞으로 14일(임시값) 안에 있는 할 일을 모두 빈 시간에 배치해 제안 블록(`suggested`)으로 만듭니다. 마감이 더 먼 할 일은 14일 안에 들어올 때 배치합니다. 블록마다 근거 `reason`(`slackMin` 여유도, `dueAt` 마감, `gapMin` 그 블록이 들어간 빈 시간의 길이, `rank` 그 계산에서 여유도 순으로 몇 번째인지, `factor` 고른 이유)을 저장합니다. `factor`는 길이 맞음(`fit`)·관련 수업 거리(`near_class`)·조각남(`unsplit`)·선호 시간대(`preferred`) 가운데 하나입니다. 확정 블록은 확정할 때의 근거를 그대로 두고, 사용자가 직접 놓거나 옮긴 블록은 `reason`이 null입니다. `suggestSlots(task)`는 과제 상세에서 블록을 옮길 다른 시간 3개를 이유와 함께 내고, 저장하지 않고 화면을 열 때 계산합니다. 브리핑 문장의 추천 2개는 오늘 블록 가운데 여유도가 가장 작은 할 일 2개의 첫 블록입니다.
-5. 제안 블록은 홈·일간·월간·과제 상세에 확정 블록과 다른 모양(점선 테두리)으로 보입니다. 사용자는 브리핑이나 홈에서 오늘 제안을 '모두 확정'하거나 블록마다 확정·옮기기·지우기·완료합니다. 블록을 누르면 근거 시트가 '마감까지 3일 4시간 남았어요 · 이 자리는 90분 비어 있어요 · 지금 할 일 가운데 2번째로 급해요 · {이유 한 줄}'처럼 근거를 보여 주고 확정·옮기기·지우기·완료 버튼을 둡니다. 사용자가 직접 놓은 블록에는 '직접 정한 시간이에요'를 보여 줍니다. 블록을 옮기면 같은 행의 시각을 바꾸고 `confirmed`, `source` `manual`, `reason` null로 둡니다(옮긴 시간으로 확정). 일간에서 빈 시간을 눌러 더한 블록도 `confirmed`, `source` `manual`입니다. 블록 시트의 '완료'는 그 블록을 `done`으로 바꾸고, 할 일 자체를 완료하면(04 과제 상세, R1 알림 '완료') 그 할 일의 남은 제안·확정 블록을 지우고 남은 알림을 취소합니다. 제안 블록이나 확정 블록을 지우면 `dismissed`로 남기고, 그 논리적 하루가 끝날 때까지 그 자리를 그 할 일에 다시 제안하지 않고 다른 빈 시간에 다시 제안합니다. 확정 블록은 자동으로 옮기지 않고, 재계산 때는 `suggested` 블록만 지우고 다시 만듭니다. 끝 시각이 30분 지나도 `done`이 아닌 확정 블록은 다음 재계산(앱을 열 때, 전날 밤 초안) 때 `missed`로 바꾸고(할 일이 이미 완료면 놓침으로 보지 않고 지웁니다), 그 할 일을 다시 배치하며 다음 날 브리핑의 '어제 못 한 일' 카드에 보여 줍니다. 확정 블록이 새 규칙과 겹쳐 사용자가 옮기기를 고르면 그 블록을 `dismissed`로 바꾸고 다시 계산해 새 제안 블록을 만듭니다. 재계산 계기는 새 할 일, 마감 변경, 놓친 블록, 휴강·보강, 규칙 변경, 블록 옮기기·지우기, 앱을 열 때, 전날 밤 초안입니다.
-6. 마감 전 빈 시간의 합이 남은 작업보다 적으면 배치 대신 '시간 부족'과 선택지(밤 시간 쓰기, 다른 일 미루기, 부분 목표)를 냅니다. 오늘 빈 시간이 없으면 저녁이나 내일 자리를 제안합니다. 마감 뒤나 영상 공개 전에는 배치하지 않습니다.
+2. 할 일마다 여유도 = 마감 전까지 남은 빈 시간의 합 − 남은 시간. 남은 시간은 남은 작업 시간에서 그 할 일의 아직 끝나지 않은 확정 블록 길이를 뺀 값이고, 0 이하면 '배치됨'입니다. 영상은 남은 인정 시간 max(0, 인정 시간 − 시청 시간)이고, 인정 시간이나 진도가 없으면 영상 길이나 사용자 입력을 씁니다. 과제는 예상 시간에서 한 만큼을 뺀 값이고, 예상 시간을 모르면 그 과목·종류의 `estimate` 규칙을, 그것도 없으면 종류별 기본값을 쓰고 한 번 묻습니다(30분 / 1시간 / 2시간 / 3시간 이상). 할 일마다 사용자가 답한 값이 규칙보다 우선합니다. 한 만큼은 `tasks.spentMin`이고, 블록을 완료하면 그 블록 길이를 더합니다(사용자가 고칠 수 있습니다).
+3. 미배정 할 일(남은 시간이 0보다 크고 완료하지 않은 할 일)은 여유도가 작은 순서로 보입니다. 여유도가 같으면 마감이 이른 것, 그래도 같으면 남은 시간이 큰 것부터입니다. 등급은 여유도로 '높음·보통·낮음'을 붙이고 경계값은 `domain/defaults.dart`의 임시값입니다. 실시간 시간표 아래의 '오늘 해야 할 미배정 할 일'은 마감이 다음 논리적 하루까지이거나 등급이 높음인 것입니다.
+4. 배치는 사용자가 합니다. 미배정 목록·실시간 시간표·일정 행의 마감·중요 브리핑에서 '배치'를 누르면 추가 시트가 그 할 일로 열립니다. 말로 입력하면 `/v1/parse`가 시각을 해석하고(요청에 그 할 일의 제목은 보내지 않습니다), 제목은 그 할 일 이름, 길이가 없으면 남은 시간(`max_block` 규칙이 있으면 그 상한)만큼 잡습니다. 직접 입력의 기본값은 선택한 날(오늘보다 이르거나 마감 뒤면 오늘) 다음 정시부터 남은 시간만큼입니다. 저장하면 `plan_blocks`에 `confirmed`로 넣고 `source`는 `ai`나 `manual`입니다.
+5. 입력하는 동안 같은 날 수업·고정 일정·일정·확정 블록과 겹치면 '겹치는 일정: 이름 시각'을 경고로 보여 주되 저장은 막지 않습니다. 끝 시각이 마감 뒤면 저장하지 않습니다. 블록을 옮기면 같은 행의 시각만 바꾸고, 지우면 행을 지워 그 할 일을 다시 미배정으로 돌립니다. 블록 시트의 '완료'는 그 블록을 `done`으로 바꾸고, 할 일 자체를 완료하면 남은 확정 블록을 지우고 남은 알림을 취소합니다. 끝 시각이 30분 지나도 `done`이 아닌 확정 블록은 앱을 열 때 `missed`로 바꾸고(할 일이 이미 완료면 지웁니다), 그 할 일은 다시 미배정 목록에 오르며 다음 데일리 브리핑에 보입니다. 자동으로 다시 배치하지 않습니다.
+6. 마감 전 빈 시간의 합이 남은 시간보다 적으면(여유도 < 0) 미배정 목록과 배치 시트에 '시간 부족'을 보여 줍니다. 마감 뒤나 영상 공개 전에는 배치를 저장하지 않습니다.
 7. 하루 경계는 04:00이고 새벽 4시 전까지는 전날의 연장입니다. 날짜만 있는 마감은 그날 23:59로 해석하고 `dueTimeUnknown`을 켜며, 24:00은 다음 날 00:00으로 바꿉니다. 사캠 마감은 한국 시간 기준입니다. 빠진 값(진도 없음 등)은 0으로 바꾸지 않고 null로 둡니다.
 
 ### 내 규칙
@@ -302,14 +309,16 @@ cnu-ai-assistant/
 - 조용한 시간은 23:30–07:00(임시 기본값, `notify` 규칙)입니다. 브리핑, 마감 당일 알림, 확정 블록의 시작 10분 전 알림은 조용한 시간에도 보내고(확정 블록은 사용자가 정한 시간입니다), 그 밖의 알림이 조용한 시간에 걸리면 보내지 않고 다음 브리핑 카드에 넣습니다.
 - (R1) 알림 버튼: 블록 시작 10분 전 알림과 마감 리마인더(D-3·D-1·당일)에 '완료'와 '미루기' 버튼을 답니다. 액션 ID는 `done`, `snooze`이고 Android는 `AndroidNotificationAction`(`showsUserInterface: false`), iOS는 `DarwinNotificationCategory`로 만듭니다. 완료는 그 할 일을 완료(공부 완료)로 바꾸고 남은 알림을 취소합니다. 미루기는 그 할 일의 오늘 블록을 `dismissed`로 바꾸고 다음 빈 시간에 다시 제안합니다. 앱을 열지 않고 처리합니다. 처리는 `platform/notifications.dart`의 최상위 함수 `onBackgroundNotificationResponse`(`@pragma('vm:entry-point')`)가 백그라운드 작업처럼 폰 DB를 따로 열어 하고, 재계산·재예약은 다음 앱 실행 때 합니다.
 - 반응 기록과 조정: 브리핑 시각·하루 알림 상한·조용한 시간은 R0부터 '내 규칙'(`notify`)으로 사용자가 직접 바꿉니다. R1부터 알림마다 반응(열기 `opened`, 완료 `done`, 미루기 `snooze`, 반응 없음 `none`)을 `notification_events`에 기록하고 90일 보관합니다. `none`은 다음 같은 종류 알림까지 반응이 없을 때입니다. 그 기록으로 시점·빈도를 스스로 바꾸는 자동 조정은 R2입니다.
-- 알림 payload는 go_router 경로 문자열 하나입니다. 브리핑 알림은 `/briefing`, 확정 블록의 시작 10분 전·마감 리마인더·마감 변경·영상 공개 알림은 `/tasks/<할 일 id>`, 일정의 시작 10분 전 알림은 `/today/day/<YYYY-MM-DD>`, 저녁 체크인(R1)은 `/today`, PC 새 할 일 알림(R1)은 `/tasks`입니다. 같은 30분 창에 묶은 알림은 `/today`입니다. 알림을 누르면 `platform/`이 payload를 라우터에 그대로 넘겨 이동합니다. 앱이 꺼진 상태에서 알림으로 켜졌으면 앱 시작 때 `getNotificationAppLaunchDetails()`의 payload를 첫 경로로 씁니다. 알림 코드는 화면 위젯을 직접 부르지 않습니다.
+- 알림 payload는 go_router 경로 문자열 하나입니다. 브리핑 알림은 `/briefing`, 확정 블록의 시작 10분 전·마감 리마인더·마감 변경·영상 공개 알림은 `/tasks/<할 일 id>`, 일정의 시작 10분 전 알림은 `/calendar/day/<YYYY-MM-DD>`, 저녁 체크인(R1)은 `/calendar`, PC 새 할 일 알림(R1)은 `/tasks`입니다. 같은 30분 창에 묶은 알림은 `/calendar`입니다. 알림을 누르면 `platform/`이 payload를 라우터에 그대로 넘겨 이동합니다. 앱이 꺼진 상태에서 알림으로 켜졌으면 앱 시작 때 `getNotificationAppLaunchDetails()`의 payload를 첫 경로로 씁니다. 알림 코드는 화면 위젯을 직접 부르지 않습니다.
 
-## 브리핑 초안과 템플릿
+## 데일리 브리핑과 중요 브리핑
 
-- 앱이 백그라운드로 갈 때마다 코드가 내일의 사실 JSON을 다시 만들고 브리핑 알림을 다시 예약합니다. AI 문장은 하루 한 번만 만듭니다. 전날 20:00 이후 앱이 처음 백그라운드로 갈 때 만들고, 그런 일이 없었으면 그날 브리핑을 처음 열 때 만듭니다(5초 안에 못 받으면 템플릿). 문장을 만든 뒤 사실이 바뀌면 템플릿 문장으로 바꿉니다.
-- 논리적 하루에 앱을 처음 열 때 브리핑(01)을 먼저 보여 줍니다. 브리핑 시각 전에 이미 봤으면 그날 브리핑 알림은 취소합니다.
-- 브리핑 화면(01)은 AI 한 문단(세 문장 이내), 오늘 블록(제안·확정)과 '모두 확정', 어제 못 한 일(R0), 챙길 것, 날씨와 소식(R1), 월요일 주간 요약(R1)으로 이루어집니다. '어제 못 한 일' 카드는 전날 논리적 하루의 놓친 확정 블록과, 그 할 일이 다시 놓인 첫 제안 시각을 보여 줍니다. 주간 요약 카드(R1)는 월요일 아침 브리핑에 붙고, 지난주(월–일) 확정 블록 가운데 완료한 비율, 지난주 마감인 사캠 항목 가운데 제출·출석을 마친 수와 전체 수, 다음 주 마감인 할 일 수와 남은 예상 작업 시간 합을 보여 줍니다. 두 카드는 코드가 만들고 AI 문장에는 넣지 않으며, 카드를 알리는 알림을 따로 보내지 않습니다. 못 한 일마다 알림을 보내지도 않고, 저녁 체크인(R1)은 그대로입니다.
-- 템플릿 문장(AI 실패, 동의 안 함, 대조 실패, 5초 초과, 한도 초과)은 `features/briefing/briefing_template.dart`에 있고 서버에는 없습니다. 1문장 "수업 {n}개가 있는 {요일}요일이에요."(수업이 없으면 "오늘은 수업이 없어요."). 2문장은 추천이 있으면 "{시작}부터 {길이}은 {과제1}을 하기 좋아요."이고, 둘이면 "하기 좋아요." 대신 "하기 좋고, {시작2}부터 {길이2}은 {과제2}예요."로 잇습니다. 3문장은 마감이 있으면 가장 가까운 것 하나로 "{과제N}은 {dueLabel} 마감이에요."입니다. 추천과 마감이 모두 없으면 "오늘은 할 일이 없어요."를 씁니다. 시각은 "오후 1시"처럼 12시간제, 길이는 "2시간"·"50분"처럼 아라비아 숫자로 쓰고, 조사는 `domain/text/`로 받침에 맞춥니다.
+- 앱이 백그라운드로 갈 때마다 코드가 다음 데일리 브리핑의 사실 JSON을 다시 만들고 브리핑 알림을 다시 예약합니다. 사실의 범위는 직전 마지막 접속 시각(`settings`의 `lastVisitAt`. 앱이 백그라운드로 갈 때 기록)부터 브리핑 시각까지입니다. AI 문장은 하루 한 번만 만듭니다. 전날 20:00 이후 앱이 처음 백그라운드로 갈 때 만들고, 그런 일이 없었으면 그날 브리핑을 처음 열 때 만듭니다(5초 안에 못 받으면 템플릿). 문장을 만든 뒤 사실이 바뀌면 템플릿 문장으로 바꿉니다.
+- 논리적 하루에 앱을 처음 열 때 데일리 브리핑을 먼저 보여 주고, 닫으면 `/calendar`로 갑니다. 브리핑 시각 전에 이미 봤으면 그날 브리핑 알림은 취소합니다. 그 뒤로는 드로어나 중요 브리핑 시트에서 다시 엽니다.
+- 데일리 브리핑 화면은 위에서부터 글 브리핑(AI 한 문단, 세 문장 이내. 날씨는 R1부터 한 문장만), 날씨 한 줄(R1), 오늘 일정(완료 체크), 미배정 할 일(여유도 순, '배치' 버튼), 마지막 접속 이후 변경 사항(사캠 새 항목·마감 변경, R1부터 알림 감지 앱별 개수), 월요일 주간 요약(R1)입니다. 제목·닫기가 있는 상단은 스크롤해도 고정합니다. '어제 못 한 일'은 따로 카드로 두지 않고, 놓친 확정 블록의 할 일이 미배정 목록 맨 위 근처에 '어제 못 함' 표시로 다시 보입니다. 주간 요약 카드(R1)는 월요일 브리핑에 붙고, 지난주(월–일) 확정 블록 가운데 완료한 비율, 지난주 마감인 사캠 항목 가운데 제출·출석을 마친 수와 전체 수, 다음 주 마감인 할 일 수와 남은 예상 작업 시간 합을 보여 줍니다. 카드는 코드가 만들고 AI 문장에는 넣지 않으며, 카드를 알리는 알림을 따로 보내지 않습니다. 저녁 체크인(R1)은 그대로입니다.
+- 템플릿 문장(AI 실패, 동의 안 함, 대조 실패, 5초 초과, 한도 초과)은 `features/briefing/briefing_template.dart`에 있고 서버에는 없습니다. 1문장 "수업 {n}개가 있는 {요일}요일이에요."(수업이 없으면 "오늘은 수업이 없어요."). 2문장은 미배정 할 일이 있으면 여유도가 가장 작은 것으로 "{과제1}은 아직 시간을 정하지 않았어요."이고, 둘 이상이면 "{과제1} 등 {n}개는 아직 시간을 정하지 않았어요."입니다. 3문장은 마감이 있으면 가장 가까운 것 하나로 "{과제N}은 {dueLabel} 마감이에요."입니다. 미배정과 마감이 모두 없으면 "오늘은 할 일이 없어요."를 씁니다. 시각은 "오후 1시"처럼 12시간제, 길이는 "2시간"·"50분"처럼 아라비아 숫자로 쓰고, 조사는 `domain/text/`로 받침에 맞춥니다.
+- 중요 브리핑은 캘린더 하단 원형 버튼으로 여는 시트(`features/briefing/important_sheet.dart`)입니다. 위에서부터 제목과 그 오른쪽 '알림함'(R1)·'데일리 브리핑 보기' 버튼, 중요 알림 카드(긴급은 빨강), '지금까지 요약' 글입니다. 요약 범위는 오늘 브리핑 시각부터 지금까지이고, 코드가 만든 템플릿(끝난 일정, 남은 일정, 새로 생긴 일, 오늘 챙길 미배정 할 일)을 기본으로 보여 주며 'AI로 요약'을 누르면 `/v1/briefing`(`kind` `now`)으로 다시 씁니다. 일정 배치는 하지 않습니다.
+- 중요 알림은 폰 DB `alerts`(id, level `urgent`/`schedule`, source, createdAt, text, seenAt?)에 코드가 만듭니다. R0의 출처는 동기화에서 알아챈 사캠 새 항목·마감 변경과 오늘 일정의 변경이고, R1에 재난문자(`/v1/public/disaster?region=` 공개 데이터, 사용자가 고른 시·군·구만 보내고 좌표는 보내지 않음)와 알림 감지를 더합니다. 재난문자는 오늘·내일 일정 장소와 같은 지역이면 그 일정을 함께 적습니다. `seenAt`이 없는 알림이 있으면 원형 버튼에 레드닷을 달고, 시트를 열면 보이는 알림의 `seenAt`을 채웁니다. 데일리 브리핑을 닫을 때 그때까지의 알림도 본 것으로 둡니다. 90일 지난 행은 앱 시작 때 지웁니다.
 
 ## 실행 방법
 
@@ -376,7 +385,8 @@ AI 경로(`/v1/parse`, `/v1/briefing`, `/v1/extract`)는 `settings`의 `aiEnable
 | 경로 | 요약 | 단계 |
 |---|---|---|
 | `POST /v1/parse` | 문장 → 일정·할 일·규칙 JSON | R0 |
-| `POST /v1/briefing` | 오늘의 사실 → 브리핑 문장 | R0 |
+| `POST /v1/briefing` | 사실 → 브리핑 문장. `kind` `daily`(마지막 접속~브리핑 시각) / `now`(브리핑 시각~지금, 중요 브리핑) | R0 |
+| `GET /v1/public/disaster?region=` | 시·군·구 재난문자(공개 데이터). 좌표는 받지 않습니다 | R1 |
 | `POST /v1/extract` | 알림 조각 → 일정 후보 | R1 |
 | `GET /v1/weather?campus=daedeok\|boun` | 캠퍼스 날씨. 기상청 단기예보를 캠퍼스 격자로 받아 Firestore `public/weather` 문서(캠퍼스별 필드)에 1시간 캐시합니다(함수 인스턴스 메모리는 콜드 스타트마다 사라집니다). 응답에 `source: "기상청"`을 넣고 날씨를 보여 주는 화면과 브리핑 날씨 줄에 출처를 표시합니다(공공누리 제1유형) | R1 |
 | Firestore `public/academic-calendar` | 학사일정 (읽기 전용) | R1 |
@@ -428,6 +438,8 @@ AI 경로(`/v1/parse`, `/v1/briefing`, `/v1/extract`)는 `settings`의 `aiEnable
 - 게이트웨이는 요청을 `functions/src/ai/`의 요청 스키마로, 응답을 `schema/`로 검증하는 것까지만 합니다. 날짜·요일 일치(`date`와 `weekday`가 어긋나거나 `date`가 `today`보다 과거면 되묻기), 시간표 겹침 검사, 규칙 값 범위·충돌 검사, 되묻기 판단, 기본값 채우기는 모두 앱의 `app/lib/domain/`이 합니다.
 
 `POST /v1/briefing`: 과목·과제·일정 제목은 자리표시자로 바꿔 보냅니다. 자리표시자는 요청 배열 순서대로 1부터 번호를 붙인 `{수업n}`(classes), `{과제n}`(picks·deadlines의 모든 할 일, 영상·퀴즈 포함, 같은 할 일은 같은 번호), `{일정n}`(events, 있을 때)입니다. 앱(`domain/text/`)이 실제 이름을 다시 채우고, 자리표시자 바로 뒤에 붙은 조사가 을/를, 이/가, 은/는, 과/와, 으로/로, 이라/라, 이나/나, 이에요/예요 중 하나면 LLM이 어느 쪽을 썼든 실제 이름의 마지막 글자 받침에 맞춰 바꿉니다. 받침이 ㄹ이면 '로'를 씁니다. 마지막 글자가 숫자면 읽는 소리(0 영, 1 일, 2 이, 3 삼, 4 사, 5 오, 6 육, 7 칠, 8 팔, 9 구)로, 영문이면 L·M·N·R은 받침 있음(L·R은 ㄹ), 나머지는 받침 없음으로 보고, 괄호·기호·공백으로 끝나면 그 앞 글자로 판정합니다.
+
+2026-10-31 결정으로 `picks`는 '여유도가 가장 작은 미배정 할 일'(최대 2개, 시각 없음)이 되고, 요청에 `kind`(`daily`/`now`)와 `range`(`from`·`to`, Asia/Seoul 시각)를 더합니다. `now`의 사실에는 `alerts`의 글(제목은 같은 자리표시자 규칙)과 끝난·남은 일정이 들어갑니다. 정확한 스키마(`schema/`)는 코드 PR에서 함께 고칩니다.
 
 `picks`와 `deadlines`에는 코드가 계산한 `dueLabel`을 넣습니다. 오늘·내일·모레, 그 밖에 6일 안이면 "{요일}요일", 그보다 멀면 "N일 뒤"입니다. LLM은 마감을 `dueLabel` 그대로 쓰고 날짜를 계산하지 않습니다.
 

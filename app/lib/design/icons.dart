@@ -14,7 +14,15 @@ enum AppIconName {
   today('assets/icons/today.svg'),
   calendar('assets/icons/calendar.svg'),
   tasks('assets/icons/tasks.svg'),
-  me('assets/icons/me.svg');
+  me('assets/icons/me.svg'),
+  menu('assets/icons/menu.svg'),
+  search('assets/icons/search.svg'),
+  plus('assets/icons/plus.svg'),
+  briefing('assets/icons/briefing.svg'),
+  back('assets/icons/back.svg'),
+  close('assets/icons/close.svg'),
+  agenda('assets/icons/agenda.svg'),
+  settings('assets/icons/settings.svg');
 
   const AppIconName(this.asset);
 

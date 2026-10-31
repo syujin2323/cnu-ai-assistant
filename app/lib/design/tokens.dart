@@ -59,6 +59,12 @@ abstract final class AppColors {
 
   /// 마감·겹침.
   static const Color deadlineTint = Color(0xFFFBEFF2);
+
+  /// 일요일 날짜 글자(캘린더).
+  static const Color sunday = Color(0xFFB4475F);
+
+  /// 토요일 날짜 글자(캘린더).
+  static const Color saturday = Color(0xFF3A63B8);
 }
 
 /// 글자(Pretendard, 임시값). 무게는 제목(`title` 이상) 600, 본문 400, 강조 500이다.
@@ -77,6 +83,12 @@ abstract final class AppText {
   /// 제목 무게.
   static const FontWeight semibold = FontWeight.w600;
 
+  /// 월 그리드 날짜 칸의 일정 칩.
+  static const TextStyle tiny = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 10,
+    fontWeight: regular,
+  );
   static const TextStyle caption = TextStyle(
     fontFamily: fontFamily,
     fontSize: 12,
@@ -157,6 +169,12 @@ abstract final class AppRadius {
 
   /// 알약.
   static const double pill = 999;
+
+  /// 월 그리드의 날짜 칸.
+  static const double dayCell = 10;
+
+  /// 날짜 칸 안의 일정 칩.
+  static const double tag = 4;
 }
 
 /// 크기(임시값). 누를 수 있는 것은 48×48pt 이상이다.
@@ -167,15 +185,6 @@ abstract final class AppSize {
   /// 아이콘 기본 크기(캔버스 SVG의 viewBox).
   static const double icon = 24;
 
-  /// 하단 탭바 아이콘.
-  static const double tabIcon = 20;
-}
-
-/// 하단 탭바의 유리 효과(임시값): 흰색 32%에 blur 18px. 유리는 하단 탭바 한 곳에서만 쓴다.
-abstract final class AppGlass {
-  /// 흰색 32%.
-  static const Color fill = Color.fromRGBO(255, 255, 255, 0.32);
-
-  /// blur(CSS `blur(18px)`의 표준편차와 같은 시그마).
-  static const double blur = 18;
+  /// 하단 바의 추가 알약·원형 버튼 높이.
+  static const double bottomBar = 56;
 }

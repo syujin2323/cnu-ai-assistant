@@ -1,8 +1,9 @@
-// 10 나(나 탭 `/me`). 맨 위 앱 이름 옆에 '충남대 비공식 앱'을 두고, 설정 항목으로 간다.
+// 나·설정(`/me`, 드로어의 톱니바퀴). 맨 위 앱 이름 옆에 '충남대 비공식 앱'을 두고, 설정 항목으로 간다.
 // 설정 내용(AI 동의, 사캠, 알림, 모션 등)은 각 PR에서 더한다.
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
+import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
@@ -18,6 +19,17 @@ class MeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final demo = ref.watch(appModeProvider) == AppMode.demo;
     return Scaffold(
+      // 드로어에서 push로 열면 뒤로 가기가 캘린더로 돌아간다. 데모 끝내기처럼 go로 왔으면
+      // 돌아갈 곳이 없으므로 캘린더로 가는 버튼을 둔다.
+      appBar: AppBar(
+        leading: context.canPop()
+            ? null
+            : IconButton(
+                tooltip: '캘린더로 가기',
+                onPressed: () => context.go(Routes.calendar),
+                icon: const AppIcon(AppIconName.back, color: AppColors.ink),
+              ),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.symmetric(vertical: AppSpace.s24),
@@ -54,11 +66,11 @@ class MeScreen extends ConsumerWidget {
             const SizedBox(height: AppSpace.s16),
             ListTile(
               title: const Text(AppStrings.myRules),
-              onTap: () => context.go(Routes.meRules),
+              onTap: () => context.push(Routes.meRules),
             ),
             ListTile(
               title: const Text(AppStrings.timetableAndFixed),
-              onTap: () => context.go(Routes.meTimetable),
+              onTap: () => context.push(Routes.meTimetable),
             ),
             if (!demo)
               ListTile(
