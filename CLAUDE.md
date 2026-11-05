@@ -9,7 +9,7 @@
 
 ## 이름과 식별자
 
-- 앱 이름은 CNU PLANNER다(`docs/decisions.md` 2026-11-04 '앱 이름 CNU PLANNER'). 레포 이름 `cnu-ai-assistant`, Dart 패키지 `cnu_ai_assistant`, 앱 ID `io.github.syujin2323.cnuaiassistant`는 그대로 둔다. 코드의 표시 이름 '일정 비서'는 이름을 바꾸는 PR에서 고친다.
+- 앱 이름은 CNU PLANNER다(`docs/decisions.md` 2026-11-04 '앱 이름 CNU PLANNER'). 레포 이름 `cnu-ai-assistant`, Dart 패키지 `cnu_ai_assistant`, 앱 ID `io.github.syujin2323.cnuaiassistant`는 그대로 둔다. 표시 이름은 Android `android:label`, iOS `CFBundleDisplayName`, `AppStrings.appName` 세 곳을 같게 둔다.
 - 예전 임시 앱 이름은 문서·코드·식별자·문구·커밋 메시지 어디에도 쓰지 않는다.
 
 ## 아직 정하지 않은 것
@@ -20,7 +20,7 @@
 - 디자인 토큰·모션 프리셋 값: 최종 프로토타입의 디자인 규칙에서 뽑은 임시값이다. 바꾸면 `docs/architecture.md`의 그 절과 `app/lib/design/`을 함께 바꾼다.
 - 도메인 기본값(하루 경계, 하루 창, 브리핑 시각, 수업 버퍼, 식사 보호, 조각 길이, 놓침 판정, 종류별 예상 시간, 브리핑에서 고르는 할 일 수 등): 팀이 정한 값이 아니라 `domain/defaults.dart`의 임시값이다.
 - 알림·위젯·할 일 상세(04 할 일 상세, 05 강의 상세): 다시 설계하거나 뺄 예정이다. 설계가 정해질 때까지 문서에 설계를 적지 않고, 그 기능의 코드를 새로 만들지 않는다. 이미 있는 코드는 지우지 않는다.
-- 출시 단계가 '미정'인 화면·기능(`docs/screens.md`의 각 화면 절)과 문서에 정하지 않았다고 적은 동작(사캠을 뺀 빌드의 첫 화면과 로그인 전 상태, 할 일을 누르면 보일 화면, 새 학기에 시간표를 다시 불러오는 계기 등): 만들기 전에 사용자에게 묻는다.
+- 출시 단계가 '미정'인 화면·기능(`docs/screens.md`의 각 화면 절)과 문서에 정하지 않았다고 적은 동작(할 일을 누르면 보일 화면, 새 학기에 시간표를 다시 불러오는 계기 등): 만들기 전에 사용자에게 묻는다.
 
 ## 브랜치
 

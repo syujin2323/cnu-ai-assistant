@@ -5,11 +5,14 @@
 // SharedPreferences는 모의 값, 오늘 브리핑을 열었는지는 정해 둔 값으로 바꾼다.
 // 모든 검사를 글자 배율 1.0과 2.0에서 돌려 넘침(RenderFlex overflow) 예외가 없어야 한다.
 
+import 'dart:io';
+
 import 'package:cnu_ai_assistant/app/app.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
+import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_tab_bar.dart';
 import 'package:cnu_ai_assistant/design/widgets/demo_band.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
@@ -49,6 +52,11 @@ void main() {
         );
 
         expect(find.byType(TodayScreen), findsOneWidget);
+        // 최근 앱 목록에 보이는 이름(MaterialApp.title)도 표시 이름과 같다.
+        expect(
+          tester.widget<MaterialApp>(find.byType(MaterialApp)).title,
+          AppStrings.appName,
+        );
         // 글자 배율이 앱 안 화면까지 그대로 닿는지(앱이 textScaler를 덮어쓰지 않는지) 본다.
         expect(
           MediaQuery.textScalerOf(tester.element(find.byType(TodayScreen)))
@@ -80,6 +88,10 @@ void main() {
 
         await _tapTab(tester, '나');
         expect(find.byType(MeScreen), findsOneWidget);
+        // 10 나 맨 위는 짧은 비공식 표시, 맨 아래는 긴 표시(docs/screens.md ''충남대 비공식 앱' 표시').
+        expect(find.text(AppStrings.unofficialShort), findsOneWidget);
+        await _scrollTo(tester, find.text(AppStrings.unofficialProject));
+        expect(find.text(AppStrings.unofficialProject), findsOneWidget);
 
         await _tapTab(tester, '오늘');
         expect(find.byType(TodayScreen), findsOneWidget);
@@ -289,6 +301,23 @@ void main() {
       });
     });
   }
+
+  group('앱 표시 이름', () {
+    // docs/decisions.md 2026-11-04 '앱 이름 CNU PLANNER'. 세 곳의 표시 이름이 같아야 한다.
+    test('Android android:label이 AppStrings.appName과 같다', () {
+      final manifest = File('android/app/src/main/AndroidManifest.xml')
+          .readAsStringSync();
+      expect(manifest, contains('android:label="${AppStrings.appName}"'));
+    });
+
+    test('iOS CFBundleDisplayName이 AppStrings.appName과 같다', () {
+      final plist = File('ios/Runner/Info.plist').readAsStringSync();
+      final name = RegExp(
+        r'<key>CFBundleDisplayName</key>\s*<string>([^<]*)</string>',
+      ).firstMatch(plist)?.group(1);
+      expect(name, AppStrings.appName);
+    });
+  });
 }
 
 /// 띄운 앱과 정리 함수.

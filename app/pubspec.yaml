@@ -1,5 +1,5 @@
 name: cnu_ai_assistant
-description: "충남대 학부생용 일정 비서 앱"
+description: "CNU PLANNER: 충남대 학부생용 비공식 일정 플래너 앱"
 publish_to: 'none'
 
 version: 0.1.0+1
