@@ -1,4 +1,5 @@
-// 10 나(나 탭 `/me`). 맨 위 앱 이름 옆에 '충남대 비공식 앱'을 두고, 설정 항목으로 간다.
+// 10 나(나 탭 `/me`). 맨 위 앱 이름 옆에 짧은 '충남대 비공식 앱'을, 맨 아래에 긴 비공식 문구를 두고
+// 설정 항목으로 간다(docs/screens.md '10 나'·''충남대 비공식 앱' 표시').
 // 설정 내용(AI 동의, 사캠, 알림, 모션 등)은 각 PR에서 더한다.
 
 import 'package:cnu_ai_assistant/app/providers.dart';
@@ -37,7 +38,7 @@ class MeScreen extends ConsumerWidget {
                     ),
                   ),
                   Text(
-                    AppStrings.unofficial,
+                    AppStrings.unofficialShort,
                     style: AppText.caption.copyWith(color: AppColors.muted),
                   ),
                 ],
@@ -70,6 +71,14 @@ class MeScreen extends ConsumerWidget {
               onTap: () => showLicensePage(
                 context: context,
                 applicationName: AppStrings.appName,
+              ),
+            ),
+            const SizedBox(height: AppSpace.s16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.screen),
+              child: Text(
+                AppStrings.unofficialProject,
+                style: AppText.caption.copyWith(color: AppColors.muted),
               ),
             ),
           ],

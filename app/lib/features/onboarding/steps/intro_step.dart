@@ -51,7 +51,7 @@ class IntroStep extends StatelessWidget {
         ),
         const SizedBox(height: AppSpace.s8),
         Text(
-          AppStrings.unofficial,
+          AppStrings.unofficialProject,
           textAlign: TextAlign.center,
           style: AppText.caption.copyWith(color: AppColors.muted),
         ),

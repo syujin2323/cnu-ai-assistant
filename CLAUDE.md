@@ -9,7 +9,7 @@
 
 ## 이름과 식별자
 
-- 앱 이름은 CNU PLANNER다(`docs/decisions.md` 2026-11-04 '앱 이름 CNU PLANNER'). 레포 이름 `cnu-ai-assistant`, Dart 패키지 `cnu_ai_assistant`, 앱 ID `io.github.syujin2323.cnuaiassistant`는 그대로 둔다. 코드의 표시 이름 '일정 비서'는 이름을 바꾸는 PR에서 고친다.
+- 앱 이름은 CNU PLANNER다(`docs/decisions.md` 2026-11-04 '앱 이름 CNU PLANNER'). 레포 이름 `cnu-ai-assistant`, Dart 패키지 `cnu_ai_assistant`, 앱 ID `io.github.syujin2323.cnuaiassistant`는 그대로 둔다. 표시 이름은 Android `android:label`, iOS `CFBundleDisplayName`, `AppStrings.appName` 세 곳을 같게 둔다.
 - 예전 임시 앱 이름은 문서·코드·식별자·문구·커밋 메시지 어디에도 쓰지 않는다.
 
 ## 아직 정하지 않은 것

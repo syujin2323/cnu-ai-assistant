@@ -9,7 +9,7 @@
 
     <!-- 폰 DB, WebView 저장소, 쿠키 금고는 클라우드 백업과 기기 이전에서 뺀다 (docs/lms.md '쿠키 금고') -->
     <application
-        android:label="일정 비서"
+        android:label="CNU PLANNER"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"

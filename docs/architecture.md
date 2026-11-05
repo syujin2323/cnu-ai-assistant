@@ -34,7 +34,7 @@ flowchart LR
 
 ## 앱 식별자와 버전
 
-- Dart 패키지 이름은 `cnu_ai_assistant`입니다(`app/pubspec.yaml`의 `name`, import는 `package:cnu_ai_assistant/...`). Android `applicationId`와 iOS bundle identifier는 둘 다 `io.github.syujin2323.cnuaiassistant`입니다. Firebase 앱 등록, App Check, iOS 기기 등록 배포가 이 값에 묶이므로 바꾸지 않습니다. 앱 표시 이름은 `CNU PLANNER`(Android `android:label`, iOS `CFBundleDisplayName`)입니다(지금 코드는 '일정 비서'입니다. 후속 코드 PR에서 바꿉니다). 앱 아이콘에 학교 로고·상징을 쓰지 않고, 앱·스토어·로그인 화면에 '충남대 비공식 앱'을 함께 적습니다.
+- Dart 패키지 이름은 `cnu_ai_assistant`입니다(`app/pubspec.yaml`의 `name`, import는 `package:cnu_ai_assistant/...`). Android `applicationId`와 iOS bundle identifier는 둘 다 `io.github.syujin2323.cnuaiassistant`입니다. Firebase 앱 등록, App Check, iOS 기기 등록 배포가 이 값에 묶이므로 바꾸지 않습니다. 앱 표시 이름은 `CNU PLANNER`(Android `android:label`, iOS `CFBundleDisplayName`, 앱 안의 `AppStrings.appName`)이고, 세 곳이 같은지 `test/app/app_test.dart`가 확인합니다. 앱 아이콘에 학교 로고·상징을 쓰지 않고, 앱·스토어·로그인 화면에 '충남대 비공식 앱'을 함께 적습니다.
 - Android의 `namespace`와 `MainActivity` 패키지는 `flutter create` 템플릿 값 `io.github.syujin2323.cnu_ai_assistant` 그대로 두고, `applicationId`만 `io.github.syujin2323.cnuaiassistant`입니다.
 - 프로젝트는 `flutter create --org io.github.syujin2323 --project-name cnu_ai_assistant --platforms android,ios app`으로 만듭니다. web·desktop 폴더는 두지 않습니다.
 - Flutter 버전은 `app/pubspec.yaml`의 `environment`에 정확한 버전 `flutter: 3.47.8`로 적습니다(범위 표기는 쓰지 않습니다. CI의 `subosito/flutter-action`이 `flutter-version-file`로 정확한 값을 읽습니다). `sdk` 제약은 `flutter create`가 쓴 값을 그대로 둡니다. 로컬의 `flutter --version`이 이 값과 같아야 하고, Flutter를 올릴 때는 이 줄을 고치는 `chore:` PR 하나로 팀 전체가 함께 올립니다. `functions/package.json`의 `engines.node`는 `"24"`입니다. `pubspec.lock`과 `package-lock.json`은 커밋합니다.

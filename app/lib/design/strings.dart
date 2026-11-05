@@ -5,12 +5,20 @@
 
 /// 여러 화면이 함께 쓰는 문구.
 abstract final class AppStrings {
-  /// 앱 표시 이름. 임시 표시 이름이고 앱 이름이 정해지면 바꾼다.
-  static const String appName = '일정 비서';
+  /// 앱 표시 이름(docs/decisions.md 2026-11-04 '앱 이름 CNU PLANNER'). Android `android:label`,
+  /// iOS `CFBundleDisplayName`과 같게 두고, test/app/app_test.dart가 확인한다.
+  static const String appName = 'CNU PLANNER';
 
-  /// '충남대 비공식 앱' 표시. 온보딩 첫 화면 아래, 나 탭 맨 위 앱 이름 옆,
-  /// 사캠 연결·재연결 시트 세 곳에 둔다.
-  static const String unofficial = '충남대 비공식 앱 · 학교와 관계없는 학생 프로젝트';
+  // '충남대 비공식 앱' 표시 세 가지. 놓는 곳은 docs/screens.md ''충남대 비공식 앱' 표시'다.
+
+  /// 10 나 맨 위 앱 이름 옆.
+  static const String unofficialShort = '충남대 비공식 앱';
+
+  /// 로그인·다시 로그인 화면 아래와 10 나 맨 아래.
+  static const String unofficialProject = '충남대 비공식 앱 · 학교와 관계없는 학생 프로젝트';
+
+  /// 03 할 일 사캠 정보 시트 아래.
+  static const String unofficialReadOnly = '충남대 비공식 앱 · 사캠에서 읽기만 해요';
 
   // 하단 탭(오늘 · 캘린더 · 과제 · 나 순서).
   static const String tabToday = '오늘';
