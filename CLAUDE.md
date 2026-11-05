@@ -2,19 +2,25 @@
 
 충남대학교 심화프로젝트랩 팀 프로젝트다. Claude는 아래 규칙을 지키며 작업한다. Git과 GitHub 작업은 무엇을 왜 하는지 한 줄로 설명하면서 진행한다. 사용자가 규칙에 어긋나는 일을 요청하면 이유를 한 줄로 설명한 뒤 규칙에 맞는 방법을 제안한다.
 
-팀이 정한 구조와 결정은 아래 두 문서에 있다. 작업 전에 관련 부분을 확인하고, 여기와 다른 방향으로 가야 하면 먼저 사용자에게 묻는다. 사캠 동작 규칙은 `docs/lms.md`에 있다. `app/lib/lms/`를 고칠 때는 그 문서를 먼저 읽는다.
+팀이 정한 구조와 결정은 아래 두 문서에 있다. 작업 전에 관련 부분을 확인하고, 여기와 다른 방향으로 가야 하면 먼저 사용자에게 묻는다. 사캠 동작 규칙은 `docs/lms.md`에 있다. `app/lib/lms/`를 고칠 때는 그 문서를 먼저 읽는다. 화면이 보여 주는 것과 동작은 `docs/screens.md`에 있다. `app/lib/features/`의 화면을 만들거나 고칠 때는 그 문서의 해당 화면 절을 먼저 읽는다.
 
 @docs/architecture.md
 @docs/decisions.md
 
+## 이름과 식별자
+
+- 앱 이름은 CNU PLANNER다(`docs/decisions.md` 2026-11-04 '앱 이름 CNU PLANNER'). 레포 이름 `cnu-ai-assistant`, Dart 패키지 `cnu_ai_assistant`, 앱 ID `io.github.syujin2323.cnuaiassistant`는 그대로 둔다. 코드의 표시 이름 '일정 비서'는 이름을 바꾸는 PR에서 고친다.
+- 예전 임시 앱 이름은 문서·코드·식별자·문구·커밋 메시지 어디에도 쓰지 않는다.
+
 ## 아직 정하지 않은 것
 
-정하지 않은 것은 정한 것처럼 쓰지 않는다. 아래 네 가지는 미정이고, 정해지면 `docs/decisions.md`에 새 항목으로 적는다.
+정하지 않은 것은 정한 것처럼 쓰지 않는다. 아래 항목은 미정이고, 정해지면 `docs/decisions.md`에 새 항목으로 적는다.
 
-- 앱 이름: 미정이다. 임시로 쓰던 '틈'은 바꿀 예정이므로 문서·코드·식별자·문구·커밋 메시지 어디에도 쓰지 않는다. 임시 식별자는 레포 이름 `cnu-ai-assistant`(Dart 패키지 `cnu_ai_assistant`, 앱 ID `io.github.syujin2323.cnuaiassistant`), 임시 표시 이름은 '일정 비서'다. 앱 ID는 이름이 정해져도 바꾸지 않는다.
-- AI 모델: 미정이다. `docs/architecture.md`의 제공사 호출 규칙은 후보(Claude Haiku 5.5) 기준의 임시 규칙이다. 모델을 정하는 PR에서 그 절을 바꾼다.
-- 디자인 토큰·모션 프리셋 값: 임시 결정이다. 디자인이 확정되면 `docs/architecture.md`의 그 절과 `app/lib/design/`을 함께 바꾼다.
-- 도메인 기본값(하루 경계, 하루 창, 브리핑 시각, 수업 버퍼, 식사 보호, 알림 상한, 조용한 시간 등): 팀이 정한 값이 아니라 `domain/defaults.dart`의 임시값이다.
+- AI 모델: 미정이다. `docs/architecture.md`의 제공사 호출 규칙은 후보(Claude Haiku 5.5) 기준의 임시 규칙이다. AI 동의 문구의 제공사 이름·나라·보관 기간·학습 여부도 모델을 정할 때 넣는다. 모델을 정하는 PR에서 그 절을 바꾼다.
+- 디자인 토큰·모션 프리셋 값: 최종 프로토타입의 디자인 규칙에서 뽑은 임시값이다. 바꾸면 `docs/architecture.md`의 그 절과 `app/lib/design/`을 함께 바꾼다.
+- 도메인 기본값(하루 경계, 하루 창, 브리핑 시각, 수업 버퍼, 식사 보호, 조각 길이, 놓침 판정, 종류별 예상 시간, 브리핑에서 고르는 할 일 수 등): 팀이 정한 값이 아니라 `domain/defaults.dart`의 임시값이다.
+- 알림·위젯·할 일 상세(04 할 일 상세, 05 강의 상세): 다시 설계하거나 뺄 예정이다. 설계가 정해질 때까지 문서에 설계를 적지 않고, 그 기능의 코드를 새로 만들지 않는다. 이미 있는 코드는 지우지 않는다.
+- 출시 단계가 '미정'인 화면·기능(`docs/screens.md`의 각 화면 절)과 문서에 정하지 않았다고 적은 동작(사캠을 뺀 빌드의 첫 화면과 로그인 전 상태, 할 일을 누르면 보일 화면, 새 학기에 시간표를 다시 불러오는 계기 등): 만들기 전에 사용자에게 묻는다.
 
 ## 브랜치
 
@@ -62,7 +68,7 @@
 
 - 작업 브랜치는 develop으로 PR을 보낸다. 제목은 커밋과 같은 `종류: 설명` 형식이다. develop에는 squash로 병합되므로 PR 제목이 develop에 남는 커밋 제목이 된다.
 - 본문은 `.github/pull_request_template.md`의 틀대로 쓴다. `gh pr create`는 템플릿을 자동으로 넣지 않는다. 체크 칸은 사용자가 직접 확인하고 체크하도록 비워 둔다.
-- PR을 만들기 전에 바뀐 폴더의 확인 명령을 돌린다(`docs/architecture.md`의 '확인과 CI'와 같다). `app/`은 `dart format --output=none --set-exit-if-changed lib test`, `flutter analyze`, `flutter test`이고, `functions/`는 `npm run lint`, `npm test`다. 하나라도 실패하면 PR을 만들지 않고 사용자에게 알린다.
+- PR을 만들기 전에 바뀐 폴더의 확인 명령을 돌린다(`docs/architecture.md`의 '확인과 CI'와 같다). `app/`은 `dart format --output=none --set-exit-if-changed lib test`, `flutter analyze`, `flutter test`이고, `functions/`가 생기면 그 폴더는 `npm run lint`, `npm test`다. 레포 루트의 `make check`가 `app/`의 세 명령을 차례로 돌린다. 하나라도 실패하면 PR을 만들지 않고 사용자에게 알린다.
 - PR을 만들기 전에 브랜치 이름, 제목, 본문을 사용자에게 보여 주고 확인을 받는다. 리뷰어로 지정할 팀원 1명의 GitHub 아이디도 묻는다. 본문은 레포 안에 파일을 만들지 말고 표준 입력으로 넘긴다.
   ```bash
   git push -u origin feat/login-screen
@@ -84,7 +90,7 @@
 
 다른 팀원도, 다음 세션의 Claude도 이 대화를 볼 수 없다. 남겨야 할 것은 레포에 적는다.
 
-- 폴더 구조, 실행 방법, 앱-서버 API, 환경 변수 이름, 폰 DB 표, 라우트 표, 디자인 토큰 등 `docs/architecture.md`에 적힌 것이 바뀌면 같은 PR에서 `docs/architecture.md`를 고친다. 사캠 동작 규칙(로그인, 자동 재로그인, 쿠키 금고, 응답 판별, 세션 복원, 동기화, 시간표, 호출 예산)이 바뀌면 같은 PR에서 `docs/lms.md`를 고친다.
+- 폴더 구조, 실행 방법, 앱-서버 API, 환경 변수 이름, 폰 DB 표, 라우트 표, 디자인 토큰 등 `docs/architecture.md`에 적힌 것이 바뀌면 같은 PR에서 `docs/architecture.md`를 고친다. 사캠 동작 규칙(로그인, 학번·비밀번호 저장과 자동 재로그인, 쿠키 금고, 응답 판별, 세션 복원, 동기화, 시간표 불러오기, 호출 예산, 로그아웃·데이터 삭제)이 바뀌면 같은 PR에서 `docs/lms.md`를 고친다. 화면 동작이 바뀌면 같은 PR에서 `docs/screens.md`를 고친다.
 - 팀이 무언가를 정하면(라이브러리, 화면 흐름, API 모양 등) `docs/decisions.md` 맨 아래에 새 항목을 추가한다. 기존 항목은 고치지 않는다. 결정이 바뀌면 새 항목으로 적는다.
 - PR 본문의 "무엇을, 왜"는 다음 사람이 읽을 기록이다. 코드만 봐서는 알 수 없는 이유를 적는다.
 - 이 파일(CLAUDE.md)은 팀 규칙이다. 사용자가 명시적으로 요청할 때만 고치고, 고친 내용은 PR로 올린다.
@@ -92,7 +98,7 @@
 ## 비밀값
 
 - 공개 레포다. API 키, 토큰, 비밀번호, `.env` 파일, Firebase 설정 파일, 서명 파일, 네트워크 캡처(`.har`), 사캠의 실제 응답·쿠키 값·학번·요청 상수·엔드포인트 경로는 커밋하지 않는다. 테스트에는 직접 만든 합성 샘플만, PR 스크린샷에는 데모 모드 화면만 쓴다. 한 번 올라가면 지워도 기록에 남는다.
-- 비밀값은 Functions에서는 Secret Manager에 둔다(`functions/src/params.ts`의 `defineSecret`, `firebase functions:secrets:set <이름>`). 로컬 에뮬레이터용 값은 `functions/.secret.local`에 둔다. `functions/.env`에는 비밀이 아닌 설정값만 두고 이름과 기본값은 `functions/.env.example`에 적는다. Firebase 설정 파일(`firebase_options.dart`, `google-services.json`, `GoogleService-Info.plist`)과 Android 서명 파일은 팀 비공개 채널에서 받아 `docs/architecture.md`의 '실행 방법'·'테스트 배포' 자리에 넣는다. 이 파일들은 모두 `.gitignore`에 들어 있다. 변수 이름과 용도는 `docs/architecture.md`의 '환경 변수' 표에 적고 값은 적지 않는다. 앱 코드에는 키를 두지 않고, 학교 비밀번호는 자동 로그인을 켠 사용자의 기기 보안 저장소에만 둔다.
+- 비밀값은 Functions에서는 Secret Manager에 둔다(`functions/src/params.ts`의 `defineSecret`, `firebase functions:secrets:set <이름>`). 로컬 에뮬레이터용 값은 `functions/.secret.local`에 둔다. `functions/.env`에는 비밀이 아닌 설정값만 두고 이름과 기본값은 `functions/.env.example`에 적는다. Firebase 설정 파일(`firebase_options.dart`, `google-services.json`, `GoogleService-Info.plist`)과 Android 서명 파일은 팀 비공개 채널에서 받아 `docs/architecture.md`의 '실행 방법'·'테스트 배포' 자리에 넣는다. 이 파일들은 모두 `.gitignore`에 들어 있다. 변수 이름과 용도는 `docs/architecture.md`의 '환경 변수' 표에 적고 값은 적지 않는다. 앱 코드에는 키를 두지 않고, 사캠 학번·비밀번호는 로그인한 폰의 보안 저장소에만 둔다.
 - 커밋 전에 `git diff --staged`에 비밀값이 없는지 확인한다.
 
 ## 실수했을 때
