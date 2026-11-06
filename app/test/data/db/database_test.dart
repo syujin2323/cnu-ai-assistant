@@ -233,7 +233,10 @@ void main() {
     final briefing = await db.select(db.briefings).getSingle();
     expect(briefing.openedAt, at);
     expect(briefing.confirmedAt, isNull);
-    expect(await rawText('SELECT opened_at FROM briefings'), matches(offsetText));
+    expect(
+      await rawText('SELECT opened_at FROM briefings'),
+      matches(offsetText),
+    );
 
     final run = await db.select(db.syncRuns).getSingle();
     expect(run.result, SyncResultKind.reloginRequired);
