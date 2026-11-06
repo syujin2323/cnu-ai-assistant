@@ -124,6 +124,60 @@ void main() {
     });
   });
 
+  group('dayOffset', () {
+    // 2026-10-12(월) 낮 12시.
+    final now = DateTime(2026, 10, 12, 12);
+
+    int offset(DateTime at, {DateTime? from}) =>
+        dayOffset(at, now: from ?? now, dayBoundaryMin: boundary);
+
+    test('오늘은 0, 내일은 1, 어제는 -1이고 시각은 보지 않는다', () {
+      expect(offset(DateTime(2026, 10, 12, 9)), 0);
+      expect(offset(DateTime(2026, 10, 12, 23, 59)), 0);
+      expect(offset(DateTime(2026, 10, 13, 23, 59)), 1);
+      expect(offset(DateTime(2026, 10, 11, 23, 59)), -1);
+      expect(offset(DateTime(2026, 10, 5, 23, 59)), -7);
+      expect(offset(DateTime(2026, 10, 19, 23, 59)), 7);
+    });
+
+    test('at의 하루 경계 전 새벽은 전날로 센다', () {
+      expect(offset(minutesInto(2026, 10, 13, boundary - 1)), 0);
+      expect(offset(minutesInto(2026, 10, 13, boundary)), 1);
+      expect(offset(minutesInto(2026, 10, 12, boundary - 1)), -1);
+    });
+
+    test('now의 하루 경계 전 새벽도 전날로 센다', () {
+      // 하루 경계 2시간 전(기본값이면 새벽 2시)의 논리적 오늘은 10월 12일이다.
+      final dawn = minutesInto(2026, 10, 13, boundary - 120);
+      expect(offset(DateTime(2026, 10, 13, 23, 59), from: dawn), 1);
+      expect(offset(DateTime(2026, 10, 12, 23, 59), from: dawn), 0);
+      final lastMinute = minutesInto(2026, 10, 13, boundary - 1);
+      expect(offset(DateTime(2026, 10, 12, 23, 59), from: lastMinute), 0);
+    });
+
+    test('달·해가 바뀌어도 달력 일수로 센다', () {
+      final newYearsEve = DateTime(2026, 12, 31, 12);
+      expect(offset(DateTime(2027, 1, 2, 23, 59), from: newYearsEve), 2);
+      expect(offset(DateTime(2026, 11, 1, 23, 59)), 20);
+      expect(
+        offset(DateTime(2026, 12, 31, 23, 59), from: DateTime(2027, 1, 1, 12)),
+        -1,
+      );
+    });
+
+    test('UTC로 받은 값도 로컬 시각으로 바꿔 센다', () {
+      expect(offset(DateTime(2026, 10, 12, 23, 59), from: now.toUtc()), 0);
+      expect(offset(DateTime(2026, 10, 13, 23, 59).toUtc()), 1);
+    });
+
+    test('하루 경계가 하루 밖(0–1439 밖)이면 RangeError다', () {
+      expect(
+        () => dayOffset(now, now: now, dayBoundaryMin: 1440),
+        throwsRangeError,
+      );
+    });
+  });
+
   group('isoDate', () {
     test('YYYY-MM-DD로 적고 한 자리 월·일은 0을 채운다', () {
       expect(isoDate(DateTime(2026, 3, 5)), '2026-03-05');
