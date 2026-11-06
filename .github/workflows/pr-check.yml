@@ -17,21 +17,28 @@ jobs:
           TITLE: ${{ github.event.pull_request.title }}
           BASE: ${{ github.base_ref }}
           HEAD: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPO: ${{ github.repository }}
         run: |
-          if [[ "$BASE" == "main" && "$HEAD" != "develop" ]]; then
-            echo "::error::main으로는 develop에서 오는 PR만 보낼 수 있습니다. PR 제목 옆 Edit에서 대상 브랜치(base)를 develop으로 바꾸세요."
+          if [[ "$BASE" != "develop" && "$BASE" != "main" ]]; then
+            echo "::error::PR은 develop(작업 브랜치)이나 main(develop에서 오는 release)으로만 보냅니다. PR 제목 옆 Edit에서 대상 브랜치(base)를 고치세요."
             exit 1
           fi
-          # 종류를 바꾸면 CLAUDE.md와 docs/guide.md의 표도 같이 고친다.
+          if [[ "$BASE" == "main" && ("$HEAD" != "develop" || "$HEAD_REPO" != "$REPO") ]]; then
+            echo "::error::main으로는 이 레포의 develop에서 오는 PR만 보낼 수 있습니다. PR 제목 옆 Edit에서 대상 브랜치(base)를 develop으로 바꾸세요."
+            exit 1
+          fi
+          # 종류를 바꾸면 CLAUDE.md와 docs/guide.md의 표도 같이 고친다. 설명은 공백으로 시작하지 않고 마침표로 끝나지 않는다.
+          tail='[^[:space:]](.*[^.[:space:]])?$'
           if [[ "$BASE" == "main" ]]; then
-            pattern='^release: .+'
+            pattern="^release: $tail"
             example='release: 중간 발표 버전'
           else
-            pattern='^(feat|fix|docs|refactor|test|chore): .+'
+            pattern="^(feat|fix|docs|refactor|test|chore): $tail"
             example='feat: 로그인 화면 추가'
           fi
           if [[ ! "$TITLE" =~ $pattern ]]; then
-            echo "::error::PR 제목은 '${example}' 형식이어야 합니다. 제목을 고치면 검사가 다시 돌아갑니다. 종류 목록은 CLAUDE.md를 보세요."
+            echo "::error::PR 제목은 '${example}'처럼 '종류: 설명' 형식이고 끝에 마침표가 없어야 합니다. 제목을 고치면 검사가 다시 돌아갑니다. 종류 목록은 CLAUDE.md를 보세요."
             exit 1
           fi
 
