@@ -1,4 +1,4 @@
-/// 사캠 항목의 마감·제출·완료 값이 바뀐 기록. `lms_item_changes` 표의 한 행.
+/// LMS 항목의 마감·제출·완료 값이 바뀐 기록. `lms_item_changes` 표의 한 행.
 class LmsItemChange {
   const LmsItemChange({
     required this.id,

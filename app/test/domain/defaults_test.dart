@@ -48,7 +48,7 @@ void main() {
     expect(Defaults.unknownVideoMin, 30);
   });
 
-  test('영상과 사캠 자료는 종류별 예상 시간에 없다', () {
+  test('영상과 LMS 자료는 종류별 예상 시간에 없다', () {
     // 영상은 출석 인정 시간이나 영상 길이를 쓰고, 자료는 할 일로 만들지 않는다.
     expect(
       Defaults.estimateMinByKind.keys.toSet(),

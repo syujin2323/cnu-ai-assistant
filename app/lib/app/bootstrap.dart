@@ -1,7 +1,7 @@
 // 앱 시작 순서. docs/architecture.md '실행 방법'.
 //
 // `Firebase.initializeApp` → App Check `activate` → Remote Config 설정·지난 실행에서 받은 값 적용 →
-// 실제 모드의 폰 DB 열기 → 시작 작업(설치 표식 확인, 사캠 상태 정리, `app/startup.dart`) →
+// 실제 모드의 폰 DB 열기 → 시작 작업(설치 표식 확인, LMS 상태 정리, `app/startup.dart`) →
 // 지금 모드의 폰 DB 열기까지만 기다린 뒤 `runApp`을 부른다(`main.dart`). Remote Config
 // `fetchAndActivate()`([fetchRemoteConfigAfterLaunch])와 보관 기간이 지난 기록 정리는 runApp 뒤에
 // 시작하고 화면은 기다리지 않는다. 위젯 테스트는 Firebase 없이 `RootApp`만 띄우므로 이 파일을

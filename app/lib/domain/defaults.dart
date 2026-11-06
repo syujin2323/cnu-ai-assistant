@@ -69,7 +69,7 @@ abstract final class Defaults {
 
   /// 종류별 기본 예상 시간(분). 사용자가 넣은 값과 `estimate` 규칙이 없을 때 쓴다.
   /// 영상은 출석 인정 시간이나 영상 길이를 쓰고(둘 다 모르면 [unknownVideoMin]),
-  /// 사캠 '자료'(`material`)는 할 일로 만들지 않으므로 넣지 않는다.
+  /// LMS '자료'(`material`)는 할 일로 만들지 않으므로 넣지 않는다.
   static const Map<TaskKind, int> estimateMinByKind = {
     TaskKind.assignment: 60,
     TaskKind.quiz: 30,

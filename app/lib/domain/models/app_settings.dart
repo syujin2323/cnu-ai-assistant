@@ -151,7 +151,7 @@ class AppSettings {
   /// (R1) 마지막으로 지표를 보낸 날짜(`YYYY-MM-DD`).
   final String? metricsLastSentOn;
 
-  /// 사캠 세션 상태.
+  /// LMS 세션 상태.
   final LmsSessionState lmsSessionState;
 
   /// 화면의 '마지막 확인 시각'. `normal`·`empty`·`partial`로 끝난 동기화의 시작

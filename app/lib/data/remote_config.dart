@@ -1,6 +1,6 @@
 // Remote Config 설정과 앱 기본값. docs/architecture.md '환경 변수'와 '실행 방법'.
 //
-// 값을 읽는 곳은 따로 있다. 사캠 값(`lms_*`)은 `lms/lms_config.dart` 하나에서만 읽는다.
+// 값을 읽는 곳은 따로 있다. LMS 값(`lms_*`)은 `lms/lms_config.dart` 하나에서만 읽는다.
 
 import 'dart:convert';
 
@@ -8,13 +8,13 @@ import 'package:firebase_remote_config/firebase_remote_config.dart';
 
 /// Remote Config 키 이름.
 abstract final class RemoteConfigKeys {
-  /// 사캠 연동 원격 스위치.
+  /// LMS 연동 원격 스위치.
   static const lmsEnabled = 'lms_enabled';
 
-  /// 사캠·통합정보시스템 요청 상수(JSON 문자열). 값은 레포에 두지 않는다.
+  /// LMS·통합정보시스템 요청 상수(JSON 문자열). 값은 레포에 두지 않는다.
   static const lmsRequestParams = 'lms_request_params';
 
-  /// 로그인 성공 판정 패턴(Dart `RegExp` 문자열). 앱 화면 로그인에서 쓸지는 사캠 연동 때 확인한다.
+  /// 로그인 성공 판정 패턴(Dart `RegExp` 문자열). 앱 화면 로그인에서 쓸지는 LMS 연동 때 확인한다.
   static const lmsLoginSuccessPattern = 'lms_login_success_pattern';
 
   /// 조회 간격·하루 최대 횟수·조회하지 않는 시간(JSON 문자열).
