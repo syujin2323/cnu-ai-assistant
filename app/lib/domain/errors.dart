@@ -73,7 +73,7 @@ final class ApiError extends AppError {
   String toString() => 'ApiError(status: $status, code: $code)';
 }
 
-/// 사캠 응답 판별의 일곱 가지. docs/lms.md '응답 판별'.
+/// LMS 응답 판별의 일곱 가지. docs/lms.md '응답 판별'.
 enum LmsOutcomeKind {
   /// 스키마에 맞는 JSON.
   normal,
@@ -97,7 +97,7 @@ enum LmsOutcomeKind {
   parseFailure,
 }
 
-/// 사캠 조회 결과. 판별 종류와 HTTP 상태 코드만 담는다.
+/// LMS 조회 결과. 판별 종류와 HTTP 상태 코드만 담는다.
 ///
 /// `lms/`는 `FormatException`·`DioException`을 안에서 잡아 이 값으로 바꾸고 밖으로
 /// 던지지 않는다. URL, 헤더, 본문, 쿠키는 담지 않는다.

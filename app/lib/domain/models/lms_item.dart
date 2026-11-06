@@ -1,7 +1,7 @@
-/// 사캠 항목의 종류.
+/// LMS 항목의 종류.
 enum LmsItemKind { video, assignment, quiz, team, discussion, exam, material }
 
-/// 사캠에서 받은 항목의 원본. `lms_items` 표의 한 행.
+/// LMS에서 받은 항목의 원본. `lms_items` 표의 한 행.
 ///
 /// 동기화만 이 표를 바꾼다. 사용자의 계획은 `plan_blocks → tasks → lms_items` 순서로
 /// 참조만 한다. 빠진 값(진도 없음 등)은 0이 아니라 null로 둔다.
@@ -60,7 +60,7 @@ class LmsItem {
   /// 시청 시간(분).
   final int? watchedMin;
 
-  /// 사캠의 공식 완료 여부.
+  /// LMS의 공식 완료 여부.
   final bool? officiallyDone;
 
   /// 제출 여부.
@@ -76,7 +76,7 @@ class LmsItem {
   /// 연속으로 보이지 않은 동기화 수. 다시 보이면 0이다.
   final int missCount;
 
-  /// 사캠에서 사라졌다고 본 시각.
+  /// LMS에서 사라졌다고 본 시각.
   final DateTime? goneAt;
 
   /// 바뀌었는지 비교하는 해시.

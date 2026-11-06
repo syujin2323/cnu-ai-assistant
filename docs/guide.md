@@ -82,7 +82,7 @@ Claude는 대화가 끝나면 내용을 잊습니다. 다른 팀원의 Claude는
 | 팀 규칙 | `CLAUDE.md` | 모든 Claude가 세션을 시작할 때마다 자동으로 읽음 |
 | 구조, 폰 DB, 배치 엔진, 실행 방법, 앱-서버 API | `docs/architecture.md` | CLAUDE.md가 불러와서 자동으로 읽음 |
 | 팀이 정한 것과 이유 | `docs/decisions.md` | CLAUDE.md가 불러와서 자동으로 읽음 |
-| 사캠·통합정보시스템 연동 동작 규칙 | `docs/lms.md` | 자동으로 읽히지는 않음. `app/lib/lms/`처럼 사캠을 부르는 코드를 고치기 전에 Claude가 읽음(architecture.md가 가리킴) |
+| LMS·통합정보시스템 연동 동작 규칙 | `docs/lms.md` | 자동으로 읽히지는 않음. `app/lib/lms/`처럼 LMS를 부르는 코드를 고치기 전에 Claude가 읽음(architecture.md가 가리킴) |
 | 화면 동작(최종 프로토타입 기준) | `docs/screens.md` | 자동으로 읽히지는 않음. 화면을 만들거나 고치기 전에 Claude가 읽음(CLAUDE.md가 가리킴) |
 | 이번 작업에서 한 일과 이유 | PR 본문 | 리뷰하는 사람, 나중에 기록을 찾는 사람 |
 
@@ -106,7 +106,7 @@ Claude는 대화가 끝나면 내용을 잊습니다. 다른 팀원의 Claude는
 |---|---|---|
 | push하면 `GH013` / `repository rule violations` 오류 | main이나 develop에 직접 push하려 함 | Claude에게 "방금 커밋을 새 브랜치로 옮겨줘" |
 | PR에 `pr-rules` 빨간 X | 제목 형식이 틀렸거나, 작업 브랜치에서 main으로 PR을 보냄 | PR 제목 옆 **Edit**에서 제목이나 대상 브랜치(base)를 고치면 자동으로 다시 검사. Claude에게 "PR 검사 실패한 거 고쳐줘"라고 해도 됨 |
-| PR에 `leak-check` 빨간 X | 추가한 줄에 쿠키 헤더, 토큰, 사캠 쿠키 이름으로 보이는 문자열이 있음(사캠 쿠키 이름은 레포 Actions 비밀값 `LMS_COOKIE_NAMES`를 설정한 뒤부터 찾음) | 표시된 파일에서 그 줄을 쿠키 헤더 꼴과 토큰 모양이 아닌 합성 값으로 바꿉니다. 실제 값이었으면 맨 아래 'API 키나 `.env`를 올림' 줄대로 먼저 폐기합니다. 그 값은 PR 댓글에 붙여 넣지 않습니다 |
+| PR에 `leak-check` 빨간 X | 추가한 줄에 쿠키 헤더, 토큰, LMS 쿠키 이름으로 보이는 문자열이 있음(LMS 쿠키 이름은 레포 Actions 비밀값 `LMS_COOKIE_NAMES`를 설정한 뒤부터 찾음) | 표시된 파일에서 그 줄을 쿠키 헤더 꼴과 토큰 모양이 아닌 합성 값으로 바꿉니다. 실제 값이었으면 맨 아래 'API 키나 `.env`를 올림' 줄대로 먼저 폐기합니다. 그 값은 PR 댓글에 붙여 넣지 않습니다 |
 | PR에 `app-check` 빨간 X | 앱 코드의 포맷·분석 경고·테스트 실패, drift 생성 파일이 최신이 아님, 또는 Actions 비밀값 `FIREBASE_OPTIONS_DART`가 없거나 잘못 들어감 | 검사 로그 끝의 빨간 오류 문구를 읽고, 레포 루트에서 `make check`(생성 파일이면 `make gen-check`)로 재현해 고친 뒤 push합니다. 비밀값 문제면 팀장에게 알립니다. Claude에게 "app-check 실패한 거 고쳐줘"라고 해도 됨 |
 | PR에 `This branch has conflicts` | 다른 사람이 같은 곳을 먼저 고침 | Claude에게 "develop 최신 내용 받아서 충돌 해결해줘" |
 | Merge 버튼이 회색 | 검사 실패, 충돌, 또는 승인 필요(main) | PR 페이지 아래쪽 안내 문구를 확인 |

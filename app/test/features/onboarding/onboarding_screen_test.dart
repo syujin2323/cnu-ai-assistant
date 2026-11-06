@@ -75,7 +75,7 @@ void main() {
       await _tapInStep(tester, find.text('확인했어요'));
       expect(await skipped(), isEmpty);
 
-      // 3–6단계는 건너뛰고(사캠 연결은 LMS_INCLUDED일 때만 있다), 7단계는 '다음', 8단계는 건너뛴다.
+      // 3–6단계는 건너뛰고(LMS 연결은 LMS_INCLUDED일 때만 있다), 7단계는 '다음', 8단계는 건너뛴다.
       final placeholders = [
         if (LmsFeature.included) OnboardingStep.lmsConnect,
         OnboardingStep.timetable,
