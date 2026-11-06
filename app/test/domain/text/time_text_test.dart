@@ -134,4 +134,17 @@ void main() {
       );
     });
   });
+
+  group('isDueSoon', () {
+    test('오늘·내일 마감만 붉게 쓴다', () {
+      expect(isDueSoon(0), isTrue);
+      expect(isDueSoon(1), isTrue);
+    });
+
+    test('지난 마감과 모레부터는 붉게 쓰지 않는다', () {
+      for (final days in [-7, -1, 2, 7]) {
+        expect(isDueSoon(days), isFalse, reason: '$days');
+      }
+    });
+  });
 }

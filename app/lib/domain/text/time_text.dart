@@ -61,4 +61,8 @@ String dayWord(
   };
 }
 
+/// 붉게 쓸 마감인지. 오늘·내일 마감만 붉게 쓴다(docs/screens.md '날짜·시각 표기').
+/// [days]는 그 마감의 [dayOffset] 값이다.
+bool isDueSoon(int days) => days == 0 || days == 1;
+
 const List<String> _weekdays = ['월', '화', '수', '목', '금', '토', '일'];
