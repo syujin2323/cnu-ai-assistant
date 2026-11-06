@@ -9,16 +9,13 @@ abstract final class AppStrings {
   /// iOS `CFBundleDisplayName`과 같게 두고, test/app/app_test.dart가 확인한다.
   static const String appName = 'CNU PLANNER';
 
-  // '충남대 비공식 앱' 표시 세 가지. 놓는 곳은 docs/screens.md ''충남대 비공식 앱' 표시'다.
+  // '충남대 비공식 앱' 표시 두 가지. 놓는 곳은 docs/screens.md ''충남대 비공식 앱' 표시'다.
 
-  /// 10 나 맨 위 앱 이름 옆.
+  /// 로그인·다시 로그인 화면 아래와 10 나 맨 위 앱 이름 옆.
   static const String unofficialShort = '충남대 비공식 앱';
 
-  /// 로그인·다시 로그인 화면 아래와 10 나 맨 아래.
-  static const String unofficialProject = '충남대 비공식 앱 · 학교와 관계없는 학생 프로젝트';
-
-  /// 03 할 일 사캠 정보 시트 아래.
-  static const String unofficialReadOnly = '충남대 비공식 앱 · 사캠에서 읽기만 해요';
+  /// 03 할 일 LMS 정보 시트 아래.
+  static const String unofficialReadOnly = '충남대 비공식 앱 · LMS에서 읽기만 해요';
 
   // 하단 탭(오늘 · 캘린더 · 과제 · 나 순서).
   static const String tabToday = '오늘';

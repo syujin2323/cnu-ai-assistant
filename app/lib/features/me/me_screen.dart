@@ -73,14 +73,6 @@ class MeScreen extends ConsumerWidget {
                 applicationName: AppStrings.appName,
               ),
             ),
-            const SizedBox(height: AppSpace.s16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpace.screen),
-              child: Text(
-                AppStrings.unofficialProject,
-                style: AppText.caption.copyWith(color: AppColors.muted),
-              ),
-            ),
           ],
         ),
       ),

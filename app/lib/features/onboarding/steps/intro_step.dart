@@ -1,5 +1,5 @@
 // 온보딩 1단계: 두 약속 소개. 첫 화면이며 '시작하기'와 '둘러보기'(데모), 화면 아래에
-// '충남대 비공식 앱 · 학교와 관계없는 학생 프로젝트'를 둔다. 문구와 배치는 캔버스를 참고했다.
+// '충남대 비공식 앱'을 둔다. 문구와 배치는 캔버스를 참고했다.
 
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
@@ -51,7 +51,7 @@ class IntroStep extends StatelessWidget {
         ),
         const SizedBox(height: AppSpace.s8),
         Text(
-          AppStrings.unofficialProject,
+          AppStrings.unofficialShort,
           textAlign: TextAlign.center,
           style: AppText.caption.copyWith(color: AppColors.muted),
         ),
