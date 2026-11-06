@@ -245,3 +245,10 @@
 - 이유: 색을 라이트 상수로만 두면 R1에 다크 모드를 넣을 때 모든 화면의 색 참조를 다시 고쳐야 한다. 화면을 새로 쓰기 전에 바꾸는 것이 가장 싸다.
 - 다른 후보: R0는 라이트 상수만 두고 다크 모드를 넣을 때 바꾸기(이전 architecture.md).
 - 영향: architecture.md '디자인 토큰', screens.md '다크 모드·모션·글자 크기'. 지금 코드는 화면이 `AppColors`의 라이트 상수를 바로 읽고, 색 토큰을 바꾸는 후속 코드 PR에서 고친다(`app/lib/design/tokens.dart`, `app/lib/app/theme.dart`).
+
+## 2026-11-06 drift 생성 파일 검사를 더한다 (2026-10-29 '개발 명령 Makefile' 보완)
+
+- 결정: CI의 `app-check`에 drift 생성 파일 검사 단계를 두고, 레포 루트 `Makefile`에 같은 검사를 하는 `make gen-check`를 더한다. 패키지를 받은 뒤 `dart run build_runner build -d`로 생성 파일을 다시 만들어 보고, 바뀌거나 새로 생긴 `*.g.dart`가 있으면 실패한다. `make check`에는 넣지 않는다.
+- 이유: 테이블의 열 제약·기본값·타입 변환기만 바꾸고 생성 파일을 다시 만들지 않아도 컴파일·analyze·test는 통과하지만, 실제 DB 스키마는 생성된 CREATE TABLE 문을 따르므로 코드·문서와 달라진다. 첫 테스트 배포 전에 표를 바꾸는 PR이 여럿 오므로 그 전에 CI가 잡게 한다. 다시 만드는 데는 몇 초면 된다. `git diff`로 비교하면 커밋하지 않은 새 생성 파일을 놓치므로 전후 체크섬을 비교한다.
+- 다른 후보: `make check`에 넣기(확인 명령이 파일을 다시 쓰고 build_runner가 매번 돌아 느려짐), 리뷰에만 맡기기(생성 파일의 한 줄 차이는 눈으로 찾기 어려움).
+- 영향: architecture.md '폰 DB (drift)'·'확인과 CI', `.github/workflows/app-check.yml`, `Makefile`.
