@@ -88,10 +88,9 @@ void main() {
 
         await _tapTab(tester, '나');
         expect(find.byType(MeScreen), findsOneWidget);
-        // 10 나 맨 위는 짧은 비공식 표시, 맨 아래는 긴 표시(docs/screens.md ''충남대 비공식 앱' 표시').
+        // 10 나에는 맨 위 앱 이름 옆에만 비공식 표시를 둔다(docs/screens.md ''충남대 비공식 앱' 표시').
         expect(find.text(AppStrings.unofficialShort), findsOneWidget);
-        await _scrollTo(tester, find.text(AppStrings.unofficialProject));
-        expect(find.text(AppStrings.unofficialProject), findsOneWidget);
+        expect(find.textContaining('학교와 관계없는'), findsNothing);
 
         await _tapTab(tester, '오늘');
         expect(find.byType(TodayScreen), findsOneWidget);
@@ -111,7 +110,7 @@ void main() {
           expect(find.byType(OnboardingScreen), findsOneWidget);
           expect(find.byType(AppTabBar), findsNothing);
           // 첫 화면 맨 아래의 표시까지 내려 본다(글자가 크면 처음에는 그려지지 않는다).
-          await _scrollTo(tester, find.text('충남대 비공식 앱 · 학교와 관계없는 학생 프로젝트'));
+          await _scrollTo(tester, find.text(AppStrings.unofficialShort));
           expect(find.text('시작하기'), findsOneWidget);
 
           await app.dispose(tester);
