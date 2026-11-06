@@ -50,6 +50,27 @@ DateTime logicalWeekStart(DateTime at, {required int dayBoundaryMin}) {
   );
 }
 
+/// [at]이 속한 논리적 하루가 [now]가 속한 논리적 하루에서 며칠 뒤인지 센다.
+/// 0은 오늘, 1은 내일, -1은 어제다.
+///
+/// 두 값을 모두 [logicalDate]로 바꾼 뒤 달력 일수로 세므로 시각은 보지 않는다. [now]에는
+/// [Clock.now]의 값을 그대로 넘긴다. 예: 하루 경계가 240(04:00)이고 [now]가 10월 13일
+/// 02:00(논리적 하루 10월 12일)이면 10월 13일 23:59는 1, 10월 13일 03:59는 0이다.
+int dayOffset(
+  DateTime at, {
+  required DateTime now,
+  required int dayBoundaryMin,
+}) {
+  final from = logicalDate(now, dayBoundaryMin: dayBoundaryMin);
+  final to = logicalDate(at, dayBoundaryMin: dayBoundaryMin);
+  // 일수 계산에만 UTC 자정을 쓴다. 일광 절약 시간이 있는 시간대에서도 하루가 24시간이다.
+  return DateTime.utc(
+    to.year,
+    to.month,
+    to.day,
+  ).difference(DateTime.utc(from.year, from.month, from.day)).inDays;
+}
+
 /// 날짜를 `YYYY-MM-DD`로 적는다. 폰 DB의 날짜 열, 라우트의 `:date`, 서버 API의
 /// 날짜가 모두 이 형식이다. 시각은 보지 않는다.
 String isoDate(DateTime d) {
