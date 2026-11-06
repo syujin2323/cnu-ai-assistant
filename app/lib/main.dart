@@ -16,7 +16,7 @@ Future<void> main() async {
   runApp(
     UncontrolledProviderScope(container: container, child: const RootApp()),
   );
-  // 화면은 기다리지 않는다. 앱 열기 계기의 동기화와 사캠 설정 읽기는 이것이 끝난 뒤에 시작한다.
+  // 화면은 기다리지 않는다. 앱 열기 계기의 동기화와 LMS 설정 읽기는 이것이 끝난 뒤에 시작한다.
   unawaited(fetchRemoteConfigAfterLaunch(container));
   // 보관 기간이 지난 기록 정리도 화면이 기다리지 않는다.
   unawaited(runDeferredStartupTasksAfterLaunch(container));

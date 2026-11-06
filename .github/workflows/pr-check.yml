@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      # 사캠 쿠키 이름은 이 파일에 적지 않는다. 레포 Settings → Secrets and variables → Actions → Secrets에
+      # LMS 쿠키 이름은 이 파일에 적지 않는다. 레포 Settings → Secrets and variables → Actions → Secrets에
       # LMS_COOKIE_NAMES를 '이름1|이름2' 형식으로 둔다(변수는 로그에 그대로 찍히므로 쓰지 않는다).
       # 비어 있으면(포크 PR 포함) 쿠키 헤더와 JWT 모양만 검사한다.
       - name: 쿠키 헤더와 토큰 모양 검사
@@ -63,7 +63,7 @@ jobs:
           while IFS= read -r -d '' file; do
             # 값이 로그에 남지 않도록 일치한 줄은 출력하지 않고 파일 이름만 알린다.
             if git diff --unified=0 "origin/$BASE...HEAD" -- "$file" | grep -E '^\+' | grep -Ei "$pattern" > /dev/null; then
-              echo "::error file=$file::추가된 줄에 쿠키 헤더, 토큰, 사캠 쿠키 이름으로 보이는 문자열이 있습니다. 쿠키 헤더 꼴과 토큰 모양이 아닌 합성 값으로 바꾸고, 실제 값이었으면 발급한 곳에서 폐기하세요."
+              echo "::error file=$file::추가된 줄에 쿠키 헤더, 토큰, LMS 쿠키 이름으로 보이는 문자열이 있습니다. 쿠키 헤더 꼴과 토큰 모양이 아닌 합성 값으로 바꾸고, 실제 값이었으면 발급한 곳에서 폐기하세요."
               found=1
             fi
           done < "$files"

@@ -1,6 +1,6 @@
 # cnu-ai-assistant
 
-충남대학교 심화프로젝트랩 팀 프로젝트입니다. 충남대 학부생이 사이버캠퍼스(사캠)의 마감과 학교 시간표를 한곳에 모아 수업 사이 빈 시간에 할 일을 놓도록 돕는 앱 CNU PLANNER를 만듭니다. 레포 이름 cnu-ai-assistant는 식별자로 그대로 씁니다. 학교 공식 앱이 아닌 학생 프로젝트입니다.
+충남대학교 심화프로젝트랩 팀 프로젝트입니다. 충남대 학부생이 LMS(사이버캠퍼스)의 마감과 학교 시간표를 한곳에 모아 수업 사이 빈 시간에 할 일을 놓도록 돕는 앱 CNU PLANNER를 만듭니다. 레포 이름 cnu-ai-assistant는 식별자로 그대로 씁니다. 학교 공식 앱이 아닌 학생 프로젝트입니다.
 
 코드는 MIT 라이선스로 공개합니다([LICENSE](LICENSE)). 저작권은 팀원 네 명이 함께 가집니다. 앱에 넣는 글꼴 Pretendard(SIL Open Font License 1.1)와 사용하는 패키지의 저작권 표시와 라이선스 전문은 앱 안 '오픈소스 라이선스' 화면에 표시합니다.
 
@@ -13,4 +13,4 @@
 | [docs/architecture.md](docs/architecture.md) | 구조, 폰 DB, 배치 엔진, 실행 방법, 앱-서버 API |
 | [docs/screens.md](docs/screens.md) | 화면이 보여 주는 것과 동작(최종 프로토타입 기준) |
 | [docs/decisions.md](docs/decisions.md) | 팀이 정한 것과 이유 |
-| [docs/lms.md](docs/lms.md) | 사이버캠퍼스·통합정보시스템 연동 동작 규칙 |
+| [docs/lms.md](docs/lms.md) | LMS·통합정보시스템 연동 동작 규칙 |

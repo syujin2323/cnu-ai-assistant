@@ -2,7 +2,7 @@
 
 충남대학교 심화프로젝트랩 팀 프로젝트다. Claude는 아래 규칙을 지키며 작업한다. Git과 GitHub 작업은 무엇을 왜 하는지 한 줄로 설명하면서 진행한다. 사용자가 규칙에 어긋나는 일을 요청하면 이유를 한 줄로 설명한 뒤 규칙에 맞는 방법을 제안한다.
 
-팀이 정한 구조와 결정은 아래 두 문서에 있다. 작업 전에 관련 부분을 확인하고, 여기와 다른 방향으로 가야 하면 먼저 사용자에게 묻는다. 사캠 동작 규칙은 `docs/lms.md`에 있다. `app/lib/lms/`를 고칠 때는 그 문서를 먼저 읽는다. 화면이 보여 주는 것과 동작은 `docs/screens.md`에 있다. `app/lib/features/`의 화면을 만들거나 고칠 때는 그 문서의 해당 화면 절을 먼저 읽는다.
+팀이 정한 구조와 결정은 아래 두 문서에 있다. 작업 전에 관련 부분을 확인하고, 여기와 다른 방향으로 가야 하면 먼저 사용자에게 묻는다. LMS 동작 규칙은 `docs/lms.md`에 있다. `app/lib/lms/`를 고칠 때는 그 문서를 먼저 읽는다. 화면이 보여 주는 것과 동작은 `docs/screens.md`에 있다. `app/lib/features/`의 화면을 만들거나 고칠 때는 그 문서의 해당 화면 절을 먼저 읽는다.
 
 @docs/architecture.md
 @docs/decisions.md
@@ -77,7 +77,7 @@
   EOF
   ```
 - GitHub Actions의 `pr-rules` 검사가 제목과 대상 브랜치를 확인한다. 실패하면 `gh pr checks`로 이유를 보고, 제목 문제면 `gh pr edit --title "..."`로 고친다. 검사는 자동으로 다시 돈다.
-- 같은 워크플로의 `leak-check`는 PR에서 추가된 줄에 쿠키 헤더, 토큰 모양(JWT 등), 사캠 쿠키 이름이 있는지 찾고 파일 이름만 알린다. 실패하면 그 파일에서 해당 줄을 찾아 고치되, 일치한 줄과 값은 PR 본문·댓글·커밋 메시지에 옮기지 않는다. 합성 샘플이면 쿠키 헤더 꼴과 토큰 모양이 아닌 값으로 바꾸고, 실제 값이면 '실수했을 때'의 폐기 절차부터 따른다. 검사를 끄거나 워크플로의 패턴을 고쳐 통과시키지 않는다.
+- 같은 워크플로의 `leak-check`는 PR에서 추가된 줄에 쿠키 헤더, 토큰 모양(JWT 등), LMS 쿠키 이름이 있는지 찾고 파일 이름만 알린다. 실패하면 그 파일에서 해당 줄을 찾아 고치되, 일치한 줄과 값은 PR 본문·댓글·커밋 메시지에 옮기지 않는다. 합성 샘플이면 쿠키 헤더 꼴과 토큰 모양이 아닌 값으로 바꾸고, 실제 값이면 '실수했을 때'의 폐기 절차부터 따른다. 검사를 끄거나 워크플로의 패턴을 고쳐 통과시키지 않는다.
 - develop으로 가는 PR도 리뷰어 1명의 승인(Approve)을 받은 뒤 병합하는 것이 팀 약속이다. GitHub는 이것을 막지 않으므로 Claude가 지킨다. 승인 여부는 `gh pr view --json latestReviews`에 `APPROVED`가 있는지로 확인한다. 승인 없이 병합해 달라고 하면 팀 약속임을 알리고, 사용자가 그래도 하겠다고 하면 따른다.
 - 병합은 사용자가 요청할 때만 한다. 먼저 `git status`로 push하지 않은 커밋이 없는지 확인한다. 검사가 통과하고 승인을 받았으면 `gh pr merge --squash --delete-branch`로 병합한다. 이 명령은 develop으로 돌아가 최신을 받고 작업 브랜치를 지운다. `--admin`으로 규칙을 건너뛰지 않는다.
 
@@ -90,15 +90,15 @@
 
 다른 팀원도, 다음 세션의 Claude도 이 대화를 볼 수 없다. 남겨야 할 것은 레포에 적는다.
 
-- 폴더 구조, 실행 방법, 앱-서버 API, 환경 변수 이름, 폰 DB 표, 라우트 표, 디자인 토큰 등 `docs/architecture.md`에 적힌 것이 바뀌면 같은 PR에서 `docs/architecture.md`를 고친다. 사캠 동작 규칙(로그인, 학번·비밀번호 저장과 자동 재로그인, 쿠키 금고, 응답 판별, 세션 복원, 동기화, 시간표 불러오기, 호출 예산, 로그아웃·데이터 삭제)이 바뀌면 같은 PR에서 `docs/lms.md`를 고친다. 화면 동작이 바뀌면 같은 PR에서 `docs/screens.md`를 고친다.
+- 폴더 구조, 실행 방법, 앱-서버 API, 환경 변수 이름, 폰 DB 표, 라우트 표, 디자인 토큰 등 `docs/architecture.md`에 적힌 것이 바뀌면 같은 PR에서 `docs/architecture.md`를 고친다. LMS 동작 규칙(로그인, 학번·비밀번호 저장과 자동 재로그인, 쿠키 금고, 응답 판별, 세션 복원, 동기화, 시간표 불러오기, 호출 예산, 로그아웃·데이터 삭제)이 바뀌면 같은 PR에서 `docs/lms.md`를 고친다. 화면 동작이 바뀌면 같은 PR에서 `docs/screens.md`를 고친다.
 - 팀이 무언가를 정하면(라이브러리, 화면 흐름, API 모양 등) `docs/decisions.md` 맨 아래에 새 항목을 추가한다. 기존 항목은 고치지 않는다. 결정이 바뀌면 새 항목으로 적는다.
 - PR 본문의 "무엇을, 왜"는 다음 사람이 읽을 기록이다. 코드만 봐서는 알 수 없는 이유를 적는다.
 - 이 파일(CLAUDE.md)은 팀 규칙이다. 사용자가 명시적으로 요청할 때만 고치고, 고친 내용은 PR로 올린다.
 
 ## 비밀값
 
-- 공개 레포다. API 키, 토큰, 비밀번호, `.env` 파일, Firebase 설정 파일, 서명 파일, 네트워크 캡처(`.har`), 사캠의 실제 응답·쿠키 값·학번·요청 상수·엔드포인트 경로는 커밋하지 않는다. 테스트에는 직접 만든 합성 샘플만, PR 스크린샷에는 데모 모드 화면만 쓴다. 한 번 올라가면 지워도 기록에 남는다.
-- 비밀값은 Functions에서는 Secret Manager에 둔다(`functions/src/params.ts`의 `defineSecret`, `firebase functions:secrets:set <이름>`). 로컬 에뮬레이터용 값은 `functions/.secret.local`에 둔다. `functions/.env`에는 비밀이 아닌 설정값만 두고 이름과 기본값은 `functions/.env.example`에 적는다. Firebase 설정 파일(`firebase_options.dart`, `google-services.json`, `GoogleService-Info.plist`)과 Android 서명 파일은 팀 비공개 채널에서 받아 `docs/architecture.md`의 '실행 방법'·'테스트 배포' 자리에 넣는다. 이 파일들은 모두 `.gitignore`에 들어 있다. 변수 이름과 용도는 `docs/architecture.md`의 '환경 변수' 표에 적고 값은 적지 않는다. 앱 코드에는 키를 두지 않고, 사캠 학번·비밀번호는 로그인한 폰의 보안 저장소에만 둔다.
+- 공개 레포다. API 키, 토큰, 비밀번호, `.env` 파일, Firebase 설정 파일, 서명 파일, 네트워크 캡처(`.har`), LMS의 실제 응답·쿠키 값·학번·요청 상수·엔드포인트 경로는 커밋하지 않는다. 테스트에는 직접 만든 합성 샘플만, PR 스크린샷에는 데모 모드 화면만 쓴다. 한 번 올라가면 지워도 기록에 남는다.
+- 비밀값은 Functions에서는 Secret Manager에 둔다(`functions/src/params.ts`의 `defineSecret`, `firebase functions:secrets:set <이름>`). 로컬 에뮬레이터용 값은 `functions/.secret.local`에 둔다. `functions/.env`에는 비밀이 아닌 설정값만 두고 이름과 기본값은 `functions/.env.example`에 적는다. Firebase 설정 파일(`firebase_options.dart`, `google-services.json`, `GoogleService-Info.plist`)과 Android 서명 파일은 팀 비공개 채널에서 받아 `docs/architecture.md`의 '실행 방법'·'테스트 배포' 자리에 넣는다. 이 파일들은 모두 `.gitignore`에 들어 있다. 변수 이름과 용도는 `docs/architecture.md`의 '환경 변수' 표에 적고 값은 적지 않는다. 앱 코드에는 키를 두지 않고, LMS 학번·비밀번호는 로그인한 폰의 보안 저장소에만 둔다.
 - 커밋 전에 `git diff --staged`에 비밀값이 없는지 확인한다.
 
 ## 실수했을 때

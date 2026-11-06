@@ -126,7 +126,7 @@ void main() {
     });
   });
 
-  group('사캠 상태 정리', () {
+  group('LMS 상태 정리', () {
     Future<LmsSessionState> startFrom(
       LmsSessionState saved, {
       required Map<String, String> secure,
