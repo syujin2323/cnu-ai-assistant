@@ -50,9 +50,7 @@ void main() {
       expect(settings.aiConsentAt, isNull);
       expect(settings.metricsEnabled, isFalse);
       expect(settings.metricsLastSentOn, isNull);
-      expect(settings.lmsMode, LmsMode.none);
       expect(settings.lmsSessionState, LmsSessionState.disconnected);
-      expect(settings.lmsAutoLogin, isFalse);
       expect(settings.lmsLastSuccessAt, isNull);
       expect(settings.lmsLastConnectedAt, isNull);
       expect(settings.checkinMin, isNull);
@@ -70,9 +68,7 @@ void main() {
         'aiConsentAt': null,
         'metricsEnabled': false,
         'metricsLastSentOn': null,
-        'lmsMode': 'none',
         'lmsSessionState': 'disconnected',
-        'lmsAutoLogin': false,
         'lmsLastSuccessAt': null,
         'lmsLastConnectedAt': null,
         'checkinMin': null,
@@ -92,7 +88,6 @@ void main() {
       await writeOk(SettingKeys.aiEnabled, true);
       await writeOk(SettingKeys.aiConsentAt, consentAt);
       await writeOk(SettingKeys.metricsLastSentOn, '2026-10-28');
-      await writeOk(SettingKeys.lmsMode, LmsMode.phone);
       await writeOk(
         SettingKeys.lmsSessionState,
         LmsSessionState.reconnectRequired,
@@ -108,7 +103,6 @@ void main() {
           aiEnabled: true,
           aiConsentAt: consentAt,
           metricsLastSentOn: '2026-10-28',
-          lmsMode: LmsMode.phone,
           lmsSessionState: LmsSessionState.reconnectRequired,
           checkinMin: 1350,
           motionLevel: MotionLevelSetting.off,
@@ -118,10 +112,10 @@ void main() {
     });
 
     test('같은 키를 다시 쓰면 마지막 값만 남는다', () async {
-      await writeOk(SettingKeys.lmsAutoLogin, true);
-      await writeOk(SettingKeys.lmsAutoLogin, false);
+      await writeOk(SettingKeys.aiEnabled, true);
+      await writeOk(SettingKeys.aiEnabled, false);
 
-      expect((await readOk()).lmsAutoLogin, isFalse);
+      expect((await readOk()).aiEnabled, isFalse);
       expect((await rawRows()).length, 1);
     });
 
@@ -132,11 +126,11 @@ void main() {
         repo.watch(),
         emitsThrough(
           isA<AppSettings>()
-              .having((s) => s.lmsAutoLogin, 'lmsAutoLogin', isTrue)
+              .having((s) => s.aiEnabled, 'aiEnabled', isTrue)
               .having((s) => s.dayBoundaryMin, 'dayBoundaryMin', 240),
         ),
       );
-      await writeOk(SettingKeys.lmsAutoLogin, true);
+      await writeOk(SettingKeys.aiEnabled, true);
       await changed;
     });
 
@@ -171,7 +165,10 @@ void main() {
         (SettingKeys.dayBoundaryMin, 1440),
         (SettingKeys.checkinMin, -1),
         (SettingKeys.aiEnabled, 'true'),
-        (SettingKeys.lmsMode, 'phone'),
+        (SettingKeys.lmsSessionState, 'active'),
+        // 없앤 키(자동 로그인 유지, 연결 방식)는 이제 모르는 키다.
+        ('lmsAutoLogin', true),
+        ('lmsMode', 'phone'),
         (SettingKeys.aiConsentAt, '2026-10-29'),
         (SettingKeys.metricsLastSentOn, '2026-10-32'),
         (SettingKeys.onboardingSkipped, null),
@@ -189,7 +186,7 @@ void main() {
 
   group('settings 읽기', () {
     test('저장된 값이 깨졌거나 형이 다르면 그 키만 기본값으로 읽는다', () async {
-      await writeOk(SettingKeys.lmsAutoLogin, true);
+      await writeOk(SettingKeys.metricsEnabled, true);
       await putRaw(SettingKeys.dayBoundaryMin, 'not json');
       await putRaw(SettingKeys.aiEnabled, '"yes"');
       await putRaw(SettingKeys.checkinMin, '1440');
@@ -199,8 +196,14 @@ void main() {
       await putRaw(SettingKeys.installedAt, '"yesterday"');
       await putRaw(SettingKeys.metricsLastSentOn, '"2026-02-30"');
       await putRaw('unknownKey', '1');
+      // 없앤 키가 예전 행으로 남아 있어도 읽지 않는다.
+      await putRaw('lmsAutoLogin', 'true');
+      await putRaw('lmsMode', '"phone"');
 
-      expect(await readOk(), AppSettings.defaults.copyWith(lmsAutoLogin: true));
+      expect(
+        await readOk(),
+        AppSettings.defaults.copyWith(metricsEnabled: true),
+      );
     });
   });
 
