@@ -3871,40 +3871,6 @@ class $BriefingsTable extends Briefings
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
-  @override
-  late final GeneratedColumn<String> body = GeneratedColumn<String>(
-    'text',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _cardsJsonMeta = const VerificationMeta(
-    'cardsJson',
-  );
-  @override
-  late final GeneratedColumn<String> cardsJson = GeneratedColumn<String>(
-    'cards_json',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _usedTemplateMeta = const VerificationMeta(
-    'usedTemplate',
-  );
-  @override
-  late final GeneratedColumn<bool> usedTemplate = GeneratedColumn<bool>(
-    'used_template',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("used_template" IN (0, 1))',
-    ),
-  );
   static const VerificationMeta _openedAtMeta = const VerificationMeta(
     'openedAt',
   );
@@ -3932,9 +3898,6 @@ class $BriefingsTable extends Briefings
     id,
     date,
     createdAt,
-    body,
-    cardsJson,
-    usedTemplate,
     openedAt,
     confirmedAt,
   ];
@@ -3968,33 +3931,6 @@ class $BriefingsTable extends Briefings
       );
     } else if (isInserting) {
       context.missing(_createdAtMeta);
-    }
-    if (data.containsKey('text')) {
-      context.handle(
-        _bodyMeta,
-        body.isAcceptableOrUnknown(data['text']!, _bodyMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_bodyMeta);
-    }
-    if (data.containsKey('cards_json')) {
-      context.handle(
-        _cardsJsonMeta,
-        cardsJson.isAcceptableOrUnknown(data['cards_json']!, _cardsJsonMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_cardsJsonMeta);
-    }
-    if (data.containsKey('used_template')) {
-      context.handle(
-        _usedTemplateMeta,
-        usedTemplate.isAcceptableOrUnknown(
-          data['used_template']!,
-          _usedTemplateMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_usedTemplateMeta);
     }
     if (data.containsKey('opened_at')) {
       context.handle(
@@ -4032,18 +3968,6 @@ class $BriefingsTable extends Briefings
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
-      body: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}text'],
-      )!,
-      cardsJson: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}cards_json'],
-      )!,
-      usedTemplate: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}used_template'],
-      )!,
       openedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}opened_at'],
@@ -4065,18 +3989,12 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
   final Value<int> id;
   final Value<String> date;
   final Value<DateTime> createdAt;
-  final Value<String> body;
-  final Value<String> cardsJson;
-  final Value<bool> usedTemplate;
   final Value<DateTime?> openedAt;
   final Value<DateTime?> confirmedAt;
   const BriefingsCompanion({
     this.id = const Value.absent(),
     this.date = const Value.absent(),
     this.createdAt = const Value.absent(),
-    this.body = const Value.absent(),
-    this.cardsJson = const Value.absent(),
-    this.usedTemplate = const Value.absent(),
     this.openedAt = const Value.absent(),
     this.confirmedAt = const Value.absent(),
   });
@@ -4084,23 +4002,14 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
     this.id = const Value.absent(),
     required String date,
     required DateTime createdAt,
-    required String body,
-    required String cardsJson,
-    required bool usedTemplate,
     this.openedAt = const Value.absent(),
     this.confirmedAt = const Value.absent(),
   }) : date = Value(date),
-       createdAt = Value(createdAt),
-       body = Value(body),
-       cardsJson = Value(cardsJson),
-       usedTemplate = Value(usedTemplate);
+       createdAt = Value(createdAt);
   static Insertable<Briefing> custom({
     Expression<int>? id,
     Expression<String>? date,
     Expression<DateTime>? createdAt,
-    Expression<String>? body,
-    Expression<String>? cardsJson,
-    Expression<bool>? usedTemplate,
     Expression<DateTime>? openedAt,
     Expression<DateTime>? confirmedAt,
   }) {
@@ -4108,9 +4017,6 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
       if (id != null) 'id': id,
       if (date != null) 'date': date,
       if (createdAt != null) 'created_at': createdAt,
-      if (body != null) 'text': body,
-      if (cardsJson != null) 'cards_json': cardsJson,
-      if (usedTemplate != null) 'used_template': usedTemplate,
       if (openedAt != null) 'opened_at': openedAt,
       if (confirmedAt != null) 'confirmed_at': confirmedAt,
     });
@@ -4120,9 +4026,6 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
     Value<int>? id,
     Value<String>? date,
     Value<DateTime>? createdAt,
-    Value<String>? body,
-    Value<String>? cardsJson,
-    Value<bool>? usedTemplate,
     Value<DateTime?>? openedAt,
     Value<DateTime?>? confirmedAt,
   }) {
@@ -4130,9 +4033,6 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
       id: id ?? this.id,
       date: date ?? this.date,
       createdAt: createdAt ?? this.createdAt,
-      body: body ?? this.body,
-      cardsJson: cardsJson ?? this.cardsJson,
-      usedTemplate: usedTemplate ?? this.usedTemplate,
       openedAt: openedAt ?? this.openedAt,
       confirmedAt: confirmedAt ?? this.confirmedAt,
     );
@@ -4150,15 +4050,6 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
-    if (body.present) {
-      map['text'] = Variable<String>(body.value);
-    }
-    if (cardsJson.present) {
-      map['cards_json'] = Variable<String>(cardsJson.value);
-    }
-    if (usedTemplate.present) {
-      map['used_template'] = Variable<bool>(usedTemplate.value);
-    }
     if (openedAt.present) {
       map['opened_at'] = Variable<DateTime>(openedAt.value);
     }
@@ -4174,9 +4065,6 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
           ..write('id: $id, ')
           ..write('date: $date, ')
           ..write('createdAt: $createdAt, ')
-          ..write('body: $body, ')
-          ..write('cardsJson: $cardsJson, ')
-          ..write('usedTemplate: $usedTemplate, ')
           ..write('openedAt: $openedAt, ')
           ..write('confirmedAt: $confirmedAt')
           ..write(')'))
@@ -9118,9 +9006,6 @@ typedef $$BriefingsTableCreateCompanionBuilder = BriefingsCompanion Function({
   Value<int> id,
   required String date,
   required DateTime createdAt,
-  required String body,
-  required String cardsJson,
-  required bool usedTemplate,
   Value<DateTime?> openedAt,
   Value<DateTime?> confirmedAt,
 });
@@ -9128,9 +9013,6 @@ typedef $$BriefingsTableUpdateCompanionBuilder = BriefingsCompanion Function({
   Value<int> id,
   Value<String> date,
   Value<DateTime> createdAt,
-  Value<String> body,
-  Value<String> cardsJson,
-  Value<bool> usedTemplate,
   Value<DateTime?> openedAt,
   Value<DateTime?> confirmedAt,
 });
@@ -9156,21 +9038,6 @@ class $$BriefingsTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get body => $composableBuilder(
-    column: $table.body,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get cardsJson => $composableBuilder(
-    column: $table.cardsJson,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<bool> get usedTemplate => $composableBuilder(
-    column: $table.usedTemplate,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9209,21 +9076,6 @@ class $$BriefingsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get body => $composableBuilder(
-    column: $table.body,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get cardsJson => $composableBuilder(
-    column: $table.cardsJson,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<bool> get usedTemplate => $composableBuilder(
-    column: $table.usedTemplate,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<DateTime> get openedAt => $composableBuilder(
     column: $table.openedAt,
     builder: (column) => ColumnOrderings(column),
@@ -9252,17 +9104,6 @@ class $$BriefingsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
-
-  GeneratedColumn<String> get body =>
-      $composableBuilder(column: $table.body, builder: (column) => column);
-
-  GeneratedColumn<String> get cardsJson =>
-      $composableBuilder(column: $table.cardsJson, builder: (column) => column);
-
-  GeneratedColumn<bool> get usedTemplate => $composableBuilder(
-    column: $table.usedTemplate,
-    builder: (column) => column,
-  );
 
   GeneratedColumn<DateTime> get openedAt =>
       $composableBuilder(column: $table.openedAt, builder: (column) => column);
@@ -9304,18 +9145,12 @@ class $$BriefingsTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<String> date = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
-                Value<String> body = const Value.absent(),
-                Value<String> cardsJson = const Value.absent(),
-                Value<bool> usedTemplate = const Value.absent(),
                 Value<DateTime?> openedAt = const Value.absent(),
                 Value<DateTime?> confirmedAt = const Value.absent(),
               }) => BriefingsCompanion(
                 id: id,
                 date: date,
                 createdAt: createdAt,
-                body: body,
-                cardsJson: cardsJson,
-                usedTemplate: usedTemplate,
                 openedAt: openedAt,
                 confirmedAt: confirmedAt,
               ),
@@ -9324,18 +9159,12 @@ class $$BriefingsTableTableManager
                 Value<int> id = const Value.absent(),
                 required String date,
                 required DateTime createdAt,
-                required String body,
-                required String cardsJson,
-                required bool usedTemplate,
                 Value<DateTime?> openedAt = const Value.absent(),
                 Value<DateTime?> confirmedAt = const Value.absent(),
               }) => BriefingsCompanion.insert(
                 id: id,
                 date: date,
                 createdAt: createdAt,
-                body: body,
-                cardsJson: cardsJson,
-                usedTemplate: usedTemplate,
                 openedAt: openedAt,
                 confirmedAt: confirmedAt,
               ),

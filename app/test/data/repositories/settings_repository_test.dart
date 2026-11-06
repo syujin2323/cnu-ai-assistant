@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
+import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
@@ -50,9 +51,7 @@ void main() {
       expect(settings.aiConsentAt, isNull);
       expect(settings.metricsEnabled, isFalse);
       expect(settings.metricsLastSentOn, isNull);
-      expect(settings.lmsMode, LmsMode.none);
       expect(settings.lmsSessionState, LmsSessionState.disconnected);
-      expect(settings.lmsAutoLogin, isFalse);
       expect(settings.lmsLastSuccessAt, isNull);
       expect(settings.lmsLastConnectedAt, isNull);
       expect(settings.checkinMin, isNull);
@@ -70,9 +69,7 @@ void main() {
         'aiConsentAt': null,
         'metricsEnabled': false,
         'metricsLastSentOn': null,
-        'lmsMode': 'none',
         'lmsSessionState': 'disconnected',
-        'lmsAutoLogin': false,
         'lmsLastSuccessAt': null,
         'lmsLastConnectedAt': null,
         'checkinMin': null,
@@ -92,7 +89,6 @@ void main() {
       await writeOk(SettingKeys.aiEnabled, true);
       await writeOk(SettingKeys.aiConsentAt, consentAt);
       await writeOk(SettingKeys.metricsLastSentOn, '2026-10-28');
-      await writeOk(SettingKeys.lmsMode, LmsMode.phone);
       await writeOk(
         SettingKeys.lmsSessionState,
         LmsSessionState.reconnectRequired,
@@ -108,7 +104,6 @@ void main() {
           aiEnabled: true,
           aiConsentAt: consentAt,
           metricsLastSentOn: '2026-10-28',
-          lmsMode: LmsMode.phone,
           lmsSessionState: LmsSessionState.reconnectRequired,
           checkinMin: 1350,
           motionLevel: MotionLevelSetting.off,
@@ -118,10 +113,10 @@ void main() {
     });
 
     test('같은 키를 다시 쓰면 마지막 값만 남는다', () async {
-      await writeOk(SettingKeys.lmsAutoLogin, true);
-      await writeOk(SettingKeys.lmsAutoLogin, false);
+      await writeOk(SettingKeys.aiEnabled, true);
+      await writeOk(SettingKeys.aiEnabled, false);
 
-      expect((await readOk()).lmsAutoLogin, isFalse);
+      expect((await readOk()).aiEnabled, isFalse);
       expect((await rawRows()).length, 1);
     });
 
@@ -132,12 +127,19 @@ void main() {
         repo.watch(),
         emitsThrough(
           isA<AppSettings>()
-              .having((s) => s.lmsAutoLogin, 'lmsAutoLogin', isTrue)
+              .having((s) => s.aiEnabled, 'aiEnabled', isTrue)
               .having((s) => s.dayBoundaryMin, 'dayBoundaryMin', 240),
         ),
       );
-      await writeOk(SettingKeys.lmsAutoLogin, true);
+      await writeOk(SettingKeys.aiEnabled, true);
       await changed;
+    });
+
+    test('하루 경계는 고르는 값 03:00·04:00·05:00·06:00을 쓸 수 있다', () async {
+      for (final minute in Defaults.dayBoundaryChoices) {
+        await writeOk(SettingKeys.dayBoundaryMin, minute);
+        expect((await readOk()).dayBoundaryMin, minute);
+      }
     });
 
     test('null을 받는 키는 null을 써서 다시 비운다', () async {
@@ -169,9 +171,15 @@ void main() {
         (SettingKeys.dayBoundaryMin, '240'),
         (SettingKeys.dayBoundaryMin, null),
         (SettingKeys.dayBoundaryMin, 1440),
+        // 하루 안이어도 고르는 값(03:00·04:00·05:00·06:00)이 아니면 쓰지 않는다.
+        (SettingKeys.dayBoundaryMin, 0),
+        (SettingKeys.dayBoundaryMin, 1439),
         (SettingKeys.checkinMin, -1),
         (SettingKeys.aiEnabled, 'true'),
-        (SettingKeys.lmsMode, 'phone'),
+        (SettingKeys.lmsSessionState, 'active'),
+        // 없앤 키(자동 로그인 유지, 연결 방식)는 이제 모르는 키다.
+        ('lmsAutoLogin', true),
+        ('lmsMode', 'phone'),
         (SettingKeys.aiConsentAt, '2026-10-29'),
         (SettingKeys.metricsLastSentOn, '2026-10-32'),
         (SettingKeys.onboardingSkipped, null),
@@ -189,7 +197,7 @@ void main() {
 
   group('settings 읽기', () {
     test('저장된 값이 깨졌거나 형이 다르면 그 키만 기본값으로 읽는다', () async {
-      await writeOk(SettingKeys.lmsAutoLogin, true);
+      await writeOk(SettingKeys.metricsEnabled, true);
       await putRaw(SettingKeys.dayBoundaryMin, 'not json');
       await putRaw(SettingKeys.aiEnabled, '"yes"');
       await putRaw(SettingKeys.checkinMin, '1440');
@@ -199,8 +207,45 @@ void main() {
       await putRaw(SettingKeys.installedAt, '"yesterday"');
       await putRaw(SettingKeys.metricsLastSentOn, '"2026-02-30"');
       await putRaw('unknownKey', '1');
+      // 없앤 키가 예전 행으로 남아 있어도 읽지 않는다.
+      await putRaw('lmsAutoLogin', 'true');
+      await putRaw('lmsMode', '"phone"');
 
-      expect(await readOk(), AppSettings.defaults.copyWith(lmsAutoLogin: true));
+      expect(
+        await readOk(),
+        AppSettings.defaults.copyWith(metricsEnabled: true),
+      );
+    });
+
+    test('저장된 하루 경계는 고르는 값이 아니어도 하루 안이면 그대로 읽는다', () async {
+      await putRaw(SettingKeys.dayBoundaryMin, '1439');
+      expect((await readOk()).dayBoundaryMin, 1439);
+
+      await putRaw(SettingKeys.dayBoundaryMin, '1440');
+      expect((await readOk()).dayBoundaryMin, Defaults.dayBoundaryMin);
+    });
+
+    test('시각은 UTC 오프셋이 붙은 값만 읽고 오프셋이 없으면 기본값이다', () async {
+      await putRaw(SettingKeys.installedAt, '"2026-10-29"');
+      await putRaw(SettingKeys.aiConsentAt, '"2026-10-29T09:30:00.000"');
+      await putRaw(SettingKeys.lmsLastSuccessAt, '"2026-10-29T00:30:00.000Z"');
+      await putRaw(
+        SettingKeys.lmsLastConnectedAt,
+        '"2026-10-29T09:30:00.000 +09:00"',
+      );
+
+      final settings = await readOk();
+      expect(settings.installedAt, isNull);
+      expect(settings.aiConsentAt, isNull);
+      expect(
+        settings.lmsLastSuccessAt,
+        DateTime.utc(2026, 10, 29, 0, 30).toLocal(),
+      );
+      expect(settings.lmsLastSuccessAt!.isUtc, isFalse);
+      expect(
+        settings.lmsLastConnectedAt,
+        DateTime.utc(2026, 10, 29, 0, 30).toLocal(),
+      );
     });
   });
 

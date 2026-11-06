@@ -163,12 +163,11 @@ void main() {
     await db
         .into(db.briefings)
         .insert(
+          // 브리핑 내용은 저장하지 않고 본 것만 기록한다.
           BriefingsCompanion.insert(
             date: '2026-10-29',
             createdAt: at,
-            body: '오늘은 수업이 없어요.',
-            cardsJson: '[]',
-            usedTemplate: true,
+            openedAt: Value(at),
           ),
         );
     await db
@@ -232,8 +231,12 @@ void main() {
     );
 
     final briefing = await db.select(db.briefings).getSingle();
-    expect(briefing.body, '오늘은 수업이 없어요.');
-    expect(await rawText('SELECT text FROM briefings'), '오늘은 수업이 없어요.');
+    expect(briefing.openedAt, at);
+    expect(briefing.confirmedAt, isNull);
+    expect(
+      await rawText('SELECT opened_at FROM briefings'),
+      matches(offsetText),
+    );
 
     final run = await db.select(db.syncRuns).getSingle();
     expect(run.result, SyncResultKind.reloginRequired);
@@ -313,13 +316,8 @@ void main() {
       throwsA(isA<SqliteException>()),
     );
 
-    BriefingsCompanion briefing() => BriefingsCompanion.insert(
-      date: '2026-10-29',
-      createdAt: at,
-      body: '오늘은 할 일이 없어요.',
-      cardsJson: '[]',
-      usedTemplate: true,
-    );
+    BriefingsCompanion briefing() =>
+        BriefingsCompanion.insert(date: '2026-10-29', createdAt: at);
     await db.into(db.briefings).insert(briefing());
     await expectLater(
       db.into(db.briefings).insert(briefing()),

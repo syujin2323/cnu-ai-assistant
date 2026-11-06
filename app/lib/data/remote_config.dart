@@ -14,7 +14,7 @@ abstract final class RemoteConfigKeys {
   /// 사캠·통합정보시스템 요청 상수(JSON 문자열). 값은 레포에 두지 않는다.
   static const lmsRequestParams = 'lms_request_params';
 
-  /// 로그인 성공 URL 패턴(Dart `RegExp` 문자열).
+  /// 로그인 성공 판정 패턴(Dart `RegExp` 문자열). 앱 화면 로그인에서 쓸지는 사캠 연동 때 확인한다.
   static const lmsLoginSuccessPattern = 'lms_login_success_pattern';
 
   /// 조회 간격·하루 최대 횟수·조회하지 않는 시간(JSON 문자열).
@@ -24,21 +24,28 @@ abstract final class RemoteConfigKeys {
   static const minAppVersion = 'min_app_version';
 }
 
+/// `lms_sync_budget`의 앱 기본값(임시값). docs/architecture.md '환경 변수'의 JSON과 같다.
+///
+/// 자동 조회는 마지막 성공에서 3시간(180분)이 지났을 때 앱을 열거나 쓰는 동안 하고,
+/// 하루 8회를 넘지 않는다(docs/lms.md '호출 예산'). 가져온 값을 해석하지 못할 때도 이 값을 쓴다.
+const Map<String, Object> lmsSyncBudgetDefaults = {
+  'listMinIntervalMin': 10,
+  'listMaxPerDay': 8,
+  'detailMaxPerDay': 2,
+  'foregroundPollMin': 180,
+  'openStaleMin': 180,
+  'quietHours': {'start': '01:00', 'end': '06:00'},
+};
+
 /// 앱 안 기본값. 가져온 값이 없을 때(첫 실행, 오프라인) 이 값으로 동작한다.
 ///
-/// 요청 상수와 로그인 성공 패턴은 빈 문자열이고, 그동안 사캠 연결 버튼은 비활성이다.
+/// 요청 상수와 로그인 성공 패턴은 빈 문자열이다. 요청 상수가 비어 있는 동안 로그인 버튼은
+/// 비활성이고 '설정을 받는 중이에요'를 보인다(docs/lms.md '원격 스위치'의 '설정 없음').
 final Map<String, Object> remoteConfigDefaults = {
   RemoteConfigKeys.lmsEnabled: true,
   RemoteConfigKeys.lmsRequestParams: '',
   RemoteConfigKeys.lmsLoginSuccessPattern: '',
-  RemoteConfigKeys.lmsSyncBudget: jsonEncode(const {
-    'listMinIntervalMin': 10,
-    'listMaxPerDay': 24,
-    'detailMaxPerDay': 2,
-    'foregroundPollMin': 15,
-    'openStaleMin': 10,
-    'quietHours': {'start': '01:00', 'end': '06:00'},
-  }),
+  RemoteConfigKeys.lmsSyncBudget: jsonEncode(lmsSyncBudgetDefaults),
   RemoteConfigKeys.minAppVersion: '0.0.0',
 };
 

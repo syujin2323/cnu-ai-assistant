@@ -12,9 +12,6 @@ import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/domain/models/value_codec.dart';
 
-/// 사캠 연결 방식. R0는 [none]과 [phone] 둘이다.
-enum LmsMode { none, phone }
-
 /// 설정의 모션 등급. [auto]면 기기와 OS 설정으로 정하고, 나머지 셋은 그 값이 우선한다
 /// (docs/architecture.md '모션 프리셋'의 `MotionLevel { full, light, off }`).
 enum MotionLevelSetting { auto, full, light, off }
@@ -26,9 +23,7 @@ abstract final class SettingKeys {
   static const aiConsentAt = 'aiConsentAt';
   static const metricsEnabled = 'metricsEnabled';
   static const metricsLastSentOn = 'metricsLastSentOn';
-  static const lmsMode = 'lmsMode';
   static const lmsSessionState = 'lmsSessionState';
-  static const lmsAutoLogin = 'lmsAutoLogin';
   static const lmsLastSuccessAt = 'lmsLastSuccessAt';
   static const lmsLastConnectedAt = 'lmsLastConnectedAt';
   static const checkinMin = 'checkinMin';
@@ -44,9 +39,7 @@ abstract final class SettingKeys {
     aiConsentAt,
     metricsEnabled,
     metricsLastSentOn,
-    lmsMode,
     lmsSessionState,
-    lmsAutoLogin,
     lmsLastSuccessAt,
     lmsLastConnectedAt,
     checkinMin,
@@ -65,9 +58,7 @@ class AppSettings {
     required this.aiConsentAt,
     required this.metricsEnabled,
     required this.metricsLastSentOn,
-    required this.lmsMode,
     required this.lmsSessionState,
-    required this.lmsAutoLogin,
     required this.lmsLastSuccessAt,
     required this.lmsLastConnectedAt,
     required this.checkinMin,
@@ -84,9 +75,7 @@ class AppSettings {
     aiConsentAt: null,
     metricsEnabled: false,
     metricsLastSentOn: null,
-    lmsMode: LmsMode.none,
     lmsSessionState: LmsSessionState.disconnected,
-    lmsAutoLogin: false,
     lmsLastSuccessAt: null,
     lmsLastConnectedAt: null,
     checkinMin: null,
@@ -112,17 +101,12 @@ class AppSettings {
       metricsLastSentOn:
           _isoDateOrNull(values[SettingKeys.metricsLastSentOn]) ??
           d.metricsLastSentOn,
-      lmsMode:
-          tryEnumFromSnake(LmsMode.values, values[SettingKeys.lmsMode]) ??
-          d.lmsMode,
       lmsSessionState:
           tryEnumFromSnake(
             LmsSessionState.values,
             values[SettingKeys.lmsSessionState],
           ) ??
           d.lmsSessionState,
-      lmsAutoLogin:
-          _boolOrNull(values[SettingKeys.lmsAutoLogin]) ?? d.lmsAutoLogin,
       lmsLastSuccessAt:
           tryDecodeDateTime(values[SettingKeys.lmsLastSuccessAt]) ??
           d.lmsLastSuccessAt,
@@ -148,10 +132,14 @@ class AppSettings {
     );
   }
 
-  /// 하루 경계(자정 기준 분, 0–1439). 기본값은 [Defaults.dayBoundaryMin](임시값).
+  /// 하루 경계(자정 기준 분). 기본값은 [Defaults.dayBoundaryMin](임시값).
+  ///
+  /// 쓸 때는 [Defaults.dayBoundaryChoices]만 받고, 읽을 때는 하루 안(0–1439)이면 그대로 쓴다.
+  /// 고르는 값이 바뀌어도 이미 저장된 사용자의 값을 말없이 되돌리지 않기 위해서다.
   final int dayBoundaryMin;
 
-  /// AI 기능을 켰는지. false면 AI 경로를 부르지 않고 템플릿과 직접 입력으로 동작한다.
+  /// AI 사용 여부(선택 동의). false면 AI 경로(`/v1/parse`, R1의 `/v1/extract`)를 부르지 않고
+  /// 06 AI 비서는 직접 추가 폼으로 동작한다(docs/screens.md '06 AI 비서'·'AI 사용 동의').
   final bool aiEnabled;
 
   /// AI 사용에 동의한 시각.
@@ -163,15 +151,8 @@ class AppSettings {
   /// (R1) 마지막으로 지표를 보낸 날짜(`YYYY-MM-DD`).
   final String? metricsLastSentOn;
 
-  /// 사캠 연결 방식.
-  final LmsMode lmsMode;
-
   /// 사캠 세션 상태.
   final LmsSessionState lmsSessionState;
-
-  /// 자동 로그인 유지. 켜면 비밀번호를 보안 저장소에 저장해 세션이 끊길 때 다시
-  /// 로그인하고, 끄면 저장하지 않고 끊길 때마다 로그인 화면을 띄운다.
-  final bool lmsAutoLogin;
 
   /// 화면의 '마지막 확인 시각'. `normal`·`empty`·`partial`로 끝난 동기화의 시작
   /// 시각이고, 지금 값보다 늦을 때만 바꾼다.
@@ -199,16 +180,15 @@ class AppSettings {
   ///
   /// 값의 형은 그 키의 필드와 같아야 한다. 예를 들어 `lmsSessionState`에는
   /// [LmsSessionState], `aiConsentAt`에는 `DateTime` 또는 null을 넘긴다. 모르는 키,
-  /// 맞지 않는 형, null을 받지 않는 키의 null, 하루 밖의 분은 프로그래밍 오류로 보고
-  /// [ArgumentError]를 던진다.
+  /// 맞지 않는 형, null을 받지 않는 키의 null, 하루 밖의 분, 고를 수 없는 하루 경계는
+  /// 프로그래밍 오류로 보고 [ArgumentError]를 던진다.
   static Object? encodeValue(String key, Object? value) {
     return switch (key) {
-      SettingKeys.dayBoundaryMin => _requireMinuteOfDay(key, value),
+      SettingKeys.dayBoundaryMin => _requireDayBoundary(key, value),
       SettingKeys.checkinMin =>
         value == null ? null : _requireMinuteOfDay(key, value),
       SettingKeys.aiEnabled ||
       SettingKeys.metricsEnabled ||
-      SettingKeys.lmsAutoLogin ||
       SettingKeys.dueTodayTimeSensitive => _require<bool>(key, value),
       SettingKeys.aiConsentAt ||
       SettingKeys.lmsLastSuccessAt ||
@@ -217,7 +197,6 @@ class AppSettings {
         value == null ? null : encodeDateTime(_require<DateTime>(key, value)),
       SettingKeys.metricsLastSentOn =>
         value == null ? null : _requireIsoDate(key, value),
-      SettingKeys.lmsMode => snakeName(_require<LmsMode>(key, value)),
       SettingKeys.lmsSessionState => snakeName(
         _require<LmsSessionState>(key, value),
       ),
@@ -242,9 +221,7 @@ class AppSettings {
     SettingKeys.aiConsentAt => aiConsentAt,
     SettingKeys.metricsEnabled => metricsEnabled,
     SettingKeys.metricsLastSentOn => metricsLastSentOn,
-    SettingKeys.lmsMode => lmsMode,
     SettingKeys.lmsSessionState => lmsSessionState,
-    SettingKeys.lmsAutoLogin => lmsAutoLogin,
     SettingKeys.lmsLastSuccessAt => lmsLastSuccessAt,
     SettingKeys.lmsLastConnectedAt => lmsLastConnectedAt,
     SettingKeys.checkinMin => checkinMin,
@@ -262,9 +239,7 @@ class AppSettings {
     Object? aiConsentAt = _keep,
     bool? metricsEnabled,
     Object? metricsLastSentOn = _keep,
-    LmsMode? lmsMode,
     LmsSessionState? lmsSessionState,
-    bool? lmsAutoLogin,
     Object? lmsLastSuccessAt = _keep,
     Object? lmsLastConnectedAt = _keep,
     Object? checkinMin = _keep,
@@ -283,9 +258,7 @@ class AppSettings {
       metricsLastSentOn: identical(metricsLastSentOn, _keep)
           ? this.metricsLastSentOn
           : metricsLastSentOn as String?,
-      lmsMode: lmsMode ?? this.lmsMode,
       lmsSessionState: lmsSessionState ?? this.lmsSessionState,
-      lmsAutoLogin: lmsAutoLogin ?? this.lmsAutoLogin,
       lmsLastSuccessAt: identical(lmsLastSuccessAt, _keep)
           ? this.lmsLastSuccessAt
           : lmsLastSuccessAt as DateTime?,
@@ -313,9 +286,7 @@ class AppSettings {
       other.aiConsentAt == aiConsentAt &&
       other.metricsEnabled == metricsEnabled &&
       other.metricsLastSentOn == metricsLastSentOn &&
-      other.lmsMode == lmsMode &&
       other.lmsSessionState == lmsSessionState &&
-      other.lmsAutoLogin == lmsAutoLogin &&
       other.lmsLastSuccessAt == lmsLastSuccessAt &&
       other.lmsLastConnectedAt == lmsLastConnectedAt &&
       other.checkinMin == checkinMin &&
@@ -331,9 +302,7 @@ class AppSettings {
     aiConsentAt,
     metricsEnabled,
     metricsLastSentOn,
-    lmsMode,
     lmsSessionState,
-    lmsAutoLogin,
     lmsLastSuccessAt,
     lmsLastConnectedAt,
     checkinMin,
@@ -372,6 +341,18 @@ int _requireMinuteOfDay(String key, Object? value) {
   final minute = _require<int>(key, value);
   if (minute < 0 || minute >= 1440) {
     throw ArgumentError.value(minute, key, 'Expected a minute of the day');
+  }
+  return minute;
+}
+
+int _requireDayBoundary(String key, Object? value) {
+  final minute = _require<int>(key, value);
+  if (!Defaults.dayBoundaryChoices.contains(minute)) {
+    throw ArgumentError.value(
+      minute,
+      key,
+      'Expected one of ${Defaults.dayBoundaryChoices}',
+    );
   }
   return minute;
 }

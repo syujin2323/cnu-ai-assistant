@@ -5,7 +5,7 @@
 // enum은 여기 둔다. 전이 규칙은 `lms/session_state.dart`(사캠 PR)가 맡고, 그 파일은 이 enum을
 // 다시 정의하지 않고 가져다 쓴다.
 
-/// 사캠 세션 상태. 도식의 미연결·연결중·활성·복원중·재연결필요.
+/// 사캠 세션 상태. docs/lms.md '세션 상태' 도식의 미연결·연결중·활성·복원중·다시 로그인 필요.
 enum LmsSessionState {
   disconnected,
   connecting,
