@@ -2,7 +2,7 @@
 //
 // 단계는 문서의 순서이고 모두 건너뛸 수 있다. 건너뛴 단계는 `settings`의 `onboardingSkipped`에
 // 단계 번호로 남아 홈 위 카드가 되고, 온보딩을 끝내면 `shared_preferences`의
-// `onboarding_done`을 true로 둔다. 사캠 연결 단계는 `LmsFeature.included`일 때만 있다.
+// `onboarding_done`을 true로 둔다. LMS 연결 단계는 `LmsFeature.included`일 때만 있다.
 
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
@@ -15,7 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 enum OnboardingStep {
   intro(1, '시작'),
   privacy(2, '개인정보 한 장'),
-  lmsConnect(3, '사캠 연결'),
+  lmsConnect(3, 'LMS 연결'),
   timetable(4, '시간표'),
   fixedBlocks(5, '고정 일정'),
   aiConsent(6, 'AI 사용 동의'),
