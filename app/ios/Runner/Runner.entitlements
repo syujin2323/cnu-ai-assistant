@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- release 빌드의 App Check가 App Attest 제공자를 쓴다(docs/architecture.md '앱과 서버 사이 약속 (API)').
+     Apple Developer의 App ID io.github.syujin2323.cnuaiassistant에 App Attest 기능을 켜고 받은
+     프로비저닝 프로파일이어야 서명된다. 개발 팀(DEVELOPMENT_TEAM)은 커밋하지 않는다. -->
+<plist version="1.0">
+<dict>
+	<key>com.apple.developer.devicecheck.appattest-environment</key>
+	<string>production</string>
+</dict>
+</plist>
