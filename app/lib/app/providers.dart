@@ -117,15 +117,32 @@ class AppModeController extends Notifier<AppMode> {
   }
 }
 
-/// 폰 DB. 앱 모드에 따라 `app.sqlite`(real) 또는 `app_demo.sqlite`(demo)를 연다.
-/// 화면 쪽 `AppDatabase` 인스턴스는 이 provider 하나로만 만든다.
-final databaseProvider = Provider<AppDatabase>((ref) {
-  final db = AppDatabase.open(ref.watch(appModeProvider));
+/// 실제 모드의 폰 DB(`app.sqlite`). 앱 모드와 관계없이 앱 수명 동안 열어 둔다.
+///
+/// 설치 표식(`installedAt`)과 사캠 상태(`lms*` 키)는 데모 모드에서도 늘 이 DB에서 읽고 쓴다
+/// (docs/lms.md '쿠키 금고'). bootstrap이 runApp 전에 열어 시작 작업을 한 인스턴스로 덮어쓴다.
+final realDatabaseProvider = Provider<AppDatabase>((ref) {
+  final db = AppDatabase.open(AppMode.real);
   ref.onDispose(() => unawaited(db.close()));
   return db;
 });
 
-/// `settings` 표 저장소.
+/// 화면이 보는 폰 DB. real이면 [realDatabaseProvider]의 `app.sqlite`를 그대로 쓰고, demo면
+/// `app_demo.sqlite`를 따로 열고 데모를 끝내면 닫는다. 화면 쪽 `AppDatabase` 인스턴스는 이 provider
+/// 하나로만 얻는다. 설치 표식·사캠 상태는 이 provider가 아니라 [realDatabaseProvider]로 다룬다.
+final databaseProvider = Provider<AppDatabase>((ref) {
+  switch (ref.watch(appModeProvider)) {
+    case AppMode.real:
+      return ref.watch(realDatabaseProvider);
+    case AppMode.demo:
+      final db = AppDatabase.open(AppMode.demo);
+      ref.onDispose(() => unawaited(db.close()));
+      return db;
+  }
+});
+
+/// `settings` 표 저장소. 지금 모드의 폰 DB를 보므로 데모 모드에서는 데모 DB의 설정이다.
+/// 설치 표식·사캠 상태(`lms*` 키)는 앱 모드와 관계없이 실제 DB에서 읽고 쓴다(`app/startup.dart`).
 final settingsRepositoryProvider = Provider<SettingsRepository>(
   (ref) => SettingsRepository(ref.watch(databaseProvider)),
 );

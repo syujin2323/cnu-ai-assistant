@@ -1,17 +1,24 @@
 // 앱 시작 순서. docs/architecture.md '실행 방법'.
 //
 // `Firebase.initializeApp` → App Check `activate` → Remote Config 설정·지난 실행에서 받은 값 적용 →
-// 폰 DB 열기까지만 기다린 뒤 `runApp`을 부른다(`main.dart`). Remote Config `fetchAndActivate()`는
-// runApp 뒤에 시작하고 화면은 기다리지 않는다([fetchRemoteConfigAfterLaunch]).
-// 위젯 테스트는 Firebase 없이 `RootApp`만 띄우므로 이 파일을 부르지 않는다.
+// 실제 모드의 폰 DB 열기 → 시작 작업(설치 표식 확인, 사캠 상태 정리, `app/startup.dart`) →
+// 지금 모드의 폰 DB 열기까지만 기다린 뒤 `runApp`을 부른다(`main.dart`). Remote Config
+// `fetchAndActivate()`([fetchRemoteConfigAfterLaunch])와 보관 기간이 지난 기록 정리는 runApp 뒤에
+// 시작하고 화면은 기다리지 않는다. 위젯 테스트는 Firebase 없이 `RootApp`만 띄우므로 이 파일을
+// 부르지 않는다.
 
 import 'dart:io' show Platform;
 
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
+import 'package:cnu_ai_assistant/app/startup.dart';
+import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/remote_config.dart';
+import 'package:cnu_ai_assistant/data/secure_storage.dart';
+import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/firebase_options.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
@@ -39,17 +46,35 @@ Future<ProviderContainer> bootstrap() async {
   await _activateAppCheck();
   await _applyRemoteConfigDefaults();
 
+  // 앱 모드와 관계없이 실제 모드의 폰 DB를 열고(처음이면 표를 만든다) 그 DB로 시작 작업을 한다.
+  // 설치 표식이 없으면 app_mode도 지우므로 appModeProvider가 읽기 전, 컨테이너를 만들기 전에 끝낸다.
+  // 데모 모드에서는 이 DB와 데모 DB가 함께 열린다. drift의 '같은 DB 클래스를 여러 번 만듦' 경고는
+  // 두 인스턴스가 같은 연결을 쓸 때를 알리는 것이고, 두 DB는 다른 파일이라 끈다.
+  driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+  final sharedPreferences = await preferences;
+  final realDb = AppDatabase.open(AppMode.real);
+  await runStartupTasks(
+    realDb: realDb,
+    preferences: sharedPreferences,
+    secureStorage: appSecureStorage,
+  );
+
   final container = ProviderContainer(
     overrides: [
-      sharedPreferencesProvider.overrideWithValue(await preferences),
+      sharedPreferencesProvider.overrideWithValue(sharedPreferences),
       androidSdkIntProvider.overrideWithValue(await androidSdkInt),
+      realDatabaseProvider.overrideWithValue(realDb),
     ],
   );
   await dateFormatting;
-  // 폰 DB를 연다(처음이면 표를 만든다). 첫 화면이 기다리지 않고 DB를 읽게 여기서 끝낸다.
+  // 지금 모드의 폰 DB를 연다(데모면 데모 DB). 첫 화면이 기다리지 않고 DB를 읽게 여기서 끝낸다.
   await container.read(databaseProvider).customSelect('SELECT 1').get();
   return container;
 }
+
+/// runApp 뒤에 부른다. 보관 기간이 지난 기록을 실제 DB에서 지운다. 화면은 기다리지 않는다.
+Future<void> runDeferredStartupTasksAfterLaunch(ProviderContainer container) =>
+    runDeferredStartupTasks(realDb: container.read(realDatabaseProvider));
 
 /// runApp 뒤에 부른다. Remote Config 값을 받아 적용하고, 끝나면(실패·시간 초과 포함) 알린다.
 ///

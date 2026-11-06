@@ -43,6 +43,7 @@
 - iOS 보안 저장소 접근 수준은 `first_unlock_this_device`입니다.
 - 쿠키 금고, WebView 저장소, 폰 DB는 앱 백업과 기기 이전에서 뺍니다. Android는 `allowBackup=false`와 `dataExtractionRules`로 클라우드 백업과 기기 간 이전을 모두 빼고, iOS는 폰 DB와 WebView 데이터 폴더에 백업 제외 속성을 겁니다.
 - iOS Keychain 항목은 앱을 지워도 남을 수 있습니다. 앱은 폰 DB의 `settings`에 설치 표식을 두고, 첫 실행 때 표식이 없으면 보안 저장소(쿠키 금고, 저장된 학번·비밀번호, 설치 토큰)를 모두 비운 뒤 표식을 만듭니다. 금고는 그 뒤에만 읽습니다. 두 OS 모두 같은 규칙을 씁니다.
+- 설치 표식은 앱 모드와 관계없이 실제 모드의 폰 DB(`app.sqlite`)에서 읽고 씁니다. 데모 DB에는 표식이 없으므로, 데모 DB로 보면 데모 모드로 다시 켤 때마다 실제 계정의 학번·비밀번호·쿠키를 지우게 됩니다. 표식이 없으면 `shared_preferences`의 앱 값(`onboarding_done`, `app_mode`, `demo_entry`)도 함께 지웁니다. iOS 백업 복원과 기기 이전에는 폰 DB와 보안 저장소가 빠지고 이 값만 따라오므로, 새 기기를 첫 설치처럼 온보딩부터 시작하게 하려는 것입니다. 보안 저장소를 비우지 못하면 표식을 적지 않고 다음 실행에 다시 시도하며, 폰 DB를 읽지 못하면 아무것도 지우지 않습니다. 순서는 [architecture.md](architecture.md) '실행 방법'에 있습니다.
 
 ## 세션 상태
 
