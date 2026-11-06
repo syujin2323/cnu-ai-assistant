@@ -132,7 +132,10 @@ class AppSettings {
     );
   }
 
-  /// 하루 경계(자정 기준 분, 0–1439). 기본값은 [Defaults.dayBoundaryMin](임시값).
+  /// 하루 경계(자정 기준 분). 기본값은 [Defaults.dayBoundaryMin](임시값).
+  ///
+  /// 쓸 때는 [Defaults.dayBoundaryChoices]만 받고, 읽을 때는 하루 안(0–1439)이면 그대로 쓴다.
+  /// 고르는 값이 바뀌어도 이미 저장된 사용자의 값을 말없이 되돌리지 않기 위해서다.
   final int dayBoundaryMin;
 
   /// AI 기능을 켰는지. false면 AI 경로를 부르지 않고 템플릿과 직접 입력으로 동작한다.
@@ -176,11 +179,11 @@ class AppSettings {
   ///
   /// 값의 형은 그 키의 필드와 같아야 한다. 예를 들어 `lmsSessionState`에는
   /// [LmsSessionState], `aiConsentAt`에는 `DateTime` 또는 null을 넘긴다. 모르는 키,
-  /// 맞지 않는 형, null을 받지 않는 키의 null, 하루 밖의 분은 프로그래밍 오류로 보고
-  /// [ArgumentError]를 던진다.
+  /// 맞지 않는 형, null을 받지 않는 키의 null, 하루 밖의 분, 고를 수 없는 하루 경계는
+  /// 프로그래밍 오류로 보고 [ArgumentError]를 던진다.
   static Object? encodeValue(String key, Object? value) {
     return switch (key) {
-      SettingKeys.dayBoundaryMin => _requireMinuteOfDay(key, value),
+      SettingKeys.dayBoundaryMin => _requireDayBoundary(key, value),
       SettingKeys.checkinMin =>
         value == null ? null : _requireMinuteOfDay(key, value),
       SettingKeys.aiEnabled ||
@@ -337,6 +340,18 @@ int _requireMinuteOfDay(String key, Object? value) {
   final minute = _require<int>(key, value);
   if (minute < 0 || minute >= 1440) {
     throw ArgumentError.value(minute, key, 'Expected a minute of the day');
+  }
+  return minute;
+}
+
+int _requireDayBoundary(String key, Object? value) {
+  final minute = _require<int>(key, value);
+  if (!Defaults.dayBoundaryChoices.contains(minute)) {
+    throw ArgumentError.value(
+      minute,
+      key,
+      'Expected one of ${Defaults.dayBoundaryChoices}',
+    );
   }
   return minute;
 }

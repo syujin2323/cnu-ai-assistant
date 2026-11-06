@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
+import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
@@ -134,6 +135,13 @@ void main() {
       await changed;
     });
 
+    test('하루 경계는 고르는 값 03:00·04:00·05:00·06:00을 쓸 수 있다', () async {
+      for (final minute in Defaults.dayBoundaryChoices) {
+        await writeOk(SettingKeys.dayBoundaryMin, minute);
+        expect((await readOk()).dayBoundaryMin, minute);
+      }
+    });
+
     test('null을 받는 키는 null을 써서 다시 비운다', () async {
       await writeOk(SettingKeys.installedAt, DateTime(2026, 10, 29, 8));
       expect((await readOk()).installedAt, DateTime(2026, 10, 29, 8));
@@ -163,6 +171,9 @@ void main() {
         (SettingKeys.dayBoundaryMin, '240'),
         (SettingKeys.dayBoundaryMin, null),
         (SettingKeys.dayBoundaryMin, 1440),
+        // 하루 안이어도 고르는 값(03:00·04:00·05:00·06:00)이 아니면 쓰지 않는다.
+        (SettingKeys.dayBoundaryMin, 0),
+        (SettingKeys.dayBoundaryMin, 1439),
         (SettingKeys.checkinMin, -1),
         (SettingKeys.aiEnabled, 'true'),
         (SettingKeys.lmsSessionState, 'active'),
@@ -203,6 +214,37 @@ void main() {
       expect(
         await readOk(),
         AppSettings.defaults.copyWith(metricsEnabled: true),
+      );
+    });
+
+    test('저장된 하루 경계는 고르는 값이 아니어도 하루 안이면 그대로 읽는다', () async {
+      await putRaw(SettingKeys.dayBoundaryMin, '1439');
+      expect((await readOk()).dayBoundaryMin, 1439);
+
+      await putRaw(SettingKeys.dayBoundaryMin, '1440');
+      expect((await readOk()).dayBoundaryMin, Defaults.dayBoundaryMin);
+    });
+
+    test('시각은 UTC 오프셋이 붙은 값만 읽고 오프셋이 없으면 기본값이다', () async {
+      await putRaw(SettingKeys.installedAt, '"2026-10-29"');
+      await putRaw(SettingKeys.aiConsentAt, '"2026-10-29T09:30:00.000"');
+      await putRaw(SettingKeys.lmsLastSuccessAt, '"2026-10-29T00:30:00.000Z"');
+      await putRaw(
+        SettingKeys.lmsLastConnectedAt,
+        '"2026-10-29T09:30:00.000 +09:00"',
+      );
+
+      final settings = await readOk();
+      expect(settings.installedAt, isNull);
+      expect(settings.aiConsentAt, isNull);
+      expect(
+        settings.lmsLastSuccessAt,
+        DateTime.utc(2026, 10, 29, 0, 30).toLocal(),
+      );
+      expect(settings.lmsLastSuccessAt!.isUtc, isFalse);
+      expect(
+        settings.lmsLastConnectedAt,
+        DateTime.utc(2026, 10, 29, 0, 30).toLocal(),
       );
     });
   });

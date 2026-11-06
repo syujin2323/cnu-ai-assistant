@@ -9,6 +9,9 @@ void main() {
     expect(Defaults.dayWindowStartMin, 8 * 60);
     expect(Defaults.dayWindowEndMin, 23 * 60);
     expect(Defaults.dayBoundaryMin, 4 * 60);
+    // 하루 경계로 고르는 값은 03:00·04:00·05:00·06:00이고 기본값도 그 가운데 하나다.
+    expect(Defaults.dayBoundaryChoices, [3 * 60, 4 * 60, 5 * 60, 6 * 60]);
+    expect(Defaults.dayBoundaryChoices, contains(Defaults.dayBoundaryMin));
     expect(Defaults.classBufferMin, 10);
     expect(Defaults.mealMin, 40);
     expect(Defaults.mealWindowStartMin, 11 * 60 + 30);

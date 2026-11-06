@@ -21,6 +21,9 @@ abstract final class Defaults {
   /// 하루 경계 04:00. 이 시각 전의 새벽은 전날의 연장이다(`settings`의 기본값).
   static const int dayBoundaryMin = 240;
 
+  /// 하루 경계로 고를 수 있는 값 03:00·04:00·05:00·06:00. `settings`에 쓸 때는 이 값만 받는다.
+  static const List<int> dayBoundaryChoices = [180, 240, 300, 360];
+
   /// 하루 창 시작 08:00(`work_window` 규칙으로 바꾼다).
   static const int dayWindowStartMin = 480;
 

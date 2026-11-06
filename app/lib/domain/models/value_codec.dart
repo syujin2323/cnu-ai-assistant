@@ -45,11 +45,15 @@ String encodeDateTime(DateTime value) {
 /// 형식이 맞지 않으면 [FormatException]을 던진다.
 DateTime decodeDateTime(String text) => DateTime.parse(text).toLocal();
 
-/// [decodeDateTime]과 같지만, 문자열이 아니거나 형식이 맞지 않으면 null을 돌려준다.
+/// [encodeDateTime]이 적은 시각을 읽어 로컬 시각으로 돌려준다. 문자열이 아니거나 형식이
+/// 맞지 않으면 null이다. UTC 오프셋(`Z` 포함)이 없는 값('2026-10-29' 등)도 null로 본다.
+/// 오프셋이 없으면 읽는 기기의 시간대에 따라 다른 시각이 되기 때문이다.
 DateTime? tryDecodeDateTime(Object? text) {
   if (text is! String) return null;
   final parsed = DateTime.tryParse(text);
-  return parsed?.toLocal();
+  // DateTime.tryParse는 오프셋이 있는 문자열만 UTC 값으로 돌려준다.
+  if (parsed == null || !parsed.isUtc) return null;
+  return parsed.toLocal();
 }
 
 final _upperCase = RegExp('[A-Z]');
