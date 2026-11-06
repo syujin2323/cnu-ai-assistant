@@ -24,7 +24,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart'
     show LicenseEntryWithLineBreaks, LicenseRegistry, kReleaseMode;
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart'
+    show DeviceOrientation, SystemChrome, rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:material_ui/material_ui.dart';
@@ -38,6 +39,11 @@ Future<ProviderContainer> bootstrap() async {
   _registerFontLicense();
 
   // Firebase와 상관없는 준비는 함께 시작해 시작 시간을 늘리지 않는다.
+  // 세로 폰만 지원한다(docs/decisions.md 2026-11-06 '화면은 세로 폰만 지원한다'). targetSdk 36의
+  // Android 16은 큰 화면(태블릿·폴더블)에서 이 고정을 따르지 않으므로 화면은 넓은 폭에서도 넘치지 않아야 한다.
+  final orientation = SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
   final preferences = SharedPreferences.getInstance();
   final dateFormatting = initializeDateFormatting('ko');
   final androidSdkInt = _readAndroidSdkInt();
@@ -67,6 +73,7 @@ Future<ProviderContainer> bootstrap() async {
     ],
   );
   await dateFormatting;
+  await orientation;
   // 지금 모드의 폰 DB를 연다(데모면 데모 DB). 첫 화면이 기다리지 않고 DB를 읽게 여기서 끝낸다.
   await container.read(databaseProvider).customSelect('SELECT 1').get();
   return container;
