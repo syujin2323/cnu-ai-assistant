@@ -1,19 +1,27 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 알림 권한과 예약 알림 (docs/architecture.md '플랫폼 프로젝트 설정', '알림') -->
+    <!-- 사캠·통합정보시스템·앱 서버 요청 (docs/lms.md, docs/architecture.md '앱과 서버 사이 약속 (API)').
+         Firebase 라이브러리 병합에 기대지 않고 직접 둔다. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 알림 권한과 예약 알림 (docs/architecture.md '플랫폼 프로젝트 설정', '알림').
+         알림은 재설계 예정이라 권한은 그대로 두고 재설계 때 다시 정한다. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- Android 13 이상 (R0 APK) -->
+    <!-- Android 13 이상에서 정확한 알람에 쓰인다. 스토어(Play) 정책 신고가 필요하고, 거절되면 이 줄을 뺀다. -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
-    <!-- Android 12, 그리고 스토어가 USE_EXACT_ALARM을 인정하지 않을 때 -->
+    <!-- Android 12(API 31–32)용. USE_EXACT_ALARM을 빼면 13 이상에서도 이 권한과 사용자 허용
+         (requestExactAlarmsPermission)이 필요하다. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
-    <!-- 폰 DB, WebView 저장소, 쿠키 금고는 클라우드 백업과 기기 이전에서 뺀다 (docs/lms.md '쿠키 금고') -->
+    <!-- 폰 DB, WebView 저장소, 쿠키 금고는 클라우드 백업과 기기 이전에서 뺀다 (docs/lms.md '쿠키 금고').
+         평문 HTTP는 막는다(network_security_config). -->
     <application
         android:label="CNU PLANNER"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:enableOnBackInvokedCallback="true">
         <activity
             android:name=".MainActivity"
