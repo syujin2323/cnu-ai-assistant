@@ -32,7 +32,8 @@ class Event {
   /// 준비물.
   final String? prep;
 
-  /// 시작 몇 분 전에 알릴지. null이면 알리지 않는다.
+  /// 직접 추가 폼 '알림' 칸의 값(시작 몇 분 전). 알림은 재설계 예정이라 값만 저장하고
+  /// 아직 쓰지 않는다(docs/architecture.md '알림').
   final int? reminderMinutes;
 
   final EventSource source;

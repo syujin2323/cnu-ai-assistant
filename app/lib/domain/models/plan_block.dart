@@ -1,7 +1,6 @@
 import 'package:cnu_ai_assistant/domain/models/value_codec.dart';
 
-/// 블록의 상태. [dismissed]는 사용자가 지운 블록(R1 '미루기'로 뺀 블록 포함)이고
-/// 그 논리적 하루가 끝나면 지운다.
+/// 블록의 상태. [dismissed]는 사용자가 지운 블록이고 그 논리적 하루가 끝나면 지운다.
 enum PlanBlockStatus { suggested, confirmed, done, missed, dismissed }
 
 /// 블록을 누가 놓았는지. [auto]는 배치 엔진이다.

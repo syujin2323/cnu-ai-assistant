@@ -7,7 +7,7 @@
 // - 기본 키는 `id`(autoIncrement). 시각은 DateTimeColumn(ISO 8601 문자열로 저장,
 //   `app/build.yaml`), 날짜만 있는 값은 `YYYY-MM-DD` 문자열, 하루 안의 시각은 자정 기준 분.
 // - 열거형은 `EnumConverter`로 영문 snake_case, 구조가 있는 값은 JSON 문자열.
-// - R1 표(`notification_events`, `suggestions`, `public_calendar`)는 아직 두지 않는다.
+// - R1 표(`suggestions`, `public_calendar`)는 아직 두지 않는다. 알림 기록 표는 알림 재설계 때 정한다.
 
 import 'package:cnu_ai_assistant/data/db/enum_converter.dart';
 import 'package:cnu_ai_assistant/data/db/json_converters.dart';

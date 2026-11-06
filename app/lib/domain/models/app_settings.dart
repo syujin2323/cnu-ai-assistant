@@ -138,7 +138,8 @@ class AppSettings {
   /// 고르는 값이 바뀌어도 이미 저장된 사용자의 값을 말없이 되돌리지 않기 위해서다.
   final int dayBoundaryMin;
 
-  /// AI 기능을 켰는지. false면 AI 경로를 부르지 않고 템플릿과 직접 입력으로 동작한다.
+  /// AI 사용 여부(선택 동의). false면 AI 경로(`/v1/parse`, R1의 `/v1/extract`)를 부르지 않고
+  /// 06 AI 비서는 직접 추가 폼으로 동작한다(docs/screens.md '06 AI 비서'·'AI 사용 동의').
   final bool aiEnabled;
 
   /// AI 사용에 동의한 시각.
