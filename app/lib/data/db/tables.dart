@@ -160,10 +160,6 @@ class Briefings extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get date => text().unique()();
   DateTimeColumn get createdAt => dateTime()();
-  // drift `Table`의 `text()`와 이름이 겹쳐 getter는 body이고, SQL 열 이름은 표대로 text다.
-  TextColumn get body => text().named('text')();
-  TextColumn get cardsJson => text()();
-  BoolColumn get usedTemplate => boolean()();
   DateTimeColumn get openedAt => dateTime().nullable()();
   DateTimeColumn get confirmedAt => dateTime().nullable()();
 }
