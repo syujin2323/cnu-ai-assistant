@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 사캠·통합정보시스템·앱 서버 요청 (docs/lms.md, docs/architecture.md '앱과 서버 사이 약속 (API)').
+    <!-- LMS·통합정보시스템·앱 서버 요청 (docs/lms.md, docs/architecture.md '앱과 서버 사이 약속 (API)').
          Firebase 라이브러리 병합에 기대지 않고 직접 둔다. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
