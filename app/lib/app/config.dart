@@ -8,7 +8,6 @@ abstract final class AppConfig {
   /// 로컬 에뮬레이터나 다른 주소를 쓸 때는 `--dart-define=API_BASE_URL=...`로 덮어쓴다.
   static const String apiBase = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue:
-        'https://asia-northeast3-cnu-ai-assistant.cloudfunctions.net/api',
+    defaultValue: 'https://asia-northeast3-cnu-planner.cloudfunctions.net/api',
   );
 }
