@@ -9,6 +9,6 @@ abstract final class AppConfig {
   static const String apiBase = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue:
-        'https://asia-northeast3-cnu-ai-assistant.cloudfunctions.net/api',
+        'https://asia-northeast3-cnu-planner.cloudfunctions.net/api',
   );
 }
