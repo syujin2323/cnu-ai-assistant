@@ -1,4 +1,5 @@
 import 'package:cnu_ai_assistant/data/db/database.dart';
+import 'package:cnu_ai_assistant/data/repositories/guard_storage.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:drift/drift.dart';
@@ -13,11 +14,13 @@ class RetentionRepository {
   final AppDatabase _db;
 
   /// [now]보다 보관 기간 넘게 오래된 행을 지우고 지운 행 수를 돌려준다. 기준 시각은
-  /// `sync_runs.startedAt`, `lms_item_changes.changedAt`, `briefings.createdAt`이다.
-  Future<Result<int>> deleteExpired({required DateTime now}) async {
+  /// `sync_runs.startedAt`, `lms_item_changes.changedAt`, `briefings.createdAt`이다. 세 표는 한
+  /// 트랜잭션에서 지우고, 폰 DB를 쓰지 못하면(닫힌 DB 포함) [StorageError]를 담은 [Err]다.
+  Future<Result<int>> deleteExpired({required DateTime now}) {
     final cutoff = now.subtract(const Duration(days: Defaults.retentionDays));
-    try {
-      final deleted = await _db.transaction(() async {
+    return guardStorage(
+      'retention.deleteExpired',
+      () => _db.transaction(() async {
         final runs = await (_db.delete(
           _db.syncRuns,
         )..where((t) => t.startedAt.isSmallerThanValue(cutoff))).go();
@@ -28,15 +31,7 @@ class RetentionRepository {
           _db.briefings,
         )..where((t) => t.createdAt.isSmallerThanValue(cutoff))).go();
         return runs + changes + briefings;
-      });
-      return Ok(deleted);
-    } on Exception catch (error) {
-      return Err(
-        StorageError(
-          'retention.deleteExpired',
-          causeType: error.runtimeType.toString(),
-        ),
-      );
-    }
+      }),
+    );
   }
 }
