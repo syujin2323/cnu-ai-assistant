@@ -319,3 +319,11 @@
 - 이유: 지금은 초기화가 실패하면 `runApp`이 불리지 않아 OS 시작 화면에서 멈춘다. 지우는 버튼은 누르면 되돌릴 수 없고, 폰 DB는 기기 백업에서 빠지므로(2026-10-13 '처음 기능 명세와 맞추기') 지운 데이터를 되살릴 길이 없다. 새 버전 파일은 다시 시도해도 열리지 않고 최신 빌드를 설치하면 그대로 열린다. 표를 바꾼 패치가 되돌려지면 옛 코드가 새 버전 파일을 열게 되므로 표를 바꾸는 변경은 release로만 낸다.
 - 다른 후보: 두 번 확인하는 데이터 삭제를 늘 함께 두기, 손상(SQLite `CORRUPT`·`NOTADB`)일 때만 두 번 확인하는 데이터 삭제를 두기(손상된 파일은 다시 시도해도 열리지 않아 앱을 지우는 것밖에 길이 없다는 점에서 권장안이었다).
 - 영향: screens.md '20 시스템', architecture.md '실행 방법'·'폰 DB', CLAUDE.md '브랜치'의 Shorebird 예외, `app/lib/features/system/startup_error_screen.dart`, `app/lib/app/startup_failure.dart`, `app/lib/data/db/database.dart`.
+
+## 2026-11-13 모션은 모든 사람에게 같게 보인다
+
+- 결정: 앱 안의 모션 선택(자동·전체·가벼움·끔)을 없애고, OS의 동작 줄이기(iOS)·애니메이션 삭제(Android)와 기기(오래된 Android)와 관계없이 모든 사람에게 같은 전체 모션을 보인다. 화면 전환과 온보딩 PageView도 그대로 움직인다. `settings`의 `motionLevel`과 OS·Android SDK에 따른 등급 분기를 빼고, 모션 등급은 앱이 늘 쓰는 `full`과 화면 테스트가 덮어쓰는 `off`(모든 시간 0) 둘만 둔다. 하단 탭바와 AI 비서 버튼의 유리도 늘 그린다((R1) OS 투명도 줄이기는 따른다).
+- 이유: 모션 설정과 기기별 분기를 없애 모든 사람이 같은 화면을 보게 한다. 등급마다 다른 모션을 두면 프리셋 밖의 움직임(화면 전환, PageView)까지 등급을 따르게 할지 화면마다 정해야 한다.
+- 받아들인 점: 동작 줄이기를 켠 사람에게도 움직임이 보인다.
+- 다른 후보: '끔'이면 화면 전환·PageView도 움직이지 않게 하기(권장안이었다), 프리셋만 등급을 따르고 화면 전환·PageView는 늘 움직이기.
+- 영향: architecture.md '모션 프리셋'·'디자인 토큰'·'폰 DB'(settings 키)·'앱 코드 규약'·패키지 줄(`device_info_plus`는 이 판정에만 써서 뺌), screens.md '다크 모드·모션·글자 크기'·'10 나', `app/lib/design/motion.dart`, `app/lib/app/providers.dart`, `app/lib/domain/models/app_settings.dart`, `app/lib/app/bootstrap.dart`.
