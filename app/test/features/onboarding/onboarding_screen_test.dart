@@ -2,7 +2,8 @@
 //
 // 건너뛴 단계는 settings의 onboardingSkipped에 단계 번호로 남고, 돌아와 마친 단계는 빠지며,
 // 마지막 단계를 넘기면 shared_preferences의 onboarding_done이 true가 되고 시작 위치로 간다.
-// 실제 모드에서 LMS 상태가 disconnected면 시작 위치 규칙이 온보딩으로 돌려보낸다.
+// 실제 모드에서 LMS 상태가 disconnected면 시작 위치 규칙이 온보딩으로 돌려보내므로, debug 빌드의
+// 개발용 '로그인 없이 다음으로'(LMS 상태 active)로 넘어가야 브리핑으로 나간다.
 // 모든 단계를 지나가므로 글자 배율 2.0에서도 돌려 단계마다 넘침 예외가 없는지 함께 본다.
 
 import 'package:cnu_ai_assistant/app/router.dart';
@@ -12,12 +13,16 @@ import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_screen.dart';
 import 'package:cnu_ai_assistant/features/onboarding/onboarding_controller.dart';
 import 'package:cnu_ai_assistant/features/onboarding/onboarding_screen.dart';
+import 'package:cnu_ai_assistant/features/onboarding/steps/lms_connect_step.dart';
 import 'package:cnu_ai_assistant/features/onboarding/widgets/onboarding_step_layout.dart';
 import 'package:cnu_ai_assistant/lms/lms_feature.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/pump_app.dart';
+
+/// 개발용 버튼 문구.
+const _devSkip = '로그인 없이 다음으로';
 
 void main() {
   for (final textScale in [1.0, 2.0]) {
@@ -72,8 +77,64 @@ void main() {
 
         await app.dispose(tester);
       });
+
+      testWidgets("LMS 연결 단계의 개발용 '$_devSkip'로 넘어가면 LMS 상태가 active가 되고, "
+          '끝내면 01 아침 브리핑으로 간다', (tester) async {
+        final app = await pumpTestApp(
+          tester,
+          start: TestStart.fresh,
+          briefingOpenedToday: false,
+          textScale: textScale,
+        );
+        await _tapInStep(tester, find.text('시작하기'));
+        await _tapInStep(tester, find.text('확인했어요'));
+        expect(find.text(OnboardingStep.lmsConnect.title), findsOneWidget);
+
+        await _tapInStep(tester, find.text(_devSkip));
+        expect(await readLmsSessionState(app), LmsSessionState.active);
+        // 건너뛴 것이 아니라 마친 단계다.
+        expect(await _skipped(app), isEmpty);
+        expect(find.text(OnboardingStep.timetable.title), findsOneWidget);
+
+        await _skipSteps(tester, [
+          OnboardingStep.timetable,
+          OnboardingStep.fixedBlocks,
+          OnboardingStep.aiConsent,
+        ]);
+        await _finishFromBriefingTime(tester, app);
+
+        expect(app.preferences.getBool('onboarding_done'), isTrue);
+        expect(find.byType(OnboardingScreen), findsNothing);
+        expect(find.byType(BriefingScreen), findsOneWidget);
+        expect(app.router.state.uri.path, Routes.briefing);
+
+        await app.dispose(tester);
+      }, skip: !LmsFeature.included);
     });
   }
+
+  testWidgets("개발용 '$_devSkip'는 끄면 보이지 않는다(release·profile 빌드와 같음)", (
+    tester,
+  ) async {
+    Future<void> pumpStep({required bool showDevSkip}) => tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: LmsConnectStep(
+            onSkipLoginForDev: () {},
+            showDevSkip: showDevSkip,
+          ),
+        ),
+      ),
+    );
+
+    // 테스트는 debug 빌드로 돌므로 기본값이면 보인다.
+    await pumpStep(showDevSkip: true);
+    expect(find.text(_devSkip), findsOneWidget);
+
+    await pumpStep(showDevSkip: false);
+    expect(find.text(OnboardingStep.lmsConnect.title), findsOneWidget);
+    expect(find.text(_devSkip), findsNothing);
+  });
 }
 
 /// 실제 모드 DB의 건너뛴 단계 목록.

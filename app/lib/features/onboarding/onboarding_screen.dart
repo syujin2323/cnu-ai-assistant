@@ -88,7 +88,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     return switch (step) {
       OnboardingStep.intro => IntroStep(onStart: next, onBrowse: _browseDemo),
       OnboardingStep.privacy => PrivacyStep(onConfirm: next),
-      OnboardingStep.lmsConnect => const LmsConnectStep(),
+      OnboardingStep.lmsConnect => LmsConnectStep(
+        onSkipLoginForDev: () =>
+            _run((controller) => controller.skipLoginForDev()),
+      ),
       OnboardingStep.timetable => const TimetableStep(),
       OnboardingStep.fixedBlocks => const FixedBlocksStep(),
       OnboardingStep.aiConsent => const AiConsentStep(),
@@ -110,7 +113,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
   }
 
-  /// 다음·건너뛰기를 한다. 마지막 단계였으면 시작 위치로 간다.
+  /// 다음·건너뛰기·개발용 넘어가기를 한다. 마지막 단계였으면 시작 위치로 간다.
   Future<void> _run(
     Future<bool> Function(OnboardingController controller) action,
   ) async {
