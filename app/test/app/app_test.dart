@@ -60,7 +60,7 @@ void main() {
         _expectTabs(tester, selected: '오늘');
 
         await tapTab(tester, '캘린더');
-        expect(find.byType(MonthScreen), findsOneWidget);
+        expect(find.byType(WeekScreen), findsOneWidget);
         expect(find.byType(TodayScreen), findsNothing);
         _expectTabs(tester, selected: '캘린더');
 
@@ -415,7 +415,7 @@ void main() {
             textScale: textScale,
           );
           await tapTab(tester, '캘린더');
-          expect(find.byType(MonthScreen), findsOneWidget);
+          expect(find.byType(WeekScreen), findsOneWidget);
 
           app.clock.current = nextMorning;
           app.briefingOpenedToday = false;
@@ -447,7 +447,7 @@ void main() {
           app.briefingOpenedToday = false;
           await sendAppToBackgroundAndBack(tester);
 
-          expect(find.byType(MonthScreen), findsOneWidget);
+          expect(find.byType(WeekScreen), findsOneWidget);
           expect(find.byType(BriefingScreen), findsNothing);
           _expectTabs(tester, selected: '캘린더');
 
@@ -466,7 +466,7 @@ void main() {
           app.clock.current = nextMorning;
           await sendAppToBackgroundAndBack(tester);
 
-          expect(find.byType(MonthScreen), findsOneWidget);
+          expect(find.byType(WeekScreen), findsOneWidget);
           expect(find.byType(BriefingScreen), findsNothing);
 
           await app.dispose(tester);
@@ -538,7 +538,8 @@ void main() {
         final table = <(String, Type, bool)>[
           (Routes.root, TodayScreen, true),
           (Routes.day('2026-10-29'), DayScreen, true),
-          (Routes.calendarWeek, WeekScreen, true),
+          (Routes.calendar, WeekScreen, true),
+          (Routes.calendarMonth, MonthScreen, true),
           (Routes.login, ReloginScreen, false),
           (Routes.meRules, RulesScreen, false),
           (Routes.task(1), TaskDetailScreen, false),
@@ -729,12 +730,42 @@ void main() {
           await tester.tap(find.byType(BackButton));
           await tester.pumpAndSettle();
           expect(find.byType(TimetableScreen), findsNothing);
-          expect(find.byType(MonthScreen), findsOneWidget);
+          expect(find.byType(WeekScreen), findsOneWidget);
           _expectTabs(tester, selected: '캘린더');
 
           app.router.push('${Routes.meTimetable}?tab=week');
           await tester.pumpAndSettle();
           expect(tab(), TimetableTab.timetable);
+
+          await app.dispose(tester);
+        });
+      });
+
+      group('캘린더와 09 일간', () {
+        testWidgets('캘린더 탭은 11 주간부터 열고, 주·월은 같은 자리에서 바꿔 끼운다', (tester) async {
+          final app = await pumpTestApp(tester, textScale: textScale);
+          await tapTab(tester, '캘린더');
+          expect(find.byType(WeekScreen), findsOneWidget);
+          expect(app.router.state.uri.path, Routes.calendar);
+
+          // '월'은 08 월간으로 바꿔 끼운다. 쌓지 않으므로 뒤로 화살표가 없고 탭바는 그대로다.
+          await tapText(tester, '월');
+          expect(find.byType(MonthScreen), findsOneWidget);
+          expect(find.byType(WeekScreen), findsNothing);
+          expect(find.byType(BackButton), findsNothing);
+          expect(app.router.state.uri.path, Routes.calendarMonth);
+          _expectTabs(tester, selected: '캘린더');
+
+          // 캘린더 탭을 다시 누르면 첫 화면인 11 주간이다.
+          await tapTab(tester, '캘린더');
+          expect(find.byType(WeekScreen), findsOneWidget);
+
+          // '월' 뒤 '주'도 바꿔 끼운다.
+          await tapText(tester, '월');
+          await tapText(tester, '주');
+          expect(find.byType(WeekScreen), findsOneWidget);
+          expect(find.byType(MonthScreen), findsNothing);
+          expect(find.byType(BackButton), findsNothing);
 
           await app.dispose(tester);
         });

@@ -9,6 +9,8 @@
 // 화면 진입 인자: 06 AI 비서는 [AssistantArgs]를 `extra`로만 받고(사용자 문장을 경로에 넣지 않음),
 // 03 할 일·13 시간표·고정 일정은 처음 탭을 `?tab=` 쿼리로 받는다([Routes.tasksTab],
 // [Routes.meTimetableTab]). 모르는 값이면 기본 탭이다.
+// 캘린더 탭은 11 주간(`/calendar`)부터 열고, 08 월간(`/calendar/month`)은 같은 가지의 형제 경로라 '주 | 월'로
+// 바꿔 끼운다(go).
 //
 // 시작 위치는 [_redirect] 한 곳에서만 정한다. 앱으로 돌아올 때(resumed)는 RootApp이
 // [StartRules.onResume]으로 그 규칙을 다시 돌릴지 본다. 플랫폼이 넘기는 경로(Android intent의
@@ -62,11 +64,11 @@ abstract final class Routes {
   /// 09 일간(오늘 탭). [date]는 `YYYY-MM-DD`(`domain/clock.dart`의 `isoDate`).
   static String day(String date) => '$today/$_daySegment/$date';
 
-  /// 08 월간(캘린더 탭).
+  /// 11 주간(캘린더 탭의 첫 화면). 캘린더 탭을 다시 누르면 여기로 온다.
   static const String calendar = '/calendar';
 
-  /// 주간(캘린더 탭, R1).
-  static const String calendarWeek = '$calendar/$_weekSegment';
+  /// 08 월간(캘린더 탭). [calendar]와 같은 가지의 형제 경로라 '주 | 월'로 바꿔 끼운다(go, 뒤로 화살표 없음).
+  static const String calendarMonth = '$calendar/$_monthSegment';
 
   /// 03 할 일(할 일 탭). 처음 탭을 고르려면 [tasksTab]을 쓴다.
   static const String tasks = '/tasks';
@@ -104,7 +106,7 @@ abstract final class Routes {
 
   // 하위 경로 조각과 경로·쿼리 매개변수 이름. 라우터 정의에만 쓴다.
   static const String _daySegment = 'day';
-  static const String _weekSegment = 'week';
+  static const String _monthSegment = 'month';
   static const String _rulesSegment = 'rules';
   static const String _timetableSegment = 'timetable';
   static const String _dateParam = 'date';
@@ -200,15 +202,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
+              // 11 주간과 08 월간은 형제 경로다. 08을 11 위에 쌓지 않으므로 08에 뒤로 화살표가 없고,
+              // 가지의 첫 경로인 11 주간이 탭을 다시 누를 때 가는 곳이다.
               GoRoute(
                 path: Routes.calendar,
+                builder: (context, state) => const WeekScreen(),
+              ),
+              GoRoute(
+                path: Routes.calendarMonth,
                 builder: (context, state) => const MonthScreen(),
-                routes: [
-                  GoRoute(
-                    path: Routes._weekSegment,
-                    builder: (context, state) => const WeekScreen(),
-                  ),
-                ],
               ),
             ],
           ),
