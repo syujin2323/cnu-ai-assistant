@@ -53,13 +53,14 @@ class MeScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: AppSpace.s16),
+            // 셸 밖 전체 화면은 push로 열어, 닫으면 10 나로 돌아온다.
             ListTile(
               title: const Text(AppStrings.myRules),
-              onTap: () => context.go(Routes.meRules),
+              onTap: () => context.push(Routes.meRules),
             ),
             ListTile(
               title: const Text(AppStrings.timetableAndFixed),
-              onTap: () => context.go(Routes.meTimetable),
+              onTap: () => context.push(Routes.meTimetable),
             ),
             if (!demo)
               ListTile(

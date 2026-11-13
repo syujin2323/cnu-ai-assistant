@@ -3,8 +3,9 @@
 // 라우터는 이 파일 하나다. 경로 문자열은 [Routes] 상수로만 쓰고, 새 화면은 문서의 라우트 표에
 // 먼저 더한다. 하단 탭은 `StatefulShellRoute.indexedStack`이고 가지 순서는 오늘 · 캘린더 · 할 일 · 나다.
 // 탭바 옆 'AI 비서에게 말하기' 버튼은 06 AI 비서를 push로 열어, 닫으면 같은 탭으로 돌아온다.
-// 셸 밖 전체 화면 가운데 `/tasks/:id`와 `/me/timetable`은 그 탭 경로 아래에 두되 루트 Navigator에
-// 띄운다. 그래서 알림 payload로 바로 열어도 뒤로 가면 그 탭으로 돌아간다.
+// 셸 밖 전체 화면은 루트 Navigator에 띄우고, 여는 곳에서 push로 열어 닫으면 연 화면으로 돌아오게
+// 한다(go로 열면 돌아갈 곳이 없다). 그 가운데 `/tasks/:id`, `/me/rules`, `/me/timetable`은 그 탭 경로
+// 아래에 두어, 바로 열어도(go) 뒤로 가면 그 탭으로 돌아간다.
 //
 // 시작 위치는 [_redirect] 한 곳에서만 정한다. 뒤로 가기 제어는 `PopScope`만 쓴다. 탭 전환에는
 // 화면 전환 애니메이션을 쓰지 않는다(indexedStack).
@@ -21,6 +22,7 @@ import 'package:cnu_ai_assistant/features/briefing/briefing_controller.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_screen.dart';
 import 'package:cnu_ai_assistant/features/calendar/month_screen.dart';
 import 'package:cnu_ai_assistant/features/calendar/week_screen.dart';
+import 'package:cnu_ai_assistant/features/lms_connect/relogin_screen.dart';
 import 'package:cnu_ai_assistant/features/me/me_screen.dart';
 import 'package:cnu_ai_assistant/features/me/rules_screen.dart';
 import 'package:cnu_ai_assistant/features/me/timetable_screen.dart';
@@ -40,6 +42,9 @@ abstract final class Routes {
 
   /// 온보딩(셸 밖).
   static const String onboarding = '/onboarding';
+
+  /// 14 다시 로그인(셸 밖 전체 화면). 학번은 고정이고, 끝나면 연 화면으로 돌아간다(push로 연다).
+  static const String login = '/login';
 
   /// 02 홈(오늘 탭).
   static const String today = '/today';
@@ -62,7 +67,7 @@ abstract final class Routes {
   /// 10 나(나 탭).
   static const String me = '/me';
 
-  /// 내 규칙(나 탭).
+  /// 12 내 규칙(셸 밖 전체 화면).
   static const String meRules = '$me/$_rulesSegment';
 
   /// 시간표·고정 일정 편집(셸 밖 전체 화면).
@@ -113,6 +118,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.onboarding,
         builder: (context, state) => const OnboardingScreen(),
+      ),
+      GoRoute(
+        path: Routes.login,
+        builder: (context, state) => const ReloginScreen(),
       ),
       GoRoute(
         path: Routes.briefing,
@@ -182,6 +191,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                 routes: [
                   GoRoute(
                     path: Routes._rulesSegment,
+                    parentNavigatorKey: rootNavigatorKey,
                     builder: (context, state) => const RulesScreen(),
                   ),
                   GoRoute(
