@@ -1,6 +1,6 @@
 // 10 나(나 탭 `/me`). 맨 위 앱 이름 옆에 짧은 '충남대 비공식 앱'을, 맨 아래에 긴 비공식 문구를 두고
 // 설정 항목으로 간다(docs/screens.md '10 나'·''충남대 비공식 앱' 표시').
-// 설정 내용(AI 동의, LMS, 알림, 모션 등)은 각 PR에서 더한다.
+// 설정 내용(AI 동의, LMS, 알림 등)은 각 PR에서 더한다.
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
@@ -19,6 +19,7 @@ class MeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = AppColors.of(context);
     final demo = ref.watch(appModeProvider) == AppMode.demo;
+    final exiting = ref.watch(demoExitProvider) == DemoExitState.exiting;
     return Scaffold(
       body: SafeArea(
         child: ListView(
@@ -63,7 +64,13 @@ class MeScreen extends ConsumerWidget {
               title: const Text(AppStrings.timetableAndFixed),
               onTap: () => context.push(Routes.meTimetable),
             ),
-            if (!demo)
+            if (demo)
+              ListTile(
+                title: const Text('데모 모드 끝내기'),
+                enabled: !exiting,
+                onTap: () => ref.read(demoExitProvider.notifier).exit(),
+              )
+            else
               ListTile(
                 title: const Text('데모 모드 들어가기'),
                 onTap: () => _enterDemo(context, ref),

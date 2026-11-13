@@ -5,14 +5,17 @@
 // RootApp은 test/helpers/pump_app.dart로 띄운다(Firebase 없이 메모리 DB와 모의 SharedPreferences).
 // 모든 검사를 글자 배율 1.0과 2.0에서 돌려 넘침(RenderFlex overflow) 예외가 없어야 한다.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
+import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_tab_bar.dart';
 import 'package:cnu_ai_assistant/design/widgets/demo_band.dart';
+import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_args.dart';
@@ -1013,6 +1016,125 @@ void main() {
         await app.dispose(tester);
       });
 
+      testWidgets('데모 모드의 10 나에는 데모 모드 끝내기가 있고 누르면 /me로 돌아온다', (tester) async {
+        final app = await pumpTestApp(tester, textScale: textScale);
+        await tapTab(tester, '나');
+        await tapText(tester, '데모 모드 들어가기');
+
+        await tapTab(tester, '나');
+        expect(find.text('데모 모드 들어가기'), findsNothing);
+        await tapText(tester, '데모 모드 끝내기');
+
+        expect(find.byType(DemoBand), findsNothing);
+        expect(find.byType(MeScreen), findsOneWidget);
+        expect(find.text('데모 모드 끝내기'), findsNothing);
+        expect(app.preferences.getString('app_mode'), 'real');
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('둘러보기로 들어간 데모를 10 나에서 끝내면 온보딩 1단계로 가고, 다시 둘러보기로 들어간다', (
+        tester,
+      ) async {
+        final app = await pumpTestApp(
+          tester,
+          start: TestStart.fresh,
+          textScale: textScale,
+        );
+        await tapText(tester, _browseDemo);
+        expect(find.byType(DemoBand), findsOneWidget);
+
+        await tapTab(tester, '나');
+        await tapText(tester, '데모 모드 끝내기');
+
+        expect(find.byType(DemoBand), findsNothing);
+        expect(find.byType(OnboardingScreen), findsOneWidget);
+        expect(app.router.state.uri.path, Routes.onboarding);
+        expect(app.preferences.getString('app_mode'), 'real');
+
+        // 같은 앱 실행 안에서 다시 들어갈 수 있다(들어가기의 진행 중 표시가 남지 않는다).
+        await tapText(tester, _browseDemo);
+        expect(find.byType(DemoBand), findsOneWidget);
+        expect(app.preferences.getString('app_mode'), 'demo');
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('데모 DB를 비우지 못하면 띠가 안내하고 데모에 남으며, 다시 시도로 끝낸다', (tester) async {
+        final app = await pumpTestApp(
+          tester,
+          start: TestStart.demo,
+          textScale: textScale,
+        );
+        final demoDb = app.demoDb;
+        await demoDb.customStatement(
+          "INSERT INTO courses (name) VALUES ('샘플 과목')",
+        );
+        await demoDb.customStatement(
+          'CREATE TRIGGER keep_courses BEFORE DELETE ON courses '
+          "BEGIN SELECT RAISE(ABORT, 'test'); END",
+        );
+
+        await tapText(tester, '끝내기');
+
+        expect(find.byType(DemoBand), findsOneWidget);
+        expect(find.text('데모를 끝내지 못했어요'), findsOneWidget);
+        expect(app.preferences.getString('app_mode'), 'demo');
+        expect(app.container.read(databaseProvider), same(demoDb));
+
+        await demoDb.customStatement('DROP TRIGGER keep_courses');
+        await tapText(tester, '다시 시도');
+
+        expect(find.byType(DemoBand), findsNothing);
+        expect(find.byType(OnboardingScreen), findsOneWidget);
+        expect(app.preferences.getString('app_mode'), 'real');
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('데모를 끝내는 동안 띠와 10 나의 끝내기를 막고, 거듭 불러도 한 번만 끝낸다', (
+        tester,
+      ) async {
+        final controller = _GatedAppMode();
+        final app = await pumpTestApp(
+          tester,
+          start: TestStart.demo,
+          textScale: textScale,
+          overrides: [appModeProvider.overrideWith(() => controller)],
+        );
+
+        await tester.tap(find.text('끝내기'));
+        await tester.pump();
+        expect(controller.exits, 1);
+        expect(
+          tester
+              .widget<TextButton>(find.widgetWithText(TextButton, '끝내기'))
+              .onPressed,
+          isNull,
+        );
+        await tapTab(tester, '나');
+        await scrollTo(tester, find.text('데모 모드 끝내기'));
+        expect(
+          tester
+              .widget<ListTile>(find.widgetWithText(ListTile, '데모 모드 끝내기'))
+              .enabled,
+          isFalse,
+        );
+        // 끝내는 중에 다시 불러도 끝내기를 또 부르지 않는다(기다리지 않고 바로 센다).
+        final again = app.container.read(demoExitProvider.notifier).exit();
+        expect(controller.exits, 1);
+
+        controller.gate.complete();
+        await again;
+        await tester.pumpAndSettle();
+
+        expect(find.byType(DemoBand), findsNothing);
+        expect(find.byType(OnboardingScreen), findsOneWidget);
+        expect(controller.exits, 1);
+
+        await app.dispose(tester);
+      });
+
       // 세로 폰만 지원하지만 targetSdk 36의 Android 16은 큰 화면에서 방향 고정을 따르지 않으므로,
       // 태블릿 가로 폭에서도 넘치지 않는지만 본다(docs/decisions.md 2026-11-06 '화면은 세로 폰만 지원한다').
       group('태블릿 가로 폭(1280×800pt)', () {
@@ -1115,5 +1237,18 @@ void _expectTabs(WidgetTester tester, {required String selected}) {
       label == selected ? findsOneWidget : findsNothing,
       reason: '지금 탭만 글자를 그린다($label)',
     );
+  }
+}
+
+/// 데모 끝내기를 [gate]가 열릴 때까지 붙잡아 두고 부른 횟수를 세는 앱 모드.
+class _GatedAppMode extends AppModeController {
+  final gate = Completer<void>();
+  var exits = 0;
+
+  @override
+  Future<Result<DemoEntry>> exitDemo(AppDatabase demoDatabase) async {
+    exits++;
+    await gate.future;
+    return super.exitDemo(demoDatabase);
   }
 }
