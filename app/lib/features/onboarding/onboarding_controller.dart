@@ -5,14 +5,20 @@
 // '건너뛰기'는 3단계에만, 뒤로 가기는 3단계부터 있다. 건너뛴 단계는 `settings`의 `onboardingSkipped`에
 // 단계 번호로 남는다(지금은 3만). 이 값을 쓰는 화면은 문서에 없다(홈 위 카드가 아님). 건너뛴 고정 일정은
 // 나중에 10 나에서 넣는다. 로그아웃 뒤 다시 들어왔으면(`onboarding_done`이 이미 켜져 있음) 1단계에서
-// 로그인하면 2–5단계 없이 시작 위치로 간다([OnboardingController.loggedIn]). debug 빌드에서는 1단계에
-// 개발용 '로그인 없이 다음으로'가 있다([OnboardingController.skipLoginForDev]).
+// 로그인하면 2–5단계 없이 시작 위치로 간다([OnboardingController.loggedIn]). 처음 온보딩에서 로그인한 뒤
+// 끝내기 전에 앱이 꺼졌으면 다음에 열 때 2단계부터 연다(다시 로그인하지 않음, docs/decisions.md 2026-11-13
+// '로그인한 뒤 온보딩 도중 앱이 꺼지면 2단계부터 연다'). 그래서 처음 열 때 `settings`를 한 번 읽고, 읽기가
+// 끝나기 전에는 상태가 없다. 4단계는 `aiEnabled`·`aiConsentAt`을, 5단계는 브리핑 시각을 내 규칙
+// (`notify`)으로 쓴다. debug 빌드에서는 1단계에 개발용 '로그인 없이 다음으로'가 있다
+// ([OnboardingController.skipLoginForDev]).
 
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
+import 'package:cnu_ai_assistant/domain/models/entry_source.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
+import 'package:cnu_ai_assistant/domain/models/rule.dart';
 import 'package:flutter/foundation.dart' show immutable, kDebugMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -69,40 +75,114 @@ class OnboardingState {
       );
 }
 
-/// 온보딩 상태. 화면을 떠나면 처음으로 돌아간다.
+/// 온보딩 상태. 화면을 떠나면 처음으로 돌아간다. 처음 열 때 시작 단계를 정하려고 `settings`를 한 번
+/// 읽으므로, 그동안은 불러오는 중이다.
 final onboardingControllerProvider =
-    NotifierProvider.autoDispose<OnboardingController, OnboardingState>(
+    AsyncNotifierProvider.autoDispose<OnboardingController, OnboardingState>(
       OnboardingController.new,
     );
 
 /// 온보딩 화면의 상태와 동작. 단계를 끝내는 동작은 온보딩을 끝냈으면 true를 돌려주고, 화면은 그때
-/// 시작 위치로 간다.
-class OnboardingController extends Notifier<OnboardingState> {
+/// 시작 위치로 간다. 처음 읽기가 끝나기 전에는 동작하지 않는다(false).
+class OnboardingController extends AsyncNotifier<OnboardingState> {
   @override
-  OnboardingState build() => OnboardingState(
-    reentry:
+  Future<OnboardingState> build() async {
+    final reentry =
         ref.watch(sharedPreferencesProvider).getBool(PrefKeys.onboardingDone) ??
-        false,
-  );
+        false;
+    return OnboardingState(
+      step: reentry ? OnboardingStep.login : await _firstStep(),
+      reentry: reentry,
+    );
+  }
+
+  /// 처음 온보딩에서 열 단계. 로그인한 뒤(LMS 상태가 `disconnected`가 아님) 끝내기 전에 앱이 꺼졌으면
+  /// 2단계, 아니면 1단계다. `settings`를 읽지 못하면 1단계다.
+  Future<OnboardingStep> _firstStep() async {
+    switch (await ref.read(settingsRepositoryProvider).read()) {
+      case Ok(:final value):
+        return value.lmsSessionState == LmsSessionState.disconnected
+            ? OnboardingStep.login
+            : OnboardingStep.timetable;
+      case Err(:final error):
+        appLog(
+          'onboarding_start_read_failed',
+          area: 'onboarding',
+          data: {'error': error.toString()},
+        );
+        return OnboardingStep.login;
+    }
+  }
+
+  /// 지금 상태. 처음 읽기가 끝나기 전에는 null이다.
+  OnboardingState? get _current => state.value;
+
+  set _current(OnboardingState? next) {
+    if (next != null) state = AsyncData(next);
+  }
 
   /// 지금 단계를 마치고 다음으로 간다. 앞에서 건너뛰었다가 돌아와 마쳤으면 건너뛴 목록에서 뺀다.
   Future<bool> next() => _whileBusy(_next);
 
   /// 지금 단계를 건너뛴다(3단계만). 건너뛸 수 없는 단계면 아무것도 하지 않는다.
   Future<bool> skip() {
-    assert(state.step.skippable, '${state.step}는 건너뛸 수 없다');
-    if (!state.step.skippable) return Future.value(false);
+    final step = _current?.step;
+    if (step == null) return Future.value(false);
+    assert(step.skippable, '$step는 건너뛸 수 없다');
+    if (!step.skippable) return Future.value(false);
     return _whileBusy(() async {
-      await _setSkipped(state.step, skipped: true);
+      await _setSkipped(step, skipped: true);
       return _advance();
     });
   }
 
   /// 앞 단계로 돌아간다. 돌아갈 수 없는 단계(1·2단계)이거나 진행 중이면 아무것도 하지 않는다.
   void back() {
-    if (state.busy || !state.step.canGoBack) return;
-    state = state.copyWith(step: OnboardingStep.values[state.step.index - 1]);
+    final current = _current;
+    if (current == null || current.busy || !current.step.canGoBack) return;
+    _current = current.copyWith(
+      step: OnboardingStep.values[current.step.index - 1],
+    );
   }
+
+  /// 4단계 '동의하고 계속': AI를 켜고 동의 시각을 적은 뒤 다음 단계로 간다. 저장하지 못해도 기록만 남기고
+  /// 계속한다(AI는 꺼진 채로 남아 AI 기능을 쓰려 할 때 다시 묻는다).
+  Future<bool> consentToAi() => _whileBusy(() async {
+    await _writeSettings({
+      SettingKeys.aiEnabled: true,
+      SettingKeys.aiConsentAt: ref.read(clockProvider).now(),
+    });
+    return _next();
+  });
+
+  /// 4단계 '동의하지 않고 계속': `aiEnabled` false만 쓰고 다음 단계로 간다(docs/decisions.md 2026-11-06
+  /// 'AI 사용 동의는 선택 동의다'). 저장하지 못해도 계속한다(기본값도 꺼짐).
+  Future<bool> declineAi() => _whileBusy(() async {
+    await _writeSettings({SettingKeys.aiEnabled: false});
+    return _next();
+  });
+
+  /// 5단계 '다음': 고른 브리핑 시각([briefingMin], 자정 기준 분)을 내 규칙 `notify`(`source` `manual`)로
+  /// 저장하고 온보딩을 끝낸다. `notify`는 하나만 두는 종류라 이미 있으면 그 행에 합친다. 저장하지 못해도
+  /// 기록만 남기고 끝낸다(브리핑 시각은 기본값을 씀). [briefingMin]은 브리핑 칩의 값이다.
+  Future<bool> finishWithBriefingTime(int briefingMin) => _whileBusy(() async {
+    final saved = await ref
+        .read(rulesRepositoryProvider)
+        .save(
+          kind: RuleKind.notify,
+          params: RuleParams(briefingMin: briefingMin),
+          source: EntrySource.manual,
+          now: ref.read(clockProvider).now(),
+        );
+    if (saved case Err(:final error)) {
+      appLog(
+        'onboarding_briefing_time_save_failed',
+        area: 'onboarding',
+        data: {'error': error.toString()},
+      );
+    }
+    return _next();
+  });
 
   /// 1단계 로그인을 마쳤을 때(로그인 폼이 진행 줄을 끝낸 뒤). 로그아웃 뒤 다시 들어왔으면 2–5단계 없이
   /// 시작 위치로 가고(true), 아니면 2단계로 간다. LMS 상태와 학번·비밀번호는 로그인 흐름이 이미 썼다.
@@ -142,20 +222,26 @@ class OnboardingController extends Notifier<OnboardingState> {
 
   /// 1단계 로그인 뒤. 로그아웃 뒤 다시 들어왔으면 2–5단계를 다시 거치지 않는다.
   Future<bool> _afterLogin() async {
-    if (!ref.mounted) return false;
-    if (state.reentry) return true;
+    final current = _current;
+    if (!ref.mounted || current == null) return false;
+    if (current.reentry) return true;
     return _next();
   }
 
   Future<bool> _next() async {
-    await _setSkipped(state.step, skipped: false);
+    final step = _current?.step;
+    if (step == null) return false;
+    await _setSkipped(step, skipped: false);
     return _advance();
   }
 
   Future<bool> _advance() async {
-    if (!ref.mounted) return false;
-    if (!state.step.isLast) {
-      state = state.copyWith(step: OnboardingStep.values[state.step.index + 1]);
+    final current = _current;
+    if (!ref.mounted || current == null) return false;
+    if (!current.step.isLast) {
+      _current = current.copyWith(
+        step: OnboardingStep.values[current.step.index + 1],
+      );
       return false;
     }
     await ref
@@ -166,12 +252,13 @@ class OnboardingController extends Notifier<OnboardingState> {
 
   /// [action]을 하는 동안 [OnboardingState.busy]를 켠다. 이미 진행 중이면 하지 않고 false다.
   Future<bool> _whileBusy(Future<bool> Function() action) async {
-    if (state.busy) return false;
-    state = state.copyWith(busy: true);
+    final current = _current;
+    if (current == null || current.busy) return false;
+    _current = current.copyWith(busy: true);
     try {
       return await action();
     } finally {
-      if (ref.mounted) state = state.copyWith(busy: false);
+      if (ref.mounted) _current = _current?.copyWith(busy: false);
     }
   }
 
@@ -199,6 +286,18 @@ class OnboardingController extends Notifier<OnboardingState> {
       numbers.toList()..sort(),
     );
     if (written case Err(:final error)) _logStorageFailure(error);
+  }
+
+  /// 설정 여러 키를 한 번에 쓴다. 쓰지 못하면 기록만 남긴다.
+  Future<void> _writeSettings(Map<String, Object?> values) async {
+    final written = await ref.read(settingsRepositoryProvider).writeAll(values);
+    if (written case Err(:final error)) {
+      appLog(
+        'onboarding_settings_save_failed',
+        area: 'onboarding',
+        data: {'keys': values.keys.join(','), 'error': error.toString()},
+      );
+    }
   }
 
   static void _logStorageFailure(AppError error) => appLog(

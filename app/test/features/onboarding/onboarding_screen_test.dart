@@ -11,12 +11,16 @@ import 'dart:async';
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
+import 'package:cnu_ai_assistant/data/repositories/rules_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
+import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
+import 'package:cnu_ai_assistant/domain/models/entry_source.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
+import 'package:cnu_ai_assistant/domain/models/rule.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_screen.dart';
 import 'package:cnu_ai_assistant/features/onboarding/onboarding_controller.dart';
 import 'package:cnu_ai_assistant/features/onboarding/onboarding_screen.dart';
@@ -93,7 +97,7 @@ void main() {
           skip: false,
         );
 
-        await _tapInStep(tester, find.text('다음'));
+        await _tapInStep(tester, find.text('동의하지 않고 계속'));
         _expectStep(OnboardingStep.briefingTime);
         _expectHeader(
           tester,
@@ -106,6 +110,12 @@ void main() {
         await _tapInStep(tester, find.text('다음'));
         expect(app.preferences.getBool(PrefKeys.onboardingDone), isTrue);
         expect(await _skipped(app), isEmpty);
+        // 동의하지 않았으므로 AI는 꺼져 있고, 브리핑 시각은 기본값으로 내 규칙에 저장했다.
+        expect((await _settings(app)).aiEnabled, isFalse);
+        expect((await _settings(app)).aiConsentAt, isNull);
+        expect(await _briefingRules(app), [
+          (briefingMin: Defaults.briefingMin, source: EntrySource.manual),
+        ]);
         expect(find.byType(OnboardingScreen), findsNothing);
         expect(find.byType(BriefingScreen), findsOneWidget);
         expect(app.router.state.uri.path, Routes.briefing);
@@ -187,6 +197,115 @@ void main() {
         await app.dispose(tester);
       });
 
+      testWidgets('4단계에서 동의하면 AI를 켜고 동의 시각을 적는다', (tester) async {
+        final app = await pumpTestApp(
+          tester,
+          start: TestStart.fresh,
+          now: _now,
+          textScale: textScale,
+        );
+        await _goToStep(tester, OnboardingStep.aiConsent);
+        expect(find.text('보내는 것'), findsOneWidget);
+
+        await _tapInStep(tester, find.text('동의하고 계속'));
+        _expectStep(OnboardingStep.briefingTime);
+        final settings = await _settings(app);
+        expect(settings.aiEnabled, isTrue);
+        expect(settings.aiConsentAt, _now);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('5단계는 오전 6:00–오후 12:00 칩 13개에서 기본 오전 8:00을 골라 두고, 고른 시각을 '
+          '내 규칙 한 행에 저장한다(이미 있으면 그 행에 합친다)', (tester) async {
+        final app = await pumpTestApp(
+          tester,
+          start: TestStart.fresh,
+          textScale: textScale,
+        );
+        // 이미 있는 브리핑 시각 규칙(하나만 두는 종류).
+        final existing = await RulesRepository(app.db).save(
+          kind: RuleKind.notify,
+          params: const RuleParams(briefingMin: 420),
+          source: EntrySource.manual,
+          now: app.clock.current,
+        );
+        await _goToStep(tester, OnboardingStep.briefingTime);
+
+        final chips = tester.widgetList<ChoiceChip>(
+          find.byType(ChoiceChip, skipOffstage: false),
+        );
+        expect(chips, hasLength(13));
+        expect(
+          tester
+              .widget<ChoiceChip>(
+                find.widgetWithText(ChoiceChip, '오전 8:00', skipOffstage: false),
+              )
+              .selected,
+          isTrue,
+        );
+
+        await _tapInStep(tester, find.widgetWithText(ChoiceChip, '오전 7:30'));
+        expect(
+          tester
+              .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '오전 7:30'))
+              .selected,
+          isTrue,
+        );
+        await _tapInStep(tester, find.text('다음'));
+        expect(find.byType(OnboardingScreen), findsNothing);
+
+        final rules = (await RulesRepository(app.db).read() as Ok<List<Rule>>)
+            .value
+            .where((rule) => rule.kind == RuleKind.notify)
+            .toList();
+        expect(rules, hasLength(1));
+        expect(rules.single.id, (existing as Ok<Rule>).value.id);
+        expect(rules.single.params, const RuleParams(briefingMin: 450));
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('로그인한 뒤 온보딩을 끝내기 전에 앱이 꺼졌으면 2단계부터 다시 연다', (tester) async {
+        final app = await pumpTestApp(
+          tester,
+          start: TestStart.fresh,
+          settings: {SettingKeys.lmsSessionState: LmsSessionState.active},
+          textScale: textScale,
+        );
+        _expectStep(OnboardingStep.timetable);
+        _expectHeader(
+          tester,
+          OnboardingStep.timetable,
+          back: false,
+          skip: false,
+        );
+        // 1단계로 돌아가 다시 로그인하지 않는다.
+        expect(await tester.binding.handlePopRoute(), isTrue);
+        await tester.pumpAndSettle();
+        _expectStep(OnboardingStep.timetable);
+        expect(app.router.state.uri.path, Routes.onboarding);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('처음 열 때 settings를 읽지 못하면 1단계부터 연다', (tester) async {
+        final app = await pumpTestApp(
+          tester,
+          start: TestStart.fresh,
+          settings: {SettingKeys.lmsSessionState: LmsSessionState.active},
+          textScale: textScale,
+          overrides: [
+            settingsRepositoryProvider.overrideWith(
+              (ref) => _ReadFails(ref.watch(databaseProvider)),
+            ),
+          ],
+        );
+        _expectStep(OnboardingStep.login);
+
+        await app.dispose(tester);
+      });
+
       testWidgets('건너뛴 단계를 저장하지 못해도 온보딩은 계속된다', (tester) async {
         final app = await pumpTestApp(
           tester,
@@ -206,7 +325,7 @@ void main() {
         _expectStep(OnboardingStep.aiConsent);
         expect(await _skipped(app), isEmpty);
 
-        await _tapInStep(tester, find.text('다음'));
+        await _tapInStep(tester, find.text('동의하지 않고 계속'));
         await _tapInStep(tester, find.text('다음'));
         expect(find.byType(BriefingScreen), findsOneWidget);
 
@@ -313,11 +432,53 @@ void main() {
   });
 }
 
-/// 4단계에서 시작하는 컨트롤러(온보딩 도중 다시 열 때처럼).
+/// 4단계에서 시작하는 컨트롤러.
 class _StartsAtAiConsent extends OnboardingController {
   @override
-  OnboardingState build() =>
+  Future<OnboardingState> build() async =>
       const OnboardingState(step: OnboardingStep.aiConsent);
+}
+
+/// settings를 읽지 못하는 저장소(폰 DB 읽기 실패 흉내).
+class _ReadFails extends SettingsRepository {
+  _ReadFails(super.db);
+
+  @override
+  Future<Result<AppSettings>> read() async =>
+      const Err(StorageError('settings.read'));
+}
+
+/// 고정 시각(동의 시각을 견주려고 초 단위로 둠).
+final _now = DateTime(2026, 11, 13, 9, 30);
+
+/// 실제 모드 DB의 settings.
+Future<AppSettings> _settings(TestApp app) async =>
+    switch (await SettingsRepository(app.db).read()) {
+      Ok(:final value) => value,
+      Err(:final error) => fail('settings를 읽지 못했다: $error'),
+    };
+
+/// 실제 모드 DB의 브리핑 시각 규칙(`notify`).
+Future<List<({int? briefingMin, EntrySource source})>> _briefingRules(
+  TestApp app,
+) async => switch (await RulesRepository(app.db).read()) {
+  Ok(:final value) => [
+    for (final rule in value)
+      if (rule.kind == RuleKind.notify)
+        (briefingMin: rule.params.briefingMin, source: rule.source),
+  ],
+  Err(:final error) => fail('rules를 읽지 못했다: $error'),
+};
+
+/// 개발용 넘어가기로 1단계를 지나 [step]까지 간다(3단계는 '다음', 4단계는 동의하지 않음).
+Future<void> _goToStep(WidgetTester tester, OnboardingStep step) async {
+  await _tapInStep(tester, find.text(_devSkip));
+  if (step == OnboardingStep.timetable) return;
+  await _tapInStep(tester, find.text('맞아요'));
+  if (step == OnboardingStep.fixedBlocks) return;
+  await _tapInStep(tester, find.text('다음'));
+  if (step == OnboardingStep.aiConsent) return;
+  await _tapInStep(tester, find.text('동의하지 않고 계속'));
 }
 
 /// 건너뛴 단계 목록만 쓰지 못하는 저장소(폰 DB 쓰기 실패 흉내).
@@ -397,18 +558,22 @@ Future<List<int>> _skipped(TestApp app) async =>
       Err(:final error) => fail('settings를 읽지 못했다: $error'),
     };
 
-/// 지금 단계의 버튼이 보이게 스크롤한다. 글자가 크면 버튼이 화면 아래로 밀려 있다.
-Future<void> _scrollToInStep(WidgetTester tester, Finder button) =>
-    tester.scrollUntilVisible(
-      button,
-      100,
-      scrollable: find
-          .descendant(
-            of: find.byType(OnboardingStepLayout),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
+/// 지금 단계의 버튼이 보이게 스크롤한다. 글자가 크면 버튼이 화면 아래로 밀려 있어, 그려질 때까지 내린 뒤
+/// 화면 안으로 끝까지 맞춘다.
+Future<void> _scrollToInStep(WidgetTester tester, Finder button) async {
+  await tester.scrollUntilVisible(
+    button,
+    100,
+    scrollable: find
+        .descendant(
+          of: find.byType(OnboardingStepLayout),
+          matching: find.byType(Scrollable),
+        )
+        .first,
+  );
+  await tester.ensureVisible(button);
+  await tester.pump();
+}
 
 /// 지금 단계의 입력 칸 [label]에 [text]를 넣는다.
 Future<void> _enterInStep(
