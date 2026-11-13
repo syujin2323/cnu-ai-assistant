@@ -1,10 +1,11 @@
-// 03 과제 목록(과제 탭 `/tasks`). 내용과 '과제 추가' 버튼(06 AI 대화로 감)은 과제 PR에서 만든다.
+// 03 할 일(할 일 탭 `/tasks`). docs/screens.md '03 할 일'.
+// 탭 [주간 할 일 N | 전체 할 일 N], LMS 상태 줄, '할 일 추가'(06 직접 추가 폼을 할 일로)는 할 일 PR에서 만든다.
 
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/widgets/screen_placeholder.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// 03 과제 목록.
+/// 03 할 일.
 class TaskListScreen extends StatelessWidget {
   const TaskListScreen({super.key});
 
