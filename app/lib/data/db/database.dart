@@ -57,6 +57,14 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+    // 파일이 이 앱보다 새 스키마 버전이면(옛 빌드를 다시 설치했거나, 표를 바꾼 Shorebird 패치를 되돌린
+    // 경우) 알아볼 수 있는 오류로 멈추고 파일은 그대로 둔다(지우거나 덮어쓰지 않음). 시작 실패 화면이 최신
+    // 빌드를 안내한다. 첫 테스트 배포 전에는 schemaVersion이 1이라 올리는 단계가 없고, 올릴 때 여기에
+    // 단계를 더한다(docs/architecture.md '폰 DB').
+    onUpgrade: (migrator, from, to) async {
+      if (from > to) throw NewerDatabaseException(from, to);
+      throw StateError('no migration from $from to $to');
+    },
     beforeOpen: (details) async {
       // SQLite는 외래 키 검사를 연결마다 켜야 한다.
       await customStatement('PRAGMA foreign_keys = ON');
@@ -65,4 +73,20 @@ class AppDatabase extends _$AppDatabase {
       await customStatement('PRAGMA journal_mode = WAL');
     },
   );
+}
+
+/// 폰 DB 파일이 이 앱보다 새 스키마 버전으로 만들어졌다. 파일은 그대로 두고 앱을 시작하지 않는다
+/// (20 시스템의 시작 실패 화면, docs/screens.md '20 시스템').
+final class NewerDatabaseException implements Exception {
+  const NewerDatabaseException(this.fileVersion, this.appVersion);
+
+  /// 파일의 스키마 버전(`user_version`).
+  final int fileVersion;
+
+  /// 이 앱의 [AppDatabase.schemaVersion].
+  final int appVersion;
+
+  @override
+  String toString() =>
+      'NewerDatabaseException(file: $fileVersion, app: $appVersion)';
 }

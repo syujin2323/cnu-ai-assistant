@@ -4,6 +4,7 @@
 
 import 'dart:convert';
 
+import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 
 /// Remote Config 키 이름.
@@ -53,15 +54,35 @@ final Map<String, Object> remoteConfigDefaults = {
 ///
 /// 가져오기 시간 초과 5초(기본 1분), 최소 가져오기 간격 15분(기본 12시간이면 다음
 /// 실행에도 옛 값이 남는다)으로 두고, 앱 기본값을 넣은 뒤 지난 실행에서 가져온 값을
-/// 적용한다. 네트워크를 쓰는 `fetchAndActivate()`는 여기서 부르지 않는다. `runApp`
-/// 뒤에 시작하고 화면은 그 결과를 기다리지 않는다.
-Future<void> configureRemoteConfig(FirebaseRemoteConfig rc) async {
-  await rc.setConfigSettings(
-    RemoteConfigSettings(
-      fetchTimeout: const Duration(seconds: 5),
-      minimumFetchInterval: const Duration(minutes: 15),
+/// 적용한다. 세 호출은 따로 감싸, 하나가 실패해도 나머지는 한다. 특히 앱 기본값은 늘 넣으려 한다(넣지
+/// 못하면 `lms_enabled`가 정적 기본값 false로 읽혀 LMS를 멈춘 것으로 보인다). 실패는 기록만 남기고
+/// 던지지 않으며, 실패한 단계 이름(`settings`·`defaults`·`activate`)을 돌려준다. 네트워크를 쓰는
+/// `fetchAndActivate()`는 여기서 부르지 않는다. `runApp` 뒤에 시작하고 화면은 그 결과를 기다리지 않는다.
+Future<List<String>> configureRemoteConfig(FirebaseRemoteConfig rc) async {
+  final failed = <String>[];
+  Future<void> attempt(String step, Future<Object?> Function() call) async {
+    try {
+      await call();
+    } on Exception catch (error) {
+      failed.add(step);
+      appLog(
+        'remote_config_${step}_failed',
+        area: 'bootstrap',
+        data: {'error': errorKind(error)},
+      );
+    }
+  }
+
+  await attempt(
+    'settings',
+    () => rc.setConfigSettings(
+      RemoteConfigSettings(
+        fetchTimeout: const Duration(seconds: 5),
+        minimumFetchInterval: const Duration(minutes: 15),
+      ),
     ),
   );
-  await rc.setDefaults(remoteConfigDefaults);
-  await rc.activate();
+  await attempt('defaults', () => rc.setDefaults(remoteConfigDefaults));
+  await attempt('activate', rc.activate);
+  return failed;
 }

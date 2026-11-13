@@ -1,12 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/guard_storage.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/domain/timetable_checks.dart';
-import 'package:drift/drift.dart' show OrderingTerm, Value;
-import 'package:drift/native.dart' show SqliteException;
+import 'package:drift/drift.dart' show OrderingTerm, Value, driftRuntimeOptions;
+import 'package:drift/native.dart' show NativeDatabase, SqliteException;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -749,4 +750,85 @@ void main() {
       );
     });
   });
+
+  group('스키마 버전', () {
+    // 바깥 setUp의 메모리 DB를 연 채로 다른 파일의 DB를 함께 여므로, 같은 연결을 두 번 쓸 때 내는 drift
+    // 경고를 끈다.
+    setUp(() => driftRuntimeOptions.dontWarnAboutMultipleDatabases = true);
+    tearDown(() => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false);
+
+    test('파일이 이 앱보다 새 버전이면 NewerDatabaseException으로 멈추고 파일을 고치지 않는다', () async {
+      final file = await _tempDatabaseFile();
+      // 새 빌드가 만든 파일 흉내: 이 앱이 모르는 표 하나와 user_version 2.
+      await _withoutMigrations(file, (raw) async {
+        await raw.customStatement(
+          'CREATE TABLE later (id INTEGER PRIMARY KEY)',
+        );
+        await raw.customStatement('PRAGMA user_version = 2');
+      });
+
+      final newer = AppDatabase(NativeDatabase(file));
+      await expectLater(
+        newer.customSelect('SELECT 1').get(),
+        throwsA(
+          isA<NewerDatabaseException>()
+              .having((error) => error.fileVersion, 'fileVersion', 2)
+              .having((error) => error.appVersion, 'appVersion', 1),
+        ),
+      );
+      await newer.close();
+
+      await _withoutMigrations(file, (raw) async {
+        expect(await _userVersion(raw), 2);
+        expect(await _tableNames(raw), ['later']);
+      });
+    });
+
+    test('이 앱이 만든 파일은 다시 열어도 이전 단계를 거치지 않는다', () async {
+      final file = await _tempDatabaseFile();
+      for (var i = 0; i < 2; i++) {
+        final db = AppDatabase(NativeDatabase(file));
+        await db.customSelect('SELECT 1').get();
+        await db.close();
+      }
+      await _withoutMigrations(file, (raw) async {
+        expect(await _userVersion(raw), 1);
+      });
+    });
+  });
+}
+
+/// [file]을 drift의 버전 확인과 이전 단계 없이 열어 [action]을 한다(파일의 버전과 표를 보거나 바꿀 때).
+Future<void> _withoutMigrations(
+  File file,
+  Future<void> Function(AppDatabase raw) action,
+) async {
+  final raw = AppDatabase(NativeDatabase(file, enableMigrations: false));
+  try {
+    await action(raw);
+  } finally {
+    await raw.close();
+  }
+}
+
+Future<int> _userVersion(AppDatabase db) async =>
+    (await db.customSelect('PRAGMA user_version').getSingle()).read<int>(
+      'user_version',
+    );
+
+Future<List<String>> _tableNames(AppDatabase db) async => [
+  for (final row
+      in await db
+          .customSelect(
+            "SELECT name FROM sqlite_master WHERE type = 'table' "
+            "AND name NOT LIKE 'sqlite_%' ORDER BY name",
+          )
+          .get())
+    row.read<String>('name'),
+];
+
+Future<File> _tempDatabaseFile() async {
+  final dir = await Directory.systemTemp.createTemp('database_test');
+  addTearDown(() => dir.delete(recursive: true));
+  return File('${dir.path}/app.sqlite');
 }
