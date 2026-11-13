@@ -115,6 +115,9 @@ class RuleParams {
   /// 조용한 시간 끝(`notify`).
   final int? quietEndMin;
 
+  @override
+  String toString() => 'RuleParams(${toJson()})';
+
   /// null인 값은 키째 뺀다.
   Map<String, Object?> toJson() => {
     'minutes': ?minutes,
@@ -163,6 +166,13 @@ class Rule {
   final DateTime createdAt;
 
   final DateTime updatedAt;
+
+  /// 사용자 문장([sentence])은 넣지 않는다(docs/architecture.md '앱 코드 규약'의 로그 규칙).
+  @override
+  String toString() =>
+      'Rule(id: $id, kind: ${kind.name}, params: $params, weekdays: $weekdays, '
+      'active: $active, source: ${source.name}, createdAt: $createdAt, '
+      'updatedAt: $updatedAt)';
 }
 
 int? _intOrNull(Map<String, Object?> json, String key) {

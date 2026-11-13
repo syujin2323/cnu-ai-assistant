@@ -7,6 +7,7 @@
 // - 저장할 때 이전 규칙을 끄고 합치는 일은 저장소가 한다. 여기서는 그 결과가 어긋나 있어도
 //   위 순서로 같은 답을 낸다.
 // - [validateRule]을 통과하지 못한 규칙(범위가 좁아진 뒤 남은 옛 규칙 등)은 설정에 넣지 않는다.
+// - 설정의 목록은 바꿀 수 없다. 같은 설정을 여러 계산(날마다의 빈 시간, 배치)이 함께 쓴다.
 
 import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/models/rule.dart';
@@ -183,6 +184,16 @@ final class MealGuard {
   final MinuteRange window;
 
   final int minutes;
+
+  @override
+  bool operator ==(Object other) =>
+      other is MealGuard && other.window == window && other.minutes == minutes;
+
+  @override
+  int get hashCode => Object.hash(window, minutes);
+
+  @override
+  String toString() => 'MealGuard($window, minutes: $minutes)';
 }
 
 /// 이동 시간(`travel` 규칙). 실시간 비대면 수업만 있는 날에는 배치 엔진이 쓰지 않는다.
@@ -192,6 +203,18 @@ final class TravelTime {
   final int minutes;
 
   final TravelPosition position;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TravelTime &&
+      other.minutes == minutes &&
+      other.position == position;
+
+  @override
+  int get hashCode => Object.hash(minutes, position);
+
+  @override
+  String toString() => 'TravelTime($minutes, ${position.name})';
 }
 
 /// 한 요일에 적용하는 배치 조건. 요일을 고를 수 있는 규칙만 여기에 둔다.
@@ -218,6 +241,29 @@ final class DayPlanRules {
 
   /// 하루 최대 공부량(분). 규칙이 없으면 null(상한 없음).
   final int? dailyCapMin;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DayPlanRules &&
+      other.workWindow == workWindow &&
+      other.travel == travel &&
+      _listEquals(other.blackouts, blackouts) &&
+      _listEquals(other.preferred, preferred) &&
+      other.dailyCapMin == dailyCapMin;
+
+  @override
+  int get hashCode => Object.hash(
+    workWindow,
+    travel,
+    Object.hashAll(blackouts),
+    Object.hashAll(preferred),
+    dailyCapMin,
+  );
+
+  @override
+  String toString() =>
+      'DayPlanRules(workWindow: $workWindow, travel: $travel, '
+      'blackouts: $blackouts, preferred: $preferred, dailyCapMin: $dailyCapMin)';
 }
 
 /// 배치 엔진이 받는 설정. 기본값([Defaults]) 위에 켜진 규칙을 덮은 것이다.
@@ -265,17 +311,19 @@ final class PlannerConfig {
       maxBlockMin:
           ofKind(RuleKind.maxBlock).firstOrNull?.params.minutes ??
           Defaults.maxBlockMin,
-      meals: [...mealRules, if (!replacesDefault) defaultMeal]
-        ..sort((a, b) => a.window.startMin.compareTo(b.window.startMin)),
-      days: [
+      meals: List.unmodifiable(
+        <MealGuard>[...mealRules, if (!replacesDefault) defaultMeal]
+          ..sort((a, b) => a.window.startMin.compareTo(b.window.startMin)),
+      ),
+      days: List.unmodifiable(<DayPlanRules>[
         for (
           var weekday = DateTime.monday;
           weekday <= DateTime.sunday;
           weekday++
         )
           _dayRules(usable, weekday),
-      ],
-      estimates: ofKind(RuleKind.estimate),
+      ]),
+      estimates: List.unmodifiable(ofKind(RuleKind.estimate)),
     );
   }
 
@@ -285,7 +333,7 @@ final class PlannerConfig {
   /// 한 번에 할 최대 시간(분).
   final int maxBlockMin;
 
-  /// 보호하는 식사. 시작 시각 순서.
+  /// 보호하는 식사. 시작 시각 순서이고 바꿀 수 없다.
   final List<MealGuard> meals;
 
   final List<DayPlanRules> _days;
@@ -411,10 +459,12 @@ DayPlanRules _dayRules(List<Rule> usable, int weekday) {
       .toList();
   Rule? latest(RuleKind kind) =>
       today.where((rule) => rule.kind == kind).firstOrNull;
-  List<MinuteRange> ranges(RuleKind kind) => [
-    for (final rule in today.where((rule) => rule.kind == kind))
-      MinuteRange(rule.params.startMin!, rule.params.endMin!),
-  ]..sort(_byStartThenEnd);
+  List<MinuteRange> ranges(RuleKind kind) => List.unmodifiable(
+    <MinuteRange>[
+      for (final rule in today.where((rule) => rule.kind == kind))
+        MinuteRange(rule.params.startMin!, rule.params.endMin!),
+    ]..sort(_byStartThenEnd),
+  );
 
   final window = latest(RuleKind.workWindow)?.params;
   final travel = latest(RuleKind.travel)?.params;
@@ -480,6 +530,15 @@ bool _within(int value, ({int low, int high}) limit) =>
 int _byStartThenEnd(MinuteRange a, MinuteRange b) {
   final byStart = a.startMin.compareTo(b.startMin);
   return byStart != 0 ? byStart : a.endMin.compareTo(b.endMin);
+}
+
+bool _listEquals<T>(List<T> a, List<T> b) {
+  if (identical(a, b)) return true;
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
 }
 
 const int _minutesPerDay = 1440;

@@ -1,3 +1,8 @@
+// 내 규칙의 값 검사와 설정 테스트. docs/architecture.md '내 규칙'.
+//
+// 경계값은 [RuleLimits]의 양끝과 그 바깥(`low - 1`, `high + 1`)으로 적어, 범위를 바꿔도 경계를 놓치지
+// 않게 한다.
+
 import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/models/entry_source.dart';
 import 'package:cnu_ai_assistant/domain/models/rule.dart';
@@ -14,6 +19,7 @@ void main() {
     List<int>? weekdays,
     bool active = true,
     DateTime? updatedAt,
+    String? sentence,
   }) {
     final at = updatedAt ?? DateTime(2026, 10, 1).add(Duration(minutes: id));
     return Rule(
@@ -23,6 +29,7 @@ void main() {
       weekdays: weekdays,
       active: active,
       source: EntrySource.manual,
+      sentence: sentence,
       createdAt: at,
       updatedAt: at,
     );
@@ -193,24 +200,28 @@ void main() {
       Defaults.dayWindowStartMin,
       Defaults.dayWindowEndMin,
     );
-    const defaultMealWindow = MinuteRange(
-      Defaults.mealWindowStartMin,
-      Defaults.mealWindowEndMin,
+    const defaultMeal = MealGuard(
+      window: MinuteRange(
+        Defaults.mealWindowStartMin,
+        Defaults.mealWindowEndMin,
+      ),
+      minutes: Defaults.mealMin,
+    );
+    const defaultDay = DayPlanRules(
+      workWindow: defaultWindow,
+      travel: null,
+      blackouts: [],
+      preferred: [],
+      dailyCapMin: null,
     );
 
     test('규칙이 없으면 모든 요일이 기본값이다', () {
       final config = PlannerConfig.from(const []);
       expect(config.classBufferMin, Defaults.classBufferMin);
       expect(config.maxBlockMin, Defaults.maxBlockMin);
-      expect(config.meals.map((meal) => meal.window), [defaultMealWindow]);
-      expect(config.meals.single.minutes, Defaults.mealMin);
+      expect(config.meals, [defaultMeal]);
       for (var weekday = 1; weekday <= 7; weekday++) {
-        final day = config.forWeekday(weekday);
-        expect(day.workWindow, defaultWindow);
-        expect(day.travel, isNull);
-        expect(day.blackouts, isEmpty);
-        expect(day.preferred, isEmpty);
-        expect(day.dailyCapMin, isNull);
+        expect(config.forWeekday(weekday), defaultDay, reason: '$weekday');
       }
       expect(config.estimateMin(courseId: 1, kind: TaskKind.quiz), isNull);
     });
@@ -219,9 +230,27 @@ void main() {
       final config = PlannerConfig.from([
         rule(RuleKind.maxBlock, const RuleParams(minutes: 60), active: false),
         rule(RuleKind.classBuffer, const RuleParams(minutes: 999)),
+        rule(
+          RuleKind.workWindow,
+          const RuleParams(startMin: 600, endMin: 1200),
+          active: false,
+        ),
+        rule(
+          RuleKind.blackout,
+          const RuleParams(startMin: 600, endMin: 540),
+          id: 2,
+        ),
+        rule(
+          RuleKind.travel,
+          const RuleParams(minutes: 999, position: TravelPosition.dayEdges),
+          id: 3,
+        ),
       ]);
       expect(config.maxBlockMin, Defaults.maxBlockMin);
       expect(config.classBufferMin, Defaults.classBufferMin);
+      for (var weekday = 1; weekday <= 7; weekday++) {
+        expect(config.forWeekday(weekday), defaultDay, reason: '$weekday');
+      }
     });
 
     test('요일이 일부만 겹치면 그 요일에는 나중에 저장한 규칙을 쓴다', () {
@@ -289,9 +318,10 @@ void main() {
           weekdays: [DateTime.tuesday, DateTime.thursday],
         ),
       ]);
-      final tuesday = config.forWeekday(DateTime.tuesday).travel!;
-      expect(tuesday.minutes, 60);
-      expect(tuesday.position, TravelPosition.everyClass);
+      expect(
+        config.forWeekday(DateTime.tuesday).travel,
+        const TravelTime(minutes: 60, position: TravelPosition.everyClass),
+      );
       expect(config.forWeekday(DateTime.wednesday).travel, isNull);
     });
 
@@ -333,10 +363,9 @@ void main() {
           const RuleParams(startMin: 720, endMin: 780, minutes: 30),
         ),
       ]);
-      expect(config.meals.map((meal) => meal.window), [
-        const MinuteRange(720, 780),
+      expect(config.meals, const [
+        MealGuard(window: MinuteRange(720, 780), minutes: 30),
       ]);
-      expect(config.meals.single.minutes, 30);
     });
 
     test('기본 식사 시간대와 겹치지 않는 식사 규칙은 기본값에 더한다', () {
@@ -346,9 +375,9 @@ void main() {
           const RuleParams(startMin: 1080, endMin: 1200, minutes: 60),
         ),
       ]);
-      expect(config.meals.map((meal) => meal.window), [
-        defaultMealWindow,
-        const MinuteRange(1080, 1200),
+      expect(config.meals, const [
+        defaultMeal,
+        MealGuard(window: MinuteRange(1080, 1200), minutes: 60),
       ]);
     });
 
@@ -385,6 +414,36 @@ void main() {
       final config = PlannerConfig.from(const []);
       expect(() => config.forWeekday(0), throwsRangeError);
       expect(() => config.forWeekday(8), throwsRangeError);
+    });
+
+    test('설정의 목록은 바꿀 수 없다', () {
+      final config = PlannerConfig.from([
+        rule(
+          RuleKind.blackout,
+          const RuleParams(startMin: 600, endMin: 660),
+          id: 1,
+        ),
+        rule(
+          RuleKind.preferred,
+          const RuleParams(startMin: 540, endMin: 720),
+          id: 2,
+        ),
+      ]);
+      final monday = config.forWeekday(DateTime.monday);
+      expect(() => config.meals.add(defaultMeal), throwsUnsupportedError);
+      expect(
+        () => monday.blackouts.add(const MinuteRange(0, 60)),
+        throwsUnsupportedError,
+      );
+      expect(
+        () => monday.preferred.add(const MinuteRange(0, 60)),
+        throwsUnsupportedError,
+      );
+      // 다른 계산이 같은 설정을 다시 읽어도 그대로다.
+      expect(config.meals, [defaultMeal]);
+      expect(config.forWeekday(DateTime.monday).blackouts, const [
+        MinuteRange(600, 660),
+      ]);
     });
   });
 
@@ -426,6 +485,99 @@ void main() {
         rule(RuleKind.maxBlock, const RuleParams(minutes: 60)),
       ]);
       expect(config.notifyCap, Defaults.notifyCap);
+    });
+  });
+
+  group('값 클래스', () {
+    test('MealGuard·TravelTime·DayPlanRules는 값이 같으면 같다', () {
+      const meal = MealGuard(window: MinuteRange(690, 810), minutes: 40);
+      expect(meal, const MealGuard(window: MinuteRange(690, 810), minutes: 40));
+      expect(
+        meal.hashCode,
+        const MealGuard(window: MinuteRange(690, 810), minutes: 40).hashCode,
+      );
+      expect(
+        meal,
+        isNot(const MealGuard(window: MinuteRange(690, 810), minutes: 30)),
+      );
+      expect(
+        meal,
+        isNot(const MealGuard(window: MinuteRange(700, 810), minutes: 40)),
+      );
+
+      const travel = TravelTime(minutes: 40, position: TravelPosition.dayEdges);
+      expect(
+        travel,
+        const TravelTime(minutes: 40, position: TravelPosition.dayEdges),
+      );
+      expect(
+        travel,
+        isNot(
+          const TravelTime(minutes: 40, position: TravelPosition.everyClass),
+        ),
+      );
+      expect(
+        travel,
+        isNot(const TravelTime(minutes: 30, position: TravelPosition.dayEdges)),
+      );
+
+      DayPlanRules day({
+        MinuteRange window = const MinuteRange(480, 1380),
+        TravelTime? travel,
+        List<MinuteRange> blackouts = const [MinuteRange(600, 660)],
+        List<MinuteRange> preferred = const [],
+        int? dailyCapMin = 240,
+      }) => DayPlanRules(
+        workWindow: window,
+        travel: travel,
+        blackouts: blackouts,
+        preferred: preferred,
+        dailyCapMin: dailyCapMin,
+      );
+      expect(day(), day(blackouts: [const MinuteRange(600, 660)]));
+      expect(
+        day().hashCode,
+        day(blackouts: [const MinuteRange(600, 660)]).hashCode,
+      );
+      for (final other in [
+        day(window: const MinuteRange(540, 1380)),
+        day(travel: travel),
+        day(blackouts: const []),
+        day(blackouts: const [MinuteRange(600, 700)]),
+        day(preferred: const [MinuteRange(600, 660)]),
+        day(dailyCapMin: null),
+      ]) {
+        expect(day(), isNot(other), reason: '$other');
+      }
+    });
+
+    test('toString은 값을 보이고 Rule은 사용자 문장을 넣지 않는다', () {
+      expect(
+        const MealGuard(window: MinuteRange(690, 810), minutes: 40).toString(),
+        'MealGuard(MinuteRange(690, 810), minutes: 40)',
+      );
+      expect(
+        const TravelTime(
+          minutes: 40,
+          position: TravelPosition.dayEdges,
+        ).toString(),
+        'TravelTime(40, dayEdges)',
+      );
+      expect(
+        const RuleParams(
+          minutes: 40,
+          position: TravelPosition.dayEdges,
+        ).toString(),
+        'RuleParams({minutes: 40, position: day_edges})',
+      );
+      final text = rule(
+        RuleKind.travel,
+        const RuleParams(minutes: 40, position: TravelPosition.dayEdges),
+        sentence: '통학은 40분 걸려',
+      ).toString();
+      expect(text, contains('kind: travel'));
+      expect(text, contains('minutes: 40'));
+      expect(text, isNot(contains('통학')));
     });
   });
 }
