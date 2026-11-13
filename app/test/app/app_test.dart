@@ -16,6 +16,7 @@ import 'package:cnu_ai_assistant/features/assistant/assistant_screen.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_screen.dart';
 import 'package:cnu_ai_assistant/features/calendar/month_screen.dart';
 import 'package:cnu_ai_assistant/features/calendar/week_screen.dart';
+import 'package:cnu_ai_assistant/features/lms_connect/relogin_screen.dart';
 import 'package:cnu_ai_assistant/features/me/me_screen.dart';
 import 'package:cnu_ai_assistant/features/me/rules_screen.dart';
 import 'package:cnu_ai_assistant/features/me/timetable_screen.dart';
@@ -284,7 +285,8 @@ void main() {
           (Routes.root, TodayScreen, true),
           (Routes.day('2026-10-29'), DayScreen, true),
           (Routes.calendarWeek, WeekScreen, true),
-          (Routes.meRules, RulesScreen, true),
+          (Routes.login, ReloginScreen, false),
+          (Routes.meRules, RulesScreen, false),
           (Routes.task(1), TaskDetailScreen, false),
           (Routes.meTimetable, TimetableScreen, false),
           (Routes.briefing, BriefingScreen, false),
@@ -300,6 +302,55 @@ void main() {
             reason: path,
           );
         }
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('10 나에서 연 셸 밖 화면은 탭바 없이 뜨고, 뒤로 가면 10 나로 돌아온다', (
+        tester,
+      ) async {
+        final app = await pumpTestApp(tester, textScale: textScale);
+        await tapTab(tester, '나');
+
+        // (10 나의 항목, 열리는 화면, 경로)
+        final rows = <(String, Type, String)>[
+          (AppStrings.myRules, RulesScreen, Routes.meRules),
+          (AppStrings.timetableAndFixed, TimetableScreen, Routes.meTimetable),
+        ];
+        for (final (item, screen, path) in rows) {
+          await tapText(tester, item);
+          expect(find.byType(screen), findsOneWidget, reason: path);
+          expect(find.byType(AppTabBar), findsNothing, reason: path);
+          expect(app.router.state.uri.path, path);
+
+          await tester.tap(find.byType(BackButton));
+          await tester.pumpAndSettle();
+          expect(find.byType(screen), findsNothing, reason: path);
+          expect(find.byType(MeScreen), findsOneWidget, reason: path);
+          _expectTabs(tester, selected: '나');
+        }
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('/login(14 다시 로그인)은 셸 밖에 뜨고, 닫으면 연 화면으로 돌아온다', (
+        tester,
+      ) async {
+        final app = await pumpTestApp(tester, textScale: textScale);
+        await tapTab(tester, '할 일');
+
+        // '다시 로그인' 칩·LMS 정보 시트·10 나 › LMS 계정이 여는 방식(push). 시작 위치 규칙이 막지 않는다.
+        app.router.push(Routes.login);
+        await tester.pumpAndSettle();
+        expect(find.byType(ReloginScreen), findsOneWidget);
+        expect(find.byType(AppTabBar), findsNothing);
+        expect(app.router.state.uri.path, Routes.login);
+
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+        expect(find.byType(ReloginScreen), findsNothing);
+        expect(find.byType(TaskListScreen), findsOneWidget);
+        _expectTabs(tester, selected: '할 일');
 
         await app.dispose(tester);
       });
