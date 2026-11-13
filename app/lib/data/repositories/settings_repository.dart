@@ -9,7 +9,7 @@ import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 ///
 /// 표에 없는 키와 형식이 깨진 값은 [AppSettings.defaults]의 값으로 채워 돌려준다.
 /// 키 이름은 [SettingKeys]를 쓴다. docs/architecture.md '앱 코드 규약'의 오류 처리대로
-/// [read]·[write]는 예외를 던지지 않고 [Result]를 돌려주며, 폰 DB를 읽거나 쓰지 못하면
+/// [read]·[write]·[writeAll]은 예외를 던지지 않고 [Result]를 돌려주며, 폰 DB를 읽거나 쓰지 못하면
 /// (닫힌 DB 포함) [StorageError]를 담은 [Err]다([guardStorage]). 예외는 프로그래밍 오류(모르는 키·
 /// 맞지 않는 형)에만 쓴다.
 class SettingsRepository {
@@ -44,6 +44,25 @@ class SettingsRepository {
     return guardStorage('settings.write', () async {
       await _db.into(_db.settings).insertOnConflictUpdate(row);
     });
+  }
+
+  /// [values]의 키를 한 트랜잭션에서 모두 쓴다. 로그아웃·온보딩 끝처럼 여러 키를 함께 바꾸는 곳이
+  /// 쓴다. 다 쓰기 전에는 [watch]와 다른 읽기에 중간 상태가 보이지 않고, 하나라도 쓰지 못하면 아무
+  /// 키도 바꾸지 않고 [Err]다. 키와 값의 규칙은 [write]와 같고, 모르는 키나 맞지 않는 형이 하나라도
+  /// 있으면 아무것도 쓰기 전에 [ArgumentError]를 던진다.
+  Future<Result<void>> writeAll(Map<String, Object?> values) async {
+    final rows = [
+      for (final MapEntry(:key, :value) in values.entries) _row(key, value),
+    ];
+    if (rows.isEmpty) return const Ok(null);
+    return guardStorage(
+      'settings.writeAll',
+      () => _db.transaction(() async {
+        for (final row in rows) {
+          await _db.into(_db.settings).insertOnConflictUpdate(row);
+        }
+      }),
+    );
   }
 
   /// 표에 쓸 행. 값은 [AppSettings.encodeValue]로 검사하고 JSON으로 적는다.
