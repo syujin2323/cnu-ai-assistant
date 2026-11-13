@@ -9,6 +9,9 @@
 // 화면 진입 인자: 06 AI 비서는 [AssistantArgs]를 `extra`로만 받고(사용자 문장을 경로에 넣지 않음),
 // 03 할 일·13 시간표·고정 일정은 처음 탭을 `?tab=` 쿼리로 받는다([Routes.tasksTab],
 // [Routes.meTimetableTab]). 모르는 값이면 기본 탭이다.
+// 캘린더 탭은 11 주간(`/calendar`)부터 열고, 08 월간(`/calendar/month`)은 같은 가지의 형제 경로라 '주 | 월'로
+// 바꿔 끼운다(go). 09 일간은 어디서 열든 오늘 탭에 두고(go), 11·08에서 열었으면 뒤로 가면 그 화면으로
+// 돌아간다([DayViewFrom], `features/today/day_screen.dart`).
 //
 // 시작 위치는 [_redirect] 한 곳에서만 정한다. 앱으로 돌아올 때(resumed)는 RootApp이
 // [StartRules.onResume]으로 그 규칙을 다시 돌릴지 본다. 플랫폼이 넘기는 경로(Android intent의
@@ -23,6 +26,7 @@ import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_tab_bar.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
+import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
@@ -59,14 +63,26 @@ abstract final class Routes {
   /// 02 홈(오늘 탭).
   static const String today = '/today';
 
-  /// 09 일간(오늘 탭). [date]는 `YYYY-MM-DD`(`domain/clock.dart`의 `isoDate`).
-  static String day(String date) => '$today/$_daySegment/$date';
+  /// 09 일간(오늘 탭). 경로의 날짜는 `YYYY-MM-DD`(`domain/clock.dart`의 `isoDate`)이다. 11 주간·08 월간에서
+  /// 열면 [from]을 넘겨 뒤로 가면 그 화면으로 돌아가게 하고(`?from=week`), 02 홈·06 AI 비서에서 열면
+  /// 비워 둔다(뒤로 가면 02 홈). 어디서 열든 go로 연다.
+  static String day(DateTime date, {DayViewFrom? from}) {
+    final path = '$today/$_daySegment/${isoDate(date)}';
+    return from == null ? path : '$path?$_fromParam=${from.name}';
+  }
 
-  /// 08 월간(캘린더 탭).
+  /// [location]이 [from]을 넘겨 연 09 일간을 뒤로 가기로 닫은 직후의 위치인지. go_router는 맨 위 화면을
+  /// 뺄 때 위치의 쿼리를 그대로 두므로, 그렇게 닫으면 위치가 `/today?from=week`가 된다. 오늘 탭을 다시
+  /// 누르거나 다른 곳으로 가서 09가 빠졌다면 이 쿼리가 없다. 09의 `PopScope`가 이 둘을 가를 때 쓴다.
+  static bool isDayClosedByBack(Uri location, DayViewFrom from) =>
+      location.path == today &&
+      location.queryParameters[_fromParam] == from.name;
+
+  /// 11 주간(캘린더 탭의 첫 화면). 캘린더 탭을 다시 누르면 여기로 온다.
   static const String calendar = '/calendar';
 
-  /// 주간(캘린더 탭, R1).
-  static const String calendarWeek = '$calendar/$_weekSegment';
+  /// 08 월간(캘린더 탭). [calendar]와 같은 가지의 형제 경로라 '주 | 월'로 바꿔 끼운다(go, 뒤로 화살표 없음).
+  static const String calendarMonth = '$calendar/$_monthSegment';
 
   /// 03 할 일(할 일 탭). 처음 탭을 고르려면 [tasksTab]을 쓴다.
   static const String tasks = '/tasks';
@@ -104,19 +120,20 @@ abstract final class Routes {
 
   // 하위 경로 조각과 경로·쿼리 매개변수 이름. 라우터 정의에만 쓴다.
   static const String _daySegment = 'day';
-  static const String _weekSegment = 'week';
+  static const String _monthSegment = 'month';
   static const String _rulesSegment = 'rules';
   static const String _timetableSegment = 'timetable';
   static const String _dateParam = 'date';
   static const String _idParam = 'id';
   static const String _tabParam = 'tab';
+  static const String _fromParam = 'from';
 
-  /// 쿼리 `tab`의 값을 [values]의 이름에서 찾는다. 없거나 모르는 값이면 [fallback](기본 탭)이다.
-  static T _tab<T extends Enum>(
+  /// 쿼리 [name]의 값을 [values]의 이름에서 찾는다. 없거나 모르는 값이면 null이다.
+  static T? _queryEnum<T extends Enum>(
     GoRouterState state,
+    String name,
     List<T> values,
-    T fallback,
-  ) => values.asNameMap()[state.uri.queryParameters[_tabParam]] ?? fallback;
+  ) => values.asNameMap()[state.uri.queryParameters[name]];
 }
 
 /// 앱을 켠 알림의 payload(go_router 경로 문자열). 알림으로 켜지지 않았으면 null이다.
@@ -190,8 +207,16 @@ final routerProvider = Provider<GoRouter>((ref) {
                 routes: [
                   GoRoute(
                     path: '${Routes._daySegment}/:${Routes._dateParam}',
+                    // 없는 날짜(예: 2026-02-30)는 없는 경로처럼 시작 위치로 보낸다.
+                    redirect: (context, state) =>
+                        _dayParam(state) == null ? Routes.root : null,
                     builder: (context, state) => DayScreen(
-                      date: state.pathParameters[Routes._dateParam]!,
+                      date: _dayParam(state)!,
+                      from: Routes._queryEnum(
+                        state,
+                        Routes._fromParam,
+                        DayViewFrom.values,
+                      ),
                     ),
                   ),
                 ],
@@ -200,15 +225,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
+              // 11 주간과 08 월간은 형제 경로다. 08을 11 위에 쌓지 않으므로 08에 뒤로 화살표가 없고,
+              // 가지의 첫 경로인 11 주간이 탭을 다시 누를 때 가는 곳이다.
               GoRoute(
                 path: Routes.calendar,
+                builder: (context, state) => const WeekScreen(),
+              ),
+              GoRoute(
+                path: Routes.calendarMonth,
                 builder: (context, state) => const MonthScreen(),
-                routes: [
-                  GoRoute(
-                    path: Routes._weekSegment,
-                    builder: (context, state) => const WeekScreen(),
-                  ),
-                ],
               ),
             ],
           ),
@@ -217,16 +242,19 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: Routes.tasks,
                 builder: (context, state) => TaskListScreen(
-                  initialTab: Routes._tab(
-                    state,
-                    TaskListTab.values,
-                    TaskListTab.weekly,
-                  ),
+                  initialTab:
+                      Routes._queryEnum(
+                        state,
+                        Routes._tabParam,
+                        TaskListTab.values,
+                      ) ??
+                      TaskListTab.weekly,
                 ),
                 routes: [
                   GoRoute(
                     path: ':${Routes._idParam}',
                     parentNavigatorKey: rootNavigatorKey,
+                    // (재설계 때 :id 검사) 04 할 일 상세는 재설계 예정이라 지금은 숫자가 아니면 null로 넘긴다.
                     builder: (context, state) => TaskDetailScreen(
                       taskId: int.tryParse(
                         state.pathParameters[Routes._idParam]!,
@@ -252,11 +280,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                     path: Routes._timetableSegment,
                     parentNavigatorKey: rootNavigatorKey,
                     builder: (context, state) => TimetableScreen(
-                      initialTab: Routes._tab(
-                        state,
-                        TimetableTab.values,
-                        TimetableTab.timetable,
-                      ),
+                      initialTab:
+                          Routes._queryEnum(
+                            state,
+                            Routes._tabParam,
+                            TimetableTab.values,
+                          ) ??
+                          TimetableTab.timetable,
                     ),
                   ),
                 ],
@@ -436,6 +466,10 @@ class StartRules {
     return _deferredPaths.contains(router.state.uri.path);
   }
 }
+
+/// 09 일간 경로의 날짜. 형식이 다르거나 없는 날짜면 null이다.
+DateTime? _dayParam(GoRouterState state) =>
+    tryParseIsoDate(state.pathParameters[Routes._dateParam]!);
 
 /// 하단 탭 셸. 탭을 다시 누르면 그 탭의 첫 화면으로 돌아가고, 탭을 바꿔도 각 탭의 화면은 남는다.
 class _TabShell extends ConsumerWidget {

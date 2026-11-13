@@ -60,7 +60,7 @@ void main() {
         _expectTabs(tester, selected: '오늘');
 
         await tapTab(tester, '캘린더');
-        expect(find.byType(MonthScreen), findsOneWidget);
+        expect(find.byType(WeekScreen), findsOneWidget);
         expect(find.byType(TodayScreen), findsNothing);
         _expectTabs(tester, selected: '캘린더');
 
@@ -122,7 +122,7 @@ void main() {
       ) async {
         final app = await pumpTestApp(tester, textScale: textScale);
 
-        app.router.go(Routes.day('2026-10-29'));
+        app.router.go(Routes.day(DateTime(2026, 10, 29)));
         await tester.pumpAndSettle();
         expect(find.byType(DayScreen), findsOneWidget);
 
@@ -415,7 +415,7 @@ void main() {
             textScale: textScale,
           );
           await tapTab(tester, '캘린더');
-          expect(find.byType(MonthScreen), findsOneWidget);
+          expect(find.byType(WeekScreen), findsOneWidget);
 
           app.clock.current = nextMorning;
           app.briefingOpenedToday = false;
@@ -447,7 +447,7 @@ void main() {
           app.briefingOpenedToday = false;
           await sendAppToBackgroundAndBack(tester);
 
-          expect(find.byType(MonthScreen), findsOneWidget);
+          expect(find.byType(WeekScreen), findsOneWidget);
           expect(find.byType(BriefingScreen), findsNothing);
           _expectTabs(tester, selected: '캘린더');
 
@@ -466,7 +466,7 @@ void main() {
           app.clock.current = nextMorning;
           await sendAppToBackgroundAndBack(tester);
 
-          expect(find.byType(MonthScreen), findsOneWidget);
+          expect(find.byType(WeekScreen), findsOneWidget);
           expect(find.byType(BriefingScreen), findsNothing);
 
           await app.dispose(tester);
@@ -537,8 +537,9 @@ void main() {
         // (경로, 화면, 하단 탭이 보이는지). `/`는 시작 위치 규칙으로 /today에 간다.
         final table = <(String, Type, bool)>[
           (Routes.root, TodayScreen, true),
-          (Routes.day('2026-10-29'), DayScreen, true),
-          (Routes.calendarWeek, WeekScreen, true),
+          (Routes.day(DateTime(2026, 10, 29)), DayScreen, true),
+          (Routes.calendar, WeekScreen, true),
+          (Routes.calendarMonth, MonthScreen, true),
           (Routes.login, ReloginScreen, false),
           (Routes.meRules, RulesScreen, false),
           (Routes.task(1), TaskDetailScreen, false),
@@ -729,12 +730,189 @@ void main() {
           await tester.tap(find.byType(BackButton));
           await tester.pumpAndSettle();
           expect(find.byType(TimetableScreen), findsNothing);
-          expect(find.byType(MonthScreen), findsOneWidget);
+          expect(find.byType(WeekScreen), findsOneWidget);
           _expectTabs(tester, selected: '캘린더');
 
           app.router.push('${Routes.meTimetable}?tab=week');
           await tester.pumpAndSettle();
           expect(tab(), TimetableTab.timetable);
+
+          await app.dispose(tester);
+        });
+      });
+
+      group('캘린더와 09 일간', () {
+        final day = DateTime(2026, 11, 13);
+
+        testWidgets('캘린더 탭은 11 주간부터 열고, 주·월은 같은 자리에서 바꿔 끼운다', (tester) async {
+          final app = await pumpTestApp(tester, textScale: textScale);
+          await tapTab(tester, '캘린더');
+          expect(find.byType(WeekScreen), findsOneWidget);
+          expect(app.router.state.uri.path, Routes.calendar);
+
+          // '월'은 08 월간으로 바꿔 끼운다. 쌓지 않으므로 뒤로 화살표가 없고 탭바는 그대로다.
+          await tapText(tester, '월');
+          expect(find.byType(MonthScreen), findsOneWidget);
+          expect(find.byType(WeekScreen), findsNothing);
+          expect(find.byType(BackButton), findsNothing);
+          expect(app.router.state.uri.path, Routes.calendarMonth);
+          _expectTabs(tester, selected: '캘린더');
+
+          // 캘린더 탭을 다시 누르면 첫 화면인 11 주간이다.
+          await tapTab(tester, '캘린더');
+          expect(find.byType(WeekScreen), findsOneWidget);
+
+          // '월' 뒤 '주'도 바꿔 끼운다.
+          await tapText(tester, '월');
+          await tapText(tester, '주');
+          expect(find.byType(WeekScreen), findsOneWidget);
+          expect(find.byType(MonthScreen), findsNothing);
+          expect(find.byType(BackButton), findsNothing);
+
+          await app.dispose(tester);
+        });
+
+        testWidgets('11 주간·08 월간에서 연 09 일간은 오늘 탭에 속하고, 뒤로 가면 연 화면으로 돌아온다', (
+          tester,
+        ) async {
+          final app = await pumpTestApp(tester, textScale: textScale);
+          // (연 곳, 그 화면)
+          final rows = <(DayViewFrom, Type)>[
+            (DayViewFrom.week, WeekScreen),
+            (DayViewFrom.month, MonthScreen),
+          ];
+          for (final (from, screen) in rows) {
+            app.router.go(from.location);
+            await tester.pumpAndSettle();
+            expect(find.byType(screen), findsOneWidget, reason: from.name);
+
+            app.router.go(Routes.day(day, from: from));
+            await tester.pumpAndSettle();
+            expect(find.byType(DayScreen), findsOneWidget, reason: from.name);
+            _expectTabs(tester, selected: '오늘');
+
+            await tester.tap(find.byType(BackButton));
+            await tester.pumpAndSettle();
+            expect(find.byType(DayScreen), findsNothing, reason: from.name);
+            expect(find.byType(screen), findsOneWidget, reason: from.name);
+            expect(app.router.state.uri.path, from.location, reason: from.name);
+            _expectTabs(tester, selected: '캘린더');
+          }
+
+          // 시스템 뒤로 가기(Android)도 같다.
+          app.router.go(Routes.day(day, from: DayViewFrom.week));
+          await tester.pumpAndSettle();
+          await tester.binding.handlePopRoute();
+          await tester.pumpAndSettle();
+          expect(find.byType(DayScreen), findsNothing);
+          expect(find.byType(WeekScreen), findsOneWidget);
+          _expectTabs(tester, selected: '캘린더');
+
+          await app.dispose(tester);
+        });
+
+        testWidgets('iOS에서 09 일간을 왼쪽 끝에서 밀어 닫아도 연 화면으로 돌아온다', (tester) async {
+          final app = await pumpTestApp(tester, textScale: textScale);
+          await tapTab(tester, '캘린더');
+          app.router.go(Routes.day(day, from: DayViewFrom.week));
+          await tester.pumpAndSettle();
+          expect(find.byType(DayScreen), findsOneWidget);
+
+          // 뒤로 가기를 막지 않으므로 스와이프 뒤로가 살아 있다.
+          await tester.dragFrom(
+            const Offset(5, 400),
+            Offset(phonePortrait.width * 0.8, 0),
+          );
+          await tester.pumpAndSettle();
+          expect(find.byType(DayScreen), findsNothing);
+          expect(find.byType(WeekScreen), findsOneWidget);
+          _expectTabs(tester, selected: '캘린더');
+
+          await app.dispose(tester);
+        }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+        testWidgets('02 홈과 06 AI 비서에서 연 09 일간은 뒤로 가면 02 홈이다', (tester) async {
+          final app = await pumpTestApp(tester, textScale: textScale);
+
+          // 02 홈의 '일간 보기'.
+          app.router.go(Routes.day(day));
+          await tester.pumpAndSettle();
+          await tester.tap(find.byType(BackButton));
+          await tester.pumpAndSettle();
+          expect(find.byType(TodayScreen), findsOneWidget);
+          expect(app.router.state.uri.path, Routes.today);
+
+          // 06 AI 비서 답의 '일간에서 보기'. 다른 탭에서 06을 열었어도 09로 가면 06은 닫히고, 뒤로 가면 02 홈이다.
+          await tapTab(tester, '할 일');
+          await tester.tap(assistantButton());
+          await tester.pumpAndSettle();
+          app.router.go(Routes.day(day));
+          await tester.pumpAndSettle();
+          expect(find.byType(AssistantScreen), findsNothing);
+          expect(find.byType(DayScreen), findsOneWidget);
+          _expectTabs(tester, selected: '오늘');
+          await tester.tap(find.byType(BackButton));
+          await tester.pumpAndSettle();
+          expect(find.byType(TodayScreen), findsOneWidget);
+          _expectTabs(tester, selected: '오늘');
+
+          await app.dispose(tester);
+        });
+
+        testWidgets('09 일간에서 날짜를 넘겨도 뒤로 가면 지난 날을 거치지 않고 연 화면으로 간다', (
+          tester,
+        ) async {
+          final app = await pumpTestApp(tester, textScale: textScale);
+          DateTime shown() =>
+              tester.widget<DayScreen>(find.byType(DayScreen)).date;
+          await tapTab(tester, '캘린더');
+          app.router.go(Routes.day(day, from: DayViewFrom.week));
+          await tester.pumpAndSettle();
+
+          await tapText(tester, '다음 날');
+          await tapText(tester, '다음 날');
+          expect(shown(), DateTime(2026, 11, 15));
+          await tapText(tester, '전날');
+          expect(shown(), DateTime(2026, 11, 14));
+          expect(app.router.state.uri.path, Routes.day(DateTime(2026, 11, 14)));
+
+          await tester.tap(find.byType(BackButton));
+          await tester.pumpAndSettle();
+          expect(find.byType(DayScreen), findsNothing);
+          expect(find.byType(WeekScreen), findsOneWidget);
+          _expectTabs(tester, selected: '캘린더');
+
+          await app.dispose(tester);
+        });
+
+        testWidgets('09 일간에서 오늘 탭을 다시 누르면 02 홈이고 연 화면으로 가지 않는다', (
+          tester,
+        ) async {
+          final app = await pumpTestApp(tester, textScale: textScale);
+          await tapTab(tester, '캘린더');
+          app.router.go(Routes.day(day, from: DayViewFrom.week));
+          await tester.pumpAndSettle();
+
+          // 지금 탭(오늘)을 다시 누르면 그 탭의 첫 화면으로 간다. 뒤로 가기가 아니므로 캘린더로 가지 않는다.
+          await tapTab(tester, '오늘');
+          expect(find.byType(TodayScreen), findsOneWidget);
+          expect(find.byType(DayScreen), findsNothing);
+          _expectTabs(tester, selected: '오늘');
+
+          await app.dispose(tester);
+        });
+
+        testWidgets('없는 날짜의 09 일간은 시작 위치로 보낸다', (tester) async {
+          final app = await pumpTestApp(tester, textScale: textScale);
+          for (final path in [
+            '${Routes.today}/day/2026-02-30',
+            '${Routes.today}/day/today',
+          ]) {
+            app.router.go(path);
+            await tester.pumpAndSettle();
+            expect(find.byType(DayScreen), findsNothing, reason: path);
+            expect(app.router.state.uri.path, Routes.today, reason: path);
+          }
 
           await app.dispose(tester);
         });
