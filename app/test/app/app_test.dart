@@ -1,5 +1,6 @@
-// 앱이 뜨고 네 탭과 AI 비서 버튼이 보이는지 보는 화면 테스트와 시작 위치·라우트 표·데모 전환 테스트.
-// docs/architecture.md '확인과 CI', '화면 이동', '데모 모드', docs/screens.md '하단 탭과 AI 비서 버튼'.
+// 앱이 뜨고 네 탭과 AI 비서 버튼이 보이는지 보는 화면 테스트와 시작 위치(앱으로 돌아올 때 포함)·라우트
+// 표·데모 전환 테스트. docs/architecture.md '확인과 CI', '화면 이동', '데모 모드',
+// docs/screens.md '하단 탭과 AI 비서 버튼', '01 아침 브리핑'.
 //
 // RootApp은 test/helpers/pump_app.dart로 띄운다(Firebase 없이 메모리 DB와 모의 SharedPreferences).
 // 모든 검사를 글자 배율 1.0과 2.0에서 돌려 넘침(RenderFlex overflow) 예외가 없어야 한다.
@@ -12,6 +13,7 @@ import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_tab_bar.dart';
 import 'package:cnu_ai_assistant/design/widgets/demo_band.dart';
+import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_screen.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_screen.dart';
@@ -21,6 +23,7 @@ import 'package:cnu_ai_assistant/features/lms_connect/relogin_screen.dart';
 import 'package:cnu_ai_assistant/features/me/me_screen.dart';
 import 'package:cnu_ai_assistant/features/me/rules_screen.dart';
 import 'package:cnu_ai_assistant/features/me/timetable_screen.dart';
+import 'package:cnu_ai_assistant/features/onboarding/onboarding_controller.dart';
 import 'package:cnu_ai_assistant/features/onboarding/onboarding_screen.dart';
 import 'package:cnu_ai_assistant/features/tasks/task_detail_screen.dart';
 import 'package:cnu_ai_assistant/features/tasks/task_list_screen.dart';
@@ -389,6 +392,138 @@ void main() {
 
           expect(find.byType(OnboardingScreen), findsOneWidget);
           expect(find.byType(TodayScreen), findsNothing);
+          expect(app.router.state.uri.path, Routes.onboarding);
+
+          await app.dispose(tester);
+        });
+      });
+
+      group('앱으로 돌아올 때(resumed)', () {
+        // 2026-11-13 21:00(논리적 하루 11월 13일)에 켠다. 하루 경계는 04:00(임시값)으로 적어 둔다.
+        final evening = DateTime(2026, 11, 13, 21);
+        final nextMorning = DateTime(2026, 11, 14, 8);
+        const boundary = {SettingKeys.dayBoundaryMin: 240};
+
+        testWidgets('하루가 바뀌었고 그날 브리핑을 아직 보지 않았으면 /briefing으로 간다', (
+          tester,
+        ) async {
+          final app = await pumpTestApp(
+            tester,
+            now: evening,
+            settings: boundary,
+            textScale: textScale,
+          );
+          await tapTab(tester, '캘린더');
+          expect(find.byType(MonthScreen), findsOneWidget);
+
+          app.clock.current = nextMorning;
+          app.briefingOpenedToday = false;
+          await sendAppToBackgroundAndBack(tester);
+
+          expect(find.byType(BriefingScreen), findsOneWidget);
+          expect(find.byType(AppTabBar), findsNothing);
+          expect(app.router.state.uri.path, Routes.briefing);
+
+          // 브리핑으로 가며 탭 셸이 내려가므로, 닫으면 보던 캘린더 탭이 아니라 오늘부터 다시 연다.
+          await tapText(tester, '오늘로 가기');
+          expect(find.byType(TodayScreen), findsOneWidget);
+          _expectTabs(tester, selected: '오늘');
+
+          await app.dispose(tester);
+        });
+
+        testWidgets('같은 논리적 하루 안이면 브리핑을 보지 않았어도 보던 화면을 그대로 둔다', (tester) async {
+          final app = await pumpTestApp(
+            tester,
+            now: evening,
+            settings: boundary,
+            textScale: textScale,
+          );
+          await tapTab(tester, '캘린더');
+
+          // 다음 날 03:30은 하루 경계 04:00 전이라 아직 11월 13일이다.
+          app.clock.current = DateTime(2026, 11, 14, 3, 30);
+          app.briefingOpenedToday = false;
+          await sendAppToBackgroundAndBack(tester);
+
+          expect(find.byType(MonthScreen), findsOneWidget);
+          expect(find.byType(BriefingScreen), findsNothing);
+          _expectTabs(tester, selected: '캘린더');
+
+          await app.dispose(tester);
+        });
+
+        testWidgets('하루가 바뀌었어도 그날 브리핑을 이미 봤으면 보던 화면을 그대로 둔다', (tester) async {
+          final app = await pumpTestApp(
+            tester,
+            now: evening,
+            settings: boundary,
+            textScale: textScale,
+          );
+          await tapTab(tester, '캘린더');
+
+          app.clock.current = nextMorning;
+          await sendAppToBackgroundAndBack(tester);
+
+          expect(find.byType(MonthScreen), findsOneWidget);
+          expect(find.byType(BriefingScreen), findsNothing);
+
+          await app.dispose(tester);
+        });
+
+        testWidgets('06 AI 비서·다시 로그인에 있으면 미루고, 닫은 뒤 다시 돌아오면 /briefing으로 간다', (
+          tester,
+        ) async {
+          // (미루는 화면의 경로, 화면)
+          final rows = <(String, Type)>[
+            (Routes.assistant, AssistantScreen),
+            (Routes.login, ReloginScreen),
+          ];
+          for (final (path, screen) in rows) {
+            final app = await pumpTestApp(
+              tester,
+              now: evening,
+              settings: boundary,
+              textScale: textScale,
+            );
+            app.router.push(path);
+            await tester.pumpAndSettle();
+
+            app.clock.current = nextMorning;
+            app.briefingOpenedToday = false;
+            await sendAppToBackgroundAndBack(tester);
+            expect(find.byType(screen), findsOneWidget, reason: path);
+            expect(app.router.state.uri.path, path, reason: path);
+
+            await tester.tap(find.byType(BackButton));
+            await tester.pumpAndSettle();
+            expect(find.byType(TodayScreen), findsOneWidget, reason: path);
+
+            // 미룬 확인은 다음에 돌아올 때 다시 본다.
+            await sendAppToBackgroundAndBack(tester);
+            expect(find.byType(BriefingScreen), findsOneWidget, reason: path);
+
+            await app.dispose(tester);
+          }
+        });
+
+        testWidgets('온보딩 중이면 하루가 바뀌어도 보던 단계를 그대로 둔다', (tester) async {
+          final app = await pumpTestApp(
+            tester,
+            start: TestStart.loggedOut,
+            now: evening,
+            settings: boundary,
+            textScale: textScale,
+          );
+          await tapText(tester, '시작하기');
+          expect(find.text(OnboardingStep.privacy.title), findsOneWidget);
+
+          app.clock.current = nextMorning;
+          app.briefingOpenedToday = false;
+          await sendAppToBackgroundAndBack(tester);
+
+          expect(find.byType(OnboardingScreen), findsOneWidget);
+          expect(find.text(OnboardingStep.privacy.title), findsOneWidget);
           expect(app.router.state.uri.path, Routes.onboarding);
 
           await app.dispose(tester);

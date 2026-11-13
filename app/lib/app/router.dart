@@ -7,8 +7,9 @@
 // 한다(go로 열면 돌아갈 곳이 없다). 그 가운데 `/tasks/:id`, `/me/rules`, `/me/timetable`은 그 탭 경로
 // 아래에 두어, 바로 열어도(go) 뒤로 가면 그 탭으로 돌아간다.
 //
-// 시작 위치는 [_redirect] 한 곳에서만 정한다. 플랫폼이 넘기는 경로(Android intent의 `route` 값과
-// 딥링크)는 받지 않는다(`overridePlatformDefaultLocation`과 AndroidManifest의
+// 시작 위치는 [_redirect] 한 곳에서만 정한다. 앱으로 돌아올 때(resumed)는 RootApp이
+// [StartRules.onResume]으로 그 규칙을 다시 돌릴지 본다. 플랫폼이 넘기는 경로(Android intent의
+// `route` 값과 딥링크)는 받지 않는다(`overridePlatformDefaultLocation`과 AndroidManifest의
 // `flutter_deeplinking_enabled` false). 뒤로 가기 제어는 `PopScope`만 쓴다. 탭 전환에는
 // 화면 전환 애니메이션을 쓰지 않는다(indexedStack).
 
@@ -242,6 +243,8 @@ final routerProvider = Provider<GoRouter>((ref) {
 /// `connecting`·`active`로 바뀌어도 튕기지 않게 하기 위해서이고, 로그인이 끝나면 화면이 `/`로 간다.
 /// 같은 까닭으로 settings에 `refreshListenable`을 달지 않는다. 로그아웃은 LMS 상태를
 /// `disconnected`로 먼저 쓰고(await) 그다음 `/onboarding`으로 간다.
+///
+/// settings를 읽으면 그 논리적 하루를 [StartRules]에 적는다. 앱으로 돌아왔을 때 다시 돌릴지 견주는 날이다.
 Future<String?> _redirect(
   Ref ref,
   GoRouterState state, {
@@ -279,6 +282,11 @@ Future<String?> _redirect(
       );
       return Routes.today;
   }
+  ref
+      .read(startRulesProvider)
+      ._recordRun(
+        ref.read(clockProvider).today(dayBoundaryMin: settings.dayBoundaryMin),
+      );
   if (!demo) {
     if (settings.lmsSessionState == LmsSessionState.disconnected) {
       return onboarding;
@@ -297,6 +305,92 @@ Future<String?> _redirect(
       data: {'error': errorKind(error)},
     );
     return Routes.today;
+  }
+}
+
+/// 앱으로 돌아왔을 때 시작 위치 규칙을 다시 돌릴지 정하는 것. RootApp의 `AppLifecycleListener`가
+/// [StartRules.onResume]을 부른다.
+final startRulesProvider = Provider<StartRules>(StartRules.new);
+
+/// 앱으로 돌아왔을 때(resumed) 시작 위치 규칙([_redirect])을 다시 돌릴지 정한다
+/// (docs/architecture.md '화면 이동', docs/decisions.md 2026-11-06 '앱으로 돌아올 때는 하루가 바뀌었을
+/// 때만 시작 위치를 다시 정한다').
+///
+/// 논리적 하루가 [_redirect]가 마지막으로 시작 규칙을 돌린 날과 다르고, 그날 브리핑을 아직 보지
+/// 않았으며, 맨 위 화면이 미루는 화면이 아닐 때만 `/`로 가서 [_redirect]가 다시 정하게 한다. 같은 날
+/// 안에서 돌아오면 보던 화면을 그대로 둔다. 시작 위치를 정하는 곳은 여전히 [_redirect] 하나다.
+class StartRules {
+  StartRules(this._ref);
+
+  final Ref _ref;
+
+  /// 돌아왔을 때 미루는 화면. 이미 시작 흐름에 있거나(14 온보딩, 다시 로그인, 01 아침 브리핑) 입력
+  /// 중일 수 있는 화면(06 AI 비서와 그 위에 덮는 직접 추가 폼)이라 덮지 않는다. 미룬 확인은 다음에
+  /// 돌아올 때 다시 본다.
+  static const Set<String> _deferredPaths = {
+    Routes.onboarding,
+    Routes.login,
+    Routes.briefing,
+    Routes.assistant,
+  };
+
+  /// [_redirect]가 마지막으로 시작 규칙을 돌린 논리적 하루. 앱을 다시 켜면 처음부터 다시 돌므로
+  /// 메모리에만 둔다. 아직 한 번도 돌리지 않았으면 null이다.
+  DateTime? _lastRunDay;
+
+  /// 진행 중인 확인. 돌아왔다는 신호가 겹쳐 와도 확인은 하나만 돈다.
+  Future<void>? _resumeCheck;
+
+  void _recordRun(DateTime day) => _lastRunDay = day;
+
+  /// 앱으로 돌아왔을 때 부른다. 확인이 이미 돌고 있으면 그 확인을 돌려준다.
+  Future<void> onResume() =>
+      _resumeCheck ??= _checkOnResume().whenComplete(() => _resumeCheck = null);
+
+  Future<void> _checkOnResume() async {
+    final router = _ref.read(routerProvider);
+    final lastRunDay = _lastRunDay;
+    // 첫 시작 위치를 정하는 중이면 견줄 날이 없다.
+    if (lastRunDay == null || _isDeferred(router)) return;
+    final int dayBoundaryMin;
+    switch (await _ref.read(settingsRepositoryProvider).read()) {
+      case Ok(:final value):
+        dayBoundaryMin = value.dayBoundaryMin;
+      case Err(:final error):
+        appLog(
+          'resume_settings_read_failed',
+          area: 'router',
+          data: {'error': error.toString()},
+        );
+        return;
+    }
+    final today = _ref
+        .read(clockProvider)
+        .today(dayBoundaryMin: dayBoundaryMin);
+    if (today == lastRunDay) return;
+    final bool openedToday;
+    try {
+      openedToday = await _ref.read(briefingOpenedTodayProvider)();
+    } catch (error) {
+      // 확인하지 못하면 보던 화면을 그대로 둔다. 다음에 돌아올 때 다시 본다.
+      appLog(
+        'resume_briefing_check_failed',
+        area: 'router',
+        data: {'error': errorKind(error)},
+      );
+      return;
+    }
+    // 확인하는 동안 미루는 화면으로 옮겨 갔어도 그대로 둔다.
+    if (openedToday || _isDeferred(router)) return;
+    // `/`에서 [_redirect]가 시작 위치를 다시 정한다. 브리핑(셸 밖)으로 가면 하단 탭 셸이 내려가므로
+    // 각 탭에서 보던 화면(탭 가지 상태)은 사라지고, 브리핑을 닫으면 탭은 첫 화면부터 다시 열린다.
+    router.go(Routes.root);
+  }
+
+  /// 맨 위 화면이 미루는 화면인지. 첫 화면을 띄우기 전이면 미룬다.
+  static bool _isDeferred(GoRouter router) {
+    if (router.routerDelegate.currentConfiguration.isEmpty) return true;
+    return _deferredPaths.contains(router.state.uri.path);
   }
 }
 
