@@ -13,6 +13,7 @@ import 'dart:async';
 import 'package:cnu_ai_assistant/app/config.dart';
 import 'package:cnu_ai_assistant/data/api/server_api.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
+import 'package:cnu_ai_assistant/data/demo/demo_seed.dart';
 import 'package:cnu_ai_assistant/data/repositories/rules_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/undo_repository.dart';
@@ -68,7 +69,7 @@ class AppModeController extends Notifier<AppMode> {
 
   /// 데모 모드에 들어간다. 들어온 곳을 남기면 [databaseProvider]가 데모 DB 파일로 바뀐다.
   ///
-  /// 샘플 데이터는 `data/demo/demo_seed.dart`가 데모 DB를 처음 열 때 넣는다(다음 PR).
+  /// 샘플 데이터는 데모 DB를 열 때 표가 모두 비었으면 넣는다(`AppDatabase`의 데모 시드, [databaseProvider]가 넘김).
   Future<void> enterDemo(DemoEntry entry) async {
     if (state == AppMode.demo) return;
     final preferences = ref.read(sharedPreferencesProvider);
@@ -126,14 +127,18 @@ final realDatabaseProvider = Provider<AppDatabase>((ref) {
 });
 
 /// 화면이 보는 폰 DB. real이면 [realDatabaseProvider]의 `app.sqlite`를 그대로 쓰고, demo면
-/// `app_demo.sqlite`를 따로 열고 데모를 끝내면 닫는다. 화면 쪽 `AppDatabase` 인스턴스는 이 provider
+/// `app_demo.sqlite`를 따로 열고(표가 모두 비었으면 샘플을 넣음) 데모를 끝내면 닫는다. 화면 쪽 `AppDatabase` 인스턴스는 이 provider
 /// 하나로만 얻는다. 설치 표식·LMS 상태는 이 provider가 아니라 [realDatabaseProvider]로 다룬다.
 final databaseProvider = Provider<AppDatabase>((ref) {
   switch (ref.watch(appModeProvider)) {
     case AppMode.real:
       return ref.watch(realDatabaseProvider);
     case AppMode.demo:
-      final db = AppDatabase.open(AppMode.demo);
+      final db = AppDatabase.open(
+        AppMode.demo,
+        demoSeeder: seedDemo,
+        clock: ref.read(clockProvider),
+      );
       ref.onDispose(() => unawaited(db.close()));
       return db;
   }

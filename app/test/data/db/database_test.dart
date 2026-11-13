@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cnu_ai_assistant/data/db/database.dart';
+import 'package:cnu_ai_assistant/data/repositories/demo_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/guard_storage.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
@@ -9,6 +10,8 @@ import 'package:cnu_ai_assistant/domain/timetable_checks.dart';
 import 'package:drift/drift.dart' show OrderingTerm, Value, driftRuntimeOptions;
 import 'package:drift/native.dart' show NativeDatabase, SqliteException;
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../helpers/pump_app.dart' show TestClock;
 
 void main() {
   late AppDatabase db;
@@ -794,6 +797,119 @@ void main() {
       await _withoutMigrations(file, (raw) async {
         expect(await _userVersion(raw), 1);
       });
+    });
+  });
+
+  group('데모 시드', () {
+    // 바깥 setUp의 메모리 DB를 연 채로 다른 DB를 함께 여므로, 같은 연결을 두 번 쓸 때 내는 drift 경고를
+    // 끈다.
+    setUp(() => driftRuntimeOptions.dontWarnAboutMultipleDatabases = true);
+    tearDown(() => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false);
+
+    final day1 = DateTime(2026, 11, 13, 9);
+    final day2 = DateTime(2026, 11, 14, 9);
+
+    /// 넣은 때를 적고 과목 하나를 넣는 시드.
+    Future<void> Function(AppDatabase, DateTime) seeder(List<DateTime> calls) =>
+        (db, now) async {
+          calls.add(now);
+          await db
+              .into(db.courses)
+              .insert(CoursesCompanion.insert(name: '샘플 과목'));
+        };
+
+    Future<List<String>> courseNames(AppDatabase db) async => [
+      for (final course in await db.select(db.courses).get()) course.name,
+    ];
+
+    test('표가 모두 비어 있으면 열 때 한 번 넣고, 하루를 넘겨 다시 열어도 다시 넣지 않는다', () async {
+      final file = await _tempDatabaseFile();
+      final calls = <DateTime>[];
+
+      final first = AppDatabase(
+        NativeDatabase(file),
+        demoSeeder: seeder(calls),
+        clock: TestClock(day1),
+      );
+      expect(await courseNames(first), ['샘플 과목']);
+      await first.close();
+
+      // docs/decisions.md 2026-11-13 '하루를 넘긴 데모의 샘플은 다시 넣지 않는다'.
+      final next = AppDatabase(
+        NativeDatabase(file),
+        demoSeeder: seeder(calls),
+        clock: TestClock(day2),
+      );
+      expect(await courseNames(next), ['샘플 과목']);
+      await next.close();
+
+      expect(calls, [day1]);
+    });
+
+    test('끝내며 비운 뒤 다시 열면 그때를 기준으로 다시 넣는다', () async {
+      final file = await _tempDatabaseFile();
+      final calls = <DateTime>[];
+      final first = AppDatabase(
+        NativeDatabase(file),
+        demoSeeder: seeder(calls),
+        clock: TestClock(day1),
+      );
+      await first.select(first.courses).get();
+      expect(await DemoRepository(first).clearAll(), isA<Ok<void>>());
+      await first.close();
+
+      final again = AppDatabase(
+        NativeDatabase(file),
+        demoSeeder: seeder(calls),
+        clock: TestClock(day2),
+      );
+      expect(await courseNames(again), ['샘플 과목']);
+      await again.close();
+
+      expect(calls, [day1, day2]);
+    });
+
+    test('어느 표에든 행이 있으면 넣지 않는다', () async {
+      final file = await _tempDatabaseFile();
+      // 시드 없이 열어 표를 만들고 설정 한 행만 둔다(과목은 비어 있음).
+      final plain = AppDatabase(NativeDatabase(file));
+      await plain.customStatement(
+        "INSERT INTO settings (key, value) VALUES ('aiEnabled', 'false')",
+      );
+      await plain.close();
+
+      final calls = <DateTime>[];
+      final db = AppDatabase(
+        NativeDatabase(file),
+        demoSeeder: seeder(calls),
+        clock: TestClock(day1),
+      );
+      expect(await courseNames(db), isEmpty);
+      await db.close();
+      expect(calls, isEmpty);
+    });
+
+    test('넣다가 실패하면 아무것도 남기지 않고 빈 데모로 연다', () async {
+      final db = AppDatabase(
+        NativeDatabase.memory(),
+        demoSeeder: (db, now) async {
+          await db
+              .into(db.courses)
+              .insert(CoursesCompanion.insert(name: '샘플 과목'));
+          await db.customStatement('SELECT * FROM no_such_table');
+        },
+        clock: TestClock(day1),
+      );
+      addTearDown(db.close);
+
+      expect(await courseNames(db), isEmpty);
+    });
+
+    test('시드가 없는 DB(실제 모드)는 넣지 않는다', () async {
+      final db = AppDatabase(NativeDatabase.memory(), clock: TestClock(day1));
+      addTearDown(db.close);
+
+      expect(await courseNames(db), isEmpty);
     });
   });
 }
