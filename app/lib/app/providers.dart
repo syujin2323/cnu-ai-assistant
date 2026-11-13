@@ -13,6 +13,7 @@ import 'dart:async';
 import 'package:cnu_ai_assistant/app/config.dart';
 import 'package:cnu_ai_assistant/data/api/server_api.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
+import 'package:cnu_ai_assistant/data/repositories/rules_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/undo_repository.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
@@ -146,6 +147,11 @@ final databaseProvider = Provider<AppDatabase>((ref) {
 /// 설치 표식·LMS 상태(`lms*` 키)는 앱 모드와 관계없이 실제 DB에서 읽고 쓴다(`app/startup.dart`).
 final settingsRepositoryProvider = Provider<SettingsRepository>(
   (ref) => SettingsRepository(ref.watch(databaseProvider)),
+);
+
+/// `rules` 표 저장소(내 규칙). 지금 모드의 폰 DB를 본다.
+final rulesRepositoryProvider = Provider<RulesRepository>(
+  (ref) => RulesRepository(ref.watch(databaseProvider)),
 );
 
 /// 되돌리기 저장소. 지금 모드의 폰 DB를 본다.
