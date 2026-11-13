@@ -12,6 +12,7 @@ import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
+import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
@@ -345,10 +346,10 @@ void _expectHeader(
   if (step == OnboardingStep.login) {
     expect(progress, findsNothing);
   } else {
-    expect(
-      tester.widget<LinearProgressIndicator>(progress).semanticsLabel,
-      '온보딩 5단계 중 ${step.number}단계',
-    );
+    final bar = tester.widget<LinearProgressIndicator>(progress);
+    expect(bar.semanticsLabel, '온보딩 5단계 중 ${step.number}단계');
+    // 바탕은 진행 막대 바탕 토큰이다.
+    expect(bar.backgroundColor, AppColors.light.tint2);
   }
 }
 

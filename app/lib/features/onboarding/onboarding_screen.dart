@@ -157,7 +157,7 @@ class _OnboardingHeader extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: step.number / count,
                   color: colors.accent,
-                  backgroundColor: colors.tint,
+                  backgroundColor: colors.tint2,
                   semanticsLabel: '온보딩 $count단계 중 ${step.number}단계',
                 ),
               ),
