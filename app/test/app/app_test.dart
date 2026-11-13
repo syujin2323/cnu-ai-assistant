@@ -35,6 +35,9 @@ import 'package:material_ui/material_ui.dart';
 
 import '../helpers/pump_app.dart';
 
+/// 14 온보딩 1단계 아래의 데모 들어가기 문구(docs/screens.md '1단계 · LMS 로그인').
+const _browseDemo = '로그인 없이 둘러보기 · 샘플 학생의 하루';
+
 /// 하단 탭 라벨(docs/screens.md '하단 탭과 AI 비서 버튼'의 순서).
 const _tabLabels = ['오늘', '캘린더', '할 일', '나'];
 
@@ -154,7 +157,8 @@ void main() {
           expect(find.byType(AppTabBar), findsNothing);
           // 첫 화면 맨 아래의 표시까지 내려 본다(글자가 크면 처음에는 그려지지 않는다).
           await scrollTo(tester, find.text(AppStrings.unofficialShort));
-          expect(find.text('시작하기'), findsOneWidget);
+          expect(find.text(OnboardingStep.login.title), findsOneWidget);
+          expect(find.text(_browseDemo), findsOneWidget);
 
           await app.dispose(tester);
         });
@@ -508,7 +512,7 @@ void main() {
           }
         });
 
-        testWidgets('온보딩 중이면 하루가 바뀌어도 보던 단계를 그대로 둔다', (tester) async {
+        testWidgets('온보딩 중이면 하루가 바뀌어도 그대로 둔다', (tester) async {
           final app = await pumpTestApp(
             tester,
             start: TestStart.loggedOut,
@@ -516,15 +520,14 @@ void main() {
             settings: boundary,
             textScale: textScale,
           );
-          await tapText(tester, '시작하기');
-          expect(find.text(OnboardingStep.privacy.title), findsOneWidget);
+          expect(find.text(OnboardingStep.login.title), findsOneWidget);
 
           app.clock.current = nextMorning;
           app.briefingOpenedToday = false;
           await sendAppToBackgroundAndBack(tester);
 
           expect(find.byType(OnboardingScreen), findsOneWidget);
-          expect(find.text(OnboardingStep.privacy.title), findsOneWidget);
+          expect(find.text(OnboardingStep.login.title), findsOneWidget);
           expect(app.router.state.uri.path, Routes.onboarding);
 
           await app.dispose(tester);
@@ -959,28 +962,29 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('온보딩 첫 화면의 둘러보기로 데모에 들어가면 끝내기로 온보딩 첫 화면에 돌아온다', (
+      testWidgets('온보딩 1단계의 둘러보기로 데모 01 아침 브리핑에 들어가면 끝내기로 1단계에 돌아온다', (
         tester,
       ) async {
         final app = await pumpTestApp(
           tester,
           start: TestStart.fresh,
+          briefingOpenedToday: false,
           textScale: textScale,
         );
 
-        await tapText(tester, '둘러보기 · 샘플 학생의 하루');
+        await tapText(tester, _browseDemo);
 
-        // 데모 모드는 onboarding_done을 보지 않는다.
+        // 데모 모드는 onboarding_done을 보지 않고, 그날 브리핑을 아직 보지 않았으면 01부터 연다.
         expect(find.byType(DemoBand), findsOneWidget);
-        expect(find.byType(TodayScreen), findsOneWidget);
+        expect(find.byType(BriefingScreen), findsOneWidget);
         expect(app.preferences.getString('demo_entry'), 'onboarding');
 
         await tapText(tester, '끝내기');
 
         expect(find.byType(DemoBand), findsNothing);
         expect(find.byType(OnboardingScreen), findsOneWidget);
-        await scrollTo(tester, find.text('시작하기'));
-        expect(find.text('시작하기'), findsOneWidget);
+        await scrollTo(tester, find.text(_browseDemo));
+        expect(find.text(OnboardingStep.login.title), findsOneWidget);
 
         await app.dispose(tester);
       });
@@ -994,7 +998,7 @@ void main() {
           textScale: textScale,
         );
 
-        await tapText(tester, '둘러보기 · 샘플 학생의 하루');
+        await tapText(tester, _browseDemo);
         expect(find.byType(DemoBand), findsOneWidget);
         expect(find.byType(TodayScreen), findsOneWidget);
 
@@ -1037,8 +1041,8 @@ void main() {
           );
 
           expect(find.byType(OnboardingScreen), findsOneWidget);
-          await scrollTo(tester, find.text('시작하기'));
-          expect(find.text('시작하기'), findsOneWidget);
+          await scrollTo(tester, find.text(_browseDemo));
+          expect(find.text(_browseDemo), findsOneWidget);
 
           await app.dispose(tester);
         });

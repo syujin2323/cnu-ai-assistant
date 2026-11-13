@@ -1,22 +1,24 @@
-// 온보딩 7단계: 브리핑 시각과 알림 권한의 틀. 문구와 배치는 캔버스를 참고했다.
+// 온보딩 5단계(마지막): 아침 브리핑 시각. docs/screens.md '14 온보딩'의 '5단계 · 아침 브리핑 시각'.
+// 오전 6:00–오후 12:00, 30분 단위 칩(기본 오전 8:00, 임시)에서 고르고 내 규칙 '알림'의 브리핑 시각으로
+// 저장한다. 01 아침 브리핑은 이 시각과 관계없이 그날 아직 보지 않았으면 앱을 열 때 뜬다. 이 시각의 쓰임과
+// 알림 권한 안내는 알림 재설계 때 정한다(알림은 재설계 예정). '다음'을 누르면 온보딩을 끝낸다.
 //
-// 이번 PR에는 틀만 있다. 두 버튼은 아래 PR에서 붙이고, 그전까지는 누를 수 없게 둔다.
+// 지금은 틀만 있다. 두 버튼은 아래 PR에서 붙이고, 그전까지는 누를 수 없게 둔다.
 // - '시각 고르기': 고른 브리핑 시각을 `notify` 규칙(`source` `manual`)으로 `rules`에 저장한다.
 //   기본값은 `domain/defaults.dart`의 `Defaults.briefingMin`(임시값)이고, 시각 표기는
-//   `domain/text/`의 함수를 쓴다(내 규칙·rules 저장소 PR).
-// - '알림 허용': 알림 권한을 묻는다(Android 13 이상 `POST_NOTIFICATIONS`, iOS 권한 창).
-//   권한 요청과 예약은 `platform/notifications.dart`가 맡는다(알림 PR).
+//   `domain/text/`의 함수를 쓴다(4·5단계 저장 PR).
+// - '알림 허용': (알림은 재설계 예정) 재설계 때 이 버튼을 둘지부터 정한다. 그전까지 알림 코드를 붙이지 않는다.
 
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/features/onboarding/onboarding_controller.dart';
 import 'package:cnu_ai_assistant/features/onboarding/widgets/onboarding_step_layout.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// 7단계.
+/// 5단계.
 class BriefingTimeStep extends StatelessWidget {
   const BriefingTimeStep({super.key, required this.onNext});
 
-  /// '다음': 다음 단계로 간다.
+  /// '다음': 온보딩을 끝낸다.
   final VoidCallback onNext;
 
   @override

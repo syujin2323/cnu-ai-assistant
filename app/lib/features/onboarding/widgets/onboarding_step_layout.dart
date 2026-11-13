@@ -59,7 +59,7 @@ class OnboardingStepLayout extends StatelessWidget {
   }
 }
 
-/// 아직 만들지 않은 단계의 자리. 단계 이름만 보이고, 건너뛰기는 화면 위 머리에 있다.
+/// 아직 만들지 않은 단계의 자리. 단계 이름과 [AppStrings.inProgress], 아래 버튼만 있다.
 class OnboardingStepPlaceholder extends StatelessWidget {
   const OnboardingStepPlaceholder({
     super.key,
