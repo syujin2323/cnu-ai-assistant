@@ -73,6 +73,10 @@ class AppModeController extends Notifier<AppMode> {
   Future<void>? _entering;
   Future<Result<DemoEntry>>? _exiting;
 
+  /// 데모를 끝내는 중인지. 그동안 화면이 저절로 쓰는 기록(01 아침 브리핑의 본 것)은 데모 DB에 적지 않는다
+  /// (비운 뒤에 남으면 다음 데모의 샘플을 막음).
+  bool get exiting => _exiting != null;
+
   @override
   AppMode build() {
     final saved = ref

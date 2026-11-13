@@ -11,10 +11,12 @@ import 'dart:io';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
+import 'package:cnu_ai_assistant/data/repositories/briefing_repository.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_tab_bar.dart';
 import 'package:cnu_ai_assistant/design/widgets/demo_band.dart';
+import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
@@ -938,6 +940,87 @@ void main() {
           expect(find.byType(AppTabBar), findsNothing, reason: path);
           expect(app.router.state.uri.path, Routes.onboarding, reason: path);
         }
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('01 아침 브리핑은 뜨기만 해도 그날을 본 것으로 기록해, 시작 위치를 다시 정하면 02 홈이다', (
+        tester,
+      ) async {
+        // docs/decisions.md 2026-11-13 '아침 브리핑은 뜨는 순간 본 것으로 기록한다'.
+        final app = await pumpTestApp(
+          tester,
+          textScale: textScale,
+          realBriefingCheck: true,
+          now: DateTime(2026, 11, 13, 9),
+        );
+        expect(find.byType(BriefingScreen), findsOneWidget);
+        final today = app.clock.today(dayBoundaryMin: Defaults.dayBoundaryMin);
+        expect(await BriefingRepository(app.db).isSeen(today), const Ok(true));
+
+        // 아무것도 누르지 않고 떠났다가 다시 열어도 그날은 브리핑을 띄우지 않는다.
+        app.router.go(Routes.root);
+        await tester.pumpAndSettle();
+        expect(find.byType(BriefingScreen), findsNothing);
+        expect(find.byType(TodayScreen), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('데모의 01 아침 브리핑은 데모 DB에 기록하고 실제 DB의 기록은 건드리지 않는다', (
+        tester,
+      ) async {
+        final app = await pumpTestApp(
+          tester,
+          start: TestStart.demo,
+          textScale: textScale,
+          realBriefingCheck: true,
+          now: DateTime(2026, 11, 13, 9),
+        );
+        expect(find.byType(BriefingScreen), findsOneWidget);
+        final today = app.clock.today(dayBoundaryMin: Defaults.dayBoundaryMin);
+
+        expect(
+          await BriefingRepository(app.demoDb).isSeen(today),
+          const Ok(true),
+        );
+        expect(await BriefingRepository(app.db).isSeen(today), const Ok(false));
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('실제 01 아침 브리핑을 본 뒤 데모에 들어가면 데모 브리핑이 따로 뜨고, 끝내도 실제 기록은 그대로다', (
+        tester,
+      ) async {
+        final now = DateTime(2026, 11, 13, 9);
+        final app = await pumpTestApp(
+          tester,
+          textScale: textScale,
+          realBriefingCheck: true,
+          now: now,
+        );
+        expect(find.byType(BriefingScreen), findsOneWidget);
+        final [real] = await app.db.select(app.db.briefings).get();
+        expect(real.openedAt, now);
+
+        await tapText(tester, '오늘로 가기');
+        await tapTab(tester, '나');
+        await tapText(tester, '데모 모드 들어가기');
+
+        // 데모 DB에는 기록이 없으므로 데모의 01이 뜨고, 그 기록은 데모 DB에만 적는다.
+        expect(find.byType(BriefingScreen), findsOneWidget);
+        expect(
+          await BriefingRepository(app.demoDb).isSeen(DateTime(2026, 11, 13)),
+          const Ok(true),
+        );
+
+        await tapText(tester, '끝내기');
+        app.router.go(Routes.root);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(TodayScreen), findsOneWidget);
+        final [after] = await app.db.select(app.db.briefings).get();
+        expect(after.openedAt, now);
 
         await app.dispose(tester);
       });
