@@ -153,6 +153,10 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {remoteId, semester},
+  ];
+  @override
   Course map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return Course(
@@ -2602,7 +2606,7 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES lms_items (remote_key)',
+      'UNIQUE REFERENCES lms_items (remote_key)',
     ),
   );
   @override
@@ -4457,12 +4461,9 @@ class $SyncLeasesTable extends SyncLeases
     'id',
     aliasedName,
     false,
-    hasAutoIncrement: true,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
+    defaultValue: const Constant(1),
   );
   @override
   late final GeneratedColumnWithTypeConverter<LeaseHolder, String> holder =
@@ -4473,14 +4474,14 @@ class $SyncLeasesTable extends SyncLeases
         type: DriftSqlType.string,
         requiredDuringInsert: true,
       ).withConverter<LeaseHolder>($SyncLeasesTable.$converterholder);
-  static const VerificationMeta _runIdMeta = const VerificationMeta('runId');
+  static const VerificationMeta _tokenMeta = const VerificationMeta('token');
   @override
-  late final GeneratedColumn<int> runId = GeneratedColumn<int>(
-    'run_id',
+  late final GeneratedColumn<String> token = GeneratedColumn<String>(
+    'token',
     aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _expiresAtMeta = const VerificationMeta(
     'expiresAt',
@@ -4494,7 +4495,7 @@ class $SyncLeasesTable extends SyncLeases
     requiredDuringInsert: true,
   );
   @override
-  List<GeneratedColumn> get $columns => [id, holder, runId, expiresAt];
+  List<GeneratedColumn> get $columns => [id, holder, token, expiresAt];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -4510,11 +4511,13 @@ class $SyncLeasesTable extends SyncLeases
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     }
-    if (data.containsKey('run_id')) {
+    if (data.containsKey('token')) {
       context.handle(
-        _runIdMeta,
-        runId.isAcceptableOrUnknown(data['run_id']!, _runIdMeta),
+        _tokenMeta,
+        token.isAcceptableOrUnknown(data['token']!, _tokenMeta),
       );
+    } else if (isInserting) {
+      context.missing(_tokenMeta);
     }
     if (data.containsKey('expires_at')) {
       context.handle(
@@ -4543,10 +4546,10 @@ class $SyncLeasesTable extends SyncLeases
           data['${effectivePrefix}holder'],
         )!,
       ),
-      runId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}run_id'],
-      ),
+      token: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}token'],
+      )!,
       expiresAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}expires_at'],
@@ -4561,36 +4564,39 @@ class $SyncLeasesTable extends SyncLeases
 
   static TypeConverter<LeaseHolder, String> $converterholder =
       const EnumConverter(LeaseHolder.values);
+  @override
+  bool get withoutRowId => true;
 }
 
 class SyncLeasesCompanion extends UpdateCompanion<SyncLease> {
   final Value<int> id;
   final Value<LeaseHolder> holder;
-  final Value<int?> runId;
+  final Value<String> token;
   final Value<DateTime> expiresAt;
   const SyncLeasesCompanion({
     this.id = const Value.absent(),
     this.holder = const Value.absent(),
-    this.runId = const Value.absent(),
+    this.token = const Value.absent(),
     this.expiresAt = const Value.absent(),
   });
   SyncLeasesCompanion.insert({
     this.id = const Value.absent(),
     required LeaseHolder holder,
-    this.runId = const Value.absent(),
+    required String token,
     required DateTime expiresAt,
   }) : holder = Value(holder),
+       token = Value(token),
        expiresAt = Value(expiresAt);
   static Insertable<SyncLease> custom({
     Expression<int>? id,
     Expression<String>? holder,
-    Expression<int>? runId,
+    Expression<String>? token,
     Expression<DateTime>? expiresAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (holder != null) 'holder': holder,
-      if (runId != null) 'run_id': runId,
+      if (token != null) 'token': token,
       if (expiresAt != null) 'expires_at': expiresAt,
     });
   }
@@ -4598,13 +4604,13 @@ class SyncLeasesCompanion extends UpdateCompanion<SyncLease> {
   SyncLeasesCompanion copyWith({
     Value<int>? id,
     Value<LeaseHolder>? holder,
-    Value<int?>? runId,
+    Value<String>? token,
     Value<DateTime>? expiresAt,
   }) {
     return SyncLeasesCompanion(
       id: id ?? this.id,
       holder: holder ?? this.holder,
-      runId: runId ?? this.runId,
+      token: token ?? this.token,
       expiresAt: expiresAt ?? this.expiresAt,
     );
   }
@@ -4620,8 +4626,8 @@ class SyncLeasesCompanion extends UpdateCompanion<SyncLease> {
         $SyncLeasesTable.$converterholder.toSql(holder.value),
       );
     }
-    if (runId.present) {
-      map['run_id'] = Variable<int>(runId.value);
+    if (token.present) {
+      map['token'] = Variable<String>(token.value);
     }
     if (expiresAt.present) {
       map['expires_at'] = Variable<DateTime>(expiresAt.value);
@@ -4634,7 +4640,7 @@ class SyncLeasesCompanion extends UpdateCompanion<SyncLease> {
     return (StringBuffer('SyncLeasesCompanion(')
           ..write('id: $id, ')
           ..write('holder: $holder, ')
-          ..write('runId: $runId, ')
+          ..write('token: $token, ')
           ..write('expiresAt: $expiresAt')
           ..write(')'))
         .toString();
@@ -4861,12 +4867,9 @@ class $UndoLogTable extends UndoLog
     'id',
     aliasedName,
     false,
-    hasAutoIncrement: true,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
+    defaultValue: const Constant(1),
   );
   static const VerificationMeta _targetTableMeta = const VerificationMeta(
     'targetTable',
@@ -5019,6 +5022,8 @@ class $UndoLogTable extends UndoLog
 
   static TypeConverter<UndoAction, String> $converteraction =
       const EnumConverter(UndoAction.values);
+  @override
+  bool get withoutRowId => true;
 }
 
 class UndoLogCompanion extends UpdateCompanion<UndoLogEntry> {
@@ -5142,6 +5147,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SyncLeasesTable syncLeases = $SyncLeasesTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
   late final $UndoLogTable undoLog = $UndoLogTable(this);
+  late final Index classExceptionsSlotDate = Index(
+    'class_exceptions_slot_date',
+    'CREATE INDEX class_exceptions_slot_date ON class_exceptions (class_slot_id, date)',
+  );
+  late final Index planBlocksTaskId = Index(
+    'plan_blocks_task_id',
+    'CREATE INDEX plan_blocks_task_id ON plan_blocks (task_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5162,6 +5175,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     syncLeases,
     settings,
     undoLog,
+    classExceptionsSlotDate,
+    planBlocksTaskId,
   ];
   @override
   DriftDatabaseOptions get options =>
@@ -9482,13 +9497,13 @@ typedef $$SyncRunsTableProcessedTableManager =
 typedef $$SyncLeasesTableCreateCompanionBuilder = SyncLeasesCompanion Function({
   Value<int> id,
   required LeaseHolder holder,
-  Value<int?> runId,
+  required String token,
   required DateTime expiresAt,
 });
 typedef $$SyncLeasesTableUpdateCompanionBuilder = SyncLeasesCompanion Function({
   Value<int> id,
   Value<LeaseHolder> holder,
-  Value<int?> runId,
+  Value<String> token,
   Value<DateTime> expiresAt,
 });
 
@@ -9512,8 +9527,8 @@ class $$SyncLeasesTableFilterComposer
         builder: (column) => ColumnWithTypeConverterFilters(column),
       );
 
-  ColumnFilters<int> get runId => $composableBuilder(
-    column: $table.runId,
+  ColumnFilters<String> get token => $composableBuilder(
+    column: $table.token,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9542,8 +9557,8 @@ class $$SyncLeasesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get runId => $composableBuilder(
-    column: $table.runId,
+  ColumnOrderings<String> get token => $composableBuilder(
+    column: $table.token,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -9568,8 +9583,8 @@ class $$SyncLeasesTableAnnotationComposer
   GeneratedColumnWithTypeConverter<LeaseHolder, String> get holder =>
       $composableBuilder(column: $table.holder, builder: (column) => column);
 
-  GeneratedColumn<int> get runId =>
-      $composableBuilder(column: $table.runId, builder: (column) => column);
+  GeneratedColumn<String> get token =>
+      $composableBuilder(column: $table.token, builder: (column) => column);
 
   GeneratedColumn<DateTime> get expiresAt =>
       $composableBuilder(column: $table.expiresAt, builder: (column) => column);
@@ -9608,24 +9623,24 @@ class $$SyncLeasesTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<LeaseHolder> holder = const Value.absent(),
-                Value<int?> runId = const Value.absent(),
+                Value<String> token = const Value.absent(),
                 Value<DateTime> expiresAt = const Value.absent(),
               }) => SyncLeasesCompanion(
                 id: id,
                 holder: holder,
-                runId: runId,
+                token: token,
                 expiresAt: expiresAt,
               ),
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
                 required LeaseHolder holder,
-                Value<int?> runId = const Value.absent(),
+                required String token,
                 required DateTime expiresAt,
               }) => SyncLeasesCompanion.insert(
                 id: id,
                 holder: holder,
-                runId: runId,
+                token: token,
                 expiresAt: expiresAt,
               ),
           withReferenceMapper: (p0) => p0
