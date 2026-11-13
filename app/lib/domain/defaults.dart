@@ -5,7 +5,7 @@
 // docs/architecture.md '도메인 기본값과 배치 엔진', '알림', '폰 DB'이고, 값을 바꾸면
 // 그 문서도 같은 PR에서 고친다. 화면과 로직은 숫자를 직접 쓰지 않고 이 상수를 쓴다.
 // docs/screens.md의 다른 임시 숫자(빈 시간에 놓기·브리핑 자리의 최대 2시간과 5분 단위,
-// 25분·영상 10분, 통학 칩 기본 40분 등)도 그 기능 PR에서 이 파일의 상수로 둔다.
+// 25분·영상 10분 등)도 그 기능 PR에서 이 파일의 상수로 둔다.
 //
 // 사용자가 바꾼 값은 `rules` 표의 규칙이 덮어쓴다(docs/architecture.md '내 규칙').
 // 하루 경계만 `settings`의 `dayBoundaryMin`이다.
@@ -43,6 +43,15 @@ abstract final class Defaults {
 
   /// 식사 보호 시간대 끝 13:30.
   static const int mealWindowEndMin = 810;
+
+  // 고정 일정
+
+  /// 14 온보딩 3단계 '통학'의 시간 칩(분). 고른 값은 이동 시간 규칙(`travel`, `day_edges`)으로
+  /// 저장한다.
+  static const List<int> commuteChoices = [20, 30, 40, 60];
+
+  /// '통학' 칩의 기본값(분).
+  static const int commuteMin = 40;
 
   // 배치
 
