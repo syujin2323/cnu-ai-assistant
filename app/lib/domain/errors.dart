@@ -75,7 +75,8 @@ final class ApiError extends AppError {
   String toString() => 'ApiError(status: $status, code: $code)';
 }
 
-/// LMS 응답 판별의 일곱 가지. docs/lms.md '응답 판별'.
+/// LMS 응답 판별의 일곱 가지(docs/lms.md '응답 판별')와 로그인 결과의 학번·비밀번호 틀림
+/// ([wrongCredentials], docs/lms.md '로그인').
 enum LmsOutcomeKind {
   /// 스키마에 맞는 JSON.
   normal,
@@ -97,6 +98,10 @@ enum LmsOutcomeKind {
 
   /// 위 어디에도 맞지 않음, 스키마 검증 실패.
   parseFailure,
+
+  /// 로그인 응답 전용: 학번이나 비밀번호가 틀림. 저장하지 않고 비밀번호 칸을 비운다. 조회 응답의
+  /// 판별에는 쓰지 않는다(세션 복원 중의 틀림을 `sync_runs`에 어떻게 남길지는 LMS 연동 때 정한다).
+  wrongCredentials,
 }
 
 /// LMS 조회 결과. 판별 종류와 HTTP 상태 코드만 담는다.
