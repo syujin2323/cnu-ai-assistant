@@ -61,6 +61,10 @@ void main() {
     expect(Defaults.commuteMin, 40);
   });
 
+  test('되돌리기는 10초 동안 받는다', () {
+    expect(Defaults.undoWindow, const Duration(seconds: 10));
+  });
+
   test('보관 기간은 90일이다', () {
     expect(Defaults.retentionDays, 90);
   });

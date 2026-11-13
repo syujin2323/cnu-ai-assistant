@@ -135,6 +135,10 @@ abstract final class Defaults {
 
   // 폰 DB
 
+  /// 되돌리기를 받는 시간. 토스트의 '되돌리기'가 이만큼 보이고, 지나면 저장소도 기록을 버린다
+  /// (docs/architecture.md '폰 DB'의 되돌리기).
+  static const Duration undoWindow = Duration(seconds: 10);
+
   /// `sync_runs`·`lms_item_changes`·`briefings`는 이 일수가 지난 행을 앱 시작 때 지운다.
   static const int retentionDays = 90;
 
