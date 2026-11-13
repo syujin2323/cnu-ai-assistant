@@ -29,7 +29,7 @@
 - 작업 브랜치: develop에서 만든다. 이름은 `종류/영문-설명`이고 소문자와 하이픈만 쓴다. 예: `feat/login-screen`, `fix/empty-list-crash`
 - IMPORTANT: main과 develop에는 직접 커밋하거나 push하지 않는다. GitHub도 막아 두었다.
 - 작업 하나에 브랜치 하나다. 다른 작업이 섞이면 브랜치를 나누자고 제안한다.
-- 예외(Shorebird 패치, R1부터): 테스터에게 나간 빌드를 Dart 코드만 고쳐 패치할 때는 develop이 아니라 그 빌드의 태그에서 브랜치를 만든다(`git fetch --tags` 뒤 `git switch -c fix/영문-설명 v<version>`). 패치는 release 빌드와의 차이로만 만들어지므로 develop에서 가지를 내면 그사이 들어간 변경이 함께 나가거나 네이티브·에셋 변경 때문에 패치가 막힌다. 이 브랜치는 `fix: 설명` 제목으로 develop에 PR하고, 승인을 받으면 병합하기 전에 이 브랜치에서 `shorebird patch`를 내보내고 그 커밋에 태그 `v<version>-p<n>`을 달아 push한 뒤 병합한다. 패치를 내보내기 전에는 이 브랜치에 develop을 merge하지 않는다. develop과 충돌하면 패치를 내보낸 뒤 '작업을 시작할 때'의 규칙대로 어느 쪽 코드를 남길지 사용자에게 보여 주고 정한다.
+- 예외(Shorebird 패치, R1부터): 테스터에게 나간 빌드를 Dart 코드만 고쳐 패치할 때는 develop이 아니라 그 빌드의 태그에서 브랜치를 만든다(`git fetch --tags` 뒤 `git switch -c fix/영문-설명 v<version>`). 패치는 release 빌드와의 차이로만 만들어지므로 develop에서 가지를 내면 그사이 들어간 변경이 함께 나가거나 네이티브·에셋 변경 때문에 패치가 막힌다. 이 브랜치는 `fix: 설명` 제목으로 develop에 PR하고, 승인을 받으면 병합하기 전에 이 브랜치에서 `shorebird patch`를 내보내고 그 커밋에 태그 `v<version>-p<n>`을 달아 push한 뒤 병합한다. 패치를 내보내기 전에는 이 브랜치에 develop을 merge하지 않는다. develop과 충돌하면 패치를 내보낸 뒤 '작업을 시작할 때'의 규칙대로 어느 쪽 코드를 남길지 사용자에게 보여 주고 정한다. 폰 DB 표를 바꾸는 변경(`schemaVersion`을 올리는 변경)은 Shorebird 패치로 내지 않고 새 release로 낸다.
 
 ## 작업을 시작할 때
 
