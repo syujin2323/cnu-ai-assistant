@@ -335,8 +335,9 @@ class AppColors extends ThemeExtension<AppColors> {
   }
 }
 
-/// 글자(Pretendard, 임시값). 무게는 제목(`title` 이상) 600, 본문 400, 강조 500이다.
-/// 음수 자간을 쓰는 제목에는 글자 그림자를 넣지 않는다(Android Impeller 이슈).
+/// 글자(Pretendard, 크기/줄 높이, 임시값). 무게는 제목(`title` 이상) 600, 본문 400, 강조 500이다.
+/// 줄 높이의 여백은 CSS line-height처럼 위아래에 반씩 나누고(`TextLeadingDistribution.even`), 숫자는
+/// 고정 폭으로 쓴다. 음수 자간을 쓰는 제목에는 글자 그림자를 넣지 않는다(Android Impeller 이슈).
 /// 시스템 글자 크기 200%에서도 줄이 깨지지 않게 글자 영역에 고정 높이를 쓰지 않는다.
 abstract final class AppText {
   /// `pubspec.yaml`의 글꼴 family 이름. 테마의 기본 글꼴이다.
@@ -351,48 +352,75 @@ abstract final class AppText {
   /// 제목 무게.
   static const FontWeight semibold = FontWeight.w600;
 
+  /// 숫자는 고정 폭으로 쓴다(시각·분·개수가 바뀔 때 글자 폭이 흔들리지 않게).
+  static const List<FontFeature> _numbers = [FontFeature.tabularFigures()];
+
   static const TextStyle caption = TextStyle(
     fontFamily: fontFamily,
     fontSize: 12,
+    height: 1.45,
+    leadingDistribution: TextLeadingDistribution.even,
+    fontFeatures: _numbers,
     fontWeight: regular,
   );
   static const TextStyle small = TextStyle(
     fontFamily: fontFamily,
     fontSize: 13,
+    height: 1.5,
+    leadingDistribution: TextLeadingDistribution.even,
+    fontFeatures: _numbers,
     fontWeight: regular,
   );
   static const TextStyle body = TextStyle(
     fontFamily: fontFamily,
     fontSize: 15,
+    height: 1.55,
+    leadingDistribution: TextLeadingDistribution.even,
+    fontFeatures: _numbers,
     fontWeight: regular,
   );
   static const TextStyle bodyLarge = TextStyle(
     fontFamily: fontFamily,
     fontSize: 17,
+    height: 1.45,
+    leadingDistribution: TextLeadingDistribution.even,
+    fontFeatures: _numbers,
     fontWeight: regular,
     letterSpacing: -0.3,
   );
   static const TextStyle title = TextStyle(
     fontFamily: fontFamily,
     fontSize: 20,
+    height: 1.35,
+    leadingDistribution: TextLeadingDistribution.even,
+    fontFeatures: _numbers,
     fontWeight: semibold,
     letterSpacing: -0.6,
   );
   static const TextStyle heading = TextStyle(
     fontFamily: fontFamily,
     fontSize: 24,
+    height: 1.3,
+    leadingDistribution: TextLeadingDistribution.even,
+    fontFeatures: _numbers,
     fontWeight: semibold,
     letterSpacing: -0.6,
   );
   static const TextStyle display = TextStyle(
     fontFamily: fontFamily,
     fontSize: 30,
+    height: 1.2,
+    leadingDistribution: TextLeadingDistribution.even,
+    fontFeatures: _numbers,
     fontWeight: semibold,
     letterSpacing: -0.6,
   );
   static const TextStyle hero = TextStyle(
     fontFamily: fontFamily,
     fontSize: 40,
+    height: 1.1,
+    leadingDistribution: TextLeadingDistribution.even,
+    fontFeatures: _numbers,
     fontWeight: semibold,
     letterSpacing: -1.6,
   );
@@ -423,13 +451,25 @@ abstract final class AppRadius {
   /// 작은 카드.
   static const double smallCard = 18;
 
-  /// 칩·입력.
-  static const double chip = 14;
+  /// 목록 묶음.
+  static const double listGroup = 20;
+
+  /// 안내 상자.
+  static const double notice = 16;
+
+  /// 시간표 블록.
+  static const double timetableBlock = 16;
+
+  /// 입력·빈 시간.
+  static const double input = 14;
 
   /// 시트.
   static const double sheet = 32;
 
-  /// 알약.
+  /// 토스트.
+  static const double toast = 26;
+
+  /// 칩·버튼·알약.
   static const double pill = 999;
 }
 
