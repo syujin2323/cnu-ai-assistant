@@ -108,15 +108,16 @@ cnu-ai-assistant/
 | `/today/day/:date` | 09 일간 (`:date`는 `YYYY-MM-DD`. 캘린더에서 열어도 오늘 탭) | 오늘 탭 |
 | `/calendar` | 11 주간 (캘린더 탭 첫 화면) | 캘린더 탭 |
 | `/calendar/month` | 08 월간 | 캘린더 탭 |
-| `/tasks` | 03 할 일 (주간 할 일·전체 할 일) | 할 일 탭 |
+| `/tasks` | 03 할 일 (주간 할 일·전체 할 일. 인자: 처음 탭 `?tab=all`) | 할 일 탭 |
 | `/me` | 10 나 | 나 탭 |
 | `/me/rules` | 12 내 규칙 | 셸 밖 전체 화면 |
-| `/me/timetable` | 13 시간표·고정 일정 (탭 둘) | 셸 밖 전체 화면 |
+| `/me/timetable` | 13 시간표·고정 일정 (탭 둘. 인자: 처음 탭 `?tab=fixed`) | 셸 밖 전체 화면 |
 | `/briefing` | 01 아침 브리핑 | 셸 밖 전체 화면 |
-| `/assistant` | 06 AI 비서 (인자: 미리 채울 문장, 바로 보내기, 직접 추가 종류, 모드) | 셸 밖 전체 화면 |
+| `/assistant` | 06 AI 비서 (인자: 미리 채울 문장, 바로 보내기, 직접 추가 종류, 모드, 날짜·시각. `extra`로만 넘김) | 셸 밖 전체 화면 |
 | `/tasks/:id` | 04 할 일 상세(재설계 예정) | 셸 밖 전체 화면 |
 
 - 셸 밖 전체 화면은 루트 Navigator에 띄우고, 여는 곳에서 `context.push`로 열어 닫거나 끝나면(`pop`) 연 화면으로 돌아갑니다. `go`로 열면 돌아갈 곳이 없습니다. `/login`은 01 아침 브리핑·02 홈·03 할 일의 '다시 로그인' 칩, 03 할 일 LMS 정보 시트, 10 나 › LMS 계정이 열고, 데모 모드에서는 열지 않고 '데모에서는 LMS에 연결하지 않아요'를 띄웁니다. 화면은 `features/lms_connect/relogin_screen.dart`이고 로그인 폼은 14 온보딩 1단계와 함께 씁니다.
+- 화면 진입 인자: 06 AI 비서의 인자는 `features/assistant/assistant_args.dart`의 `AssistantArgs`이고 `context.push(Routes.assistant, extra: args)`로만 넘깁니다. 사용자가 쓴 문장이 경로 문자열에 실려 로그에 섞이지 않게 쿼리에는 넣지 않고, 같은 까닭으로 `AssistantArgs`에는 `toJson`을 두지 않습니다(go_router가 경로 정보를 플랫폼에 알릴 때 JSON으로 바꾸지 못한 `extra`는 빼고 알리고, 화면에는 그대로 넘깁니다). 03 할 일과 13 시간표·고정 일정의 처음 탭은 `Routes.tasksTab`·`Routes.meTimetableTab`이 만드는 `?tab=` 쿼리로 넘기고, 모르는 값이면 기본 탭(주간 할 일·시간표)을 엽니다. `/tasks`는 할 일 탭 가지의 첫 화면이라 다른 인자로 다시 열면 남아 있던 화면이 새 값을 받습니다(`didUpdateWidget`).
 - 캘린더 탭은 11 주간부터 열고 위 '주 | 월'로 08 월간을 엽니다(지금 코드는 `/calendar`가 월간이고 주간은 `/calendar/week`입니다. 후속 코드 PR에서 바꿉니다). 화면 동작은 [screens.md](screens.md) '캘린더'에 있습니다.
 - 근거·옮기기·빈 시간에 놓기·일정 정보·시간 부족·저녁 체크인·LMS 정보 같은 시트는 라우트가 아니라 `showModalBottomSheet`로 띄웁니다(시트 동작은 [screens.md](screens.md)에 있습니다). 06 AI 비서의 직접 추가 폼은 화면 위에 덮는 전체 화면입니다. 새 화면은 이 표에 먼저 더합니다.
 - 시작 위치는 `redirect` 한 곳에서만 정합니다. 앱 잠금(R2)·업데이트 필요(R1) 화면이 먼저이고, 그다음 온보딩을 끝내지 않았거나, 실제 모드에서 LMS 상태가 `disconnected`(로그아웃 뒤처럼 로그인 정보가 없음)이면 `/onboarding`, 오늘(논리적 하루)의 브리핑을 아직 보지 않았으면 `/briefing`, 그 밖에는 `/today`입니다. 알림으로 켜졌을 때의 경로(알림은 재설계 예정)는 `launchPayloadProvider` 자리만 두고, 지금 코드는 온보딩·LMS 상태 확인 뒤, 브리핑 확인 앞에서 봅니다(순서는 재설계 때 다시 봅니다). 데모 모드이거나 온보딩으로 보낼 때는 쓰지 않고 버립니다. `redirect`는 이 순서를 시작 위치 `/`에서만 따르고 `/login` 같은 다른 경로는 막지 않습니다. 없는 경로는 `/`로, settings나 브리핑 확인을 읽지 못하면 `/today`로 보냅니다. 온보딩을 끝냈고 LMS 상태가 `disconnected`가 아니거나 데모 모드면, 다른 화면에서 `/onboarding`으로 가는 이동을 `/briefing`이나 `/today`로 돌립니다. 이미 `/onboarding`에 있는 동안에는(로그아웃 뒤 1단계에서 로그인하는 중 상태가 `connecting`·`active`로 바뀔 때도) 돌리지 않고, 진행 줄이 끝나면 `/`로 갑니다. 데이터 삭제는 `onboarding_done`·`app_mode`·`demo_entry`도 지웁니다. 로그아웃은 `onboarding_done`을 지우지 않으므로, 로그아웃 뒤 14 온보딩 1단계에서 로그인하면 2–5단계 없이 `/`로 갑니다([lms.md](lms.md) '로그아웃, 데이터 삭제, 내보내기').
