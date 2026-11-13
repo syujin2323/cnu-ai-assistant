@@ -224,9 +224,12 @@ final motionLevelProvider = Provider<MotionLevel>((ref) {
 });
 
 /// 앱 서버 API 클라이언트. 주소는 `AppConfig.apiBase`(`--dart-define=API_BASE_URL`로 덮어씀).
-/// 데모 모드에서는 서버를 부르지 않는다(부르는 쪽이 [appModeProvider]를 본다).
+/// 데모 모드에서는 요청을 보내지 않고 오류를 돌려준다(`ServerApi.demo`).
 final apiProvider = Provider<ServerApi>((ref) {
-  final api = ServerApi(baseUrl: AppConfig.apiBase);
+  final api = ServerApi(
+    baseUrl: AppConfig.apiBase,
+    demo: ref.watch(appModeProvider) == AppMode.demo,
+  );
   ref.onDispose(api.close);
   return api;
 });

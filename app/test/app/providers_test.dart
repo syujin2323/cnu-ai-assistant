@@ -141,4 +141,29 @@ void main() {
       expect(await db.select(db.classSlots).get(), isEmpty);
     });
   });
+
+  group('apiProvider', () {
+    test('데모 모드에 들어가면 요청을 보내지 않는 클라이언트로 바뀐다', () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(
+            await SharedPreferences.getInstance(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final real = container.read(apiProvider);
+      expect(real.demo, isFalse);
+
+      await container
+          .read(appModeProvider.notifier)
+          .enterDemo(DemoEntry.onboarding);
+
+      final demo = container.read(apiProvider);
+      expect(demo.demo, isTrue);
+      expect(demo, isNot(same(real)));
+    });
+  });
 }
