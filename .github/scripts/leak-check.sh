@@ -1,0 +1,290 @@
+#!/usr/bin/env bash
+# leak-check: PR이 공개 레포에 남길 수 있는 비밀값을 찾는다. .github/workflows/pr-check.yml의 leak-check 잡이 부른다.
+#
+# 찾는 것
+#   - 쿠키 헤더와 쿠키 문자열 꼴(Cookie 헤더, set-cookie 값, cookie 뒤 같은 줄 따옴표 안의 '이름=값')
+#   - 토큰 모양(JWT)
+#   - LMS 쿠키 이름. Actions 비밀값 LMS_COOKIE_NAMES('이름1|이름2')로 받고 이 파일에는 적지 않는다.
+#     레코드 꼴({"name": …, "value": …})의 쿠키는 이름으로만 잡을 수 있어 이 검사가 마지막 장치다.
+#   - app/test/**/fixtures/의 example.invalid 밖 호스트와 학번 꼴 숫자(docs/lms.md '테스트')
+# 보는 곳
+#   - PR의 모든 커밋에서 추가된 줄. 중간 커밋에 넣었다 지운 값도 PR 기록에 남으므로 커밋마다 본다.
+#     병합 커밋은 결합 diff(--cc)로 봐서 충돌을 풀며 새로 넣은 줄도 본다.
+#   - PR 제목·본문(squash 병합 때 develop 기록에 남는다)과 커밋 메시지
+#   - 바이너리 파일은 내용을 볼 수 없어 경고만 낸다.
+# 일치한 값은 로그에 남지 않도록 출력하지 않고 파일 이름만 알린다.
+#
+# 쓰는 법
+#   bash .github/scripts/leak-check.sh --self-test   합성 샘플로 패턴을 시험한다(잡의 첫 단계).
+#   bash .github/scripts/leak-check.sh               PR을 검사한다. 환경 변수 BASE, HEAD_SHA, HEAD_REPO, REPO,
+#                                                    PR_TITLE, PR_BODY, LMS_COOKIE_NAMES를 받는다.
+# 종료 코드: 0 통과, 1 찾음, 2 설정이나 패턴 오류
+#
+# 패턴을 고칠 때는 self_test의 샘플도 함께 고치고, 실패한 PR을 통과시키려고 패턴을 약하게 고치지 않는다.
+set -euo pipefail
+
+# 쿠키 헤더 꼴: 'Cookie: 이름=값', '"cookie": "이름=값"'
+COOKIE_HEADER_RE='cookie"?:[[:space:]]*"?[A-Za-z0-9_.-]+='
+# cookie 뒤 같은 줄의 따옴표 안에 '이름=값'(값 6자 이상)이 오는 꼴: Dart 맵, 배열 값, HAR 레코드, setCookie 인자, 변수 대입
+COOKIE_STRING_RE="cookie.*['\"][A-Za-z0-9_.-]+=[^'\"[:space:];]{6,}"
+# JWT 모양
+JWT_RE='eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'
+# 학번 꼴: 20으로 시작하는 9자리 숫자
+STUDENT_NO_RE='(^|[^0-9])20[0-9]{7}([^0-9]|$)'
+# LMS_COOKIE_NAMES 형식
+NAMES_FORMAT_RE='^[A-Za-z0-9_.-]+([|][A-Za-z0-9_.-]+)*$'
+
+SELF_PATH='.github/scripts/leak-check.sh'
+
+work="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/leak-check.XXXXXX")"
+names_file=""
+
+pattern_error() {
+  echo "::error::leak-check 검사 패턴 오류(grep 종료 코드 $1). $SELF_PATH와 LMS_COOKIE_NAMES 형식을 확인하세요."
+  exit 2
+}
+
+# grep을 돌려 0(맞음)이나 1(없음)을 돌려준다. 2 이상(패턴·입력 오류)이면 검사를 멈춘다.
+# 오류를 '일치 없음'으로 보면 모든 파일이 통과하기 때문이다.
+grep_rc() {
+  local rc=0
+  grep "$@" || rc=$?
+  if (( rc >= 2 )); then
+    pattern_error "$rc"
+  fi
+  return "$rc"
+}
+
+# 파일 $1의 줄에 쿠키 헤더·쿠키 문자열·토큰·LMS 쿠키 이름이 있으면 0
+has_secret() {
+  grep_rc -Eiq -e "$COOKIE_HEADER_RE" -e "$COOKIE_STRING_RE" -e "$JWT_RE" -- "$1" && return 0
+  if [[ -n "$names_file" ]]; then
+    # 이름은 정규식이 아닌 고정 문자열로, 단어 경계(-w)를 붙여 찾는다.
+    # 경계가 없으면 짧은 이름이 다른 낱말 속에 맞아 모든 PR이 걸린다.
+    grep_rc -Fiwq -f "$names_file" -- "$1" && return 0
+  fi
+  return 1
+}
+
+# 합성 샘플의 추가된 줄(파일 $1)에 example.invalid 밖 호스트나 학번 꼴 숫자가 있으면 0
+fixture_problem() {
+  local hosts rc=0 host
+  hosts="$(grep -Eio "https?://[^/\"'[:space:]<>)]+" -- "$1")" || rc=$?
+  if (( rc >= 2 )); then
+    pattern_error "$rc"
+  fi
+  while IFS= read -r host; do
+    [[ -n "$host" ]] || continue
+    host="${host#*://}"
+    host="${host%%:*}"
+    host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
+    [[ "$host" == "example.invalid" ]] || return 0
+  done <<< "$hosts"
+  grep_rc -Eq -e "$STUDENT_NO_RE" -- "$1" && return 0
+  return 1
+}
+
+valid_names() {
+  [[ "$1" =~ $NAMES_FORMAT_RE ]]
+}
+
+# LMS_COOKIE_NAMES를 정리해 names_file에 한 줄에 하나씩 쓴다. 값은 출력하지 않는다.
+load_names() {
+  local names
+  names="$(printf '%s' "${LMS_COOKIE_NAMES:-}" | tr -d '[:space:]')"
+  if [[ -z "$names" ]]; then
+    if [[ -n "${HEAD_REPO:-}" && "${HEAD_REPO:-}" == "${REPO:-}" ]]; then
+      echo "::error::Actions 비밀값 LMS_COOKIE_NAMES가 비어 있어 LMS 쿠키 이름을 검사할 수 없습니다. 레포 관리자가 Settings → Secrets and variables → Actions → Secrets에 '이름1|이름2' 형식으로 넣은 뒤 검사를 다시 돌려 주세요."
+      exit 2
+    fi
+    echo "::warning::포크에서 온 PR은 Actions 비밀값을 받지 못해 LMS 쿠키 이름은 검사하지 않습니다. 쿠키 헤더·토큰 모양과 합성 샘플 규칙만 봅니다."
+    return 0
+  fi
+  if ! valid_names "$names"; then
+    echo "::error::Actions 비밀값 LMS_COOKIE_NAMES가 '이름1|이름2' 형식(영문, 숫자, _ . - 만)이 아닙니다. 값은 로그에 출력하지 않습니다."
+    exit 2
+  fi
+  names_file="$work/names"
+  printf '%s\n' "$names" | tr '|' '\n' > "$names_file"
+}
+
+scan_pr() {
+  local base="${BASE:-}" head="${HEAD_SHA:-HEAD^2}"
+  if [[ -z "$base" ]] || ! git rev-parse -q --verify "origin/$base^{commit}" > /dev/null; then
+    echo "::error::대상 브랜치 origin/${base}를 찾지 못했습니다. checkout의 fetch-depth: 0을 확인하세요."
+    exit 2
+  fi
+  if ! git rev-parse -q --verify "$head^{commit}" > /dev/null; then
+    echo "::error::PR 머리 커밋을 찾지 못했습니다."
+    exit 2
+  fi
+  load_names
+
+  local range="origin/$base..$head" found=0 file
+  local lines="$work/lines" text="$work/text"
+
+  # 1. 커밋마다 추가된 줄
+  git log --format= --name-only -z --cc --diff-filter=d "$range" -- . ":(exclude)$SELF_PATH" \
+    | sort -zu > "$work/files"
+  while IFS= read -r -d '' file; do
+    [[ -n "$file" ]] || continue
+    git log --format= -p -U0 --cc "$range" -- "$file" \
+      | { grep -E '^\+' || true; } | { grep -vE '^\+\+\+ ' || true; } > "$lines"
+    [[ -s "$lines" ]] || continue
+    if has_secret "$lines"; then
+      echo "::error file=$file::추가된 줄에 쿠키 헤더, 토큰, LMS 쿠키 이름으로 보이는 문자열이 있습니다(이 PR의 커밋 가운데 하나). 쿠키 헤더 꼴과 토큰 모양이 아닌 합성 값으로 바꾸세요. 실제 값이었으면 지운 커밋도 PR 기록에 남으므로 발급한 곳에서 먼저 폐기하세요."
+      found=1
+    fi
+    case "$file" in
+      app/test/fixtures/* | app/test/*/fixtures/*)
+        if fixture_problem "$lines"; then
+          echo "::error file=$file::합성 샘플에 example.invalid 밖 호스트나 학번 꼴 숫자가 있습니다. 호스트는 example.invalid, ID는 1부터 시작하는 숫자로 씁니다(docs/lms.md '테스트')."
+          found=1
+        fi
+        ;;
+    esac
+  done < "$work/files"
+
+  # 2. 바이너리 파일은 내용을 볼 수 없어 경고만 낸다. 앱 에셋과 아이콘은 뺀다.
+  git log --format= --numstat --diff-filter=d "$range" -- . \
+    | awk -F'\t' '$1 == "-" && $2 == "-" { print $3 }' | sort -u > "$work/binaries"
+  while IFS= read -r file; do
+    [[ -n "$file" ]] || continue
+    case "$file" in
+      app/assets/* | */Assets.xcassets/* | */res/mipmap-* | */res/drawable*) continue ;;
+    esac
+    echo "::warning file=$file::바이너리 파일은 내용을 검사하지 못합니다. 실제 응답, 폰 DB, 네트워크 캡처, 실제 계정 화면이 아닌지 직접 확인하세요."
+  done < "$work/binaries"
+
+  # 3. PR 제목·본문. squash 병합 때 develop 기록에 남고, 병합 전에 고치면 남지 않는다.
+  printf '%s\n%s\n' "${PR_TITLE:-}" "${PR_BODY:-}" > "$text"
+  if has_secret "$text"; then
+    echo "::error::PR 제목이나 본문에 쿠키 헤더, 토큰, LMS 쿠키 이름으로 보이는 문자열이 있습니다. 본문을 고치면 검사가 다시 돕니다. 실제 값이었으면 먼저 폐기하고, 본문 편집 기록(edited ▾)에서 그 판을 지우세요."
+    found=1
+  fi
+
+  # 4. 커밋 메시지
+  git log --format=%B "$range" > "$text"
+  if has_secret "$text"; then
+    echo "::error::커밋 메시지에 쿠키 헤더, 토큰, LMS 쿠키 이름으로 보이는 문자열이 있습니다. 커밋 기록은 강제 push 없이 고칠 수 없으니, 실제 값이었으면 먼저 폐기하고 레포 관리자에게 알리세요."
+    found=1
+  fi
+
+  return "$found"
+}
+
+self_test() {
+  local failed=0 n_hit=0 n_miss=0 line v rc sample="$work/sample"
+  local seg jwt
+  # 토큰 모양 샘플은 파일에 그대로 두지 않고 실행할 때 만든다.
+  seg="$(printf 'x%.0s' 1 2 3 4 5 6 7 8 9 10 11 12)"
+  jwt="eyJ${seg}.eyJ${seg}.${seg}"
+
+  # 잡아야 하는 줄. 값은 모두 지어낸 것이다.
+  names_file=""
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    printf '%s\n' "$line" > "$sample"
+    if has_secret "$sample"; then
+      n_hit=$((n_hit + 1))
+    else
+      echo "::error::자체 시험: 잡아야 하는 샘플을 놓쳤습니다: $line"
+      failed=1
+    fi
+  done <<SAMPLES
+Cookie: SAMPLEID=abc123
+"cookie": "SAMPLEID=abc123"
+set-cookie: SAMPLEID=abc; Path=/
+headers: {'Cookie': 'SAMPLEID=abc123'}
+'set-cookie': ['SAMPLEID=abc123; Path=/']
+"set-cookie": ["SAMPLEID=abc123; Path=/"]
+{"name": "Cookie", "value": "SAMPLEID=abc123"}
+cookieManager.setCookie(url, "SAMPLEID=abc123; Path=/; Secure; HttpOnly")
+request.headers.set(HttpHeaders.cookieHeader, 'SAMPLEID=abc123')
+final cookie = 'SAMPLEID=abc123'
+options.headers['cookie'] = 'SAMPLEID=abc123';
+Authorization: Bearer ${jwt}
+SAMPLES
+
+  # 통과시켜야 하는 줄
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    printf '%s\n' "$line" > "$sample"
+    if has_secret "$sample"; then
+      echo "::error::자체 시험: 정상 줄을 잘못 잡았습니다: $line"
+      failed=1
+    else
+      n_miss=$((n_miss + 1))
+    fi
+  done <<'SAMPLES'
+setCookie(url, "${c.name}=${c.value}; Path=/")
+final header = response.headers['set-cookie'];
+await bridge.getCookies(urls: [home]);
+// 쿠키 문자열은 "이름=값; ..." 꼴이다
+샘플에 `Cookie`·`Set-Cookie` 헤더와 JWT 모양 문자열을 넣지 않습니다.
+if (cookie.isExpired) return;
+final sessionName = 'session';
+expect(cookies, isEmpty);
+SAMPLES
+
+  # LMS 쿠키 이름: 단어 경계로, 대소문자 없이 찾는다. 이름은 지어낸 것이다.
+  names_file="$work/self-names"
+  printf 'SAMPLENAME\nOTHER_NAME\n' > "$names_file"
+  for line in '{"name": "SAMPLENAME", "value": "abc"}' 'jar.add(other_name, value);'; do
+    printf '%s\n' "$line" > "$sample"
+    if has_secret "$sample"; then n_hit=$((n_hit + 1)); else echo "::error::자체 시험: 쿠키 이름 샘플을 놓쳤습니다: $line"; failed=1; fi
+  done
+  for line in 'final xSAMPLENAMEx = 1;' 'SAMPLENAMES are plural'; do
+    printf '%s\n' "$line" > "$sample"
+    if has_secret "$sample"; then echo "::error::자체 시험: 이름이 단어 안에 든 줄을 잡았습니다: $line"; failed=1; else n_miss=$((n_miss + 1)); fi
+  done
+  names_file=""
+
+  # LMS_COOKIE_NAMES 형식
+  for v in 'NAMEA|NAMEB' 'NAMEA' 'name.a|name-b|name_c'; do
+    valid_names "$v" || { echo "::error::자체 시험: 맞는 이름 형식을 거절했습니다: $v"; failed=1; }
+  done
+  for v in 'NAMEA|NAMEB(' 'NAMEA|' '|NAMEA' 'NAMEA||NAMEB' ''; do
+    if valid_names "$v"; then echo "::error::자체 시험: 틀린 이름 형식을 받았습니다: '$v'"; failed=1; fi
+  done
+
+  # 합성 샘플 규칙
+  for line in '"html_url": "https://other.example.com/courses/1"' '"student_no": "202312345"'; do
+    printf '%s\n' "$line" > "$sample"
+    if fixture_problem "$sample"; then n_hit=$((n_hit + 1)); else echo "::error::자체 시험: 합성 샘플 규칙 위반을 놓쳤습니다: $line"; failed=1; fi
+  done
+  for line in '"html_url": "https://example.invalid/courses/1/assignments/1"' '"id": 1, "due_at": "2026-11-13T09:00:00+09:00"'; do
+    printf '%s\n' "$line" > "$sample"
+    if fixture_problem "$sample"; then echo "::error::자체 시험: 맞는 합성 샘플을 잡았습니다: $line"; failed=1; else n_miss=$((n_miss + 1)); fi
+  done
+
+  # grep 오류는 '일치 없음'이 아니라 검사 실패(종료 코드 2)여야 한다.
+  rc=0
+  (grep_rc -Eq '(' /dev/null) > /dev/null 2>&1 || rc=$?
+  if (( rc != 2 )); then
+    echo "::error::자체 시험: grep 오류를 종료 코드 2로 처리하지 않았습니다(받은 코드 $rc)."
+    failed=1
+  fi
+
+  if (( failed )); then
+    return 1
+  fi
+  echo "leak-check 자체 시험 통과: 잡아야 할 샘플 ${n_hit}개를 잡고 통과시킬 샘플 ${n_miss}개를 통과시켰습니다. 이름 형식과 grep 오류 처리도 확인했습니다."
+}
+
+case "${1:-}" in
+  --self-test)
+    if self_test; then exit 0; else exit 1; fi
+    ;;
+  "")
+    if scan_pr; then
+      echo "leak-check 통과"
+      exit 0
+    fi
+    exit 1
+    ;;
+  *)
+    echo "쓰는 법: bash $SELF_PATH [--self-test]" >&2
+    exit 2
+    ;;
+esac
