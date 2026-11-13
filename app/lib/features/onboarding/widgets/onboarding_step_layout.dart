@@ -61,13 +61,21 @@ class OnboardingStepLayout extends StatelessWidget {
 
 /// 아직 만들지 않은 단계의 자리. 단계 이름만 보이고, 건너뛰기는 화면 위 머리에 있다.
 class OnboardingStepPlaceholder extends StatelessWidget {
-  const OnboardingStepPlaceholder({super.key, required this.step});
+  const OnboardingStepPlaceholder({
+    super.key,
+    required this.step,
+    this.actions = const [],
+  });
 
   final OnboardingStep step;
+
+  /// 화면 아래 버튼(위에서 아래 순서).
+  final List<Widget> actions;
 
   @override
   Widget build(BuildContext context) {
     return OnboardingStepLayout(
+      actions: actions,
       content: [
         Semantics(
           header: true,

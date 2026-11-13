@@ -1,7 +1,10 @@
-// 루트 위젯. docs/architecture.md '한눈에 보기'(앱), '디자인 토큰', '데모 모드'.
+// 루트 위젯. docs/architecture.md '한눈에 보기'(앱), '디자인 토큰', '데모 모드', '화면 이동'.
 //
 // [RootApp]은 Firebase를 부르지 않는다. Firebase·폰 DB·설정 준비는 `bootstrap.dart`가 runApp
 // 전에 끝내므로, 화면 테스트는 `ProviderScope(overrides: ...)` 안에 [RootApp]만 띄운다.
+// 앱이 백그라운드에서 돌아올 때(resumed) 하는 일도 여기서 건다.
+
+import 'dart:async';
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
@@ -13,11 +16,38 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// 앱의 루트 위젯. 한국어 전용, 밝은 테마 고정.
-class RootApp extends ConsumerWidget {
+class RootApp extends ConsumerStatefulWidget {
   const RootApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RootApp> createState() => _RootAppState();
+}
+
+class _RootAppState extends ConsumerState<RootApp> {
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(onResume: _onResume);
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  /// 앱이 백그라운드에서 돌아왔을 때(resumed). 처음 실행은 시작 위치 규칙이 따로 맡는다.
+  void _onResume() {
+    // (R1) 백그라운드 작업이 폰 DB에 쓴 변경을 화면 스트림에 알리는 `markTablesUpdated`를 여기서
+    // 먼저 부른다(docs/architecture.md '앱 코드 규약'의 백그라운드 작업).
+    // 하루가 바뀌었고 그날 브리핑을 아직 보지 않았으면 시작 위치 규칙을 다시 돌린다.
+    unawaited(ref.read(startRulesProvider).onResume());
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return MaterialApp.router(
       title: AppStrings.appName,
       routerConfig: ref.watch(routerProvider),

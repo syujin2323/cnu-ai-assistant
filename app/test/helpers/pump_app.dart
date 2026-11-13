@@ -1,9 +1,10 @@
 // 화면 테스트가 함께 쓰는 RootApp 띄우기 도우미. docs/architecture.md '확인과 CI'.
 //
 // Firebase 없이 RootApp만 띄운다. ProviderScope overrides로 폰 DB는 모드마다 메모리 DB, 모션 등급은
-// off, SharedPreferences는 모의 값, 오늘 브리핑을 열었는지는 정해 둔 값으로 바꾼다. 시작 상태는
-// [TestStart] 고정값 넷 가운데 하나로 정하고, 앱이 읽는 곳(SharedPreferences와 실제 모드 DB의
-// settings)에 그대로 쓴다. 셸 테스트와 온보딩 테스트가 이 도우미를 함께 쓴다.
+// off, SharedPreferences는 모의 값, 시계는 테스트가 옮길 수 있는 [TestClock], 오늘 브리핑을 열었는지는
+// 테스트가 바꿀 수 있는 값으로 바꾼다. 시작 상태는 [TestStart] 고정값 넷 가운데 하나로 정하고, 앱이
+// 읽는 곳(SharedPreferences와 실제 모드 DB의 settings)에 그대로 쓴다. 셸 테스트와 온보딩 테스트가 이
+// 도우미를 함께 쓴다.
 
 import 'package:cnu_ai_assistant/app/app.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
@@ -19,6 +20,7 @@ import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_controller.dart';
+import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -46,9 +48,40 @@ enum TestStart {
   demo,
 }
 
+/// 테스트 중에 옮길 수 있는 시계. [current]를 바꾸면 앱의 '지금'이 바뀐다.
+class TestClock extends Clock {
+  TestClock(this.current);
+
+  /// 지금 시각.
+  DateTime current;
+
+  @override
+  DateTime now() => current;
+}
+
+/// 오늘 브리핑을 열었는지 확인하는 가짜 함수. 테스트 중에 돌려줄 값을 바꿀 수 있다.
+class _FakeBriefingCheck {
+  _FakeBriefingCheck({required this.opened, required this.fails});
+
+  bool opened;
+  final bool fails;
+
+  Future<bool> call() async {
+    if (fails) throw StateError('브리핑 확인 실패(시험)');
+    return opened;
+  }
+}
+
 /// 띄운 앱과 정리 함수.
 class TestApp {
-  TestApp(this.db, this.demoDb, this.preferences, this.container);
+  TestApp._(
+    this.db,
+    this.demoDb,
+    this.preferences,
+    this.container,
+    this.clock,
+    this._briefingCheck,
+  );
 
   /// 실제 모드의 폰 DB(메모리).
   final AppDatabase db;
@@ -58,7 +91,16 @@ class TestApp {
   final SharedPreferences preferences;
   final ProviderContainer container;
 
+  /// 앱이 보는 시계.
+  final TestClock clock;
+
+  final _FakeBriefingCheck _briefingCheck;
+
   GoRouter get router => container.read(routerProvider);
+
+  /// 오늘(논리적 하루) 브리핑을 이미 열었는지. 앱이 다음에 확인할 때 이 값을 받는다.
+  bool get briefingOpenedToday => _briefingCheck.opened;
+  set briefingOpenedToday(bool value) => _briefingCheck.opened = value;
 
   /// 위젯 트리를 내려 provider를 정리한 뒤 DB를 닫는다(drift 스트림 타이머가 남지 않게).
   Future<void> dispose(WidgetTester tester) async {
@@ -73,7 +115,8 @@ class TestApp {
 /// [size](기본은 폰 세로)에서 [start] 상태로 RootApp을 띄운다.
 ///
 /// [preferences]·[settings]는 고정값 위에 덧쓴다. [briefingCheckFails]가 true면 오늘 브리핑을
-/// 열었는지 확인하는 함수가 예외를 던진다. [now]를 주면 시계를 그 시각으로 고정한다.
+/// 열었는지 확인하는 함수가 예외를 던진다. 시계는 [now](없으면 띄우는 때)에 멈춰 있고
+/// [TestApp.clock]으로 옮긴다.
 Future<TestApp> pumpTestApp(
   WidgetTester tester, {
   TestStart start = TestStart.loggedIn,
@@ -100,6 +143,9 @@ Future<TestApp> pumpTestApp(
     ...preferences,
   });
   final sharedPreferences = await SharedPreferences.getInstance();
+  // 모드마다 다른 메모리 DB 두 개를 함께 열어 둔다. drift의 '같은 DB 클래스를 여러 번 만듦' 경고는
+  // 두 인스턴스가 같은 연결을 쓸 때를 알리는 것이라 여기에는 해당하지 않으므로 끈다.
+  driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   final db = AppDatabase.memory();
   final demoDb = AppDatabase.memory();
 
@@ -120,10 +166,11 @@ Future<TestApp> pumpTestApp(
     );
   }
 
-  Future<bool> briefingOpened() async {
-    if (briefingCheckFails) throw StateError('브리핑 확인 실패(시험)');
-    return briefingOpenedToday;
-  }
+  final clock = TestClock(now ?? const Clock().now());
+  final briefingCheck = _FakeBriefingCheck(
+    opened: briefingOpenedToday,
+    fails: briefingCheckFails,
+  );
 
   await tester.pumpWidget(
     ProviderScope(
@@ -138,9 +185,9 @@ Future<TestApp> pumpTestApp(
           },
         ),
         motionLevelProvider.overrideWithValue(MotionLevel.off),
-        briefingOpenedTodayProvider.overrideWithValue(briefingOpened),
+        briefingOpenedTodayProvider.overrideWithValue(briefingCheck.call),
         launchPayloadProvider.overrideWithValue(launchPayload),
-        if (now != null) clockProvider.overrideWithValue(FixedClock(now)),
+        clockProvider.overrideWithValue(clock),
       ],
       child: Builder(
         builder: (context) => MediaQuery(
@@ -155,8 +202,45 @@ Future<TestApp> pumpTestApp(
   final container = ProviderScope.containerOf(
     tester.element(find.byType(RootApp)),
   );
-  return TestApp(db, demoDb, sharedPreferences, container);
+  return TestApp._(
+    db,
+    demoDb,
+    sharedPreferences,
+    container,
+    clock,
+    briefingCheck,
+  );
 }
+
+/// 앱이 백그라운드로 갔다가 돌아온 것처럼(resumed) 생명주기를 차례로 바꾸고 화면이 멈출 때까지 기다린다.
+Future<void> sendAppToBackgroundAndBack(WidgetTester tester) async {
+  for (final state in const [
+    AppLifecycleState.inactive,
+    AppLifecycleState.hidden,
+    AppLifecycleState.paused,
+    AppLifecycleState.hidden,
+    AppLifecycleState.inactive,
+    AppLifecycleState.resumed,
+  ]) {
+    tester.binding.handleAppLifecycleStateChanged(state);
+  }
+  await tester.pumpAndSettle();
+}
+
+/// 실제 모드 DB의 LMS 상태를 [state]로 쓴다(로그인·로그아웃이 쓰는 값).
+Future<void> writeLmsSessionState(TestApp app, LmsSessionState state) async {
+  expect(
+    await SettingsRepository(app.db).write(SettingKeys.lmsSessionState, state),
+    isA<Ok<void>>(),
+  );
+}
+
+/// 실제 모드 DB의 LMS 상태.
+Future<LmsSessionState> readLmsSessionState(TestApp app) async =>
+    switch (await SettingsRepository(app.db).read()) {
+      Ok(:final value) => value.lmsSessionState,
+      Err(:final error) => fail('settings를 읽지 못했다: $error'),
+    };
 
 /// 하단 탭 [label]. 지금 탭이 아니면 글자가 없으므로 접근성 이름으로 찾는다.
 Finder tabButton(String label) => find.descendant(
