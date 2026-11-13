@@ -35,8 +35,8 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // release 서명은 첫 테스트 배포 PR에서 둔다(docs/architecture.md '테스트 배포'). 그 전에는
+            // `flutter run --release`가 되도록 디버그 키로 서명하고, 이렇게 만든 빌드는 테스터에게 주지 않는다.
             signingConfig = signingConfigs.getByName("debug")
         }
     }

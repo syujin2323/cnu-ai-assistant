@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 평문 HTTP를 막는다(docs/architecture.md '플랫폼 프로젝트 설정'). WebView와 Android 네트워크 스택에
+     걸리고, Dart의 dio(HttpClient)에는 걸리지 않으므로 로컬 에뮬레이터 주소(http://10.0.2.2)는 그대로
+     쓸 수 있다. debug용 덮어쓰기는 두지 않는다. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

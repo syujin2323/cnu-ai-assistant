@@ -298,6 +298,42 @@ void main() {
 
         await app.dispose(tester);
       });
+
+      // 세로 폰만 지원하지만 targetSdk 36의 Android 16은 큰 화면에서 방향 고정을 따르지 않으므로,
+      // 태블릿 가로 폭에서도 넘치지 않는지만 본다(docs/decisions.md 2026-11-06 '화면은 세로 폰만 지원한다').
+      group('태블릿 가로 폭(1280×800pt)', () {
+        testWidgets('/today와 네 탭 화면이 넘치지 않는다', (tester) async {
+          final app = await _pumpApp(
+            tester,
+            preferences: {'onboarding_done': true},
+            textScale: textScale,
+            size: _tabletLandscape,
+          );
+
+          expect(find.byType(TodayScreen), findsOneWidget);
+          for (final label in ['캘린더', '과제', '나', '오늘']) {
+            await _tapTab(tester, label);
+          }
+          expect(find.byType(TodayScreen), findsOneWidget);
+
+          await app.dispose(tester);
+        });
+
+        testWidgets('온보딩 첫 화면이 넘치지 않는다', (tester) async {
+          final app = await _pumpApp(
+            tester,
+            preferences: {},
+            textScale: textScale,
+            size: _tabletLandscape,
+          );
+
+          expect(find.byType(OnboardingScreen), findsOneWidget);
+          await _scrollTo(tester, find.text('시작하기'));
+          expect(find.text('시작하기'), findsOneWidget);
+
+          await app.dispose(tester);
+        });
+      });
     });
   }
 
@@ -340,15 +376,22 @@ class _TestApp {
   }
 }
 
-/// 폰 화면 크기(390×844pt)에서 RootApp을 띄운다.
+/// 폰 화면 크기(세로, 390×844pt).
+const _phonePortrait = Size(390, 844);
+
+/// Android 16이 방향 고정을 따르지 않는 큰 화면(태블릿 가로) 크기.
+const _tabletLandscape = Size(1280, 800);
+
+/// [size](기본은 폰 세로)에서 RootApp을 띄운다.
 Future<_TestApp> _pumpApp(
   WidgetTester tester, {
   required Map<String, Object> preferences,
   bool briefingOpenedToday = true,
   String? launchPayload,
   double textScale = 1.0,
+  Size size = _phonePortrait,
 }) async {
-  tester.view.physicalSize = const Size(1170, 2532);
+  tester.view.physicalSize = size * 3;
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
 
