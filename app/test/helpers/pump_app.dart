@@ -62,14 +62,32 @@ class TestClock extends Clock {
 
 /// 오늘 브리핑을 열었는지 확인하는 가짜 함수. 테스트 중에 돌려줄 값을 바꿀 수 있다.
 class _FakeBriefingCheck {
-  _FakeBriefingCheck({required this.opened, required this.fails});
+  _FakeBriefingCheck({
+    required this._opened,
+    required this.fails,
+    required this.real,
+  });
 
-  bool opened;
+  bool _opened;
   final bool fails;
+
+  /// 폰 DB의 기록을 보게 띄웠는지([pumpTestApp]의 `realBriefingCheck`). 그러면 이 가짜 값은 쓰이지
+  /// 않으므로 읽거나 바꾸면 StateError다(아무것도 시험하지 않는 테스트가 되지 않게).
+  final bool real;
+
+  bool get opened => _checked(_opened);
+  set opened(bool value) => _opened = _checked(value);
 
   Future<bool> call() async {
     if (fails) throw StateError('브리핑 확인 실패(시험)');
-    return opened;
+    return _opened;
+  }
+
+  bool _checked(bool value) {
+    if (real) {
+      throw StateError('realBriefingCheck로 띄운 앱은 briefingOpenedToday를 쓰지 않는다');
+    }
+    return value;
   }
 }
 
@@ -116,8 +134,9 @@ class TestApp {
 /// [size](기본은 폰 세로)에서 [start] 상태로 RootApp을 띄운다.
 ///
 /// [preferences]·[settings]는 고정값 위에 덧쓴다. [briefingCheckFails]가 true면 오늘 브리핑을
-/// 열었는지 확인하는 함수가 예외를 던진다. 시계는 [now](없으면 띄우는 때)에 멈춰 있고
-/// [TestApp.clock]으로 옮긴다. [overrides]는 위 덮어쓰기 뒤에 더한다(저장 실패 흉내 등).
+/// 열었는지 확인하는 함수가 예외를 던진다. [realBriefingCheck]가 true면 그 함수를 덮어쓰지 않고 폰
+/// DB의 브리핑 기록을 그대로 본다([briefingOpenedToday]·[briefingCheckFails]는 쓰지 않음). 시계는
+/// [now](없으면 띄우는 때)에 멈춰 있고 [TestApp.clock]으로 옮긴다. [overrides]는 위 덮어쓰기 뒤에 더한다(저장 실패 흉내 등).
 Future<TestApp> pumpTestApp(
   WidgetTester tester, {
   TestStart start = TestStart.loggedIn,
@@ -125,6 +144,7 @@ Future<TestApp> pumpTestApp(
   Map<String, Object?> settings = const {},
   bool briefingOpenedToday = true,
   bool briefingCheckFails = false,
+  bool realBriefingCheck = false,
   String? launchPayload,
   DateTime? now,
   double textScale = 1.0,
@@ -169,9 +189,14 @@ Future<TestApp> pumpTestApp(
   }
 
   final clock = TestClock(now ?? const Clock().now());
+  assert(
+    !(realBriefingCheck && briefingCheckFails),
+    'realBriefingCheck로 띄우면 briefingCheckFails는 쓰이지 않는다',
+  );
   final briefingCheck = _FakeBriefingCheck(
     opened: briefingOpenedToday,
     fails: briefingCheckFails,
+    real: realBriefingCheck,
   );
 
   await tester.pumpWidget(
@@ -187,7 +212,8 @@ Future<TestApp> pumpTestApp(
           },
         ),
         motionLevelProvider.overrideWithValue(MotionLevel.off),
-        briefingOpenedTodayProvider.overrideWithValue(briefingCheck.call),
+        if (!realBriefingCheck)
+          briefingOpenedTodayProvider.overrideWithValue(briefingCheck.call),
         launchPayloadProvider.overrideWithValue(launchPayload),
         clockProvider.overrideWithValue(clock),
         ...overrides,

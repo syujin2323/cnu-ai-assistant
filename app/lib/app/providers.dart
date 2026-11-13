@@ -15,6 +15,7 @@ import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/data/api/server_api.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/demo/demo_seed.dart';
+import 'package:cnu_ai_assistant/data/repositories/briefing_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/demo_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/rules_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
@@ -71,6 +72,10 @@ final appModeProvider = NotifierProvider<AppModeController, AppMode>(
 class AppModeController extends Notifier<AppMode> {
   Future<void>? _entering;
   Future<Result<DemoEntry>>? _exiting;
+
+  /// 데모를 끝내는 중인지. 그동안 화면이 저절로 쓰는 기록(01 아침 브리핑의 본 것)은 데모 DB에 적지 않는다
+  /// (비운 뒤에 남으면 다음 데모의 샘플을 막음).
+  bool get exiting => _exiting != null;
 
   @override
   AppMode build() {
@@ -161,6 +166,11 @@ final settingsRepositoryProvider = Provider<SettingsRepository>(
 /// `rules` 표 저장소(내 규칙). 지금 모드의 폰 DB를 본다.
 final rulesRepositoryProvider = Provider<RulesRepository>(
   (ref) => RulesRepository(ref.watch(databaseProvider)),
+);
+
+/// 아침 브리핑 기록 저장소. 지금 모드의 폰 DB를 본다(데모에서는 데모 DB의 기록).
+final briefingRepositoryProvider = Provider<BriefingRepository>(
+  (ref) => BriefingRepository(ref.watch(databaseProvider)),
 );
 
 /// 되돌리기 저장소. 지금 모드의 폰 DB를 본다.

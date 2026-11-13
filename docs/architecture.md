@@ -326,9 +326,9 @@ cnu-ai-assistant/
 
 ## 아침 브리핑
 
-- 논리적 하루에 그날 브리핑을 아직 본 것으로 기록하지 않았으면 01 아침 브리핑을 먼저 보여 줍니다(`briefingOpenedTodayProvider`). `briefings.openedAt`은 브리핑을 본 것으로 기록할 때 적습니다.
+- 논리적 하루에 그날 브리핑을 아직 본 것으로 기록하지 않았으면 01 아침 브리핑을 먼저 보여 줍니다(`briefingOpenedTodayProvider`). 01 아침 브리핑이 화면에 뜨는 순간 그날 행의 `briefings.openedAt`을 적고(`markBriefingSeenProvider`, 이미 있으면 처음 시각을 둠), 어느 길로 떠나든 그날은 다시 자동으로 띄우지 않습니다(decisions.md 2026-11-13 '아침 브리핑은 뜨는 순간 본 것으로 기록한다'). 적을 DB와 시각은 화면이 뜬 순간에 정하고, 그사이 데모를 끝내기 시작했거나 모드가 바뀌었으면 적지 않습니다(데모에서 본 것이 실제 DB에 적히거나 비운 데모 DB에 남지 않게). 본 것·확정한 것을 읽고 쓰는 곳은 `data/repositories/briefing_repository.dart`의 `BriefingRepository`(`isSeen`·`markSeen`·`markConfirmed`, Result) 하나입니다(90일 지난 행은 `RetentionRepository`가, 데모를 끝낼 때는 `DemoRepository.clearAll`이 지웁니다). 설정이나 기록을 읽지 못하면 본 것으로 보고 `/today`로 보내고, 적지 못하면 기록만 남깁니다(다음에 열 때 다시 뜸).
 - 브리핑은 AI를 쓰지 않고, 열 때 폰 DB와 배치 엔진의 오늘 제안으로 계산합니다.
-- 'N개 확정하기'는 고른 할 일을 확정 블록으로 쓰고(브리핑에서 확정한 표시, 한 번에 되돌리기) `briefings.confirmedAt`을 적습니다.
+- 'N개 확정하기'는 고른 할 일을 확정 블록으로 쓰고(브리핑에서 확정한 표시, 한 번에 되돌리기) `briefings.confirmedAt`을 적습니다(다시 확정하면 마지막 시각).
 - 화면 구성은 [screens.md](screens.md) '01 아침 브리핑'에 있습니다. 브리핑 알림은 재설계 예정입니다.
 
 ## 실행 방법
