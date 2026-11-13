@@ -5,7 +5,8 @@
 // 화면을 닫고(앱을 나감), 2단계에서는 받지 않으며, 3–5단계에서는 앞 단계로 간다. 저장 같은 일이 진행 중이면
 // 다음·건너뛰기·뒤로 가기를 받지 않는다([OnboardingState.busy]). 5단계를 마치거나 로그아웃 뒤 1단계에서
 // 로그인하면 `/`로 가고, 시작 위치(redirect)가 브리핑이나 오늘로 보낸다. 실제 모드에서 LMS 상태가 아직
-// `disconnected`면(로그인 전) 온보딩에 머문다. '로그인 없이 둘러보기'는 데모 모드로 들어간다.
+// `disconnected`면(로그인 전) 온보딩에 머문다. '로그인 없이 둘러보기'는 데모 모드로 들어간다. 처음 열 때
+// 컨트롤러가 시작 단계(로그인한 뒤 끝내기 전에 꺼졌으면 2단계)를 정하는 동안은 빈 화면이다.
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
@@ -41,12 +42,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(onboardingControllerProvider);
-    final pages = _pages ??= PageController(initialPage: state.step.index);
     ref.listen(
-      onboardingControllerProvider.select((state) => state.step),
-      (previous, next) => _showPage(next.index),
+      onboardingControllerProvider.select((state) => state.value?.step),
+      (previous, next) {
+        // 처음 읽기가 끝난 때(null → 단계)는 PageController가 그 단계로 만들어진다.
+        if (previous != null && next != null) _showPage(next.index);
+      },
     );
+    final state = ref.watch(onboardingControllerProvider).value;
+    // 시작 단계를 정하려고 settings를 읽는 동안(아주 잠깐)은 빈 화면이다.
+    if (state == null) return const Scaffold(body: SizedBox.shrink());
+    final pages = _pages ??= PageController(initialPage: state.step.index);
     final controller = ref.read(onboardingControllerProvider.notifier);
     final step = state.step;
     return PopScope(

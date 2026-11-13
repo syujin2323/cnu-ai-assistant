@@ -187,6 +187,46 @@ void main() {
         await app.dispose(tester);
       });
 
+      testWidgets('로그인한 뒤 온보딩을 끝내기 전에 앱이 꺼졌으면 2단계부터 다시 연다', (tester) async {
+        final app = await pumpTestApp(
+          tester,
+          start: TestStart.fresh,
+          settings: {SettingKeys.lmsSessionState: LmsSessionState.active},
+          textScale: textScale,
+        );
+        _expectStep(OnboardingStep.timetable);
+        _expectHeader(
+          tester,
+          OnboardingStep.timetable,
+          back: false,
+          skip: false,
+        );
+        // 1단계로 돌아가 다시 로그인하지 않는다.
+        expect(await tester.binding.handlePopRoute(), isTrue);
+        await tester.pumpAndSettle();
+        _expectStep(OnboardingStep.timetable);
+        expect(app.router.state.uri.path, Routes.onboarding);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('처음 열 때 settings를 읽지 못하면 1단계부터 연다', (tester) async {
+        final app = await pumpTestApp(
+          tester,
+          start: TestStart.fresh,
+          settings: {SettingKeys.lmsSessionState: LmsSessionState.active},
+          textScale: textScale,
+          overrides: [
+            settingsRepositoryProvider.overrideWith(
+              (ref) => _ReadFails(ref.watch(databaseProvider)),
+            ),
+          ],
+        );
+        _expectStep(OnboardingStep.login);
+
+        await app.dispose(tester);
+      });
+
       testWidgets('건너뛴 단계를 저장하지 못해도 온보딩은 계속된다', (tester) async {
         final app = await pumpTestApp(
           tester,
@@ -313,11 +353,20 @@ void main() {
   });
 }
 
-/// 4단계에서 시작하는 컨트롤러(온보딩 도중 다시 열 때처럼).
+/// 4단계에서 시작하는 컨트롤러.
 class _StartsAtAiConsent extends OnboardingController {
   @override
-  OnboardingState build() =>
+  Future<OnboardingState> build() async =>
       const OnboardingState(step: OnboardingStep.aiConsent);
+}
+
+/// settings를 읽지 못하는 저장소(폰 DB 읽기 실패 흉내).
+class _ReadFails extends SettingsRepository {
+  _ReadFails(super.db);
+
+  @override
+  Future<Result<AppSettings>> read() async =>
+      const Err(StorageError('settings.read'));
 }
 
 /// 건너뛴 단계 목록만 쓰지 못하는 저장소(폰 DB 쓰기 실패 흉내).
@@ -397,18 +446,22 @@ Future<List<int>> _skipped(TestApp app) async =>
       Err(:final error) => fail('settings를 읽지 못했다: $error'),
     };
 
-/// 지금 단계의 버튼이 보이게 스크롤한다. 글자가 크면 버튼이 화면 아래로 밀려 있다.
-Future<void> _scrollToInStep(WidgetTester tester, Finder button) =>
-    tester.scrollUntilVisible(
-      button,
-      100,
-      scrollable: find
-          .descendant(
-            of: find.byType(OnboardingStepLayout),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
+/// 지금 단계의 버튼이 보이게 스크롤한다. 글자가 크면 버튼이 화면 아래로 밀려 있어, 그려질 때까지 내린 뒤
+/// 화면 안으로 끝까지 맞춘다.
+Future<void> _scrollToInStep(WidgetTester tester, Finder button) async {
+  await tester.scrollUntilVisible(
+    button,
+    100,
+    scrollable: find
+        .descendant(
+          of: find.byType(OnboardingStepLayout),
+          matching: find.byType(Scrollable),
+        )
+        .first,
+  );
+  await tester.ensureVisible(button);
+  await tester.pump();
+}
 
 /// 지금 단계의 입력 칸 [label]에 [text]를 넣는다.
 Future<void> _enterInStep(
