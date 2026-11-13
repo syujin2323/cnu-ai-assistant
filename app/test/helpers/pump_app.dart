@@ -22,6 +22,7 @@ import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_controller.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -116,7 +117,7 @@ class TestApp {
 ///
 /// [preferences]·[settings]는 고정값 위에 덧쓴다. [briefingCheckFails]가 true면 오늘 브리핑을
 /// 열었는지 확인하는 함수가 예외를 던진다. 시계는 [now](없으면 띄우는 때)에 멈춰 있고
-/// [TestApp.clock]으로 옮긴다.
+/// [TestApp.clock]으로 옮긴다. [overrides]는 위 덮어쓰기 뒤에 더한다(저장 실패 흉내 등).
 Future<TestApp> pumpTestApp(
   WidgetTester tester, {
   TestStart start = TestStart.loggedIn,
@@ -128,6 +129,7 @@ Future<TestApp> pumpTestApp(
   DateTime? now,
   double textScale = 1.0,
   Size size = phonePortrait,
+  List<Override> overrides = const [],
 }) async {
   tester.view.physicalSize = size * 3;
   tester.view.devicePixelRatio = 3;
@@ -188,6 +190,7 @@ Future<TestApp> pumpTestApp(
         briefingOpenedTodayProvider.overrideWithValue(briefingCheck.call),
         launchPayloadProvider.overrideWithValue(launchPayload),
         clockProvider.overrideWithValue(clock),
+        ...overrides,
       ],
       child: Builder(
         builder: (context) => MediaQuery(
