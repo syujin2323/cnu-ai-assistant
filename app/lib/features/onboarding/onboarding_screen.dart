@@ -2,7 +2,8 @@
 //
 // `steps/` 아래 단계 파일을 `PageView`로 넘긴다. 단계는 버튼으로만 넘기고(스와이프 없음), 뒤로 가기는
 // `PopScope`로 앞 단계에 돌아간다. 2단계부터 화면 위 머리에 '이전 단계', 진행 막대, '건너뛰기'를 둔다.
-// 끝내면 시작 위치(redirect)가 브리핑이나 오늘로 보낸다. '둘러보기'는 데모 모드로 들어간다.
+// 끝내면 `/`로 가고 시작 위치(redirect)가 브리핑이나 오늘로 보낸다. 실제 모드에서 LMS 상태가 아직
+// `disconnected`면(로그인 전) 온보딩에 머문다. '둘러보기'는 데모 모드로 들어간다.
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';

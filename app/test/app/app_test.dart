@@ -12,6 +12,7 @@ import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_tab_bar.dart';
 import 'package:cnu_ai_assistant/design/widgets/demo_band.dart';
+import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_screen.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_screen.dart';
 import 'package:cnu_ai_assistant/features/calendar/month_screen.dart';
@@ -25,7 +26,6 @@ import 'package:cnu_ai_assistant/features/tasks/task_detail_screen.dart';
 import 'package:cnu_ai_assistant/features/tasks/task_list_screen.dart';
 import 'package:cnu_ai_assistant/features/today/day_screen.dart';
 import 'package:cnu_ai_assistant/features/today/today_screen.dart';
-import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -35,10 +35,6 @@ import '../helpers/pump_app.dart';
 const _tabLabels = ['오늘', '캘린더', '할 일', '나'];
 
 void main() {
-  // 모드마다 다른 메모리 DB 두 개를 함께 열어 둔다. drift의 '같은 DB 클래스를 여러 번 만듦' 경고는
-  // 두 인스턴스가 같은 연결을 쓸 때를 알리는 것이라 여기에는 해당하지 않으므로 끈다.
-  driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
-
   for (final textScale in [1.0, 2.0]) {
     group('글자 배율 $textScale', () {
       testWidgets('로그인했고 오늘 브리핑을 열었으면 /today에 네 탭이 보이고 '
@@ -159,6 +155,24 @@ void main() {
           await app.dispose(tester);
         });
 
+        testWidgets('온보딩을 끝냈어도 로그아웃했으면 브리핑보다 먼저 /onboarding으로 간다', (
+          tester,
+        ) async {
+          final app = await pumpTestApp(
+            tester,
+            start: TestStart.loggedOut,
+            briefingOpenedToday: false,
+            textScale: textScale,
+          );
+
+          expect(find.byType(OnboardingScreen), findsOneWidget);
+          expect(find.byType(BriefingScreen), findsNothing);
+          expect(find.byType(AppTabBar), findsNothing);
+          expect(app.router.state.uri.path, Routes.onboarding);
+
+          await app.dispose(tester);
+        });
+
         testWidgets('로그인했고 오늘 브리핑을 아직 열지 않았으면 /briefing으로 간다', (tester) async {
           final app = await pumpTestApp(
             tester,
@@ -201,30 +215,40 @@ void main() {
           await app.dispose(tester);
         });
 
-        testWidgets('알림 payload가 온보딩보다 먼저다', (tester) async {
-          final app = await pumpTestApp(
-            tester,
-            start: TestStart.fresh,
-            launchPayload: Routes.task(3),
-            textScale: textScale,
-          );
+        testWidgets('알림 payload는 온보딩·로그아웃 확인 뒤에 본다', (tester) async {
+          // (시작 상태, 뜨는 화면). 온보딩으로 보낼 때는 payload를 쓰지 않고 버린다.
+          final cases = <(TestStart, Type)>[
+            (TestStart.fresh, OnboardingScreen),
+            (TestStart.loggedOut, OnboardingScreen),
+            (TestStart.loggedIn, TaskDetailScreen),
+          ];
+          for (final (start, screen) in cases) {
+            final app = await pumpTestApp(
+              tester,
+              start: start,
+              launchPayload: Routes.task(3),
+              textScale: textScale,
+            );
 
-          expect(find.byType(TaskDetailScreen), findsOneWidget);
-          expect(
-            tester
-                .widget<TaskDetailScreen>(find.byType(TaskDetailScreen))
-                .taskId,
-            3,
-          );
-          expect(find.byType(OnboardingScreen), findsNothing);
-          expect(app.router.state.uri.path, Routes.task(3));
+            expect(find.byType(screen), findsOneWidget, reason: start.name);
+            if (screen == TaskDetailScreen) {
+              expect(
+                tester
+                    .widget<TaskDetailScreen>(find.byType(TaskDetailScreen))
+                    .taskId,
+                3,
+              );
+              expect(app.router.state.uri.path, Routes.task(3));
+            } else {
+              expect(find.byType(TaskDetailScreen), findsNothing);
+              expect(app.router.state.uri.path, Routes.onboarding);
+            }
 
-          await app.dispose(tester);
+            await app.dispose(tester);
+          }
         });
 
-        testWidgets('온보딩 중에도 /me/timetable을 열 수 있고 닫으면 온보딩으로 돌아온다', (
-          tester,
-        ) async {
+        testWidgets('온보딩 중 /login을 열고 닫아도 온보딩으로 돌아온다', (tester) async {
           final app = await pumpTestApp(
             tester,
             start: TestStart.fresh,
@@ -232,21 +256,23 @@ void main() {
           );
           expect(find.byType(OnboardingScreen), findsOneWidget);
 
-          // 온보딩 4·5단계가 시간표·고정 일정 편집을 여는 방식(push).
-          app.router.push(Routes.meTimetable);
+          // /login처럼 시작 위치 밖의 경로는 시작 위치 규칙이 막지 않는다.
+          app.router.push(Routes.login);
           await tester.pumpAndSettle();
-          expect(find.byType(TimetableScreen), findsOneWidget);
+          expect(find.byType(ReloginScreen), findsOneWidget);
           expect(find.byType(AppTabBar), findsNothing);
+          expect(app.router.state.uri.path, Routes.login);
 
-          app.router.pop();
+          await tester.tap(find.byType(BackButton));
           await tester.pumpAndSettle();
-          expect(find.byType(TimetableScreen), findsNothing);
+          expect(find.byType(ReloginScreen), findsNothing);
           expect(find.byType(OnboardingScreen), findsOneWidget);
+          expect(app.router.state.uri.path, Routes.onboarding);
 
           await app.dispose(tester);
         });
 
-        testWidgets('온보딩을 끝냈으면 /onboarding으로 가는 이동은 오늘로 돌린다', (tester) async {
+        testWidgets('로그인했으면 /onboarding으로 가는 이동은 오늘로 돌린다', (tester) async {
           final app = await pumpTestApp(tester, textScale: textScale);
 
           app.router.go(Routes.onboarding);
@@ -257,21 +283,113 @@ void main() {
           await app.dispose(tester);
         });
 
-        testWidgets('데모 모드면 payload와 onboarding_done을 보지 않고 브리핑 규칙만 따른다', (
-          tester,
-        ) async {
+        testWidgets(
+          '로그아웃하면(LMS 상태를 disconnected로 쓴 뒤) /onboarding으로 가는 이동은 돌리지 않는다',
+          (tester) async {
+            final app = await pumpTestApp(tester, textScale: textScale);
+            await tapTab(tester, '나');
+
+            // 10 나의 로그아웃이 하는 순서: LMS 상태를 먼저 쓰고(await) 그다음 /onboarding으로 간다.
+            await writeLmsSessionState(app, LmsSessionState.disconnected);
+            app.router.go(Routes.onboarding);
+            await tester.pumpAndSettle();
+            expect(find.byType(OnboardingScreen), findsOneWidget);
+            expect(find.byType(AppTabBar), findsNothing);
+            expect(app.router.state.uri.path, Routes.onboarding);
+
+            // 시작 위치로 다시 가도(앱을 다시 켠 것과 같음) 로그인할 때까지 온보딩이다.
+            app.router.go(Routes.root);
+            await tester.pumpAndSettle();
+            expect(find.byType(OnboardingScreen), findsOneWidget);
+            expect(app.router.state.uri.path, Routes.onboarding);
+
+            await app.dispose(tester);
+          },
+        );
+
+        testWidgets('/onboarding에 있는 동안 LMS 상태가 connecting·active로 바뀌어도 머물고, '
+            '로그인을 마치고 /로 가면 나간다', (tester) async {
           final app = await pumpTestApp(
             tester,
-            start: TestStart.demo,
-            briefingOpenedToday: false,
-            launchPayload: Routes.task(3),
+            start: TestStart.loggedOut,
+            textScale: textScale,
+          );
+          expect(find.byType(OnboardingScreen), findsOneWidget);
+
+          for (final state in [
+            LmsSessionState.connecting,
+            LmsSessionState.active,
+          ]) {
+            // 로그아웃 뒤 1단계에서 로그인하는 중이다. 라우터가 다시 정하거나 /onboarding으로 다시
+            // 가도 이미 /onboarding에 있으므로 튕기지 않는다.
+            await writeLmsSessionState(app, state);
+            app.router.refresh();
+            await tester.pumpAndSettle();
+            app.router.go(Routes.onboarding);
+            await tester.pumpAndSettle();
+            expect(
+              find.byType(OnboardingScreen),
+              findsOneWidget,
+              reason: state.name,
+            );
+            expect(
+              app.router.state.uri.path,
+              Routes.onboarding,
+              reason: state.name,
+            );
+          }
+
+          // 진행 줄이 끝나면 화면이 /로 가고, 시작 위치 규칙이 브리핑이나 오늘로 보낸다.
+          app.router.go(Routes.root);
+          await tester.pumpAndSettle();
+          expect(find.byType(OnboardingScreen), findsNothing);
+          expect(find.byType(TodayScreen), findsOneWidget);
+
+          await app.dispose(tester);
+        });
+
+        testWidgets(
+          '데모 모드면 payload·onboarding_done·LMS 상태를 보지 않고 브리핑 규칙만 따른다',
+          (tester) async {
+            final app = await pumpTestApp(
+              tester,
+              start: TestStart.demo,
+              briefingOpenedToday: false,
+              launchPayload: Routes.task(3),
+              textScale: textScale,
+            );
+
+            // 실제 DB의 LMS 상태는 로그인 전(disconnected)이지만 데모 모드는 보지 않는다.
+            expect(
+              await readLmsSessionState(app),
+              LmsSessionState.disconnected,
+            );
+            expect(find.byType(DemoBand), findsOneWidget);
+            expect(find.byType(BriefingScreen), findsOneWidget);
+            expect(find.byType(TaskDetailScreen), findsNothing);
+            expect(find.byType(OnboardingScreen), findsNothing);
+
+            await app.dispose(tester);
+          },
+        );
+
+        testWidgets('플랫폼이 넘긴 첫 경로(/today)를 보지 않고 /에서 시작한다', (tester) async {
+          // Android intent의 route 값(`adb shell am start --es route /today`)이 이 값으로 들어온다.
+          // 그대로 따르면 시작 위치 규칙을 거치지 않아 온보딩을 건너뛴다.
+          tester.binding.platformDispatcher.defaultRouteNameTestValue =
+              Routes.today;
+          addTearDown(
+            tester.binding.platformDispatcher.clearDefaultRouteNameTestValue,
+          );
+          final app = await pumpTestApp(
+            tester,
+            start: TestStart.fresh,
             textScale: textScale,
           );
 
-          expect(find.byType(DemoBand), findsOneWidget);
-          expect(find.byType(BriefingScreen), findsOneWidget);
-          expect(find.byType(TaskDetailScreen), findsNothing);
-          expect(find.byType(OnboardingScreen), findsNothing);
+          expect(find.byType(OnboardingScreen), findsOneWidget);
+          expect(find.byType(TodayScreen), findsNothing);
+          expect(app.router.state.uri.path, Routes.onboarding);
 
           await app.dispose(tester);
         });
@@ -422,6 +540,29 @@ void main() {
         await app.dispose(tester);
       });
 
+      testWidgets('로그아웃한 뒤 둘러보기로 데모에 들어갔다가 끝내도 온보딩 첫 화면으로 돌아온다', (
+        tester,
+      ) async {
+        final app = await pumpTestApp(
+          tester,
+          start: TestStart.loggedOut,
+          textScale: textScale,
+        );
+
+        await tapText(tester, '둘러보기 · 샘플 학생의 하루');
+        expect(find.byType(DemoBand), findsOneWidget);
+        expect(find.byType(TodayScreen), findsOneWidget);
+
+        // 온보딩을 끝냈어도 LMS 상태가 disconnected라 데모 밖에서는 로그인할 때까지 온보딩이다.
+        await tapText(tester, '끝내기');
+        expect(find.byType(DemoBand), findsNothing);
+        expect(find.byType(OnboardingScreen), findsOneWidget);
+        expect(find.byType(TodayScreen), findsNothing);
+        expect(app.router.state.uri.path, Routes.onboarding);
+
+        await app.dispose(tester);
+      });
+
       // 세로 폰만 지원하지만 targetSdk 36의 Android 16은 큰 화면에서 방향 고정을 따르지 않으므로,
       // 태블릿 가로 폭에서도 넘치지 않는지만 본다(docs/decisions.md 2026-11-06 '화면은 세로 폰만 지원한다').
       group('태블릿 가로 폭(1280×800pt)', () {
@@ -475,6 +616,31 @@ void main() {
       ).firstMatch(plist)?.group(1);
       expect(name, AppStrings.appName);
     });
+  });
+
+  group('플랫폼 경로', () {
+    // docs/architecture.md '화면 이동'. 실행 중에 들어오는 딥링크는 네이티브에서 막히므로 위젯
+    // 테스트로는 볼 수 없어 설정만 본다(동작은 PR에서 adb로 확인).
+    test(
+      'Android MainActivity는 딥링크를 받지 않는다(flutter_deeplinking_enabled false)',
+      () {
+        final manifest = File('android/app/src/main/AndroidManifest.xml')
+            .readAsStringSync();
+        final activity = RegExp(
+          r'<activity\b[^>]*android:name="\.MainActivity"[\s\S]*?</activity>',
+        ).firstMatch(manifest)?.group(0);
+        expect(activity, isNotNull);
+        expect(
+          activity,
+          matches(
+            RegExp(
+              r'<meta-data\s+android:name="flutter_deeplinking_enabled"\s+'
+              r'android:value="false"\s*/>',
+            ),
+          ),
+        );
+      },
+    );
   });
 }
 

@@ -40,6 +40,13 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- 딥링크를 받지 않는다 (docs/architecture.md '화면 이동'). 켜 두면 intent의 data 경로로
+                 앱을 열거나 실행 중인 앱의 화면을 바꿔 시작 위치 규칙(온보딩·로그인 확인)을 건너뛸 수 있다.
+                 intent의 route 값은 앱의 GoRouter(overridePlatformDefaultLocation)가 무시한다. -->
+            <meta-data
+              android:name="flutter_deeplinking_enabled"
+              android:value="false"
+              />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

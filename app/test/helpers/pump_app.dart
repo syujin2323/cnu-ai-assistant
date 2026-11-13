@@ -20,6 +20,7 @@ import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_controller.dart';
+import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -142,6 +143,9 @@ Future<TestApp> pumpTestApp(
     ...preferences,
   });
   final sharedPreferences = await SharedPreferences.getInstance();
+  // 모드마다 다른 메모리 DB 두 개를 함께 열어 둔다. drift의 '같은 DB 클래스를 여러 번 만듦' 경고는
+  // 두 인스턴스가 같은 연결을 쓸 때를 알리는 것이라 여기에는 해당하지 않으므로 끈다.
+  driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   final db = AppDatabase.memory();
   final demoDb = AppDatabase.memory();
 
