@@ -15,7 +15,7 @@ import 'package:cnu_ai_assistant/features/onboarding/steps/briefing_time_step.da
 import 'package:cnu_ai_assistant/features/onboarding/steps/first_briefing_step.dart';
 import 'package:cnu_ai_assistant/features/onboarding/steps/fixed_blocks_step.dart';
 import 'package:cnu_ai_assistant/features/onboarding/steps/intro_step.dart';
-import 'package:cnu_ai_assistant/features/onboarding/steps/lms_connect_step.dart';
+import 'package:cnu_ai_assistant/features/onboarding/steps/login_step.dart';
 import 'package:cnu_ai_assistant/features/onboarding/steps/privacy_step.dart';
 import 'package:cnu_ai_assistant/features/onboarding/steps/timetable_step.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -88,7 +88,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     return switch (step) {
       OnboardingStep.intro => IntroStep(onStart: next, onBrowse: _browseDemo),
       OnboardingStep.privacy => PrivacyStep(onConfirm: next),
-      OnboardingStep.lmsConnect => LmsConnectStep(
+      OnboardingStep.lmsConnect => LoginStep(
         onSkipLoginForDev: () =>
             _run((controller) => controller.skipLoginForDev()),
       ),

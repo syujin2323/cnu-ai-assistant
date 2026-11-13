@@ -9,8 +9,8 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:material_ui/material_ui.dart';
 
 /// 3단계.
-class LmsConnectStep extends StatelessWidget {
-  const LmsConnectStep({
+class LoginStep extends StatelessWidget {
+  const LoginStep({
     super.key,
     required this.onSkipLoginForDev,
     this.showDevSkip = true,

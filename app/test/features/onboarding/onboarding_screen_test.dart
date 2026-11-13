@@ -13,7 +13,7 @@ import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_screen.dart';
 import 'package:cnu_ai_assistant/features/onboarding/onboarding_controller.dart';
 import 'package:cnu_ai_assistant/features/onboarding/onboarding_screen.dart';
-import 'package:cnu_ai_assistant/features/onboarding/steps/lms_connect_step.dart';
+import 'package:cnu_ai_assistant/features/onboarding/steps/login_step.dart';
 import 'package:cnu_ai_assistant/features/onboarding/widgets/onboarding_step_layout.dart';
 import 'package:cnu_ai_assistant/lms/lms_feature.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -119,10 +119,7 @@ void main() {
     Future<void> pumpStep({required bool showDevSkip}) => tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: LmsConnectStep(
-            onSkipLoginForDev: () {},
-            showDevSkip: showDevSkip,
-          ),
+          body: LoginStep(onSkipLoginForDev: () {}, showDevSkip: showDevSkip),
         ),
       ),
     );
