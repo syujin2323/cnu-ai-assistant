@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:cnu_ai_assistant/data/db/database.dart';
+import 'package:cnu_ai_assistant/data/repositories/guard_storage.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 
@@ -9,7 +10,8 @@ import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 /// 표에 없는 키와 형식이 깨진 값은 [AppSettings.defaults]의 값으로 채워 돌려준다.
 /// 키 이름은 [SettingKeys]를 쓴다. docs/architecture.md '앱 코드 규약'의 오류 처리대로
 /// [read]·[write]는 예외를 던지지 않고 [Result]를 돌려주며, 폰 DB를 읽거나 쓰지 못하면
-/// [StorageError]를 담은 [Err]다. 예외는 프로그래밍 오류([write]의 모르는 키·맞지 않는 형)에만 쓴다.
+/// (닫힌 DB 포함) [StorageError]를 담은 [Err]다([guardStorage]). 예외는 프로그래밍 오류(모르는 키·
+/// 맞지 않는 형)에만 쓴다.
 class SettingsRepository {
   SettingsRepository(this._db);
 
@@ -17,11 +19,14 @@ class SettingsRepository {
 
   /// 지금 설정.
   Future<Result<AppSettings>> read() async {
-    try {
-      return Ok(_toSettings(await _db.select(_db.settings).get()));
-    } on Exception catch (error) {
-      return Err(StorageError('settings.read', causeType: _typeOf(error)));
-    }
+    final rows = await guardStorage(
+      'settings.read',
+      () => _db.select(_db.settings).get(),
+    );
+    return switch (rows) {
+      Ok(:final value) => Ok(_toSettings(value)),
+      Err(:final error) => Err(error),
+    };
   }
 
   /// 지금 설정을 내고, 바뀔 때마다 새 값을 낸다. 같은 값은 다시 내지 않는다.
@@ -35,18 +40,18 @@ class SettingsRepository {
   /// (예: `lmsSessionState`에는 `LmsSessionState`). 모르는 키나 맞지 않는 형은
   /// 프로그래밍 오류로 보고 [ArgumentError]를 던진다([AppSettings.encodeValue]).
   Future<Result<void>> write(String key, Object? value) async {
-    final json = jsonEncode(AppSettings.encodeValue(key, value));
-    try {
-      await _db
-          .into(_db.settings)
-          .insertOnConflictUpdate(
-            SettingsCompanion.insert(key: key, value: json),
-          );
-      return const Ok(null);
-    } on Exception catch (error) {
-      return Err(StorageError('settings.write', causeType: _typeOf(error)));
-    }
+    final row = _row(key, value);
+    return guardStorage('settings.write', () async {
+      await _db.into(_db.settings).insertOnConflictUpdate(row);
+    });
   }
+
+  /// 표에 쓸 행. 값은 [AppSettings.encodeValue]로 검사하고 JSON으로 적는다.
+  static SettingsCompanion _row(String key, Object? value) =>
+      SettingsCompanion.insert(
+        key: key,
+        value: jsonEncode(AppSettings.encodeValue(key, value)),
+      );
 
   static AppSettings _toSettings(List<SettingRow> rows) {
     final values = <String, Object?>{};
@@ -59,7 +64,4 @@ class SettingsRepository {
     }
     return AppSettings.fromValues(values);
   }
-
-  /// 원인 예외의 타입 이름. 메시지에는 SQL이나 값이 들어갈 수 있어 담지 않는다.
-  static String _typeOf(Object error) => error.runtimeType.toString();
 }

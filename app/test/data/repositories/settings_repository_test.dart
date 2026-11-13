@@ -1,6 +1,8 @@
 // settings 기본값과 저장소 테스트. docs/architecture.md '폰 DB'의 settings 키·기본값, '앱 코드 규약'의 오류 처리.
 
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
@@ -8,11 +10,16 @@ import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
+import 'package:drift/drift.dart' show driftRuntimeOptions;
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late AppDatabase db;
   late SettingsRepository repo;
+
+  // 닫힌 DB·두 연결 테스트는 AppDatabase를 한 번에 여럿 연다.
+  setUpAll(() => driftRuntimeOptions.dontWarnAboutMultipleDatabases = true);
 
   setUp(() {
     db = AppDatabase.memory();
@@ -264,28 +271,113 @@ void main() {
 
   group('settings 저장 실패', () {
     test('폰 DB를 읽거나 쓰지 못하면 예외 대신 StorageError를 담은 Err를 돌려준다', () async {
-      // 표가 없는 DB로 실패를 만든다.
+      // 표가 없는 DB로 실패를 만든다. 1은 SQLITE_ERROR(없는 표)다.
       await db.customStatement('DROP TABLE settings');
 
-      final readResult = await repo.read();
-      expect(readResult, isA<Err<AppSettings>>());
       expect(
-        (readResult as Err<AppSettings>).error,
-        isA<StorageError>()
-            .having((e) => e.operation, 'operation', 'settings.read')
-            .having((e) => e.causeType, 'causeType', isNotNull),
+        _errorOf(await repo.read()),
+        const StorageError(
+          'settings.read',
+          causeType: 'SqliteException',
+          code: 1,
+        ),
       );
-
-      final writeResult = await repo.write(SettingKeys.aiEnabled, true);
-      expect(writeResult, isA<Err<void>>());
       expect(
-        (writeResult as Err<void>).error,
-        isA<StorageError>().having(
-          (e) => e.operation,
-          'operation',
+        _errorOf(await repo.write(SettingKeys.aiEnabled, true)),
+        const StorageError(
           'settings.write',
+          causeType: 'SqliteException',
+          code: 1,
         ),
       );
     });
+
+    test('닫힌 DB를 받아 둔 저장소도 StateError를 던지지 않고 Err를 돌려준다', () async {
+      // 데모를 끝내며 닫은 DB를 받아 둔 저장소를 await 뒤에 쓰는 경우.
+      final closed = AppDatabase.memory();
+      final closedRepo = SettingsRepository(closed);
+      expect(await closedRepo.read(), isA<Ok<AppSettings>>());
+      await closed.close();
+
+      expect(
+        _errorOf(await closedRepo.read()),
+        const StorageError('settings.read', causeType: 'StateError'),
+      );
+      expect(
+        _errorOf(await closedRepo.write(SettingKeys.aiEnabled, true)),
+        const StorageError('settings.write', causeType: 'StateError'),
+      );
+    });
+
+    test(
+      '앱처럼 백그라운드 연결로 연 파일 DB에서 다른 연결이 쓰는 중이면 잠금 오류(SqliteException, 코드 5)다',
+      () async {
+        final file = await _tempDatabaseFile();
+        final app = AppDatabase(
+          NativeDatabase.createBackgroundConnection(file),
+        );
+        addTearDown(app.close);
+        final appRepo = SettingsRepository(app);
+        expect(
+          await appRepo.write(SettingKeys.aiEnabled, true),
+          isA<Ok<void>>(),
+        );
+
+        // 같은 파일을 연 다른 연결(백그라운드 작업처럼)이 쓰기 트랜잭션을 연 채로 둔다.
+        final other = AppDatabase(NativeDatabase(file));
+        addTearDown(other.close);
+        final locked = Completer<void>();
+        final release = Completer<void>();
+        final holding = other.transaction(() async {
+          await other
+              .into(other.settings)
+              .insertOnConflictUpdate(
+                SettingsCompanion.insert(
+                  key: SettingKeys.motionLevel,
+                  value: '"off"',
+                ),
+              );
+          locked.complete();
+          await release.future;
+        });
+        await locked.future;
+
+        final result = await appRepo.write(SettingKeys.aiEnabled, false);
+        release.complete();
+        await holding;
+
+        // 백그라운드 연결의 오류는 DriftRemoteException에 싸여 오지만 원인과 코드를 담는다.
+        expect(
+          _errorOf(result),
+          const StorageError(
+            'settings.write',
+            causeType: 'SqliteException',
+            code: 5,
+          ),
+        );
+        // 잠금이 풀리면 다시 쓸 수 있다.
+        expect(
+          await appRepo.write(SettingKeys.aiEnabled, false),
+          isA<Ok<void>>(),
+        );
+        expect(switch (await appRepo.read()) {
+          Ok(:final value) => value.aiEnabled,
+          Err() => null,
+        }, isFalse);
+      },
+    );
   });
+}
+
+/// [result]가 [Err]면 그 오류, [Ok]면 null.
+AppError? _errorOf(Result<Object?> result) => switch (result) {
+  Ok() => null,
+  Err(:final error) => error,
+};
+
+/// 테스트마다 새 임시 폴더의 DB 파일(앱처럼 파일에 연다). 테스트가 끝나면 폴더를 지운다.
+Future<File> _tempDatabaseFile() async {
+  final dir = await Directory.systemTemp.createTemp('settings_repository_test');
+  addTearDown(() => dir.delete(recursive: true));
+  return File('${dir.path}/app.sqlite');
 }
