@@ -97,7 +97,7 @@ cnu-ai-assistant/
 
 ## 화면 이동
 
-- 라우터는 `app/lib/app/router.dart` 하나입니다. 하단 탭은 go_router의 `StatefulShellRoute.indexedStack`이고 가지 순서는 오늘 · 캘린더 · 할 일 · 나입니다. 탭 라벨은 '오늘', '캘린더', '할 일', '나'이고, 탭 오른쪽에 06 AI 비서를 여는 'AI 비서에게 말하기' 둥근 버튼을 둡니다(지금 코드는 라벨이 '과제'이고 AI 비서 버튼이 없습니다. 후속 코드 PR에서 바꿉니다). 경로 문자열은 `Routes` 상수로만 씁니다.
+- 라우터는 `app/lib/app/router.dart` 하나입니다. 하단 탭은 go_router의 `StatefulShellRoute.indexedStack`이고 가지 순서는 오늘 · 캘린더 · 할 일 · 나입니다. 탭 라벨은 '오늘', '캘린더', '할 일', '나'이고, 탭 오른쪽에 06 AI 비서를 여는 'AI 비서에게 말하기' 둥근 버튼을 둡니다. 경로 문자열은 `Routes` 상수로만 씁니다.
 
 | 경로 | 화면 | 위치 |
 |---|---|---|

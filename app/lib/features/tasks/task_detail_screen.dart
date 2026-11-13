@@ -1,10 +1,11 @@
-// 04 과제 상세(셸 밖 전체 화면 `/tasks/:id`). R0에서는 영상 길이·인정 시간·시청 시간도 보여 준다
-// (05 강의 상세는 R1에 `/lectures/:id`). 내용은 과제 PR에서 만든다.
+// 04 할 일 상세(셸 밖 전체 화면 `/tasks/:id`, 재설계 예정. docs/screens.md '재설계 예정').
+// 재설계 전까지 기능을 더하지 않고 다른 화면에서 이리로 오는 길도 만들지 않는다. 할 일을 누르면
+// 무엇을 보일지는 재설계가 정한다.
 
 import 'package:cnu_ai_assistant/design/widgets/screen_placeholder.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// 04 과제 상세.
+/// 04 할 일 상세(재설계 예정).
 class TaskDetailScreen extends StatelessWidget {
   const TaskDetailScreen({super.key, required this.taskId});
 
@@ -14,7 +15,7 @@ class TaskDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('과제 상세')),
+      appBar: AppBar(title: const Text('할 일 상세')),
       body: const SafeArea(child: ScreenPlaceholder()),
     );
   }

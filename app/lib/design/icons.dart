@@ -14,7 +14,10 @@ enum AppIconName {
   today('assets/icons/today.svg'),
   calendar('assets/icons/calendar.svg'),
   tasks('assets/icons/tasks.svg'),
-  me('assets/icons/me.svg');
+  me('assets/icons/me.svg'),
+
+  /// 하단 탭 옆 'AI 비서에게 말하기' 버튼(말풍선).
+  assistant('assets/icons/assistant.svg');
 
   const AppIconName(this.asset);
 
@@ -62,6 +65,13 @@ class AppIcon extends StatelessWidget {
     this.color,
     this.semanticLabel,
   }) : name = AppIconName.me;
+
+  const AppIcon.assistant({
+    super.key,
+    this.size = AppSize.icon,
+    this.color,
+    this.semanticLabel,
+  }) : name = AppIconName.assistant;
 
   final AppIconName name;
   final double size;

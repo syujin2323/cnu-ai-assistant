@@ -1,7 +1,8 @@
 // 라우터. docs/architecture.md '화면 이동', '데모 모드'.
 //
 // 라우터는 이 파일 하나다. 경로 문자열은 [Routes] 상수로만 쓰고, 새 화면은 문서의 라우트 표에
-// 먼저 더한다. 하단 탭은 `StatefulShellRoute.indexedStack`이고 가지 순서는 오늘 · 캘린더 · 과제 · 나다.
+// 먼저 더한다. 하단 탭은 `StatefulShellRoute.indexedStack`이고 가지 순서는 오늘 · 캘린더 · 할 일 · 나다.
+// 탭바 옆 'AI 비서에게 말하기' 버튼은 06 AI 비서를 push로 열어, 닫으면 같은 탭으로 돌아온다.
 // 셸 밖 전체 화면 가운데 `/tasks/:id`와 `/me/timetable`은 그 탭 경로 아래에 두되 루트 Navigator에
 // 띄운다. 그래서 알림 payload로 바로 열어도 뒤로 가면 그 탭으로 돌아간다.
 //
@@ -52,10 +53,10 @@ abstract final class Routes {
   /// 주간(캘린더 탭, R1).
   static const String calendarWeek = '$calendar/$_weekSegment';
 
-  /// 03 과제 목록(과제 탭).
+  /// 03 할 일(할 일 탭).
   static const String tasks = '/tasks';
 
-  /// 04 과제 상세(셸 밖 전체 화면).
+  /// 04 할 일 상세(셸 밖 전체 화면, 재설계 예정).
   static String task(int id) => '$tasks/$id';
 
   /// 10 나(나 탭).
@@ -70,7 +71,7 @@ abstract final class Routes {
   /// 01 아침 브리핑(셸 밖 전체 화면).
   static const String briefing = '/briefing';
 
-  /// 06 AI 대화(셸 밖 전체 화면).
+  /// 06 AI 비서(셸 밖 전체 화면).
   static const String assistant = '/assistant';
 
   // 하위 경로 조각과 경로 매개변수 이름. 라우터 정의에만 쓴다.
@@ -84,7 +85,7 @@ abstract final class Routes {
 
 /// 앱을 켠 알림의 payload(go_router 경로 문자열). 알림으로 켜지지 않았으면 null이다.
 ///
-/// 알림 PR에서 bootstrap이 `getNotificationAppLaunchDetails()`로 읽어 덮어쓴다.
+/// (알림은 재설계 예정) 자리만 두고 재설계 때 다시 본다. 그전까지 여기에 알림 코드를 붙이지 않는다.
 final launchPayloadProvider = Provider<String?>((ref) => null);
 
 /// 앱의 라우터. 한 번 만들고 다시 만들지 않는다(안에서는 `ref.read`만 쓴다).
@@ -245,7 +246,7 @@ Future<String?> _redirect(
   }
 }
 
-/// 하단 탭 셸. 탭을 다시 누르면 그 탭의 첫 화면으로 돌아간다.
+/// 하단 탭 셸. 탭을 다시 누르면 그 탭의 첫 화면으로 돌아가고, 탭을 바꿔도 각 탭의 화면은 남는다.
 class _TabShell extends ConsumerWidget {
   const _TabShell({required this.shell});
 
@@ -260,7 +261,7 @@ class _TabShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // OS '투명도 줄이기'에서도 흰 배경으로 그린다(설정 읽기는 R1 플랫폼 코드).
+    // 지금은 모션 등급만 본다. (R1) OS '투명도 줄이기'를 읽게 되면 그때도 여기서 유리를 끈다.
     final glass = ref.watch(motionLevelProvider) == MotionLevel.full;
     return Scaffold(
       extendBody: true,
@@ -271,6 +272,8 @@ class _TabShell extends ConsumerWidget {
         glass: glass,
         onSelected: (index) =>
             shell.goBranch(index, initialLocation: index == shell.currentIndex),
+        // push라야 06을 닫을 때 지금 탭으로 돌아온다(go는 뒤로 갈 곳이 없다).
+        onAssistant: () => context.push(Routes.assistant),
       ),
     );
   }
