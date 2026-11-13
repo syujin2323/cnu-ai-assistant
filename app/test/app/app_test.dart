@@ -155,9 +155,9 @@ void main() {
 
           expect(find.byType(OnboardingScreen), findsOneWidget);
           expect(find.byType(AppTabBar), findsNothing);
+          expect(find.text(OnboardingStep.login.title), findsOneWidget);
           // 첫 화면 맨 아래의 표시까지 내려 본다(글자가 크면 처음에는 그려지지 않는다).
           await scrollTo(tester, find.text(AppStrings.unofficialShort));
-          expect(find.text(OnboardingStep.login.title), findsOneWidget);
           expect(find.text(_browseDemo), findsOneWidget);
 
           await app.dispose(tester);
@@ -983,8 +983,9 @@ void main() {
 
         expect(find.byType(DemoBand), findsNothing);
         expect(find.byType(OnboardingScreen), findsOneWidget);
-        await scrollTo(tester, find.text(_browseDemo));
         expect(find.text(OnboardingStep.login.title), findsOneWidget);
+        await scrollTo(tester, find.text(_browseDemo));
+        expect(find.text(_browseDemo), findsOneWidget);
 
         await app.dispose(tester);
       });

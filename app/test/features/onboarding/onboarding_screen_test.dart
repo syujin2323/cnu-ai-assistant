@@ -2,9 +2,10 @@
 //
 // 다섯 단계(1 LMS 로그인 · 2 불러온 시간표 확인 · 3 고정 일정 · 4 AI 사용 동의 · 5 아침 브리핑 시각)를
 // 지나며 단계마다 뒤로·건너뛰기가 문서대로 있는지, 시스템 뒤로 가기, 건너뛴 단계 기록, 로그아웃 뒤 다시
-// 들어온 경우, 저장 실패에도 계속되는지를 본다. 1단계 로그인 폼은 아직 없어 debug 빌드의 개발용
-// '로그인 없이 다음으로'로 넘어간다(테스트는 debug로 돈다). 모든 단계를 지나가므로 글자 배율 2.0에서도
-// 돌려 단계마다 넘침 예외가 없는지 함께 본다.
+// 들어온 경우, 저장 실패에도 계속되는지를 본다. 단계를 지나는 테스트는 debug 빌드의 개발용 '로그인 없이
+// 다음으로'로 1단계를 넘어가고(테스트는 debug로 돈다), 1단계 로그인 폼으로 로그인한 뒤의 이동은 가짜 로그인
+// 흐름으로 본다(폼 자체는 test/features/lms_connect/login_form_test.dart). 모든 단계를 지나가므로 글자
+// 배율 2.0에서도 돌려 단계마다 넘침 예외가 없는지 함께 본다.
 
 import 'dart:async';
 
@@ -22,9 +23,11 @@ import 'package:cnu_ai_assistant/features/onboarding/onboarding_screen.dart';
 import 'package:cnu_ai_assistant/features/onboarding/steps/login_step.dart';
 import 'package:cnu_ai_assistant/features/onboarding/widgets/onboarding_step_layout.dart';
 import 'package:cnu_ai_assistant/features/today/today_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../helpers/fake_login_flow.dart';
 import '../../helpers/pump_app.dart';
 
 /// 개발용 버튼 문구.
@@ -45,6 +48,7 @@ void main() {
         // 1단계: 머리가 없다(뒤로·건너뛰기 없음). 아래에 둘러보기와 비공식 표시가 있다.
         _expectStep(OnboardingStep.login);
         _expectHeader(tester, OnboardingStep.login, back: false, skip: false);
+        await _scrollToInStep(tester, find.text(AppStrings.unofficialShort));
         expect(find.text('로그인 없이 둘러보기 · 샘플 학생의 하루'), findsOneWidget);
         expect(find.text(AppStrings.unofficialShort), findsOneWidget);
 
@@ -158,6 +162,31 @@ void main() {
         await app.dispose(tester);
       });
 
+      testWidgets('로그아웃 뒤 다시 들어와 1단계 로그인 폼으로 로그인하면 2–5단계 없이 시작 위치로 '
+          '간다', (tester) async {
+        final flow = FakeLoginFlow();
+        final app = await pumpTestApp(
+          tester,
+          start: TestStart.loggedOut,
+          textScale: textScale,
+          overrides: [...lmsConfigOverrides(), loginFlowOverride(flow)],
+        );
+        // 실제 로그인 흐름은 성공하면 LMS 상태를 active로 쓴다.
+        flow.beforeResult = () =>
+            writeLmsSessionState(app, LmsSessionState.active);
+        _expectStep(OnboardingStep.login);
+
+        await _enterInStep(tester, '학번', '123456');
+        await _enterInStep(tester, '비밀번호', 'pw-1234');
+        await _tapInStep(tester, find.byType(Checkbox));
+        await _tapInStep(tester, find.widgetWithText(FilledButton, '로그인'));
+        expect(flow.calls, hasLength(1));
+        expect(find.byType(OnboardingScreen), findsNothing);
+        expect(find.byType(TodayScreen), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
       testWidgets('건너뛴 단계를 저장하지 못해도 온보딩은 계속된다', (tester) async {
         final app = await pumpTestApp(
           tester,
@@ -229,12 +258,15 @@ void main() {
     tester,
   ) async {
     Future<void> pumpStep({required bool showDevSkip}) => tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: LoginStep(
-            onBrowse: () {},
-            onSkipLoginForDev: () {},
-            showDevSkip: showDevSkip,
+      ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: LoginStep(
+              onLoggedIn: () async {},
+              onBrowse: () {},
+              onSkipLoginForDev: () {},
+              showDevSkip: showDevSkip,
+            ),
           ),
         ),
       ),
@@ -328,9 +360,14 @@ class _GatedSettings extends SettingsRepository {
   }
 }
 
-/// 지금 단계가 [step]인지(그 단계 이름이 보이는지).
+/// 지금 단계가 [step]인지(그 단계 이름이 있는지). 글자가 크면 아래 버튼을 보려고 스크롤해 이름이 화면
+/// 위로 밀려 있을 수 있으므로 화면 밖도 찾는다.
 void _expectStep(OnboardingStep step) {
-  expect(find.text(step.title), findsOneWidget, reason: step.name);
+  expect(
+    find.text(step.title, skipOffstage: false),
+    findsOneWidget,
+    reason: step.name,
+  );
 }
 
 /// 화면 위 머리. 1단계에는 없고, 2단계부터 진행 막대와 앞 단계·건너뛰기 버튼(있는 단계만)이 있다.
@@ -372,6 +409,18 @@ Future<void> _scrollToInStep(WidgetTester tester, Finder button) =>
           )
           .first,
     );
+
+/// 지금 단계의 입력 칸 [label]에 [text]를 넣는다.
+Future<void> _enterInStep(
+  WidgetTester tester,
+  String label,
+  String text,
+) async {
+  final field = find.widgetWithText(TextField, label);
+  await _scrollToInStep(tester, field);
+  await tester.enterText(field, text);
+  await tester.pump();
+}
 
 /// 지금 단계의 버튼을 누른다.
 Future<void> _tapInStep(WidgetTester tester, Finder button) async {

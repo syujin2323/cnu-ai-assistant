@@ -5,8 +5,8 @@
 // '건너뛰기'는 3단계에만, 뒤로 가기는 3단계부터 있다. 건너뛴 단계는 `settings`의 `onboardingSkipped`에
 // 단계 번호로 남는다(지금은 3만). 이 값을 쓰는 화면은 문서에 없다(홈 위 카드가 아님). 건너뛴 고정 일정은
 // 나중에 10 나에서 넣는다. 로그아웃 뒤 다시 들어왔으면(`onboarding_done`이 이미 켜져 있음) 1단계에서
-// 로그인하면 2–5단계 없이 시작 위치로 간다. debug 빌드에서는 1단계에 개발용 '로그인 없이 다음으로'가 있다
-// ([OnboardingController.skipLoginForDev]).
+// 로그인하면 2–5단계 없이 시작 위치로 간다([OnboardingController.loggedIn]). debug 빌드에서는 1단계에
+// 개발용 '로그인 없이 다음으로'가 있다([OnboardingController.skipLoginForDev]).
 
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
@@ -104,6 +104,10 @@ class OnboardingController extends Notifier<OnboardingState> {
     state = state.copyWith(step: OnboardingStep.values[state.step.index - 1]);
   }
 
+  /// 1단계 로그인을 마쳤을 때(로그인 폼이 진행 줄을 끝낸 뒤). 로그아웃 뒤 다시 들어왔으면 2–5단계 없이
+  /// 시작 위치로 가고(true), 아니면 2단계로 간다. LMS 상태와 학번·비밀번호는 로그인 흐름이 이미 썼다.
+  Future<bool> loggedIn() => _whileBusy(_afterLogin);
+
   /// '로그인 없이 둘러보기 · 샘플 학생의 하루': 데모 모드로 들어간다. 시작 위치로 가면 데모 DB를 보고
   /// 01 아침 브리핑이나 02 홈을 연다.
   Future<bool> browseDemo() => _whileBusy(() async {
@@ -132,11 +136,15 @@ class OnboardingController extends Notifier<OnboardingState> {
         );
         return false;
       }
-      if (!ref.mounted) return false;
-      // 로그아웃 뒤 다시 들어왔으면 2–5단계를 다시 거치지 않는다.
-      if (state.reentry) return true;
-      return _next();
+      return _afterLogin();
     });
+  }
+
+  /// 1단계 로그인 뒤. 로그아웃 뒤 다시 들어왔으면 2–5단계를 다시 거치지 않는다.
+  Future<bool> _afterLogin() async {
+    if (!ref.mounted) return false;
+    if (state.reentry) return true;
+    return _next();
   }
 
   Future<bool> _next() async {

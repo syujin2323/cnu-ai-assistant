@@ -89,6 +89,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     Future<void> next() => _run((controller) => controller.next());
     return switch (step) {
       OnboardingStep.login => LoginStep(
+        onLoggedIn: () => _run((controller) => controller.loggedIn()),
         onBrowse: () => _run((controller) => controller.browseDemo()),
         onSkipLoginForDev: () =>
             _run((controller) => controller.skipLoginForDev()),
