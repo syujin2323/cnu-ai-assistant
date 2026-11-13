@@ -4,8 +4,10 @@
 // 화면은 [Err]를 받으면 기존 데이터를 그대로 두고 상태 문구만 바꾼다.
 // 예외는 프로그래밍 오류에만 쓴다.
 //
-// 오류에는 로그에 남겨도 되는 값만 담는다. 제목, 과목명, 사용자 문장, 쿠키, 학번,
-// 요청 주소, 응답 본문, 예외 메시지는 담지 않는다.
+// 오류에는 로그에 남겨도 되는 값만 담는다. 제목, 과목명, 사용자 문장, 쿠키, 학번·비밀번호,
+// 요청 주소·헤더, 응답 본문, 예외 메시지는 담지 않는다. 예외 메시지(문자열)에는 SQL과 바인딩 값,
+// 요청 주소가 들어갈 수 있으므로 예외에서는 타입 이름과 오류 코드(HTTP 상태, SQLite 확장 결과
+// 코드)만 꺼내 담는다.
 
 /// 성공([Ok])이나 실패([Err]) 가운데 하나.
 sealed class Result<T> {
@@ -123,25 +125,32 @@ final class LmsOutcome extends AppError {
 }
 
 /// 폰 DB나 보안 저장소의 읽기·쓰기 실패.
+///
+/// 폰 DB 실패는 저장소가 `data/repositories/guard_storage.dart`의 `guardStorage`로 만든다.
 final class StorageError extends AppError {
-  const StorageError(this.operation, {this.causeType});
+  const StorageError(this.operation, {this.causeType, this.code});
 
   /// 실패한 동작의 이름(예: `settings.write`).
   final String operation;
 
-  /// 원인 예외의 타입 이름(예: `SqliteException`). 예외 메시지는 담지 않는다.
+  /// 원인 예외의 타입 이름(예: `SqliteException`, 닫힌 연결이면 `StateError`). 예외 메시지는
+  /// 담지 않는다.
   final String? causeType;
+
+  /// SQLite 확장 결과 코드(예: 잠김 5, 디스크 가득 13). 원인이 SQLite 오류가 아니면 null.
+  final int? code;
 
   @override
   bool operator ==(Object other) =>
       other is StorageError &&
       other.operation == operation &&
-      other.causeType == causeType;
+      other.causeType == causeType &&
+      other.code == code;
 
   @override
-  int get hashCode => Object.hash(StorageError, operation, causeType);
+  int get hashCode => Object.hash(StorageError, operation, causeType, code);
 
   @override
   String toString() =>
-      'StorageError(operation: $operation, causeType: $causeType)';
+      'StorageError(operation: $operation, causeType: $causeType, code: $code)';
 }
