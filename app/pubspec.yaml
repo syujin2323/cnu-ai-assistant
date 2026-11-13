@@ -10,7 +10,6 @@ environment:
 
 dependencies:
   cupertino_ui: ^1.1.4
-  device_info_plus: ^13.3.0
   dio: ^5.11.1
   drift: ^2.35.3
   drift_flutter: ^0.3.1
