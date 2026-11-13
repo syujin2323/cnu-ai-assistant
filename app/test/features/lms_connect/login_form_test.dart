@@ -226,7 +226,11 @@ void main() {
           expect(_consent(tester), isTrue);
           expect(find.text('다시 시도'), findsNothing);
           expect(_loginEnabled(tester), isFalse, reason: '비밀번호를 다시 받는다');
-          expect(find.text(OnboardingStep.login.title), findsOneWidget);
+          // 글자 배율 2.0에서는 제목이 위로 밀려 화면 밖에 있다.
+          expect(
+            find.text(OnboardingStep.login.title, skipOffstage: false),
+            findsOneWidget,
+          );
 
           await _enter(tester, '비밀번호', _password);
           expect(_loginEnabled(tester), isTrue);

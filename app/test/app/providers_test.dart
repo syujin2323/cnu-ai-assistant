@@ -4,7 +4,6 @@ import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
-import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/class_slot.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,60 +13,17 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('motionLevelProvider', () {
-    MotionLevel levelFor({
-      MotionLevelSetting setting = MotionLevelSetting.auto,
-      bool osDisablesAnimations = false,
-      int? androidSdkInt,
-    }) {
-      final container = ProviderContainer(
-        overrides: [
-          settingsProvider.overrideWithValue(
-            AsyncValue.data(
-              AppSettings.defaults.copyWith(motionLevel: setting),
-            ),
-          ),
-          systemDisableAnimationsProvider.overrideWithBuild(
-            (ref, notifier) => osDisablesAnimations,
-          ),
-          androidSdkIntProvider.overrideWithValue(androidSdkInt),
-        ],
+    testWidgets('OS가 애니메이션을 끄라고 해도 늘 full이다(앱 안의 모션 선택도 없다)', (tester) async {
+      // docs/decisions.md 2026-11-13 '모션은 모든 사람에게 같게 보인다'.
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
       );
+      final container = ProviderContainer();
       addTearDown(container.dispose);
-      return container.read(motionLevelProvider);
-    }
 
-    test('auto면 iOS와 Android 10 이상은 full이다', () {
-      expect(levelFor(), MotionLevel.full);
-      expect(levelFor(androidSdkInt: 29), MotionLevel.full);
-    });
-
-    test('auto면 Android 10(API 29) 미만은 light다', () {
-      expect(levelFor(androidSdkInt: 28), MotionLevel.light);
-      expect(levelFor(androidSdkInt: 24), MotionLevel.light);
-    });
-
-    test('auto면 OS가 애니메이션을 끄라고 할 때 off다(낮은 Android보다 먼저)', () {
-      expect(levelFor(osDisablesAnimations: true), MotionLevel.off);
-      expect(
-        levelFor(osDisablesAnimations: true, androidSdkInt: 24),
-        MotionLevel.off,
-      );
-    });
-
-    test('settings의 motionLevel이 auto가 아니면 그 값이 우선한다', () {
-      expect(
-        levelFor(
-          setting: MotionLevelSetting.full,
-          osDisablesAnimations: true,
-          androidSdkInt: 24,
-        ),
-        MotionLevel.full,
-      );
-      expect(
-        levelFor(setting: MotionLevelSetting.light, androidSdkInt: 34),
-        MotionLevel.light,
-      );
-      expect(levelFor(setting: MotionLevelSetting.off), MotionLevel.off);
+      expect(container.read(motionLevelProvider), MotionLevel.full);
     });
   });
 

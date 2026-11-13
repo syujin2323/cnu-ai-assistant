@@ -64,7 +64,6 @@ void main() {
       expect(settings.lmsLastConnectedAt, isNull);
       expect(settings.checkinMin, isNull);
       expect(settings.dueTodayTimeSensitive, isFalse);
-      expect(settings.motionLevel, MotionLevelSetting.auto);
       expect(settings.onboardingSkipped, isEmpty);
       expect(settings.installedAt, isNull);
       expect(settings, AppSettings.defaults);
@@ -83,7 +82,6 @@ void main() {
         'lmsLastConnectedAt': null,
         'checkinMin': null,
         'dueTodayTimeSensitive': false,
-        'motionLevel': 'auto',
         'onboardingSkipped': <int>[],
         'installedAt': null,
       });
@@ -105,7 +103,7 @@ void main() {
         LmsSessionState.reconnectRequired,
       );
       await writeOk(SettingKeys.checkinMin, 1350);
-      await writeOk(SettingKeys.motionLevel, MotionLevelSetting.off);
+      await writeOk(SettingKeys.dueTodayTimeSensitive, true);
       await writeOk(SettingKeys.onboardingSkipped, [3, 4]);
 
       expect(
@@ -118,7 +116,7 @@ void main() {
           metricsLastSentOn: '2026-10-28',
           lmsSessionState: LmsSessionState.reconnectRequired,
           checkinMin: 1350,
-          motionLevel: MotionLevelSetting.off,
+          dueTodayTimeSensitive: true,
           onboardingSkipped: [3, 4],
         ),
       );
@@ -221,7 +219,7 @@ void main() {
       expect(
         await repo.writeAll({
           SettingKeys.lmsSessionState: LmsSessionState.active,
-          SettingKeys.motionLevel: MotionLevelSetting.off,
+          SettingKeys.dueTodayTimeSensitive: true,
           SettingKeys.aiEnabled: true,
         }),
         isA<Ok<void>>(),
@@ -230,14 +228,14 @@ void main() {
         await readOk(),
         AppSettings.defaults.copyWith(
           lmsSessionState: LmsSessionState.active,
-          motionLevel: MotionLevelSetting.off,
+          dueTodayTimeSensitive: true,
           aiEnabled: true,
         ),
       );
     });
 
     test('쓰는 중 하나라도 실패하면 아무 키도 바꾸지 않고 Err다', () async {
-      await writeOk(SettingKeys.motionLevel, MotionLevelSetting.off);
+      await writeOk(SettingKeys.dueTodayTimeSensitive, true);
       // 세 번째 키를 넣을 때 실패하게 한다. RAISE(ABORT)는 확장 결과 코드 1811(트리거 제약)이다.
       await db.customStatement(
         "CREATE TRIGGER fail_ai_enabled BEFORE INSERT ON settings "
@@ -247,7 +245,7 @@ void main() {
 
       final result = await repo.writeAll({
         SettingKeys.lmsSessionState: LmsSessionState.active,
-        SettingKeys.motionLevel: MotionLevelSetting.full,
+        SettingKeys.dueTodayTimeSensitive: false,
         SettingKeys.aiEnabled: true,
       });
 
@@ -290,7 +288,6 @@ void main() {
       await putRaw(SettingKeys.aiEnabled, '"yes"');
       await putRaw(SettingKeys.checkinMin, '1440');
       await putRaw(SettingKeys.lmsSessionState, '"reconnectRequired"');
-      await putRaw(SettingKeys.motionLevel, '"fast"');
       await putRaw(SettingKeys.onboardingSkipped, '[1, "x"]');
       await putRaw(SettingKeys.installedAt, '"yesterday"');
       await putRaw(SettingKeys.metricsLastSentOn, '"2026-02-30"');
@@ -298,6 +295,7 @@ void main() {
       // 없앤 키가 예전 행으로 남아 있어도 읽지 않는다.
       await putRaw('lmsAutoLogin', 'true');
       await putRaw('lmsMode', '"phone"');
+      await putRaw('motionLevel', '"off"');
 
       expect(
         await readOk(),
@@ -415,8 +413,8 @@ void main() {
               .into(other.settings)
               .insertOnConflictUpdate(
                 SettingsCompanion.insert(
-                  key: SettingKeys.motionLevel,
-                  value: '"off"',
+                  key: SettingKeys.checkinMin,
+                  value: '1350',
                 ),
               );
           locked.complete();

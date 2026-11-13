@@ -9,8 +9,6 @@
 // ([fetchRemoteConfigAfterLaunch])와 보관 기간이 지난 기록 정리는 runApp 뒤에 시작하고 화면은
 // 기다리지 않는다. 위젯 테스트는 Firebase 없이 `RootApp`만 띄우므로 이 파일을 부르지 않는다.
 
-import 'dart:io' show Platform;
-
 import 'package:cnu_ai_assistant/app/config.dart';
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
@@ -21,7 +19,6 @@ import 'package:cnu_ai_assistant/data/remote_config.dart';
 import 'package:cnu_ai_assistant/data/secure_storage.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/firebase_options.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -72,7 +69,6 @@ Future<BootOutcome> bootstrap() async {
   ]);
   final preferences = SharedPreferences.getInstance();
   final dateFormatting = initializeDateFormatting('ko');
-  final androidSdkInt = _readAndroidSdkInt();
 
   AppDatabase? realDb;
   ProviderContainer? container;
@@ -103,7 +99,6 @@ Future<BootOutcome> bootstrap() async {
     container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(sharedPreferences),
-        androidSdkIntProvider.overrideWithValue(await androidSdkInt),
         realDatabaseProvider.overrideWithValue(realDb),
       ],
     );
@@ -185,20 +180,5 @@ Future<void> _activateAppCheck() async {
       area: 'bootstrap',
       data: {'error': errorKind(error)},
     );
-  }
-}
-
-/// 모션 등급 판정에 쓰는 Android SDK 버전. Android가 아니거나 읽지 못하면 null.
-Future<int?> _readAndroidSdkInt() async {
-  if (!Platform.isAndroid) return null;
-  try {
-    return (await DeviceInfoPlugin().androidInfo).version.sdkInt;
-  } catch (error) {
-    appLog(
-      'device_info_failed',
-      area: 'bootstrap',
-      data: {'error': errorKind(error)},
-    );
-    return null;
   }
 }
