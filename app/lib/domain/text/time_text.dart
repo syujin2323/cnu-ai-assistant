@@ -6,6 +6,8 @@
 // 하루 안의 시각은 폰 DB처럼 자정 기준 분(09:30 → 570)으로 받는다. 자정(00:00·24:00)과 하루 경계 전
 // 새벽 시각의 표기는 정하지 않았다(docs/screens.md '날짜·시각 표기'). 정할 때까지 [hhmmText]·
 // [shortClockText]는 그 값을 받지 않고, [clockText]·[dueText]는 실제 시각을 그대로 적는다.
+// 날짜(해가 다를 때만 연도), 지난 시간, 남은 일, 공개 줄, 02 머리, 주 범위, '불러옴', 시간 범위의 꼴은
+// 임시다(docs/decisions.md 2026-11-13 '날짜·시각 표기의 꼴(임시)').
 
 import 'package:cnu_ai_assistant/domain/clock.dart';
 
@@ -55,8 +57,8 @@ String shortClockText(int minuteOfDay) {
 }
 
 /// 마감 문구(docs/screens.md '날짜·시각 표기'). 마감이 없으면 '마감 없음', 시각을 모르면
-/// '{날짜 말} 마감 · 시각 미상'(임시), 그 밖에는 '{날짜 말} HH:MM 마감'이다. 날짜 말은 [dayWord]이고
-/// [now]에는 [Clock.now]의 값을 넘긴다.
+/// '{날짜 말} 마감 · 시각 미상'(임시), 그 밖에는 '{날짜 말} HH:MM 마감'이다. 날짜 말은 [dayWord]이고,
+/// [farAsDate]가 true면(03 할 일) [taskDayText]다. [now]에는 [Clock.now]의 값을 넘긴다.
 ///
 /// 정확히 00:00인 마감(24:00 마감)과 하루 경계 전 새벽 마감의 표기는 정하지 않았다. 그때까지는 논리적
 /// 하루의 날짜 말에 실제 시각을 붙인다(하루 경계 04:00에서 금요일 01:00 마감은 '목요일 01:00 마감').
@@ -65,9 +67,12 @@ String dueText(
   required bool dueTimeUnknown,
   required DateTime now,
   required int dayBoundaryMin,
+  bool farAsDate = false,
 }) {
   if (dueAt == null) return '마감 없음';
-  final day = dayWord(dueAt, now: now, dayBoundaryMin: dayBoundaryMin);
+  final day = farAsDate
+      ? taskDayText(dueAt, now: now, dayBoundaryMin: dayBoundaryMin)
+      : dayWord(dueAt, now: now, dayBoundaryMin: dayBoundaryMin);
   if (dueTimeUnknown) return '$day 마감 · 시각 미상';
   return '$day ${hhmmText(dueAt.hour * 60 + dueAt.minute)} 마감';
 }
@@ -103,24 +108,146 @@ String dayWord(
   required DateTime now,
   required int dayBoundaryMin,
 }) {
-  final days = dayOffset(at, now: now, dayBoundaryMin: dayBoundaryMin);
-  return switch (days) {
-    -1 => '어제',
-    < -1 => '${-days}일 전',
-    0 => '오늘',
-    1 => '내일',
-    2 => '모레',
-    >= 3 && <= 6 =>
-      '${weekdayText(logicalDate(at, dayBoundaryMin: dayBoundaryMin).weekday)}요일',
-    _ => '$days일 뒤',
-  };
+  return _dayWordOf(
+    dayOffset(at, now: now, dayBoundaryMin: dayBoundaryMin),
+    logicalDate(at, dayBoundaryMin: dayBoundaryMin),
+  );
 }
+
+/// 오늘에서 [days]일 떨어진 날 [date]의 날짜 말([dayWord]의 규칙).
+String _dayWordOf(int days, DateTime date) => switch (days) {
+  -1 => '어제',
+  < -1 => '${-days}일 전',
+  0 => '오늘',
+  1 => '내일',
+  2 => '모레',
+  >= 3 && <= 6 => '${weekdayText(date.weekday)}요일',
+  _ => '$days일 뒤',
+};
+
+/// 날짜 '10월 21일 (수)'. 해가 [today]와 다르면 연도를 붙인다('2027년 1월 5일 (화)', 임시). 두 값 모두
+/// 날짜만 본다. 마감·블록처럼 시각이 있는 값은 [logicalDate]로 바꾼 논리적 날짜를 넘기고(24:00 마감인 다음 날
+/// 00:00은 그 전날), [today]에는 오늘의 논리적 날짜를 넘긴다. 02 홈 머리의 날짜도 이 꼴이다(임시).
+String monthDayText(DateTime date, {required DateTime today}) =>
+    '${_yearPrefix(date, today)}${date.month}월 ${date.day}일 '
+    '(${weekdayText(date.weekday)})';
+
+/// 03 할 일의 날짜. 7일 이상 남았거나 이틀 이상 지난 날은 [monthDayText], 그 밖에는 [dayWord]다
+/// (docs/screens.md '날짜·시각 표기'). 날은 [dayOffset]으로 센다. [now]에는 [Clock.now]의 값을 넘긴다.
+String taskDayText(
+  DateTime at, {
+  required DateTime now,
+  required int dayBoundaryMin,
+}) {
+  final days = dayOffset(at, now: now, dayBoundaryMin: dayBoundaryMin);
+  if (days > -2 && days < 7) {
+    return dayWord(at, now: now, dayBoundaryMin: dayBoundaryMin);
+  }
+  return monthDayText(
+    logicalDate(at, dayBoundaryMin: dayBoundaryMin),
+    today: logicalDate(now, dayBoundaryMin: dayBoundaryMin),
+  );
+}
+
+/// 지난 시간 'N분 전'·'N시간 전'(docs/screens.md 'LMS 상태 줄과 다시 로그인'). 1시간(60분)까지는 분, 그
+/// 뒤는 시간(내림)이다. 분은 정수로 세므로 60분 59초는 '60분 전', 61분은 '1시간 전', 1500분은 '25시간 전'이다.
+/// 1분이 안 되면 '0분 전'(임시)이고, 음수(기기 시각이 뒤로 감)는 0으로 본다.
+String elapsedText(Duration since) {
+  final minutes = since.isNegative ? 0 : since.inMinutes;
+  return minutes <= 60 ? '$minutes분 전' : '${minutes ~/ 60}시간 전';
+}
+
+/// LMS 상태 줄의 마지막 확인(임시). 확인에 성공한 적이 없으면 'LMS 정보 받기 전', 마지막 확인을 남긴 동기화가
+/// 사용자 새로 고침이면 그 뒤 10분 동안 'LMS 정보 방금', 그 밖에는 'LMS 정보 {[elapsedText]}'다.
+/// [lastSuccessAt]은 `settings`의 `lmsLastSuccessAt`(그 동기화의 시작 시각)이고, [byUserRefresh]는 그 값을
+/// 남긴 동기화의 계기가 사용자 새로 고침(`sync_runs.trigger`의 `manual`)이었는지다. 새로 고침이 실패한 뒤 자동
+/// 동기화가 성공했으면 false다. 상태별 뒷말(' · 다시 로그인' 등)은 화면이 붙인다.
+String lmsInfoText({
+  required DateTime? lastSuccessAt,
+  required DateTime now,
+  bool byUserRefresh = false,
+}) {
+  if (lastSuccessAt == null) return 'LMS 정보 받기 전';
+  final since = now.difference(lastSuccessAt);
+  if (byUserRefresh && since < _justNow) return 'LMS 정보 방금';
+  return 'LMS 정보 ${elapsedText(since)}';
+}
+
+/// 03 할 일 요약 줄 '남은 일 {…}'의 길이(임시). 1시간이 안 되면 '1시간 미만', 그 밖에는 시간 단위로
+/// 반올림해(30분부터 올림) '약 N시간'이다. 89 → '약 1시간', 90 → '약 2시간'.
+String approxHoursText(int minutes) {
+  RangeError.checkNotNegative(minutes, 'minutes');
+  if (minutes < 60) return '1시간 미만';
+  return '약 ${(minutes + 30) ~/ 60}시간';
+}
+
+/// 공개 전 할 일의 '{날짜} HH:MM에 열려요'(임시). 공개는 한 순간이라 공개 날짜는 논리적 하루가 아니라 달력으로
+/// 본다(00:00 공개는 그날). 오늘은 다른 표기처럼 [dayBoundaryMin]을 반영한 논리적 하루로 세어 같은 줄의 마감
+/// 날짜 말과 어긋나지 않게 한다. 7일 뒤부터는 날짜 말 대신 [monthDayText]를 쓴다('11월 28일 (토) 09:00에
+/// 열려요'). [openAt]이 [now]보다 뒤인 공개 전 항목에만 쓴다. 하루 경계 전 새벽 공개의 표기는 자정 표기와 함께
+/// 정하지 않았다.
+String opensText(
+  DateTime openAt, {
+  required DateTime now,
+  required int dayBoundaryMin,
+}) {
+  final openDay = logicalDate(openAt, dayBoundaryMin: 0);
+  final today = logicalDate(now, dayBoundaryMin: dayBoundaryMin);
+  final days = DateTime.utc(
+    openDay.year,
+    openDay.month,
+    openDay.day,
+  ).difference(DateTime.utc(today.year, today.month, today.day)).inDays;
+  final day = days >= 7
+      ? monthDayText(openDay, today: today)
+      : _dayWordOf(days, openDay);
+  return '$day ${hhmmText(openAt.hour * 60 + openAt.minute)}에 열려요';
+}
+
+/// 02 홈 머리의 둘째 줄 'HH:MM · 남은 일정 N개 · 할 일 N개'(임시). [now]의 실제 시각을 적는다.
+String homeSummaryText({
+  required DateTime now,
+  required int events,
+  required int tasks,
+}) => '${hhmmText(now.hour * 60 + now.minute)} · 남은 일정 $events개 · 할 일 $tasks개';
+
+/// 11 주간·09 일간 위 막대의 주 범위(임시). [monday]부터 그 주 일요일까지이고, 달이 같으면 '11월 9일 –
+/// 15일', 달이 바뀌면 '10월 26일 – 11월 1일'이다. 해가 [today]와 다른 시작일, 해가 바뀌는 끝 날은 연도를
+/// 붙인다('12월 28일 – 2027년 1월 3일').
+String weekRangeText(DateTime monday, {required DateTime today}) {
+  if (monday.weekday != DateTime.monday) {
+    throw ArgumentError.value(monday, 'monday', 'not a Monday');
+  }
+  final sunday = DateTime(monday.year, monday.month, monday.day + 6);
+  final start = '${_yearPrefix(monday, today)}${monday.month}월 ${monday.day}일';
+  final end = sunday.year != monday.year
+      ? '${sunday.year}년 ${sunday.month}월 ${sunday.day}일'
+      : sunday.month != monday.month
+      ? '${sunday.month}월 ${sunday.day}일'
+      : '${sunday.day}일';
+  return '$start – $end';
+}
+
+/// 13 시간표·고정 일정의 '{날짜} 불러옴'(임시). [day]는 불러온 날이고, 해가 [today]와 다르면 연도를 붙인다.
+String importedOnText(DateTime day, {required DateTime today}) =>
+    '${_yearPrefix(day, today)}${day.month}월 ${day.day}일 불러옴';
+
+/// 근거 시트의 'HH:MM–HH:MM'(임시). 자정을 넘는 끝(1440부터)은 [hhmmText]처럼 아직 받지 않는다.
+String timeRangeText(int startMin, int endMin) =>
+    '${hhmmText(startMin)}–${hhmmText(endMin)}';
 
 /// 붉게 쓸 마감인지. 오늘·내일 마감만 붉게 쓴다(docs/screens.md '날짜·시각 표기').
 /// [days]는 그 마감의 [dayOffset] 값이다.
 bool isDueSoon(int days) => days == 0 || days == 1;
 
 const List<String> _weekdays = ['월', '화', '수', '목', '금', '토', '일'];
+
+/// 'LMS 정보 방금'을 보이는 시간(사용자가 새로 고친 뒤).
+const Duration _justNow = Duration(minutes: 10);
+
+/// 해가 [today]와 다르면 '2027년 '을, 같으면 빈 글자를 돌려준다.
+String _yearPrefix(DateTime date, DateTime today) =>
+    date.year == today.year ? '' : '${date.year}년 ';
 
 const int _minutesPerDay = 1440;
 
