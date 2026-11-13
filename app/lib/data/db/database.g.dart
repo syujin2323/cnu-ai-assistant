@@ -419,6 +419,80 @@ class $ClassSlotsTable extends ClassSlots
         type: DriftSqlType.string,
         requiredDuringInsert: true,
       ).withConverter<SlotSource>($ClassSlotsTable.$convertersource);
+  static const VerificationMeta _importedWeekdayMeta = const VerificationMeta(
+    'importedWeekday',
+  );
+  @override
+  late final GeneratedColumn<int> importedWeekday = GeneratedColumn<int>(
+    'imported_weekday',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _importedStartMinMeta = const VerificationMeta(
+    'importedStartMin',
+  );
+  @override
+  late final GeneratedColumn<int> importedStartMin = GeneratedColumn<int>(
+    'imported_start_min',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _importedEndMinMeta = const VerificationMeta(
+    'importedEndMin',
+  );
+  @override
+  late final GeneratedColumn<int> importedEndMin = GeneratedColumn<int>(
+    'imported_end_min',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _importedPlaceMeta = const VerificationMeta(
+    'importedPlace',
+  );
+  @override
+  late final GeneratedColumn<String> importedPlace = GeneratedColumn<String>(
+    'imported_place',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _placeEditedMeta = const VerificationMeta(
+    'placeEdited',
+  );
+  @override
+  late final GeneratedColumn<bool> placeEdited = GeneratedColumn<bool>(
+    'place_edited',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("place_edited" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _onlineEditedMeta = const VerificationMeta(
+    'onlineEdited',
+  );
+  @override
+  late final GeneratedColumn<bool> onlineEdited = GeneratedColumn<bool>(
+    'online_edited',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("online_edited" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -431,6 +505,12 @@ class $ClassSlotsTable extends ClassSlots
     online,
     repeatRule,
     source,
+    importedWeekday,
+    importedStartMin,
+    importedEndMin,
+    importedPlace,
+    placeEdited,
+    onlineEdited,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -499,6 +579,60 @@ class $ClassSlotsTable extends ClassSlots
         repeatRule.isAcceptableOrUnknown(data['repeat_rule']!, _repeatRuleMeta),
       );
     }
+    if (data.containsKey('imported_weekday')) {
+      context.handle(
+        _importedWeekdayMeta,
+        importedWeekday.isAcceptableOrUnknown(
+          data['imported_weekday']!,
+          _importedWeekdayMeta,
+        ),
+      );
+    }
+    if (data.containsKey('imported_start_min')) {
+      context.handle(
+        _importedStartMinMeta,
+        importedStartMin.isAcceptableOrUnknown(
+          data['imported_start_min']!,
+          _importedStartMinMeta,
+        ),
+      );
+    }
+    if (data.containsKey('imported_end_min')) {
+      context.handle(
+        _importedEndMinMeta,
+        importedEndMin.isAcceptableOrUnknown(
+          data['imported_end_min']!,
+          _importedEndMinMeta,
+        ),
+      );
+    }
+    if (data.containsKey('imported_place')) {
+      context.handle(
+        _importedPlaceMeta,
+        importedPlace.isAcceptableOrUnknown(
+          data['imported_place']!,
+          _importedPlaceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('place_edited')) {
+      context.handle(
+        _placeEditedMeta,
+        placeEdited.isAcceptableOrUnknown(
+          data['place_edited']!,
+          _placeEditedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('online_edited')) {
+      context.handle(
+        _onlineEditedMeta,
+        onlineEdited.isAcceptableOrUnknown(
+          data['online_edited']!,
+          _onlineEditedMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -552,6 +686,30 @@ class $ClassSlotsTable extends ClassSlots
           data['${effectivePrefix}source'],
         )!,
       ),
+      importedWeekday: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}imported_weekday'],
+      ),
+      importedStartMin: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}imported_start_min'],
+      ),
+      importedEndMin: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}imported_end_min'],
+      ),
+      importedPlace: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}imported_place'],
+      ),
+      placeEdited: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}place_edited'],
+      )!,
+      onlineEdited: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}online_edited'],
+      )!,
     );
   }
 
@@ -578,6 +736,12 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
   final Value<bool> online;
   final Value<String?> repeatRule;
   final Value<SlotSource> source;
+  final Value<int?> importedWeekday;
+  final Value<int?> importedStartMin;
+  final Value<int?> importedEndMin;
+  final Value<String?> importedPlace;
+  final Value<bool> placeEdited;
+  final Value<bool> onlineEdited;
   const ClassSlotsCompanion({
     this.id = const Value.absent(),
     this.courseId = const Value.absent(),
@@ -589,6 +753,12 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     this.online = const Value.absent(),
     this.repeatRule = const Value.absent(),
     this.source = const Value.absent(),
+    this.importedWeekday = const Value.absent(),
+    this.importedStartMin = const Value.absent(),
+    this.importedEndMin = const Value.absent(),
+    this.importedPlace = const Value.absent(),
+    this.placeEdited = const Value.absent(),
+    this.onlineEdited = const Value.absent(),
   });
   ClassSlotsCompanion.insert({
     this.id = const Value.absent(),
@@ -601,6 +771,12 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     required bool online,
     this.repeatRule = const Value.absent(),
     required SlotSource source,
+    this.importedWeekday = const Value.absent(),
+    this.importedStartMin = const Value.absent(),
+    this.importedEndMin = const Value.absent(),
+    this.importedPlace = const Value.absent(),
+    this.placeEdited = const Value.absent(),
+    this.onlineEdited = const Value.absent(),
   }) : courseId = Value(courseId),
        weekday = Value(weekday),
        startMin = Value(startMin),
@@ -619,6 +795,12 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     Expression<bool>? online,
     Expression<String>? repeatRule,
     Expression<String>? source,
+    Expression<int>? importedWeekday,
+    Expression<int>? importedStartMin,
+    Expression<int>? importedEndMin,
+    Expression<String>? importedPlace,
+    Expression<bool>? placeEdited,
+    Expression<bool>? onlineEdited,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -631,6 +813,12 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
       if (online != null) 'online': online,
       if (repeatRule != null) 'repeat_rule': repeatRule,
       if (source != null) 'source': source,
+      if (importedWeekday != null) 'imported_weekday': importedWeekday,
+      if (importedStartMin != null) 'imported_start_min': importedStartMin,
+      if (importedEndMin != null) 'imported_end_min': importedEndMin,
+      if (importedPlace != null) 'imported_place': importedPlace,
+      if (placeEdited != null) 'place_edited': placeEdited,
+      if (onlineEdited != null) 'online_edited': onlineEdited,
     });
   }
 
@@ -645,6 +833,12 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     Value<bool>? online,
     Value<String?>? repeatRule,
     Value<SlotSource>? source,
+    Value<int?>? importedWeekday,
+    Value<int?>? importedStartMin,
+    Value<int?>? importedEndMin,
+    Value<String?>? importedPlace,
+    Value<bool>? placeEdited,
+    Value<bool>? onlineEdited,
   }) {
     return ClassSlotsCompanion(
       id: id ?? this.id,
@@ -657,6 +851,12 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
       online: online ?? this.online,
       repeatRule: repeatRule ?? this.repeatRule,
       source: source ?? this.source,
+      importedWeekday: importedWeekday ?? this.importedWeekday,
+      importedStartMin: importedStartMin ?? this.importedStartMin,
+      importedEndMin: importedEndMin ?? this.importedEndMin,
+      importedPlace: importedPlace ?? this.importedPlace,
+      placeEdited: placeEdited ?? this.placeEdited,
+      onlineEdited: onlineEdited ?? this.onlineEdited,
     );
   }
 
@@ -697,6 +897,24 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
         $ClassSlotsTable.$convertersource.toSql(source.value),
       );
     }
+    if (importedWeekday.present) {
+      map['imported_weekday'] = Variable<int>(importedWeekday.value);
+    }
+    if (importedStartMin.present) {
+      map['imported_start_min'] = Variable<int>(importedStartMin.value);
+    }
+    if (importedEndMin.present) {
+      map['imported_end_min'] = Variable<int>(importedEndMin.value);
+    }
+    if (importedPlace.present) {
+      map['imported_place'] = Variable<String>(importedPlace.value);
+    }
+    if (placeEdited.present) {
+      map['place_edited'] = Variable<bool>(placeEdited.value);
+    }
+    if (onlineEdited.present) {
+      map['online_edited'] = Variable<bool>(onlineEdited.value);
+    }
     return map;
   }
 
@@ -712,7 +930,13 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
           ..write('campus: $campus, ')
           ..write('online: $online, ')
           ..write('repeatRule: $repeatRule, ')
-          ..write('source: $source')
+          ..write('source: $source, ')
+          ..write('importedWeekday: $importedWeekday, ')
+          ..write('importedStartMin: $importedStartMin, ')
+          ..write('importedEndMin: $importedEndMin, ')
+          ..write('importedPlace: $importedPlace, ')
+          ..write('placeEdited: $placeEdited, ')
+          ..write('onlineEdited: $onlineEdited')
           ..write(')'))
         .toString();
   }
@@ -5621,6 +5845,12 @@ typedef $$ClassSlotsTableCreateCompanionBuilder = ClassSlotsCompanion Function({
   required bool online,
   Value<String?> repeatRule,
   required SlotSource source,
+  Value<int?> importedWeekday,
+  Value<int?> importedStartMin,
+  Value<int?> importedEndMin,
+  Value<String?> importedPlace,
+  Value<bool> placeEdited,
+  Value<bool> onlineEdited,
 });
 typedef $$ClassSlotsTableUpdateCompanionBuilder = ClassSlotsCompanion Function({
   Value<int> id,
@@ -5633,6 +5863,12 @@ typedef $$ClassSlotsTableUpdateCompanionBuilder = ClassSlotsCompanion Function({
   Value<bool> online,
   Value<String?> repeatRule,
   Value<SlotSource> source,
+  Value<int?> importedWeekday,
+  Value<int?> importedStartMin,
+  Value<int?> importedEndMin,
+  Value<String?> importedPlace,
+  Value<bool> placeEdited,
+  Value<bool> onlineEdited,
 });
 
 final class $$ClassSlotsTableReferences
@@ -5732,6 +5968,36 @@ class $$ClassSlotsTableFilterComposer
         column: $table.source,
         builder: (column) => ColumnWithTypeConverterFilters(column),
       );
+
+  ColumnFilters<int> get importedWeekday => $composableBuilder(
+    column: $table.importedWeekday,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get importedStartMin => $composableBuilder(
+    column: $table.importedStartMin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get importedEndMin => $composableBuilder(
+    column: $table.importedEndMin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get importedPlace => $composableBuilder(
+    column: $table.importedPlace,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get placeEdited => $composableBuilder(
+    column: $table.placeEdited,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get onlineEdited => $composableBuilder(
+    column: $table.onlineEdited,
+    builder: (column) => ColumnFilters(column),
+  );
 
   $$CoursesTableFilterComposer get courseId {
     final $$CoursesTableFilterComposer composer = $composerBuilder(
@@ -5836,6 +6102,36 @@ class $$ClassSlotsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get importedWeekday => $composableBuilder(
+    column: $table.importedWeekday,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get importedStartMin => $composableBuilder(
+    column: $table.importedStartMin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get importedEndMin => $composableBuilder(
+    column: $table.importedEndMin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get importedPlace => $composableBuilder(
+    column: $table.importedPlace,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get placeEdited => $composableBuilder(
+    column: $table.placeEdited,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get onlineEdited => $composableBuilder(
+    column: $table.onlineEdited,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$CoursesTableOrderingComposer get courseId {
     final $$CoursesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -5897,6 +6193,36 @@ class $$ClassSlotsTableAnnotationComposer
 
   GeneratedColumnWithTypeConverter<SlotSource, String> get source =>
       $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<int> get importedWeekday => $composableBuilder(
+    column: $table.importedWeekday,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get importedStartMin => $composableBuilder(
+    column: $table.importedStartMin,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get importedEndMin => $composableBuilder(
+    column: $table.importedEndMin,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get importedPlace => $composableBuilder(
+    column: $table.importedPlace,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get placeEdited => $composableBuilder(
+    column: $table.placeEdited,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get onlineEdited => $composableBuilder(
+    column: $table.onlineEdited,
+    builder: (column) => column,
+  );
 
   $$CoursesTableAnnotationComposer get courseId {
     final $$CoursesTableAnnotationComposer composer = $composerBuilder(
@@ -5985,6 +6311,12 @@ class $$ClassSlotsTableTableManager
                 Value<bool> online = const Value.absent(),
                 Value<String?> repeatRule = const Value.absent(),
                 Value<SlotSource> source = const Value.absent(),
+                Value<int?> importedWeekday = const Value.absent(),
+                Value<int?> importedStartMin = const Value.absent(),
+                Value<int?> importedEndMin = const Value.absent(),
+                Value<String?> importedPlace = const Value.absent(),
+                Value<bool> placeEdited = const Value.absent(),
+                Value<bool> onlineEdited = const Value.absent(),
               }) => ClassSlotsCompanion(
                 id: id,
                 courseId: courseId,
@@ -5996,6 +6328,12 @@ class $$ClassSlotsTableTableManager
                 online: online,
                 repeatRule: repeatRule,
                 source: source,
+                importedWeekday: importedWeekday,
+                importedStartMin: importedStartMin,
+                importedEndMin: importedEndMin,
+                importedPlace: importedPlace,
+                placeEdited: placeEdited,
+                onlineEdited: onlineEdited,
               ),
           createCompanionCallback:
               ({
@@ -6009,6 +6347,12 @@ class $$ClassSlotsTableTableManager
                 required bool online,
                 Value<String?> repeatRule = const Value.absent(),
                 required SlotSource source,
+                Value<int?> importedWeekday = const Value.absent(),
+                Value<int?> importedStartMin = const Value.absent(),
+                Value<int?> importedEndMin = const Value.absent(),
+                Value<String?> importedPlace = const Value.absent(),
+                Value<bool> placeEdited = const Value.absent(),
+                Value<bool> onlineEdited = const Value.absent(),
               }) => ClassSlotsCompanion.insert(
                 id: id,
                 courseId: courseId,
@@ -6020,6 +6364,12 @@ class $$ClassSlotsTableTableManager
                 online: online,
                 repeatRule: repeatRule,
                 source: source,
+                importedWeekday: importedWeekday,
+                importedStartMin: importedStartMin,
+                importedEndMin: importedEndMin,
+                importedPlace: importedPlace,
+                placeEdited: placeEdited,
+                onlineEdited: onlineEdited,
               ),
           withReferenceMapper: (p0) => p0
               .map(

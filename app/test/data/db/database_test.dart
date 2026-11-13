@@ -5,7 +5,7 @@ import 'package:cnu_ai_assistant/data/repositories/guard_storage.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/domain/timetable_checks.dart';
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show OrderingTerm, Value;
 import 'package:drift/native.dart' show SqliteException;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -432,6 +432,63 @@ void main() {
     },
   );
 
+  test('수업 칸은 불러온 원래 요일·시각·강의실과 고친 표시를 두고, 직접 넣은 수업은 비어 있다', () async {
+    final courseId = await addCourse();
+    await db
+        .into(db.classSlots)
+        .insert(
+          ClassSlotsCompanion.insert(
+            courseId: courseId,
+            weekday: 1,
+            startMin: 540,
+            endMin: 600,
+            campus: Campus.boun,
+            online: false,
+            source: SlotSource.manual,
+          ),
+        );
+    // 불러온 수업에서 사용자가 장소와 실시간 온라인을 고쳤다.
+    await db
+        .into(db.classSlots)
+        .insert(
+          ClassSlotsCompanion.insert(
+            courseId: courseId,
+            weekday: 2,
+            startMin: 600,
+            endMin: 690,
+            place: const Value('강의실B'),
+            campus: Campus.daedeok,
+            online: true,
+            source: SlotSource.auto,
+            importedWeekday: const Value(2),
+            importedStartMin: const Value(600),
+            importedEndMin: const Value(690),
+            importedPlace: const Value('강의실A'),
+            placeEdited: const Value(true),
+            onlineEdited: const Value(true),
+          ),
+        );
+
+    final slots = await (db.select(
+      db.classSlots,
+    )..orderBy([(slot) => OrderingTerm(expression: slot.id)])).get();
+    final manual = slots.first;
+    expect(manual.importedWeekday, isNull);
+    expect(manual.importedStartMin, isNull);
+    expect(manual.importedEndMin, isNull);
+    expect(manual.importedPlace, isNull);
+    expect(manual.placeEdited, isFalse);
+    expect(manual.onlineEdited, isFalse);
+    final imported = slots.last;
+    expect(imported.importedWeekday, 2);
+    expect(imported.importedStartMin, 600);
+    expect(imported.importedEndMin, 690);
+    expect(imported.importedPlace, '강의실A');
+    expect(imported.place, '강의실B');
+    expect(imported.placeEdited, isTrue);
+    expect(imported.onlineEdited, isTrue);
+  });
+
   group('CHECK', () {
     /// 확장 결과 코드 275: SQLITE_CONSTRAINT_CHECK.
     final checkFailed = throwsA(
@@ -498,6 +555,46 @@ void main() {
         }
       },
     );
+
+    test('수업 칸의 불러온 원래 요일·시각도 같은 규칙이고, 셋은 함께 있거나 함께 없다', () async {
+      final courseId = await addCourse();
+      Future<int> slot({int? weekday, int? startMin, int? endMin}) => db
+          .into(db.classSlots)
+          .insert(
+            ClassSlotsCompanion.insert(
+              courseId: courseId,
+              weekday: 1,
+              startMin: 540,
+              endMin: 600,
+              campus: Campus.boun,
+              online: false,
+              source: SlotSource.auto,
+              importedWeekday: Value(weekday),
+              importedStartMin: Value(startMin),
+              importedEndMin: Value(endMin),
+            ),
+          );
+      await slot(weekday: 7, startMin: 1320, endMin: 1560);
+      await slot();
+      await expectLater(
+        slot(weekday: 8, startMin: 540, endMin: 600),
+        checkFailed,
+      );
+      await expectLater(
+        slot(weekday: 1, startMin: 1440, endMin: 1500),
+        checkFailed,
+      );
+      await expectLater(
+        slot(weekday: 1, startMin: 600, endMin: 600),
+        checkFailed,
+      );
+      await expectLater(
+        slot(weekday: 1, startMin: 600, endMin: 2040),
+        checkFailed,
+      );
+      await expectLater(slot(weekday: 1), checkFailed);
+      await expectLater(slot(weekday: 1, startMin: 540), checkFailed);
+    });
 
     test('고정 일정은 시작 0–1439, 끝이 시작보다 늦고 하루보다 짧고, 앞뒤 여유가 0 이상이어야 하고 Dart 검사가 이를 먼저 본다', () async {
       // (요일들, 시작, 끝, 앞뒤 여유, DB가 받는지). 앞뒤 여유의 위 끝(60)과 요일 값은 DB에 걸지 않고

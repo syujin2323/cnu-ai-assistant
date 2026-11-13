@@ -49,12 +49,25 @@ class ClassSlots extends Table {
   BoolColumn get online => boolean()();
   TextColumn get repeatRule => text().nullable()();
   TextColumn get source => text().map(const EnumConverter(SlotSource.values))();
+  IntColumn get importedWeekday => integer().nullable()();
+  IntColumn get importedStartMin => integer().nullable()();
+  IntColumn get importedEndMin => integer().nullable()();
+  TextColumn get importedPlace => text().nullable()();
+  BoolColumn get placeEdited => boolean().withDefault(const Constant(false))();
+  BoolColumn get onlineEdited => boolean().withDefault(const Constant(false))();
 
+  /// 불러온 원래 요일·시각도 같은 규칙이고, 셋은 함께 있거나(불러온 수업) 함께 없다(직접 넣은 수업).
   @override
   List<String> get customConstraints => const [
     'CHECK ("weekday" BETWEEN 1 AND 7)',
     'CHECK ("start_min" BETWEEN 0 AND 1439)',
     'CHECK ("end_min" > "start_min" AND "end_min" < "start_min" + 1440)',
+    'CHECK ("imported_weekday" BETWEEN 1 AND 7)',
+    'CHECK ("imported_start_min" BETWEEN 0 AND 1439)',
+    'CHECK ("imported_end_min" > "imported_start_min" AND '
+        '"imported_end_min" < "imported_start_min" + 1440)',
+    'CHECK (("imported_weekday" IS NULL) = ("imported_start_min" IS NULL) '
+        'AND ("imported_start_min" IS NULL) = ("imported_end_min" IS NULL))',
   ];
 }
 

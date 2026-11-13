@@ -56,6 +56,7 @@ void main() {
       expect(settings.dayBoundaryMin, 240);
       expect(settings.aiEnabled, isFalse);
       expect(settings.aiConsentAt, isNull);
+      expect(settings.privacyConsentAt, isNull);
       expect(settings.metricsEnabled, isFalse);
       expect(settings.metricsLastSentOn, isNull);
       expect(settings.lmsSessionState, LmsSessionState.disconnected);
@@ -74,6 +75,7 @@ void main() {
         'dayBoundaryMin': 240,
         'aiEnabled': false,
         'aiConsentAt': null,
+        'privacyConsentAt': null,
         'metricsEnabled': false,
         'metricsLastSentOn': null,
         'lmsSessionState': 'disconnected',
@@ -95,6 +97,8 @@ void main() {
       await writeOk(SettingKeys.dayBoundaryMin, 300);
       await writeOk(SettingKeys.aiEnabled, true);
       await writeOk(SettingKeys.aiConsentAt, consentAt);
+      final privacyAt = DateTime(2026, 10, 29, 9);
+      await writeOk(SettingKeys.privacyConsentAt, privacyAt);
       await writeOk(SettingKeys.metricsLastSentOn, '2026-10-28');
       await writeOk(
         SettingKeys.lmsSessionState,
@@ -110,6 +114,7 @@ void main() {
           dayBoundaryMin: 300,
           aiEnabled: true,
           aiConsentAt: consentAt,
+          privacyConsentAt: privacyAt,
           metricsLastSentOn: '2026-10-28',
           lmsSessionState: LmsSessionState.reconnectRequired,
           checkinMin: 1350,
@@ -188,6 +193,7 @@ void main() {
         ('lmsAutoLogin', true),
         ('lmsMode', 'phone'),
         (SettingKeys.aiConsentAt, '2026-10-29'),
+        (SettingKeys.privacyConsentAt, true),
         (SettingKeys.metricsLastSentOn, '2026-10-32'),
         (SettingKeys.onboardingSkipped, null),
         // 건너뛴 온보딩 단계는 1–5의 중복 없는 오름차순 목록만 쓴다.
@@ -310,6 +316,7 @@ void main() {
     test('시각은 UTC 오프셋이 붙은 값만 읽고 오프셋이 없으면 기본값이다', () async {
       await putRaw(SettingKeys.installedAt, '"2026-10-29"');
       await putRaw(SettingKeys.aiConsentAt, '"2026-10-29T09:30:00.000"');
+      await putRaw(SettingKeys.privacyConsentAt, '"2026-10-29"');
       await putRaw(SettingKeys.lmsLastSuccessAt, '"2026-10-29T00:30:00.000Z"');
       await putRaw(
         SettingKeys.lmsLastConnectedAt,
@@ -319,6 +326,7 @@ void main() {
       final settings = await readOk();
       expect(settings.installedAt, isNull);
       expect(settings.aiConsentAt, isNull);
+      expect(settings.privacyConsentAt, isNull);
       expect(
         settings.lmsLastSuccessAt,
         DateTime.utc(2026, 10, 29, 0, 30).toLocal(),

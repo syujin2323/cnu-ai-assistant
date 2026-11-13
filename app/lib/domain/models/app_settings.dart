@@ -21,6 +21,7 @@ abstract final class SettingKeys {
   static const dayBoundaryMin = 'dayBoundaryMin';
   static const aiEnabled = 'aiEnabled';
   static const aiConsentAt = 'aiConsentAt';
+  static const privacyConsentAt = 'privacyConsentAt';
   static const metricsEnabled = 'metricsEnabled';
   static const metricsLastSentOn = 'metricsLastSentOn';
   static const lmsSessionState = 'lmsSessionState';
@@ -37,6 +38,7 @@ abstract final class SettingKeys {
     dayBoundaryMin,
     aiEnabled,
     aiConsentAt,
+    privacyConsentAt,
     metricsEnabled,
     metricsLastSentOn,
     lmsSessionState,
@@ -56,6 +58,7 @@ class AppSettings {
     required this.dayBoundaryMin,
     required this.aiEnabled,
     required this.aiConsentAt,
+    required this.privacyConsentAt,
     required this.metricsEnabled,
     required this.metricsLastSentOn,
     required this.lmsSessionState,
@@ -73,6 +76,7 @@ class AppSettings {
     dayBoundaryMin: Defaults.dayBoundaryMin,
     aiEnabled: false,
     aiConsentAt: null,
+    privacyConsentAt: null,
     metricsEnabled: false,
     metricsLastSentOn: null,
     lmsSessionState: LmsSessionState.disconnected,
@@ -96,6 +100,9 @@ class AppSettings {
       aiEnabled: _boolOrNull(values[SettingKeys.aiEnabled]) ?? d.aiEnabled,
       aiConsentAt:
           tryDecodeDateTime(values[SettingKeys.aiConsentAt]) ?? d.aiConsentAt,
+      privacyConsentAt:
+          tryDecodeDateTime(values[SettingKeys.privacyConsentAt]) ??
+          d.privacyConsentAt,
       metricsEnabled:
           _boolOrNull(values[SettingKeys.metricsEnabled]) ?? d.metricsEnabled,
       metricsLastSentOn:
@@ -145,6 +152,9 @@ class AppSettings {
   /// AI 사용에 동의한 시각.
   final DateTime? aiConsentAt;
 
+  /// 14 온보딩 1단계에서 개인정보 처리 안내(필수)에 동의한 시각. 로그인 폼 PR이 적는다.
+  final DateTime? privacyConsentAt;
+
   /// (R1) 지표 전송을 켰는지. AI 동의와 별개다.
   final bool metricsEnabled;
 
@@ -192,6 +202,7 @@ class AppSettings {
       SettingKeys.metricsEnabled ||
       SettingKeys.dueTodayTimeSensitive => _require<bool>(key, value),
       SettingKeys.aiConsentAt ||
+      SettingKeys.privacyConsentAt ||
       SettingKeys.lmsLastSuccessAt ||
       SettingKeys.lmsLastConnectedAt ||
       SettingKeys.installedAt =>
@@ -218,6 +229,7 @@ class AppSettings {
     SettingKeys.dayBoundaryMin => dayBoundaryMin,
     SettingKeys.aiEnabled => aiEnabled,
     SettingKeys.aiConsentAt => aiConsentAt,
+    SettingKeys.privacyConsentAt => privacyConsentAt,
     SettingKeys.metricsEnabled => metricsEnabled,
     SettingKeys.metricsLastSentOn => metricsLastSentOn,
     SettingKeys.lmsSessionState => lmsSessionState,
@@ -236,6 +248,7 @@ class AppSettings {
     int? dayBoundaryMin,
     bool? aiEnabled,
     Object? aiConsentAt = _keep,
+    Object? privacyConsentAt = _keep,
     bool? metricsEnabled,
     Object? metricsLastSentOn = _keep,
     LmsSessionState? lmsSessionState,
@@ -253,6 +266,9 @@ class AppSettings {
       aiConsentAt: identical(aiConsentAt, _keep)
           ? this.aiConsentAt
           : aiConsentAt as DateTime?,
+      privacyConsentAt: identical(privacyConsentAt, _keep)
+          ? this.privacyConsentAt
+          : privacyConsentAt as DateTime?,
       metricsEnabled: metricsEnabled ?? this.metricsEnabled,
       metricsLastSentOn: identical(metricsLastSentOn, _keep)
           ? this.metricsLastSentOn
@@ -283,6 +299,7 @@ class AppSettings {
       other.dayBoundaryMin == dayBoundaryMin &&
       other.aiEnabled == aiEnabled &&
       other.aiConsentAt == aiConsentAt &&
+      other.privacyConsentAt == privacyConsentAt &&
       other.metricsEnabled == metricsEnabled &&
       other.metricsLastSentOn == metricsLastSentOn &&
       other.lmsSessionState == lmsSessionState &&
@@ -299,6 +316,7 @@ class AppSettings {
     dayBoundaryMin,
     aiEnabled,
     aiConsentAt,
+    privacyConsentAt,
     metricsEnabled,
     metricsLastSentOn,
     lmsSessionState,
