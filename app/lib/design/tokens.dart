@@ -486,8 +486,7 @@ abstract final class AppSize {
 }
 
 /// 하단 탭바와 그 옆 AI 비서 버튼의 유리 효과(임시값): 흰색 32%에 blur 18px, saturate 110%.
-/// 유리는 이 두 곳에만 쓴다. 모션 등급이 `light`·`off`이거나 OS가 투명도를 줄이라고 하면 유리 대신
-/// 흰 배경으로 그린다.
+/// 유리는 이 두 곳에만 쓴다. (R1) OS가 투명도를 줄이라고 하면 유리 대신 흰 배경으로 그린다.
 abstract final class AppGlass {
   /// 흰색 32%.
   static const Color fill = Color.fromRGBO(255, 255, 255, 0.32);

@@ -22,7 +22,6 @@
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/design/icons.dart';
-import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_tab_bar.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
@@ -486,15 +485,14 @@ class _TabShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 지금은 모션 등급만 본다. (R1) OS '투명도 줄이기'를 읽게 되면 그때도 여기서 유리를 끈다.
-    final glass = ref.watch(motionLevelProvider) == MotionLevel.full;
     return Scaffold(
       extendBody: true,
       body: shell,
       bottomNavigationBar: AppTabBar(
         items: _tabs,
         currentIndex: shell.currentIndex,
-        glass: glass,
+        // 유리는 늘 쓴다. (R1) OS '투명도 줄이기'를 읽게 되면 여기서 끈다.
+        glass: true,
         onSelected: (index) =>
             shell.goBranch(index, initialLocation: index == shell.currentIndex),
         // push라야 06을 닫을 때 지금 탭으로 돌아온다(go는 뒤로 갈 곳이 없다).

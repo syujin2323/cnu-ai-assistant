@@ -21,7 +21,6 @@ import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// `shared_preferences` 키. 보안 저장소에는 두지 않는다(iOS Keychain 값은 앱을 지워도 남는다).
@@ -51,9 +50,6 @@ final sharedPreferencesProvider = Provider<SharedPreferences>(
     'sharedPreferencesProvider must be overridden in bootstrap or tests',
   ),
 );
-
-/// Android의 SDK 버전. Android가 아니면 null이다. bootstrap이 `device_info_plus`로 읽어 덮어쓴다.
-final androidSdkIntProvider = Provider<int?>((ref) => null);
 
 /// 지금 앱 모드. `shared_preferences`의 `app_mode`를 읽고, 데모에 들어가고 나올 때 바꾼다.
 final appModeProvider = NotifierProvider<AppModeController, AppMode>(
@@ -164,64 +160,10 @@ final settingsProvider = StreamProvider<AppSettings>(
   (ref) => ref.watch(settingsRepositoryProvider).watch(),
 );
 
-/// OS가 애니메이션을 끄라고 하는지(iOS '동작 줄이기', Android '애니메이션 삭제').
-///
-/// provider는 `BuildContext`가 없어 `MediaQuery.disableAnimationsOf(context)`를 부를 수 없으므로,
-/// 그 값의 원천인 `PlatformDispatcher.accessibilityFeatures.disableAnimations`를 읽고
-/// 설정이 바뀌면 다시 알린다.
-final systemDisableAnimationsProvider =
-    NotifierProvider<SystemDisableAnimations, bool>(
-      SystemDisableAnimations.new,
-    );
-
-/// [systemDisableAnimationsProvider]의 노티파이어.
-class SystemDisableAnimations extends Notifier<bool>
-    with WidgetsBindingObserver {
-  @override
-  bool build() {
-    final binding = WidgetsBinding.instance;
-    binding.addObserver(this);
-    ref.onDispose(() => binding.removeObserver(this));
-    return _read(binding);
-  }
-
-  @override
-  void didChangeAccessibilityFeatures() {
-    state = _read(WidgetsBinding.instance);
-  }
-
-  static bool _read(WidgetsBinding binding) =>
-      binding.platformDispatcher.accessibilityFeatures.disableAnimations;
-}
-
-/// Android 10(API 29). 이보다 낮으면 모션 등급을 `light`로 둔다.
-const int _android10SdkInt = 29;
-
-/// 모션 등급(docs/architecture.md '모션 프리셋').
-///
-/// `settings`의 `motionLevel`이 `auto`가 아니면 그 값이 우선한다. `auto`면 OS가 애니메이션을
-/// 끄라고 할 때 `off`, Android 10 미만이면 `light`, 그 밖에는 `full`이다. 판정 기준은 이것뿐이고
-/// RAM·Vulkan·프레임 측정은 보지 않는다. 화면 테스트는 이 provider를 `off`로 덮어쓴다.
-final motionLevelProvider = Provider<MotionLevel>((ref) {
-  final setting =
-      ref.watch(
-        settingsProvider.select((settings) => settings.value?.motionLevel),
-      ) ??
-      MotionLevelSetting.auto;
-  switch (setting) {
-    case MotionLevelSetting.full:
-      return MotionLevel.full;
-    case MotionLevelSetting.light:
-      return MotionLevel.light;
-    case MotionLevelSetting.off:
-      return MotionLevel.off;
-    case MotionLevelSetting.auto:
-      if (ref.watch(systemDisableAnimationsProvider)) return MotionLevel.off;
-      final sdkInt = ref.watch(androidSdkIntProvider);
-      if (sdkInt != null && sdkInt < _android10SdkInt) return MotionLevel.light;
-      return MotionLevel.full;
-  }
-});
+/// 모션 등급(docs/architecture.md '모션 프리셋'). 앱은 늘 [MotionLevel.full]이다. 앱 안의 모션 선택은
+/// 없고 OS의 동작 줄이기·애니메이션 삭제와 기기를 보지 않는다(docs/decisions.md 2026-11-13 '모션은 모든
+/// 사람에게 같게 보인다'). 화면 테스트는 이 provider를 [MotionLevel.off]로 덮어쓴다.
+final motionLevelProvider = Provider<MotionLevel>((ref) => MotionLevel.full);
 
 /// 앱 서버 API 클라이언트. 주소는 `AppConfig.apiBase`(`--dart-define=API_BASE_URL`로 덮어씀).
 /// 데모 모드에서는 요청을 보내지 않고 오류를 돌려준다(`ServerApi.demo`).

@@ -1,7 +1,7 @@
 // 모션 프리셋 테스트. docs/architecture.md '모션 프리셋'.
 //
 // 문서의 표가 원본이다. 표의 줄마다 곡선(cubic-bezier)과 시간(ms·s·초)을 차례로 읽어 코드의 상수와
-// 견준다.
+// 견주고, 등급이 시간을 바꾸는 규칙(앱은 늘 full, 화면 테스트의 off는 0)을 본다.
 
 import 'dart:io';
 
@@ -85,6 +85,14 @@ void main() {
   test('되돌리기 토스트는 저장소가 되돌리기를 받는 시간과 같은 10초다', () {
     expect(AppMotion.toastWithUndo, Defaults.undoWindow);
     expect(Defaults.undoWindow, const Duration(seconds: 10));
+  });
+
+  test('등급은 full과 off뿐이고, off만 시간을 0으로 바꾼다', () {
+    expect(MotionLevel.values, [MotionLevel.full, MotionLevel.off]);
+    for (final duration in _durations.values.expand((list) => list)) {
+      expect(MotionLevel.full.duration(duration), duration);
+      expect(MotionLevel.off.duration(duration), Duration.zero);
+    }
   });
 }
 

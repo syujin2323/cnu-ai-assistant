@@ -12,10 +12,6 @@ import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/domain/models/value_codec.dart';
 
-/// 설정의 모션 등급. [auto]면 기기와 OS 설정으로 정하고, 나머지 셋은 그 값이 우선한다
-/// (docs/architecture.md '모션 프리셋'의 `MotionLevel { full, light, off }`).
-enum MotionLevelSetting { auto, full, light, off }
-
 /// `settings` 표의 키 이름.
 abstract final class SettingKeys {
   static const dayBoundaryMin = 'dayBoundaryMin';
@@ -29,7 +25,6 @@ abstract final class SettingKeys {
   static const lmsLastConnectedAt = 'lmsLastConnectedAt';
   static const checkinMin = 'checkinMin';
   static const dueTodayTimeSensitive = 'dueTodayTimeSensitive';
-  static const motionLevel = 'motionLevel';
   static const onboardingSkipped = 'onboardingSkipped';
   static const installedAt = 'installedAt';
 
@@ -46,7 +41,6 @@ abstract final class SettingKeys {
     lmsLastConnectedAt,
     checkinMin,
     dueTodayTimeSensitive,
-    motionLevel,
     onboardingSkipped,
     installedAt,
   ];
@@ -66,7 +60,6 @@ class AppSettings {
     required this.lmsLastConnectedAt,
     required this.checkinMin,
     required this.dueTodayTimeSensitive,
-    required this.motionLevel,
     required this.onboardingSkipped,
     required this.installedAt,
   });
@@ -84,7 +77,6 @@ class AppSettings {
     lmsLastConnectedAt: null,
     checkinMin: null,
     dueTodayTimeSensitive: false,
-    motionLevel: MotionLevelSetting.auto,
     onboardingSkipped: [],
     installedAt: null,
   );
@@ -125,12 +117,6 @@ class AppSettings {
       dueTodayTimeSensitive:
           _boolOrNull(values[SettingKeys.dueTodayTimeSensitive]) ??
           d.dueTodayTimeSensitive,
-      motionLevel:
-          tryEnumFromSnake(
-            MotionLevelSetting.values,
-            values[SettingKeys.motionLevel],
-          ) ??
-          d.motionLevel,
       onboardingSkipped:
           _onboardingStepsOrNull(values[SettingKeys.onboardingSkipped]) ??
           d.onboardingSkipped,
@@ -177,9 +163,6 @@ class AppSettings {
   /// (R1) 마감 당일 알림을 '시간 민감' 알림으로 보낼지.
   final bool dueTodayTimeSensitive;
 
-  /// 모션 등급 설정.
-  final MotionLevelSetting motionLevel;
-
   /// 건너뛴 온보딩 단계의 번호(docs/architecture.md '온보딩'의 1–5. 지금은 3단계만 건너뛸 수 있다).
   /// 이 값을 쓰는 화면은 문서에 없다(홈 위 카드가 아님). 늘 1–5의 중복 없는 오름차순 목록이다.
   final List<int> onboardingSkipped;
@@ -212,9 +195,6 @@ class AppSettings {
       SettingKeys.lmsSessionState => snakeName(
         _require<LmsSessionState>(key, value),
       ),
-      SettingKeys.motionLevel => snakeName(
-        _require<MotionLevelSetting>(key, value),
-      ),
       SettingKeys.onboardingSkipped => _requireOnboardingSteps(key, value),
       _ => throw ArgumentError.value(key, 'key', 'Unknown settings key'),
     };
@@ -237,7 +217,6 @@ class AppSettings {
     SettingKeys.lmsLastConnectedAt => lmsLastConnectedAt,
     SettingKeys.checkinMin => checkinMin,
     SettingKeys.dueTodayTimeSensitive => dueTodayTimeSensitive,
-    SettingKeys.motionLevel => motionLevel,
     SettingKeys.onboardingSkipped => onboardingSkipped,
     SettingKeys.installedAt => installedAt,
     _ => throw ArgumentError.value(key, 'key', 'Unknown settings key'),
@@ -256,7 +235,6 @@ class AppSettings {
     Object? lmsLastConnectedAt = _keep,
     Object? checkinMin = _keep,
     bool? dueTodayTimeSensitive,
-    MotionLevelSetting? motionLevel,
     List<int>? onboardingSkipped,
     Object? installedAt = _keep,
   }) {
@@ -285,7 +263,6 @@ class AppSettings {
           : checkinMin as int?,
       dueTodayTimeSensitive:
           dueTodayTimeSensitive ?? this.dueTodayTimeSensitive,
-      motionLevel: motionLevel ?? this.motionLevel,
       onboardingSkipped: onboardingSkipped ?? this.onboardingSkipped,
       installedAt: identical(installedAt, _keep)
           ? this.installedAt
@@ -307,7 +284,6 @@ class AppSettings {
       other.lmsLastConnectedAt == lmsLastConnectedAt &&
       other.checkinMin == checkinMin &&
       other.dueTodayTimeSensitive == dueTodayTimeSensitive &&
-      other.motionLevel == motionLevel &&
       _sameInts(other.onboardingSkipped, onboardingSkipped) &&
       other.installedAt == installedAt;
 
@@ -324,7 +300,6 @@ class AppSettings {
     lmsLastConnectedAt,
     checkinMin,
     dueTodayTimeSensitive,
-    motionLevel,
     Object.hashAll(onboardingSkipped),
     installedAt,
   );
