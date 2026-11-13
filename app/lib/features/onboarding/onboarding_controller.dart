@@ -8,14 +8,17 @@
 // 로그인하면 2–5단계 없이 시작 위치로 간다([OnboardingController.loggedIn]). 처음 온보딩에서 로그인한 뒤
 // 끝내기 전에 앱이 꺼졌으면 다음에 열 때 2단계부터 연다(다시 로그인하지 않음, docs/decisions.md 2026-11-13
 // '로그인한 뒤 온보딩 도중 앱이 꺼지면 2단계부터 연다'). 그래서 처음 열 때 `settings`를 한 번 읽고, 읽기가
-// 끝나기 전에는 상태가 없다. debug 빌드에서는 1단계에 개발용 '로그인 없이 다음으로'가 있다
+// 끝나기 전에는 상태가 없다. 4단계는 `aiEnabled`·`aiConsentAt`을, 5단계는 브리핑 시각을 내 규칙
+// (`notify`)으로 쓴다. debug 빌드에서는 1단계에 개발용 '로그인 없이 다음으로'가 있다
 // ([OnboardingController.skipLoginForDev]).
 
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
+import 'package:cnu_ai_assistant/domain/models/entry_source.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
+import 'package:cnu_ai_assistant/domain/models/rule.dart';
 import 'package:flutter/foundation.dart' show immutable, kDebugMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -142,6 +145,45 @@ class OnboardingController extends AsyncNotifier<OnboardingState> {
     );
   }
 
+  /// 4단계 '동의하고 계속': AI를 켜고 동의 시각을 적은 뒤 다음 단계로 간다. 저장하지 못해도 기록만 남기고
+  /// 계속한다(AI는 꺼진 채로 남아 AI 기능을 쓰려 할 때 다시 묻는다).
+  Future<bool> consentToAi() => _whileBusy(() async {
+    await _writeSettings({
+      SettingKeys.aiEnabled: true,
+      SettingKeys.aiConsentAt: ref.read(clockProvider).now(),
+    });
+    return _next();
+  });
+
+  /// 4단계 '동의하지 않고 계속': `aiEnabled` false만 쓰고 다음 단계로 간다(docs/decisions.md 2026-11-06
+  /// 'AI 사용 동의는 선택 동의다'). 저장하지 못해도 계속한다(기본값도 꺼짐).
+  Future<bool> declineAi() => _whileBusy(() async {
+    await _writeSettings({SettingKeys.aiEnabled: false});
+    return _next();
+  });
+
+  /// 5단계 '다음': 고른 브리핑 시각([briefingMin], 자정 기준 분)을 내 규칙 `notify`(`source` `manual`)로
+  /// 저장하고 온보딩을 끝낸다. `notify`는 하나만 두는 종류라 이미 있으면 그 행에 합친다. 저장하지 못해도
+  /// 기록만 남기고 끝낸다(브리핑 시각은 기본값을 씀). [briefingMin]은 브리핑 칩의 값이다.
+  Future<bool> finishWithBriefingTime(int briefingMin) => _whileBusy(() async {
+    final saved = await ref
+        .read(rulesRepositoryProvider)
+        .save(
+          kind: RuleKind.notify,
+          params: RuleParams(briefingMin: briefingMin),
+          source: EntrySource.manual,
+          now: ref.read(clockProvider).now(),
+        );
+    if (saved case Err(:final error)) {
+      appLog(
+        'onboarding_briefing_time_save_failed',
+        area: 'onboarding',
+        data: {'error': error.toString()},
+      );
+    }
+    return _next();
+  });
+
   /// 1단계 로그인을 마쳤을 때(로그인 폼이 진행 줄을 끝낸 뒤). 로그아웃 뒤 다시 들어왔으면 2–5단계 없이
   /// 시작 위치로 가고(true), 아니면 2단계로 간다. LMS 상태와 학번·비밀번호는 로그인 흐름이 이미 썼다.
   Future<bool> loggedIn() => _whileBusy(_afterLogin);
@@ -244,6 +286,18 @@ class OnboardingController extends AsyncNotifier<OnboardingState> {
       numbers.toList()..sort(),
     );
     if (written case Err(:final error)) _logStorageFailure(error);
+  }
+
+  /// 설정 여러 키를 한 번에 쓴다. 쓰지 못하면 기록만 남긴다.
+  Future<void> _writeSettings(Map<String, Object?> values) async {
+    final written = await ref.read(settingsRepositoryProvider).writeAll(values);
+    if (written case Err(:final error)) {
+      appLog(
+        'onboarding_settings_save_failed',
+        area: 'onboarding',
+        data: {'keys': values.keys.join(','), 'error': error.toString()},
+      );
+    }
   }
 
   static void _logStorageFailure(AppError error) => appLog(

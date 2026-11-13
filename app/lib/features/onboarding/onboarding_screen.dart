@@ -102,8 +102,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       ),
       OnboardingStep.timetable => TimetableStep(onConfirm: next),
       OnboardingStep.fixedBlocks => FixedBlocksStep(onNext: next),
-      OnboardingStep.aiConsent => AiConsentStep(onNext: next),
-      OnboardingStep.briefingTime => BriefingTimeStep(onNext: next),
+      OnboardingStep.aiConsent => AiConsentStep(
+        onConsent: () => _run((controller) => controller.consentToAi()),
+        onDecline: () => _run((controller) => controller.declineAi()),
+      ),
+      OnboardingStep.briefingTime => BriefingTimeStep(
+        onDone: (briefingMin) => _run(
+          (controller) => controller.finishWithBriefingTime(briefingMin),
+        ),
+      ),
     };
   }
 
