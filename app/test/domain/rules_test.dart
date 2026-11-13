@@ -928,4 +928,223 @@ void main() {
       expect(text, isNot(contains('통학')));
     });
   });
+
+  group('저장 정책', () {
+    test('종류마다의 정책은 docs/architecture.md \'내 규칙\'의 표와 같다', () {
+      expect(
+        {
+          for (final kind in RuleKind.values)
+            if (kind.singleRow) kind,
+        },
+        {RuleKind.classBuffer, RuleKind.maxBlock, RuleKind.notify},
+      );
+      expect(
+        {
+          for (final kind in RuleKind.values)
+            if (kind.replacesSameWeekdays) kind,
+        },
+        {RuleKind.workWindow, RuleKind.dailyCap, RuleKind.travel},
+      );
+      expect(
+        {
+          for (final kind in RuleKind.values)
+            if (kind.allowsWeekdays) kind,
+        },
+        {
+          RuleKind.travel,
+          RuleKind.workWindow,
+          RuleKind.blackout,
+          RuleKind.preferred,
+          RuleKind.dailyCap,
+        },
+      );
+      // 요일 집합으로 대신하는 종류는 요일을 쓰고, 하나만 두는 종류는 요일을 쓰지 않는다.
+      for (final kind in RuleKind.values) {
+        if (kind.replacesSameWeekdays) {
+          expect(kind.allowsWeekdays, isTrue, reason: kind.name);
+        }
+        if (kind.singleRow) {
+          expect(kind.allowsWeekdays, isFalse, reason: kind.name);
+        }
+      }
+    });
+
+    test('canonicalWeekdays는 정렬하고 겹침을 빼며 일곱 요일이면 null이다', () {
+      expect(canonicalWeekdays(null), isNull);
+      expect(canonicalWeekdays([3, 1]), [1, 3]);
+      expect(canonicalWeekdays([5, 5, 2]), [2, 5]);
+      expect(canonicalWeekdays([1, 2, 3, 4, 5, 6, 7]), isNull);
+      expect(canonicalWeekdays([7, 6, 5, 4, 3, 2, 1]), isNull);
+      expect(canonicalWeekdays([1, 2, 3, 4, 5, 6]), [1, 2, 3, 4, 5, 6]);
+      expect(canonicalWeekdays([0, 1, 2, 3, 4, 5, 6]), hasLength(7));
+      expect(() => canonicalWeekdays([3, 1])!.add(5), throwsUnsupportedError);
+    });
+
+    test('하나만 두는 종류는 그 종류의 행 전부(꺼진 행도)를 나중 것부터 대신한다', () {
+      final old = rule(
+        RuleKind.notify,
+        const RuleParams(briefingMin: 420),
+        id: 1,
+      );
+      final off = rule(
+        RuleKind.notify,
+        const RuleParams(briefingMin: 450),
+        id: 2,
+        active: false,
+      );
+      final other = rule(
+        RuleKind.maxBlock,
+        const RuleParams(minutes: 60),
+        id: 3,
+      );
+      expect(
+        rulesReplacedBy(
+          RuleKind.notify,
+          const RuleParams(briefingMin: 480),
+          null,
+          [old, off, other],
+        ),
+        [off, old],
+      );
+    });
+
+    test('같은 요일을 대신하는 종류는 요일 집합이 같은 켜진 행만 대신한다', () {
+      const params = RuleParams(minutes: 40, position: TravelPosition.dayEdges);
+      final everyDay = rule(RuleKind.travel, params, id: 1);
+      final allDays = rule(
+        RuleKind.travel,
+        params,
+        id: 2,
+        weekdays: [7, 6, 5, 4, 3, 2, 1],
+      );
+      final monWed = rule(RuleKind.travel, params, id: 3, weekdays: [3, 1]);
+      final monWedOff = rule(
+        RuleKind.travel,
+        params,
+        id: 4,
+        weekdays: [1, 3],
+        active: false,
+      );
+      final monday = rule(RuleKind.travel, params, id: 5, weekdays: [1]);
+      final existing = [everyDay, allDays, monWed, monWedOff, monday];
+
+      expect(rulesReplacedBy(RuleKind.travel, params, null, existing), [
+        allDays,
+        everyDay,
+      ]);
+      expect(
+        rulesReplacedBy(RuleKind.travel, params, [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+        ], existing),
+        [allDays, everyDay],
+      );
+      expect(rulesReplacedBy(RuleKind.travel, params, [1, 3], existing), [
+        monWed,
+      ]);
+      expect(rulesReplacedBy(RuleKind.travel, params, [2], existing), isEmpty);
+    });
+
+    test('예상 시간은 과목·종류가 같은 켜진 행만 대신한다', () {
+      final quiz = rule(
+        RuleKind.estimate,
+        const RuleParams(courseId: 1, taskKind: TaskKind.quiz, minutes: 30),
+        id: 1,
+      );
+      final course = rule(
+        RuleKind.estimate,
+        const RuleParams(courseId: 1, minutes: 60),
+        id: 2,
+      );
+      final otherCourse = rule(
+        RuleKind.estimate,
+        const RuleParams(courseId: 2, taskKind: TaskKind.quiz, minutes: 30),
+        id: 3,
+      );
+      final off = rule(
+        RuleKind.estimate,
+        const RuleParams(courseId: 1, taskKind: TaskKind.quiz, minutes: 45),
+        id: 4,
+        active: false,
+      );
+      expect(
+        rulesReplacedBy(
+          RuleKind.estimate,
+          const RuleParams(courseId: 1, taskKind: TaskKind.quiz, minutes: 40),
+          null,
+          [quiz, course, otherCourse, off],
+        ),
+        [quiz],
+      );
+    });
+
+    test('피할 시간·선호 시간대·식사는 여러 개 두므로 대신하지 않는다', () {
+      for (final (kind, params) in [
+        (RuleKind.blackout, const RuleParams(startMin: 600, endMin: 660)),
+        (RuleKind.preferred, const RuleParams(startMin: 600, endMin: 660)),
+        (
+          RuleKind.meal,
+          const RuleParams(startMin: 1080, endMin: 1200, minutes: 40),
+        ),
+      ]) {
+        expect(
+          rulesReplacedBy(kind, params, null, [rule(kind, params)]),
+          isEmpty,
+          reason: kind.name,
+        );
+      }
+    });
+
+    test('저장할 값은 하나만 두는 종류면 가장 최근 행(꺼진 행도)에 합친 것이다', () {
+      final older = rule(
+        RuleKind.notify,
+        const RuleParams(briefingMin: 420),
+        id: 1,
+      );
+      final latestOff = rule(
+        RuleKind.notify,
+        const RuleParams(briefingMin: 450, notifyCap: 3),
+        id: 2,
+        active: false,
+      );
+      expect(
+        paramsToStore(RuleKind.notify, const RuleParams(briefingMin: 540), [
+          older,
+          latestOff,
+        ]),
+        const RuleParams(briefingMin: 540, notifyCap: 3),
+      );
+      expect(
+        paramsToStore(RuleKind.notify, const RuleParams(briefingMin: 540), []),
+        const RuleParams(briefingMin: 540),
+      );
+      // 여러 개 두는 종류는 들어온 값 그대로다.
+      const blackout = RuleParams(startMin: 600, endMin: 660);
+      expect(
+        paramsToStore(RuleKind.blackout, blackout, [
+          rule(RuleKind.blackout, const RuleParams(startMin: 0, endMin: 60)),
+        ]),
+        blackout,
+      );
+    });
+
+    test('통학 칩은 이동 시간 규칙(하루 첫 수업 전·마지막 수업 뒤)으로 저장할 수 있다', () {
+      expect(Defaults.commuteChoices, contains(Defaults.commuteMin));
+      for (final minutes in Defaults.commuteChoices) {
+        expect(
+          issues(
+            RuleKind.travel,
+            RuleParams(minutes: minutes, position: TravelPosition.dayEdges),
+          ),
+          isEmpty,
+          reason: '$minutes',
+        );
+      }
+    });
+  });
 }

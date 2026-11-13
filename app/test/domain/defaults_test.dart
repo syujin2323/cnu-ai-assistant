@@ -56,6 +56,15 @@ void main() {
     );
   });
 
+  test("온보딩 3단계 '통학' 칩은 20·30·40·60분이고 기본 40분이다", () {
+    expect(Defaults.commuteChoices, [20, 30, 40, 60]);
+    expect(Defaults.commuteMin, 40);
+  });
+
+  test('되돌리기는 10초 동안 받는다', () {
+    expect(Defaults.undoWindow, const Duration(seconds: 10));
+  });
+
   test('보관 기간은 90일이다', () {
     expect(Defaults.retentionDays, 90);
   });

@@ -44,6 +44,9 @@ enum TravelPosition {
   everyClass,
 }
 
+/// [RuleParams.copyWith]·[Rule.copyWith]에서 '그대로 둠'을 뜻하는 값. null을 주면 그 값을 비운다.
+const Object _keep = Object();
+
 /// 규칙 값. `rules.params`의 JSON이고, 그 종류가 쓰는 값만 채운다.
 ///
 /// 시각은 자정 기준 분이다. 자정을 넘으면 끝에 1440을 더한다. 값의 범위 검사는
@@ -115,6 +118,84 @@ class RuleParams {
   /// 조용한 시간 끝(`notify`).
   final int? quietEndMin;
 
+  /// 고친 사본. 주지 않은 값은 그대로 두고, null을 주면 그 값을 뺀다.
+  RuleParams copyWith({
+    Object? minutes = _keep,
+    Object? position = _keep,
+    Object? startMin = _keep,
+    Object? endMin = _keep,
+    Object? courseId = _keep,
+    Object? taskKind = _keep,
+    Object? briefingMin = _keep,
+    Object? notifyCap = _keep,
+    Object? quietStartMin = _keep,
+    Object? quietEndMin = _keep,
+  }) => RuleParams(
+    minutes: identical(minutes, _keep) ? this.minutes : minutes as int?,
+    position: identical(position, _keep)
+        ? this.position
+        : position as TravelPosition?,
+    startMin: identical(startMin, _keep) ? this.startMin : startMin as int?,
+    endMin: identical(endMin, _keep) ? this.endMin : endMin as int?,
+    courseId: identical(courseId, _keep) ? this.courseId : courseId as int?,
+    taskKind: identical(taskKind, _keep)
+        ? this.taskKind
+        : taskKind as TaskKind?,
+    briefingMin: identical(briefingMin, _keep)
+        ? this.briefingMin
+        : briefingMin as int?,
+    notifyCap: identical(notifyCap, _keep) ? this.notifyCap : notifyCap as int?,
+    quietStartMin: identical(quietStartMin, _keep)
+        ? this.quietStartMin
+        : quietStartMin as int?,
+    quietEndMin: identical(quietEndMin, _keep)
+        ? this.quietEndMin
+        : quietEndMin as int?,
+  );
+
+  /// 하나만 두는 종류를 저장할 때 기존 값(이것) 위에 [incoming]을 합친다. [incoming]에서 null인 값은
+  /// 기존 값을 그대로 둔다(docs/architecture.md '내 규칙').
+  RuleParams mergedWith(RuleParams incoming) => RuleParams(
+    minutes: incoming.minutes ?? minutes,
+    position: incoming.position ?? position,
+    startMin: incoming.startMin ?? startMin,
+    endMin: incoming.endMin ?? endMin,
+    courseId: incoming.courseId ?? courseId,
+    taskKind: incoming.taskKind ?? taskKind,
+    briefingMin: incoming.briefingMin ?? briefingMin,
+    notifyCap: incoming.notifyCap ?? notifyCap,
+    quietStartMin: incoming.quietStartMin ?? quietStartMin,
+    quietEndMin: incoming.quietEndMin ?? quietEndMin,
+  );
+
+  @override
+  bool operator ==(Object other) =>
+      other is RuleParams &&
+      other.minutes == minutes &&
+      other.position == position &&
+      other.startMin == startMin &&
+      other.endMin == endMin &&
+      other.courseId == courseId &&
+      other.taskKind == taskKind &&
+      other.briefingMin == briefingMin &&
+      other.notifyCap == notifyCap &&
+      other.quietStartMin == quietStartMin &&
+      other.quietEndMin == quietEndMin;
+
+  @override
+  int get hashCode => Object.hash(
+    minutes,
+    position,
+    startMin,
+    endMin,
+    courseId,
+    taskKind,
+    briefingMin,
+    notifyCap,
+    quietStartMin,
+    quietEndMin,
+  );
+
   @override
   String toString() => 'RuleParams(${toJson()})';
 
@@ -166,6 +247,31 @@ class Rule {
   final DateTime createdAt;
 
   final DateTime updatedAt;
+
+  /// 고친 사본. 주지 않은 값은 그대로 두고, [weekdays]·[sentence]에 null을 주면 그 값을 비운다.
+  Rule copyWith({
+    int? id,
+    RuleKind? kind,
+    RuleParams? params,
+    Object? weekdays = _keep,
+    bool? active,
+    EntrySource? source,
+    Object? sentence = _keep,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => Rule(
+    id: id ?? this.id,
+    kind: kind ?? this.kind,
+    params: params ?? this.params,
+    weekdays: identical(weekdays, _keep)
+        ? this.weekdays
+        : weekdays as List<int>?,
+    active: active ?? this.active,
+    source: source ?? this.source,
+    sentence: identical(sentence, _keep) ? this.sentence : sentence as String?,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
 
   /// 사용자 문장([sentence])은 넣지 않는다(docs/architecture.md '앱 코드 규약'의 로그 규칙).
   @override

@@ -7,8 +7,10 @@
 //   재설계 때 다시 보며, 이 값들로 알림 기능을 새로 만들지 않는다.
 // - 같은 자리를 다투는 규칙이 여럿이면 나중에 저장한 것(`updatedAt`, 같으면 `id`가 큰 것)을 쓴다.
 //   입력 순서와 상관없이 같은 규칙이면 같은 설정이 나온다.
-// - 저장할 때 이전 규칙을 끄고 합치는 일은 저장소가 한다. 여기서는 그 결과가 어긋나 있어도
-//   위 순서로 같은 답을 낸다.
+// - 저장 정책([RuleKindPolicy], [canonicalWeekdays], [rulesReplacedBy], [paramsToStore])은 여기 순수
+//   함수로 두고, 저장소(`data/repositories/rules_repository.dart`)가 그 결과로 한 트랜잭션에서 합치고
+//   끄고 되돌리기 기록을 남긴다. 규칙을 켜거나 끄거나 고치면 `updatedAt`을 지금으로 바꾸므로 다시 켠
+//   규칙은 나중에 저장한 규칙이 된다. 저장 결과가 어긋나 있어도 설정은 위 순서로 같은 답을 낸다.
 // - [validateRule]을 통과하지 못한 규칙(범위가 좁아진 뒤 남은 옛 규칙 등)은 설정에 넣지 않는다.
 // - 설정의 목록은 바꿀 수 없다. 같은 설정을 여러 계산(날마다의 빈 시간, 배치)이 함께 쓴다.
 
@@ -210,7 +212,7 @@ List<RuleIssue> validateRule(
   }
 
   if (weekdays != null) {
-    if (!shape.weekdays) {
+    if (!kind.allowsWeekdays) {
       issues.add(RuleIssue(RuleField.weekdays.name, RuleIssueKind.notAllowed));
     } else if (weekdays.isEmpty ||
         weekdays.toSet().length != weekdays.length ||
@@ -219,6 +221,111 @@ List<RuleIssue> validateRule(
     }
   }
   return issues;
+}
+
+/// 종류마다의 저장 정책. docs/architecture.md '내 규칙'의 표와 저장 규칙이고, 종류를 더하면 여기서
+/// 컴파일 오류가 나므로 빠뜨리지 않는다.
+extension RuleKindPolicy on RuleKind {
+  /// 하나만 두는 종류(`class_buffer`, `max_block`, `notify`). 새 값을 그 종류의 한 행에 합친다.
+  bool get singleRow => switch (this) {
+    RuleKind.classBuffer || RuleKind.maxBlock || RuleKind.notify => true,
+    RuleKind.travel ||
+    RuleKind.workWindow ||
+    RuleKind.blackout ||
+    RuleKind.preferred ||
+    RuleKind.dailyCap ||
+    RuleKind.meal ||
+    RuleKind.estimate => false,
+  };
+
+  /// 요일 집합이 같은 이전 규칙을 끄는 종류(`work_window`, `daily_cap`, `travel`). 요일이 일부만
+  /// 겹치면 둘 다 켜 두고 그 요일에는 나중에 저장한 규칙을 쓴다.
+  bool get replacesSameWeekdays => switch (this) {
+    RuleKind.workWindow || RuleKind.dailyCap || RuleKind.travel => true,
+    RuleKind.classBuffer ||
+    RuleKind.blackout ||
+    RuleKind.preferred ||
+    RuleKind.maxBlock ||
+    RuleKind.meal ||
+    RuleKind.estimate ||
+    RuleKind.notify => false,
+  };
+
+  /// 요일(`weekdays`)을 고를 수 있는 종류. 나머지는 늘 매일이다.
+  bool get allowsWeekdays => switch (this) {
+    RuleKind.travel ||
+    RuleKind.workWindow ||
+    RuleKind.blackout ||
+    RuleKind.preferred ||
+    RuleKind.dailyCap => true,
+    RuleKind.classBuffer ||
+    RuleKind.maxBlock ||
+    RuleKind.meal ||
+    RuleKind.estimate ||
+    RuleKind.notify => false,
+  };
+}
+
+/// 요일 목록을 저장하는 꼴로 바꾼다. 겹친 요일을 빼고 정렬하며, 일곱 요일 모두면 null(매일)이다.
+/// 저장소는 저장하기 전과 [rulesReplacedBy]의 비교에 이것을 써서 순서만 다른 목록과, 매일(null)과 일곱
+/// 요일 목록을 같은 요일 집합으로 본다.
+List<int>? canonicalWeekdays(List<int>? days) {
+  if (days == null) return null;
+  final sorted = {...days}.toList()..sort();
+  if (sorted.length == DateTime.daysPerWeek &&
+      sorted.first == DateTime.monday &&
+      sorted.last == DateTime.sunday) {
+    return null;
+  }
+  return List.unmodifiable(sorted);
+}
+
+/// [kind]·[params]·[weekdays]로 저장하는 새 규칙이 대신하는 기존 규칙. 나중에 저장한 것부터 늘어놓는다.
+///
+/// - 하나만 두는 종류: 그 종류의 행 전부(꺼진 행도). 저장소는 맨 앞 행에 새 값을 합쳐 켜고 나머지는 끈다.
+/// - 같은 요일을 대신하는 종류: 요일 집합([canonicalWeekdays]로 견줌)이 같은 켜진 행. 저장소가 끈다.
+/// - `estimate`: 과목·종류가 같은 켜진 행. 저장소가 끈다(같은 조합에 하나).
+/// - 그 밖(`blackout`, `preferred`, `meal`): 없다(여러 개 둔다).
+List<Rule> rulesReplacedBy(
+  RuleKind kind,
+  RuleParams params,
+  List<int>? weekdays,
+  Iterable<Rule> existing,
+) {
+  final sameKind = existing.where((rule) => rule.kind == kind);
+  final Iterable<Rule> replaced;
+  if (kind.singleRow) {
+    replaced = sameKind;
+  } else if (kind.replacesSameWeekdays) {
+    final days = canonicalWeekdays(weekdays);
+    replaced = sameKind.where(
+      (rule) =>
+          rule.active && _sameWeekdays(canonicalWeekdays(rule.weekdays), days),
+    );
+  } else if (kind == RuleKind.estimate) {
+    replaced = sameKind.where(
+      (rule) =>
+          rule.active &&
+          rule.params.courseId == params.courseId &&
+          rule.params.taskKind == params.taskKind,
+    );
+  } else {
+    replaced = const [];
+  }
+  return replaced.toList()..sort(_latestFirst);
+}
+
+/// [incoming]을 저장할 때 행에 남을 값. 하나만 두는 종류면 그 종류의 가장 최근 행(꺼진 행도)의 값 위에
+/// [incoming]을 합친 것이고, 그 밖에는 [incoming] 그대로다. 저장하는 쪽은 이 값을 [validateRule]로 먼저
+/// 검사한다(docs/architecture.md '내 규칙': 하나만 두는 종류는 합친 뒤의 값을 검사).
+RuleParams paramsToStore(
+  RuleKind kind,
+  RuleParams incoming,
+  Iterable<Rule> existing,
+) {
+  if (!kind.singleRow) return incoming;
+  final current = rulesReplacedBy(kind, incoming, null, existing).firstOrNull;
+  return current == null ? incoming : current.params.mergedWith(incoming);
 }
 
 /// 하루 안의 시각 구간. 자정 기준 분이고, 자정을 넘으면 [endMin]에 1440을 더한다.
@@ -483,50 +590,34 @@ final class NotifyConfig {
   final MinuteRange quietHours;
 }
 
-/// 종류마다 쓰는 값. [oneOf]가 비어 있지 않으면 그 가운데 하나 이상이 있어야 한다.
-typedef _Shape = ({
-  List<RuleField> required,
-  List<RuleField> oneOf,
-  bool weekdays,
-});
+/// 종류마다 쓰는 값. [oneOf]가 비어 있지 않으면 그 가운데 하나 이상이 있어야 한다. 요일을 쓰는지는
+/// [RuleKindPolicy.allowsWeekdays]다.
+typedef _Shape = ({List<RuleField> required, List<RuleField> oneOf});
 
 /// 종류마다 쓰는 값. 종류를 더하고 여기를 빠뜨리면 컴파일 오류가 난다. 목록은 [RuleField] 순서로 적는다.
 _Shape _shapeOf(RuleKind kind) => switch (kind) {
   RuleKind.travel => (
     required: const [RuleField.minutes, RuleField.position],
     oneOf: const [],
-    weekdays: true,
   ),
   RuleKind.classBuffer => (
     required: const [RuleField.minutes],
     oneOf: const [],
-    weekdays: false,
   ),
   RuleKind.workWindow || RuleKind.blackout || RuleKind.preferred => (
     required: const [RuleField.startMin, RuleField.endMin],
     oneOf: const [],
-    weekdays: true,
   ),
-  RuleKind.maxBlock => (
-    required: const [RuleField.minutes],
-    oneOf: const [],
-    weekdays: false,
-  ),
-  RuleKind.dailyCap => (
-    required: const [RuleField.minutes],
-    oneOf: const [],
-    weekdays: true,
-  ),
+  RuleKind.maxBlock => (required: const [RuleField.minutes], oneOf: const []),
+  RuleKind.dailyCap => (required: const [RuleField.minutes], oneOf: const []),
   RuleKind.meal => (
     required: const [RuleField.startMin, RuleField.endMin, RuleField.minutes],
     oneOf: const [],
-    weekdays: false,
   ),
   // 과목과 종류 가운데 하나는 있어야 한다. 둘 다 없는 '모든 할 일' 규칙은 두지 않는다.
   RuleKind.estimate => (
     required: const [RuleField.minutes],
     oneOf: const [RuleField.courseId, RuleField.taskKind],
-    weekdays: false,
   ),
   RuleKind.notify => (
     required: const [],
@@ -536,7 +627,6 @@ _Shape _shapeOf(RuleKind kind) => switch (kind) {
       RuleField.quietStartMin,
       RuleField.quietEndMin,
     ],
-    weekdays: false,
   ),
 };
 
@@ -595,10 +685,13 @@ List<Rule> _usableLatestFirst(Iterable<Rule> rules) =>
               ).isEmpty,
         )
         .toList()
-      ..sort((a, b) {
-        final byTime = b.updatedAt.compareTo(a.updatedAt);
-        return byTime != 0 ? byTime : b.id.compareTo(a.id);
-      });
+      ..sort(_latestFirst);
+
+/// 나중에 저장한 것(`updatedAt`, 같으면 `id`가 큰 것)이 앞이다.
+int _latestFirst(Rule a, Rule b) {
+  final byTime = b.updatedAt.compareTo(a.updatedAt);
+  return byTime != 0 ? byTime : b.id.compareTo(a.id);
+}
 
 /// [start]가 하루 안이고 [end]가 그보다 늦되 하루를 넘지 않는지 본다. 둘 다 있고 맞으면 구간 길이(분),
 /// 아니면 null이다. 둘 중 하나가 없으면 있는 쪽만 본다(없는 값은 필수 값 검사가 잡는다).
@@ -630,6 +723,10 @@ int _byStartThenEnd(MinuteRange a, MinuteRange b) {
   final byStart = a.startMin.compareTo(b.startMin);
   return byStart != 0 ? byStart : a.endMin.compareTo(b.endMin);
 }
+
+/// 두 요일 목록([canonicalWeekdays]의 결과)이 같은 요일 집합인지. null은 매일이다.
+bool _sameWeekdays(List<int>? a, List<int>? b) =>
+    a == null || b == null ? a == b : _listEquals(a, b);
 
 bool _listEquals<T>(List<T> a, List<T> b) {
   if (identical(a, b)) return true;
