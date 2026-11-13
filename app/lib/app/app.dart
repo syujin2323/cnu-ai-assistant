@@ -81,9 +81,15 @@ class _DemoFrame extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final demo = ref.watch(appModeProvider) == AppMode.demo;
+    final exit = ref.watch(demoExitProvider);
     return Column(
       children: [
-        if (demo) DemoBand(onExit: () => _exitDemo(ref)),
+        if (demo)
+          DemoBand(
+            onExit: () => ref.read(demoExitProvider.notifier).exit(),
+            exiting: exit == DemoExitState.exiting,
+            failed: exit == DemoExitState.failed,
+          ),
         Expanded(
           key: const ValueKey('app-navigator'),
           child: MediaQuery.removePadding(
@@ -94,15 +100,5 @@ class _DemoFrame extends ConsumerWidget {
         ),
       ],
     );
-  }
-
-  /// '끝내기': 데모 DB를 지우고 들어온 곳으로 돌아간다.
-  Future<void> _exitDemo(WidgetRef ref) async {
-    final entry = await ref
-        .read(appModeProvider.notifier)
-        .exitDemo(ref.read(databaseProvider));
-    ref
-        .read(routerProvider)
-        .go(entry == DemoEntry.me ? Routes.me : Routes.onboarding);
   }
 }

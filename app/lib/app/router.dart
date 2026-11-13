@@ -18,6 +18,7 @@
 // `route` 값과 딥링크)는 받지 않는다(`overridePlatformDefaultLocation`과 AndroidManifest의
 // `flutter_deeplinking_enabled` false). 뒤로 가기 제어는 `PopScope`만 쓴다. 탭 전환에는
 // 화면 전환 애니메이션을 쓰지 않는다(indexedStack).
+// 데모 끝내기(띠와 10 나)는 [demoExitProvider]가 데모 DB를 비운 뒤 들어온 곳으로 보낸다.
 
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
@@ -463,6 +464,50 @@ class StartRules {
   static bool _isDeferred(GoRouter router) {
     if (router.routerDelegate.currentConfiguration.isEmpty) return true;
     return _deferredPaths.contains(router.state.uri.path);
+  }
+}
+
+/// 데모 끝내기의 상태. 데모 띠와 10 나가 함께 본다.
+enum DemoExitState {
+  /// 끝내는 중이 아님.
+  idle,
+
+  /// 끝내는 중. 띠의 '끝내기'와 10 나의 '데모 모드 끝내기'를 막는다.
+  exiting,
+
+  /// 데모 DB를 비우지 못해 데모 모드 그대로다. 띠가 안내와 '다시 시도'를 보인다.
+  failed,
+}
+
+/// 데모를 끝내고 들어온 곳(14 온보딩 1단계나 10 나)으로 간다(docs/architecture.md '데모 모드').
+/// 데모 띠의 '끝내기'와 10 나의 '데모 모드 끝내기'가 함께 쓴다.
+final demoExitProvider = NotifierProvider<DemoExit, DemoExitState>(
+  DemoExit.new,
+);
+
+/// [demoExitProvider]의 노티파이어.
+class DemoExit extends Notifier<DemoExitState> {
+  @override
+  DemoExitState build() => DemoExitState.idle;
+
+  /// 데모를 끝낸다. 끝내는 중이면 아무것도 하지 않는다. 데모 DB를 비우지 못하면 데모 모드 그대로
+  /// [DemoExitState.failed]가 된다.
+  Future<void> exit() async {
+    if (state == DemoExitState.exiting) return;
+    state = DemoExitState.exiting;
+    final result = await ref
+        .read(appModeProvider.notifier)
+        .exitDemo(ref.read(databaseProvider));
+    if (!ref.mounted) return;
+    switch (result) {
+      case Ok(value: final entry):
+        state = DemoExitState.idle;
+        ref
+            .read(routerProvider)
+            .go(entry == DemoEntry.me ? Routes.me : Routes.onboarding);
+      case Err():
+        state = DemoExitState.failed;
+    }
   }
 }
 

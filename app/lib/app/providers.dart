@@ -11,15 +11,18 @@
 import 'dart:async';
 
 import 'package:cnu_ai_assistant/app/config.dart';
+import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/data/api/server_api.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/demo/demo_seed.dart';
+import 'package:cnu_ai_assistant/data/repositories/demo_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/rules_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/undo_repository.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
+import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -58,7 +61,17 @@ final appModeProvider = NotifierProvider<AppModeController, AppMode>(
 );
 
 /// 앱 모드를 읽고 바꾼다. 데모 모드 전환 장치(docs/architecture.md '데모 모드').
+///
+/// 샘플은 데모 DB를 열 때 넣고(`AppDatabase`의 데모 시드, [databaseProvider]가 넘김) 끝낼 때 비운다
+/// ([DemoRepository]). 이 노티파이어는 [databaseProvider]를 읽지 않는다. 그 provider가 이것을 보므로
+/// 읽으면 순환 의존이 되고, 모드를 바꾸기 전에 읽은 DB는 실제 DB일 수 있어 비우기를 잘못 붙이면 실제
+/// 데이터를 지운다. 들어가기와 끝내기는 진행 중이면 같은 Future를 돌려준다(두 번 눌러도 한 번만 함).
+/// 데모를 끝내면 데모 DB를 닫으므로 그때 돌던 데모 DB 저장은 닫힌 DB의 `StorageError`로 끝난다. 데모에
+/// 들어갈 때는 실제 DB(`app.sqlite`)가 열린 채라 그때 돌던 저장은 그대로 끝난다.
 class AppModeController extends Notifier<AppMode> {
+  Future<void>? _entering;
+  Future<Result<DemoEntry>>? _exiting;
+
   @override
   AppMode build() {
     final saved = ref
@@ -68,9 +81,10 @@ class AppModeController extends Notifier<AppMode> {
   }
 
   /// 데모 모드에 들어간다. 들어온 곳을 남기면 [databaseProvider]가 데모 DB 파일로 바뀐다.
-  ///
-  /// 샘플 데이터는 데모 DB를 열 때 표가 모두 비었으면 넣는다(`AppDatabase`의 데모 시드, [databaseProvider]가 넘김).
-  Future<void> enterDemo(DemoEntry entry) async {
+  Future<void> enterDemo(DemoEntry entry) =>
+      _entering ??= _enter(entry).whenComplete(() => _entering = null);
+
+  Future<void> _enter(DemoEntry entry) async {
     if (state == AppMode.demo) return;
     final preferences = ref.read(sharedPreferencesProvider);
     await preferences.setString(PrefKeys.demoEntry, entry.name);
@@ -80,12 +94,15 @@ class AppModeController extends Notifier<AppMode> {
     state = AppMode.demo;
   }
 
-  /// 데모 모드를 끝낸다. 데모 DB를 비우고 실제 DB로 돌아간 뒤, 들어온 곳을 돌려준다.
+  /// 데모 모드를 끝낸다. 데모 DB를 비우고 실제 DB로 돌아간 뒤, 들어온 곳을 돌려준다. 데모 DB를 비우지
+  /// 못하면 모드를 바꾸지 않고 [Err]다(데모 띠가 안내한다).
   ///
-  /// [demoDatabase]는 부르는 쪽이 `databaseProvider`에서 읽어 넘긴 지금의 데모 DB다.
-  /// [databaseProvider]가 이 provider를 보므로 이 노티파이어가 그것을 `ref.read`하면
-  /// 순환 의존(Riverpod `CircularDependencyError`)이 된다. 데모 모드가 아니면 비우지 않는다.
-  Future<DemoEntry> exitDemo(AppDatabase demoDatabase) async {
+  /// [demoDatabase]는 부르는 쪽이 `databaseProvider`에서 읽어 넘긴 지금의 데모 DB다. 데모 모드가 아니면
+  /// 비우지 않는다.
+  Future<Result<DemoEntry>> exitDemo(AppDatabase demoDatabase) =>
+      _exiting ??= _exit(demoDatabase).whenComplete(() => _exiting = null);
+
+  Future<Result<DemoEntry>> _exit(AppDatabase demoDatabase) async {
     final preferences = ref.read(sharedPreferencesProvider);
     final entry =
         DemoEntry.values.asNameMap()[preferences.getString(
@@ -94,25 +111,16 @@ class AppModeController extends Notifier<AppMode> {
         (preferences.getBool(PrefKeys.onboardingDone) ?? false
             ? DemoEntry.me
             : DemoEntry.onboarding);
-    if (state != AppMode.demo) return entry;
-    await _clearDatabase(demoDatabase);
+    if (state != AppMode.demo) return Ok(entry);
+    if (await DemoRepository(demoDatabase).clearAll() case Err(:final error)) {
+      appLog('demo_exit_failed', area: 'app', data: errorLogData(error));
+      return Err(error);
+    }
     await preferences.setString(PrefKeys.appMode, AppMode.real.name);
     await preferences.remove(PrefKeys.demoEntry);
     // (알림은 재설계 예정) 재설계 때 다시 본다. 그전까지 여기에 알림 코드를 붙이지 않는다.
-    if (!ref.mounted) return entry;
-    state = AppMode.real;
-    return entry;
-  }
-
-  /// 데모 DB의 모든 표를 비운다. 데모 DB는 실제 DB와 다른 파일이라 실제 데이터에는 닿지 않는다.
-  static Future<void> _clearDatabase(AppDatabase db) {
-    return db.transaction(() async {
-      // 표 사이 외래 키가 지우는 순서에 걸리지 않게 검사를 트랜잭션 끝으로 미룬다.
-      await db.customStatement('PRAGMA defer_foreign_keys = ON');
-      for (final table in db.allTables) {
-        await db.delete(table).go();
-      }
-    });
+    if (ref.mounted) state = AppMode.real;
+    return Ok(entry);
   }
 }
 
