@@ -183,6 +183,11 @@ void main() {
         (SettingKeys.aiConsentAt, '2026-10-29'),
         (SettingKeys.metricsLastSentOn, '2026-10-32'),
         (SettingKeys.onboardingSkipped, null),
+        // 건너뛴 온보딩 단계는 1–5의 중복 없는 오름차순 목록만 쓴다.
+        (SettingKeys.onboardingSkipped, [0]),
+        (SettingKeys.onboardingSkipped, [6]),
+        (SettingKeys.onboardingSkipped, [3, 3]),
+        (SettingKeys.onboardingSkipped, [4, 3]),
       ];
       for (final (key, value) in invalid) {
         await expectLater(
@@ -196,6 +201,14 @@ void main() {
   });
 
   group('settings 읽기', () {
+    test('건너뛴 온보딩 단계는 1–5 밖의 수와 중복을 버리고 오름차순으로 읽는다', () async {
+      await putRaw(SettingKeys.onboardingSkipped, '[0, 3, 3, 9]');
+      expect((await readOk()).onboardingSkipped, [3]);
+
+      await putRaw(SettingKeys.onboardingSkipped, '[5, 2, 5]');
+      expect((await readOk()).onboardingSkipped, [2, 5]);
+    });
+
     test('저장된 값이 깨졌거나 형이 다르면 그 키만 기본값으로 읽는다', () async {
       await writeOk(SettingKeys.metricsEnabled, true);
       await putRaw(SettingKeys.dayBoundaryMin, 'not json');
