@@ -1,4 +1,5 @@
 import 'package:cnu_ai_assistant/domain/defaults.dart';
+import 'package:cnu_ai_assistant/domain/rules.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -19,8 +20,79 @@ void main() {
       expect(clockText(1560), '오전 2시');
     });
 
-    test('음수는 받지 않는다', () {
+    test('자정을 넘은 값은 2879까지 받고, 음수와 2880부터는 받지 않는다', () {
+      expect(clockText(2879), '오후 11시 59분');
       expect(() => clockText(-1), throwsRangeError);
+      expect(() => clockText(2880), throwsRangeError);
+    });
+  });
+
+  group('hhmmText', () {
+    test('화면의 시각은 24시간제 두 자리로 적는다', () {
+      expect(hhmmText(0), '00:00');
+      expect(hhmmText(5), '00:05');
+      expect(hhmmText(570), '09:30');
+      expect(hhmmText(780), '13:00');
+      expect(hhmmText(1439), '23:59');
+    });
+
+    test('자정을 넘는 끝 시각(1440부터)과 음수는 아직 받지 않는다', () {
+      expect(() => hhmmText(1440), throwsRangeError);
+      expect(() => hhmmText(-1), throwsRangeError);
+    });
+  });
+
+  group('shortClockText', () {
+    test('칩의 시각은 오전·오후와 H:MM으로 적는다', () {
+      expect(shortClockText(360), '오전 6:00');
+      expect(shortClockText(480), '오전 8:00');
+      expect(shortClockText(570), '오전 9:30');
+      expect(shortClockText(720), '오후 12:00');
+      expect(shortClockText(750), '오후 12:30');
+      expect(shortClockText(60), '오전 1:00');
+      expect(shortClockText(1439), '오후 11:59');
+    });
+
+    test('브리핑 시각 칩은 오전 6:00부터 오후 12:00까지이고 기본은 오전 8:00이다', () {
+      final chips = RuleLimits.briefingChoices.map(shortClockText).toList();
+      expect(chips.first, '오전 6:00');
+      expect(chips[1], '오전 6:30');
+      expect(chips.last, '오후 12:00');
+      expect(shortClockText(Defaults.briefingMin), '오전 8:00');
+    });
+
+    test('자정 무렵(00:00–00:59)과 1440부터는 아직 받지 않는다', () {
+      expect(() => shortClockText(0), throwsRangeError);
+      expect(() => shortClockText(59), throwsRangeError);
+      expect(() => shortClockText(1440), throwsRangeError);
+    });
+  });
+
+  group('dueText', () {
+    final now = DateTime(2026, 10, 12, 12);
+
+    String due(DateTime? at, {bool unknown = false}) => dueText(
+      at,
+      dueTimeUnknown: unknown,
+      now: now,
+      dayBoundaryMin: Defaults.dayBoundaryMin,
+    );
+
+    test("날짜 말과 HH:MM에 '마감'을 붙인다", () {
+      expect(due(DateTime(2026, 10, 12, 23, 59)), '오늘 23:59 마감');
+      expect(due(DateTime(2026, 10, 13, 9)), '내일 09:00 마감');
+      expect(due(DateTime(2026, 10, 16, 18, 30)), '금요일 18:30 마감');
+      expect(due(DateTime(2026, 10, 11, 23, 59)), '어제 23:59 마감');
+    });
+
+    test('시각을 모르면 시각 미상, 마감이 없으면 마감 없음이다', () {
+      // 날짜만 있는 마감은 그날 23:59로 저장하고 시각을 모른다고 표시한다.
+      expect(
+        due(DateTime(2026, 10, 13, 23, 59), unknown: true),
+        '내일 마감 · 시각 미상',
+      );
+      expect(due(null), '마감 없음');
+      expect(due(null, unknown: true), '마감 없음');
     });
   });
 
