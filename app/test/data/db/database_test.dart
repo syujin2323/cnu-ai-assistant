@@ -1,7 +1,10 @@
 import 'dart:convert';
 
 import 'package:cnu_ai_assistant/data/db/database.dart';
+import 'package:cnu_ai_assistant/data/repositories/guard_storage.dart';
+import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
+import 'package:cnu_ai_assistant/domain/timetable_checks.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart' show SqliteException;
 import 'package:flutter_test/flutter_test.dart';
@@ -325,38 +328,328 @@ void main() {
     );
   });
 
-  test('sync_lease와 undo_log는 id 1의 한 행만 둔다', () async {
-    final lease = SyncLeasesCompanion.insert(
-      id: const Value(1),
-      holder: LeaseHolder.foreground,
+  test('sync_lease와 undo_log는 id를 넣지 않아도 id 1의 한 행만 둔다', () async {
+    SyncLeasesCompanion lease(LeaseHolder holder) => SyncLeasesCompanion.insert(
+      holder: holder,
+      token: 'token-${holder.name}',
       expiresAt: at,
     );
-    await db.into(db.syncLeases).insertOnConflictUpdate(lease);
     await db
         .into(db.syncLeases)
-        .insertOnConflictUpdate(
-          lease.copyWith(holder: const Value(LeaseHolder.background)),
-        );
+        .insertOnConflictUpdate(lease(LeaseHolder.foreground));
+    await db
+        .into(db.syncLeases)
+        .insertOnConflictUpdate(lease(LeaseHolder.background));
     final leases = await db.select(db.syncLeases).get();
+    expect(leases.single.id, 1);
     expect(leases.single.holder, LeaseHolder.background);
+    expect(leases.single.token, 'token-background');
     expect(await rawText('SELECT holder FROM sync_lease'), 'background');
 
+    // 지운 뒤 다시 넣어도 id는 1이다(자동 증가였을 때는 2가 되어 CHECK에 걸렸다).
+    await db.delete(db.syncLeases).go();
+    await db.into(db.syncLeases).insert(lease(LeaseHolder.foreground));
+    expect((await db.select(db.syncLeases).getSingle()).id, 1);
+    // 두 번째 행은 기본 키(id 1)가 겹치고, 다른 id는 CHECK가 막는다.
     await expectLater(
-      db.into(db.syncLeases).insert(lease.copyWith(id: const Value(2))),
+      db.into(db.syncLeases).insert(lease(LeaseHolder.background)),
       throwsA(isA<SqliteException>()),
     );
     await expectLater(
       db
-          .into(db.undoLog)
-          .insert(
-            UndoLogCompanion.insert(
-              id: const Value(2),
-              targetTable: 'rules',
-              action: UndoAction.delete,
-              createdAt: at,
-            ),
-          ),
+          .into(db.syncLeases)
+          .insert(lease(LeaseHolder.background).copyWith(id: const Value(2))),
       throwsA(isA<SqliteException>()),
     );
+
+    UndoLogCompanion undo(UndoAction action) => UndoLogCompanion.insert(
+      targetTable: 'rules',
+      action: action,
+      createdAt: at,
+    );
+    await db.into(db.undoLog).insertOnConflictUpdate(undo(UndoAction.insert));
+    await db.into(db.undoLog).insertOnConflictUpdate(undo(UndoAction.delete));
+    final undos = await db.select(db.undoLog).get();
+    expect(undos.single.id, 1);
+    expect(undos.single.action, UndoAction.delete);
+    await expectLater(
+      db
+          .into(db.undoLog)
+          .insert(undo(UndoAction.update).copyWith(id: const Value(2))),
+      throwsA(isA<SqliteException>()),
+    );
+  });
+
+  test('같은 LMS 항목의 할 일과 같은 학기·LMS 과목 ID의 과목은 두 행이 될 수 없다', () async {
+    final courseId = await addCourse();
+    await addLmsItem(courseId, '1:1:assignment:1');
+    TasksCompanion task(String? lmsKey) => TasksCompanion.insert(
+      title: '과제1',
+      kind: TaskKind.assignment,
+      dueTimeUnknown: false,
+      status: TaskStatus.todo,
+      lmsKey: Value(lmsKey),
+    );
+    await db.into(db.tasks).insert(task('1:1:assignment:1'));
+    await expectLater(
+      db.into(db.tasks).insert(task('1:1:assignment:1')),
+      throwsA(isA<SqliteException>()),
+    );
+    // 직접 만든 할 일(lmsKey null)은 여럿이어도 된다.
+    await db.into(db.tasks).insert(task(null));
+    await db.into(db.tasks).insert(task(null));
+
+    CoursesCompanion course(String? remoteId, String? semester) =>
+        CoursesCompanion.insert(
+          name: '과목B',
+          remoteId: Value(remoteId),
+          semester: Value(semester),
+        );
+    await db.into(db.courses).insert(course('c1', '2026-2'));
+    await expectLater(
+      db.into(db.courses).insert(course('c1', '2026-2')),
+      throwsA(isA<SqliteException>()),
+    );
+    // 학기가 다르거나 직접 만든 과목(remoteId null)이면 된다.
+    await db.into(db.courses).insert(course('c1', '2026-1'));
+    await db.into(db.courses).insert(course(null, null));
+    await db.into(db.courses).insert(course(null, null));
+  });
+
+  test(
+    '자식 키로 찾는 인덱스를 둔다(plan_blocks의 할 일, class_exceptions의 수업 칸·날짜)',
+    () async {
+      Future<List<String>> columnsOf(String index) async => [
+        for (final row
+            in await db.customSelect('PRAGMA index_info($index)').get())
+          row.read<String>('name'),
+      ];
+      expect(await columnsOf('plan_blocks_task_id'), ['task_id']);
+      expect(await columnsOf('class_exceptions_slot_date'), [
+        'class_slot_id',
+        'date',
+      ]);
+    },
+  );
+
+  group('CHECK', () {
+    /// 확장 결과 코드 275: SQLITE_CONSTRAINT_CHECK.
+    final checkFailed = throwsA(
+      isA<SqliteException>().having(
+        (error) => error.extendedResultCode,
+        'extendedResultCode',
+        275,
+      ),
+    );
+
+    /// 넣을 수 있으면 true, CHECK에 걸리면 false.
+    Future<bool> accepted(Future<Object?> Function() insert) async {
+      try {
+        await insert();
+        return true;
+      } on SqliteException catch (error) {
+        expect(error.extendedResultCode, 275, reason: '$error');
+        return false;
+      }
+    }
+
+    test(
+      '수업 칸은 요일 1–7, 시작 0–1439, 끝이 시작보다 늦고 하루보다 짧아야 하고 Dart 검사와 같다',
+      () async {
+        final courseId = await addCourse();
+        // (요일, 시작, 끝). 22:00–02:00은 1320–1560으로 적는다.
+        const samples = [
+          (1, 540, 600),
+          (7, 540, 600),
+          (0, 540, 600),
+          (8, 540, 600),
+          (3, 0, 1),
+          (3, 1439, 2878),
+          (3, 1320, 1560),
+          (3, -1, 60),
+          (3, 1440, 1500),
+          (3, 600, 600),
+          (3, 600, 500),
+          (3, 600, 2040),
+          (3, 600, 2039),
+        ];
+        for (final (weekday, startMin, endMin) in samples) {
+          final dart = checkClassSlot(
+            weekday: weekday,
+            startMin: startMin,
+            endMin: endMin,
+          ).isEmpty;
+          final db0 = await accepted(
+            () => db
+                .into(db.classSlots)
+                .insert(
+                  ClassSlotsCompanion.insert(
+                    courseId: courseId,
+                    weekday: weekday,
+                    startMin: startMin,
+                    endMin: endMin,
+                    campus: Campus.boun,
+                    online: false,
+                    source: SlotSource.manual,
+                  ),
+                ),
+          );
+          expect(db0, dart, reason: '($weekday, $startMin, $endMin)');
+        }
+      },
+    );
+
+    test('고정 일정은 시작 0–1439, 끝이 시작보다 늦고 하루보다 짧고, 앞뒤 여유가 0 이상이어야 하고 Dart 검사가 이를 먼저 본다', () async {
+      // (요일들, 시작, 끝, 앞뒤 여유, DB가 받는지). 앞뒤 여유의 위 끝(60)과 요일 값은 DB에 걸지 않고
+      // Dart 검사만 본다.
+      const samples = [
+        ([1, 2, 3, 4, 5], 720, 780, 0, true),
+        ([6, 7], 1320, 1560, 60, true),
+        ([1], 720, 780, 61, true),
+        (<int>[], 720, 780, 10, true),
+        ([0, 8], 720, 780, 10, true),
+        ([1, 1], 720, 780, 10, true),
+        ([1], 720, 780, -1, false),
+        ([1], 720, 720, 10, false),
+        ([1], 720, 2160, 10, false),
+        ([1], 1440, 1500, 10, false),
+      ];
+      for (final (weekdays, startMin, endMin, bufferMin, dbAccepts)
+          in samples) {
+        final dart = checkFixedBlock(
+          weekdays: weekdays,
+          startMin: startMin,
+          endMin: endMin,
+          bufferMin: bufferMin,
+        ).isEmpty;
+        final db0 = await accepted(
+          () => db
+              .into(db.fixedBlocks)
+              .insert(
+                FixedBlocksCompanion.insert(
+                  name: '알바',
+                  weekdays: weekdays,
+                  startMin: startMin,
+                  endMin: endMin,
+                  bufferMin: bufferMin,
+                  kind: FixedBlockKind.work,
+                  source: EntrySource.manual,
+                ),
+              ),
+        );
+        final reason = '($weekdays, $startMin, $endMin, $bufferMin)';
+        expect(db0, dbAccepts, reason: reason);
+        // Dart 검사는 DB보다 넓게 본다: DB가 거절하는 값은 Dart도 거절한다.
+        if (!dbAccepts) expect(dart, isFalse, reason: reason);
+      }
+      // 요일 목록은 JSON 배열이어야 한다(변환기를 거치지 않은 값).
+      for (final weekdays in ['not json', '{"1": true}']) {
+        await expectLater(
+          db.customStatement(
+            'INSERT INTO fixed_blocks (name, weekdays, start_min, end_min, '
+            "buffer_min, kind, source) VALUES ('x', ?, 720, 780, 0, 'work', "
+            "'manual')",
+            [weekdays],
+          ),
+          checkFailed,
+          reason: weekdays,
+        );
+      }
+    });
+
+    test('일정·할 일 블록은 끝이 시작보다 이를 수 없다(같으면 된다)', () async {
+      final courseId = await addCourse();
+      await addLmsItem(courseId, '1:1:quiz:1');
+      final taskId = await db
+          .into(db.tasks)
+          .insert(
+            TasksCompanion.insert(
+              title: '퀴즈',
+              kind: TaskKind.quiz,
+              dueTimeUnknown: false,
+              status: TaskStatus.todo,
+            ),
+          );
+      Future<int> event(DateTime endAt) => db
+          .into(db.events)
+          .insert(
+            EventsCompanion.insert(
+              title: '회의',
+              startAt: at,
+              endAt: endAt,
+              allDay: false,
+              source: EventSource.manual,
+            ),
+          );
+      Future<int> block(DateTime endAt) => db
+          .into(db.planBlocks)
+          .insert(
+            PlanBlocksCompanion.insert(
+              taskId: taskId,
+              startAt: at,
+              endAt: endAt,
+              status: PlanBlockStatus.confirmed,
+              source: BlockSource.manual,
+            ),
+          );
+      final earlier = at.subtract(const Duration(minutes: 1));
+      await event(at);
+      await block(at);
+      await expectLater(event(earlier), checkFailed);
+      await expectLater(block(earlier), checkFailed);
+    });
+
+    test('LMS 항목의 연속 미발견 횟수는 0 이상이다', () async {
+      final courseId = await addCourse();
+      await expectLater(
+        db
+            .into(db.lmsItems)
+            .insert(
+              LmsItemsCompanion.insert(
+                remoteKey: '1:1:video:9',
+                courseId: courseId,
+                courseName: '과목A',
+                title: '영상',
+                kind: LmsItemKind.video,
+                dueTimeUnknown: false,
+                firstSeenAt: at,
+                lastSeenAt: at,
+                missCount: -1,
+                contentHash: 'hash9',
+              ),
+            ),
+        checkFailed,
+      );
+    });
+
+    test('저장소가 감싼 쓰기가 CHECK에 걸리면 Err(StorageError, 코드 275)다', () async {
+      final courseId = await addCourse();
+      final result = await guardStorage(
+        'classSlots.insert',
+        () => db
+            .into(db.classSlots)
+            .insert(
+              ClassSlotsCompanion.insert(
+                courseId: courseId,
+                weekday: 8,
+                startMin: 540,
+                endMin: 600,
+                campus: Campus.boun,
+                online: false,
+                source: SlotSource.manual,
+              ),
+            ),
+      );
+      expect(
+        result,
+        const Err<int>(
+          StorageError(
+            'classSlots.insert',
+            causeType: 'SqliteException',
+            code: 275,
+          ),
+        ),
+      );
+    });
   });
 }
