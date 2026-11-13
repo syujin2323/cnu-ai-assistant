@@ -351,7 +351,7 @@ Future<String?> _redirect(
       appLog(
         'start_settings_read_failed',
         area: 'router',
-        data: {'error': error.toString()},
+        data: errorLogData(error),
       );
       return Routes.today;
   }
@@ -433,7 +433,7 @@ class StartRules {
         appLog(
           'resume_settings_read_failed',
           area: 'router',
-          data: {'error': error.toString()},
+          data: errorLogData(error),
         );
         return;
     }

@@ -11,3 +11,12 @@ abstract final class AppConfig {
     defaultValue: 'https://asia-northeast3-cnu-planner.cloudfunctions.net/api',
   );
 }
+
+/// [baseUrl]을 서버 주소로 써도 되는지. release 빌드는 https 주소만 받는다(Android 네트워크 보안 설정과
+/// iOS ATS는 dio 요청에 걸리지 않으므로 앱이 직접 막는다). debug·profile 빌드는 로컬 에뮬레이터의 http
+/// 주소를 받는다(docs/architecture.md '실행 방법').
+bool isAllowedApiBase(String baseUrl, {required bool release}) {
+  if (!release) return true;
+  final uri = Uri.tryParse(baseUrl);
+  return uri != null && uri.scheme == 'https' && uri.host.isNotEmpty;
+}

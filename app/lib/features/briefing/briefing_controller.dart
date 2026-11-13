@@ -27,7 +27,7 @@ final briefingOpenedTodayProvider = Provider<BriefingOpenedCheck>((ref) {
         appLog(
           'briefing_check_settings_failed',
           area: 'briefing',
-          data: {'error': error.toString()},
+          data: errorLogData(error),
         );
         return true;
     }

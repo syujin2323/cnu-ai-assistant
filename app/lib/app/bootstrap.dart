@@ -1,17 +1,21 @@
 // 앱 시작 순서. docs/architecture.md '실행 방법'.
 //
-// `Firebase.initializeApp` → App Check `activate` → Remote Config 설정·지난 실행에서 받은 값 적용 →
-// 실제 모드의 폰 DB 열기 → 시작 작업(설치 표식 확인, LMS 상태 정리, `app/startup.dart`) →
-// 지금 모드의 폰 DB 열기까지만 기다린 뒤 `runApp`을 부른다(`main.dart`). Remote Config
-// `fetchAndActivate()`([fetchRemoteConfigAfterLaunch])와 보관 기간이 지난 기록 정리는 runApp 뒤에
-// 시작하고 화면은 기다리지 않는다. 위젯 테스트는 Firebase 없이 `RootApp`만 띄우므로 이 파일을
-// 부르지 않는다.
+// 서버 주소 확인(release는 https만, [isAllowedApiBase]) → `Firebase.initializeApp` → App Check
+// `activate` → Remote Config 설정·앱 기본값·지난 실행에서 받은 값 적용(세 단계를 따로) → 실제 모드의 폰 DB
+// 열기 → 시작 작업(설치 표식 확인, LMS 상태 정리, `app/startup.dart`) → 지금 모드의 폰 DB 열기까지만
+// 기다린 뒤 `runApp`을 부른다(`main.dart`). 이 가운데 하나라도 실패하면 [BootFailed]를 돌려주고, main은
+// 앱 대신 20 시스템의 시작 실패 화면을 띄운다(OS 시작 화면에서 멈추지 않게). 먼저 시작한 준비도
+// 기다려, 그 오류가 잡히지 않은 채 남지 않게 한다. Remote Config `fetchAndActivate()`
+// ([fetchRemoteConfigAfterLaunch])와 보관 기간이 지난 기록 정리는 runApp 뒤에 시작하고 화면은
+// 기다리지 않는다. 위젯 테스트는 Firebase 없이 `RootApp`만 띄우므로 이 파일을 부르지 않는다.
 
 import 'dart:io' show Platform;
 
+import 'package:cnu_ai_assistant/app/config.dart';
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/startup.dart';
+import 'package:cnu_ai_assistant/app/startup_failure.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/remote_config.dart';
 import 'package:cnu_ai_assistant/data/secure_storage.dart';
@@ -31,12 +35,34 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// runApp 전에 기다릴 준비를 하고, 앱 전체가 쓸 provider 컨테이너를 돌려준다.
-///
-/// 폰 DB는 이 컨테이너의 `databaseProvider`로 열어 두므로, 첫 화면은 같은 인스턴스를 바로 읽는다.
-Future<ProviderContainer> bootstrap() async {
+/// 앱 시작의 결과.
+sealed class BootOutcome {
+  const BootOutcome();
+}
+
+/// 시작했다. [container]는 앱 전체가 쓸 provider 컨테이너이고, 폰 DB를 `databaseProvider`로 열어 두어
+/// 첫 화면이 같은 인스턴스를 바로 읽는다.
+final class BootReady extends BootOutcome {
+  const BootReady(this.container);
+
+  final ProviderContainer container;
+}
+
+/// 시작하지 못했다. [reason]으로 시작 실패 화면의 문구를 고른다.
+final class BootFailed extends BootOutcome {
+  const BootFailed(this.reason);
+
+  final StartupFailure reason;
+}
+
+/// runApp 전에 기다릴 준비를 한다. 실패해도 던지지 않고 [BootFailed]를 돌려준다. [다시 시도]로 여러 번
+/// 불릴 수 있다.
+Future<BootOutcome> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
-  _registerFontLicense();
+  if (!isAllowedApiBase(AppConfig.apiBase, release: kReleaseMode)) {
+    appLog('insecure_api_base', area: 'bootstrap');
+    return const BootFailed(StartupFailure.other);
+  }
 
   // Firebase와 상관없는 준비는 함께 시작해 시작 시간을 늘리지 않는다.
   // 세로 폰만 지원한다(docs/decisions.md 2026-11-06 '화면은 세로 폰만 지원한다'). targetSdk 36의
@@ -48,35 +74,66 @@ Future<ProviderContainer> bootstrap() async {
   final dateFormatting = initializeDateFormatting('ko');
   final androidSdkInt = _readAndroidSdkInt();
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await _activateAppCheck();
-  await _applyRemoteConfigDefaults();
+  AppDatabase? realDb;
+  ProviderContainer? container;
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+    await _activateAppCheck();
+    await configureRemoteConfig(FirebaseRemoteConfig.instance);
 
-  // 앱 모드와 관계없이 실제 모드의 폰 DB를 열고(처음이면 표를 만든다) 그 DB로 시작 작업을 한다.
-  // 설치 표식이 없으면 app_mode도 지우므로 appModeProvider가 읽기 전, 컨테이너를 만들기 전에 끝낸다.
-  // 데모 모드에서는 이 DB와 데모 DB가 함께 열린다. drift의 '같은 DB 클래스를 여러 번 만듦' 경고는
-  // 두 인스턴스가 같은 연결을 쓸 때를 알리는 것이고, 두 DB는 다른 파일이라 끈다.
-  driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
-  final sharedPreferences = await preferences;
-  final realDb = AppDatabase.open(AppMode.real);
-  await runStartupTasks(
-    realDb: realDb,
-    preferences: sharedPreferences,
-    secureStorage: appSecureStorage,
-  );
+    // 앱 모드와 관계없이 실제 모드의 폰 DB를 열고(처음이면 표를 만든다) 그 DB로 시작 작업을 한다.
+    // 시작 작업은 DB를 읽지 못해도 넘어가므로 여는 것은 먼저 따로 확인한다. 설치 표식이 없으면 app_mode도
+    // 지우므로 appModeProvider가 읽기 전, 컨테이너를 만들기 전에 끝낸다. 데모 모드에서는 이 DB와 데모 DB가
+    // 함께 열린다. drift의 '같은 DB 클래스를 여러 번 만듦' 경고는 두 인스턴스가 같은 연결을 쓸 때를 알리는
+    // 것이고, 두 DB는 다른 파일이라 끈다.
+    driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+    final sharedPreferences = await preferences;
+    realDb = AppDatabase.open(AppMode.real);
+    await realDb.customSelect('SELECT 1').get();
+    await runStartupTasks(
+      realDb: realDb,
+      preferences: sharedPreferences,
+      secureStorage: appSecureStorage,
+    );
 
-  final container = ProviderContainer(
-    overrides: [
-      sharedPreferencesProvider.overrideWithValue(sharedPreferences),
-      androidSdkIntProvider.overrideWithValue(await androidSdkInt),
-      realDatabaseProvider.overrideWithValue(realDb),
-    ],
-  );
-  await dateFormatting;
-  await orientation;
-  // 지금 모드의 폰 DB를 연다(데모면 데모 DB). 첫 화면이 기다리지 않고 DB를 읽게 여기서 끝낸다.
-  await container.read(databaseProvider).customSelect('SELECT 1').get();
-  return container;
+    container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+        androidSdkIntProvider.overrideWithValue(await androidSdkInt),
+        realDatabaseProvider.overrideWithValue(realDb),
+      ],
+    );
+    await dateFormatting;
+    await orientation;
+    // 지금 모드의 폰 DB를 연다(데모면 데모 DB). 첫 화면이 기다리지 않고 DB를 읽게 여기서 끝낸다.
+    await container.read(databaseProvider).customSelect('SELECT 1').get();
+    return BootReady(container);
+  } catch (error) {
+    appLog(
+      'bootstrap_failed',
+      area: 'bootstrap',
+      data: {'error': errorKind(error)},
+    );
+    container?.dispose();
+    await _settle([realDb?.close(), orientation, preferences, dateFormatting]);
+    return BootFailed(classifyStartupError(error));
+  }
+}
+
+/// [futures]가 모두 끝나기를 기다리고 오류는 버린다(실패한 시작을 정리할 때).
+Future<void> _settle(List<Future<Object?>?> futures) async {
+  for (final future in futures) {
+    if (future == null) continue;
+    try {
+      await future;
+    } catch (_) {
+      // 시작이 이미 실패했다. 정리 중의 오류는 화면에 더할 것이 없다.
+    }
+  }
 }
 
 /// runApp 뒤에 부른다. 보관 기간이 지난 기록을 실제 DB에서 지운다. 화면은 기다리지 않는다.
@@ -100,8 +157,9 @@ Future<void> fetchRemoteConfigAfterLaunch(ProviderContainer container) async {
   }
 }
 
-/// 번들한 Pretendard 글꼴의 OFL을 '오픈소스 라이선스' 화면에 올린다.
-void _registerFontLicense() {
+/// 번들한 Pretendard 글꼴의 OFL을 '오픈소스 라이선스' 화면에 올린다. main에서 한 번 부른다(시작을 다시
+/// 시도해도 한 번만 올리게).
+void registerFontLicense() {
   LicenseRegistry.addLicense(() async* {
     final text = await rootBundle.loadString('assets/fonts/OFL.txt');
     yield LicenseEntryWithLineBreaks(const ['Pretendard'], text);
@@ -124,20 +182,6 @@ Future<void> _activateAppCheck() async {
   } catch (error) {
     appLog(
       'app_check_activate_failed',
-      area: 'bootstrap',
-      data: {'error': errorKind(error)},
-    );
-  }
-}
-
-/// Remote Config의 가져오기 설정과 앱 기본값을 넣고, 지난 실행에서 받아 둔 값을 적용한다.
-/// 실패해도 앱은 뜨고, 그때는 Remote Config를 읽는 쪽이 기본값으로 동작한다.
-Future<void> _applyRemoteConfigDefaults() async {
-  try {
-    await configureRemoteConfig(FirebaseRemoteConfig.instance);
-  } catch (error) {
-    appLog(
-      'remote_config_setup_failed',
       area: 'bootstrap',
       data: {'error': errorKind(error)},
     );
