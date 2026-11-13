@@ -108,7 +108,7 @@ class OnboardingController extends AsyncNotifier<OnboardingState> {
         appLog(
           'onboarding_start_read_failed',
           area: 'onboarding',
-          data: {'error': error.toString()},
+          data: errorLogData(error),
         );
         return OnboardingStep.login;
     }
@@ -178,7 +178,7 @@ class OnboardingController extends AsyncNotifier<OnboardingState> {
       appLog(
         'onboarding_briefing_time_save_failed',
         area: 'onboarding',
-        data: {'error': error.toString()},
+        data: errorLogData(error),
       );
     }
     return _next();
@@ -212,7 +212,7 @@ class OnboardingController extends AsyncNotifier<OnboardingState> {
         appLog(
           'onboarding_dev_login_skip_failed',
           area: 'onboarding',
-          data: {'error': error.toString()},
+          data: errorLogData(error),
         );
         return false;
       }
@@ -295,7 +295,7 @@ class OnboardingController extends AsyncNotifier<OnboardingState> {
       appLog(
         'onboarding_settings_save_failed',
         area: 'onboarding',
-        data: {'keys': values.keys.join(','), 'error': error.toString()},
+        data: {'count': values.length, ...errorLogData(error)},
       );
     }
   }
@@ -303,6 +303,6 @@ class OnboardingController extends AsyncNotifier<OnboardingState> {
   static void _logStorageFailure(AppError error) => appLog(
     'onboarding_skipped_save_failed',
     area: 'onboarding',
-    data: {'error': error.toString()},
+    data: errorLogData(error),
   );
 }

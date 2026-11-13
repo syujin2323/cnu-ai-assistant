@@ -174,7 +174,7 @@ class _LoginFormState extends ConsumerState<LoginForm> {
       appLog(
         'privacy_consent_write_failed',
         area: 'lms',
-        data: {'error': error.toString()},
+        data: errorLogData(error),
       );
     }
   }

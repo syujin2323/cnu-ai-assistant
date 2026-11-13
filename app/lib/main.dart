@@ -2,16 +2,19 @@
 //
 // 루트 provider scope는 이 파일 한 곳뿐이다. bootstrap이 만든 컨테이너(SharedPreferences를
 // `sharedPreferencesProvider`로 덮어쓰고 폰 DB를 열어 둔 것)를 그대로 쓰기 위해
-// `UncontrolledProviderScope`로 둔다.
+// `UncontrolledProviderScope`로 둔다. 잡히지 않은 오류의 처리기는 가장 먼저 건다.
 
 import 'dart:async';
 
 import 'package:cnu_ai_assistant/app/app.dart';
 import 'package:cnu_ai_assistant/app/bootstrap.dart';
+import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  installErrorHandlers();
   final container = await bootstrap();
   runApp(
     UncontrolledProviderScope(container: container, child: const RootApp()),

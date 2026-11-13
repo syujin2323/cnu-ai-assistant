@@ -132,4 +132,4 @@ Future<void> _settleLmsSessionState(
 }
 
 void _logFailure(String event, AppError error) =>
-    appLog(event, area: 'startup', data: {'error': error.toString()});
+    appLog(event, area: 'startup', data: errorLogData(error));
