@@ -1,23 +1,18 @@
-// 앱이 뜨고 네 탭이 보이는지 보는 화면 테스트와 시작 위치·라우트 표·데모 전환 테스트.
-// docs/architecture.md '확인과 CI', '화면 이동', '데모 모드'.
+// 앱이 뜨고 네 탭과 AI 비서 버튼이 보이는지 보는 화면 테스트와 시작 위치·라우트 표·데모 전환 테스트.
+// docs/architecture.md '확인과 CI', '화면 이동', '데모 모드', docs/screens.md '하단 탭과 AI 비서 버튼'.
 //
-// Firebase 없이 RootApp만 띄운다. ProviderScope overrides로 폰 DB는 메모리 DB, 모션 등급은 off,
-// SharedPreferences는 모의 값, 오늘 브리핑을 열었는지는 정해 둔 값으로 바꾼다.
+// RootApp은 test/helpers/pump_app.dart로 띄운다(Firebase 없이 메모리 DB와 모의 SharedPreferences).
 // 모든 검사를 글자 배율 1.0과 2.0에서 돌려 넘침(RenderFlex overflow) 예외가 없어야 한다.
 
 import 'dart:io';
 
-import 'package:cnu_ai_assistant/app/app.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
-import 'package:cnu_ai_assistant/data/db/database.dart';
-import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
+import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_tab_bar.dart';
 import 'package:cnu_ai_assistant/design/widgets/demo_band.dart';
-import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_screen.dart';
-import 'package:cnu_ai_assistant/features/briefing/briefing_controller.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_screen.dart';
 import 'package:cnu_ai_assistant/features/calendar/month_screen.dart';
 import 'package:cnu_ai_assistant/features/calendar/week_screen.dart';
@@ -30,11 +25,13 @@ import 'package:cnu_ai_assistant/features/tasks/task_list_screen.dart';
 import 'package:cnu_ai_assistant/features/today/day_screen.dart';
 import 'package:cnu_ai_assistant/features/today/today_screen.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import '../helpers/pump_app.dart';
+
+/// 하단 탭 라벨(docs/screens.md '하단 탭과 AI 비서 버튼'의 순서).
+const _tabLabels = ['오늘', '캘린더', '할 일', '나'];
 
 void main() {
   // 모드마다 다른 메모리 DB 두 개를 함께 열어 둔다. drift의 '같은 DB 클래스를 여러 번 만듦' 경고는
@@ -43,13 +40,9 @@ void main() {
 
   for (final textScale in [1.0, 2.0]) {
     group('글자 배율 $textScale', () {
-      testWidgets('온보딩을 끝냈고 오늘 브리핑을 열었으면 /today에 네 탭이 보이고 '
+      testWidgets('로그인했고 오늘 브리핑을 열었으면 /today에 네 탭이 보이고 '
           '탭을 누르면 각 화면으로 간다', (tester) async {
-        final app = await _pumpApp(
-          tester,
-          preferences: {'onboarding_done': true},
-          textScale: textScale,
-        );
+        final app = await pumpTestApp(tester, textScale: textScale);
 
         expect(find.byType(TodayScreen), findsOneWidget);
         // 최근 앱 목록에 보이는 이름(MaterialApp.title)도 표시 이름과 같다.
@@ -63,65 +56,111 @@ void main() {
               .scale(10),
           10 * textScale,
         );
-        for (final label in ['오늘', '캘린더', '과제', '나']) {
-          expect(_tab(label), findsOneWidget, reason: '탭 라벨 $label');
-          // 탭마다 따로 읽히는 버튼이고, 지금 탭만 선택됨으로 읽힌다.
-          expect(
-            tester.getSemantics(_tab(label)),
-            isSemantics(
-              label: label,
-              isButton: true,
-              hasSelectedState: true,
-              isSelected: label == '오늘',
-              hasTapAction: true,
-            ),
-            reason: '탭 접근성 $label',
-          );
-        }
+        _expectTabs(tester, selected: '오늘');
 
-        await _tapTab(tester, '캘린더');
+        await tapTab(tester, '캘린더');
         expect(find.byType(MonthScreen), findsOneWidget);
         expect(find.byType(TodayScreen), findsNothing);
+        _expectTabs(tester, selected: '캘린더');
 
-        await _tapTab(tester, '과제');
+        await tapTab(tester, '할 일');
         expect(find.byType(TaskListScreen), findsOneWidget);
+        _expectTabs(tester, selected: '할 일');
 
-        await _tapTab(tester, '나');
+        await tapTab(tester, '나');
         expect(find.byType(MeScreen), findsOneWidget);
         // 10 나에는 맨 위 앱 이름 옆에만 비공식 표시를 둔다(docs/screens.md ''충남대 비공식 앱' 표시').
         expect(find.text(AppStrings.unofficialShort), findsOneWidget);
         expect(find.textContaining('학교와 관계없는'), findsNothing);
 
-        await _tapTab(tester, '오늘');
+        await tapTab(tester, '오늘');
         expect(find.byType(TodayScreen), findsOneWidget);
         expect(find.byType(MeScreen), findsNothing);
 
         await app.dispose(tester);
       });
 
+      testWidgets('탭바 옆 AI 비서 버튼은 06 AI 비서를 열고, 뒤로 가면 그 탭으로 돌아온다', (
+        tester,
+      ) async {
+        final app = await pumpTestApp(tester, textScale: textScale);
+        await tapTab(tester, '할 일');
+
+        final button = assistantButton();
+        expect(button, findsOneWidget);
+        expect(
+          tester.getSemantics(button),
+          isSemantics(
+            label: AppStrings.askAssistant,
+            isButton: true,
+            hasTapAction: true,
+          ),
+        );
+        final size = tester.getSize(button);
+        expect(size.width, greaterThanOrEqualTo(AppSize.minTouch));
+        expect(size.height, greaterThanOrEqualTo(AppSize.minTouch));
+
+        await tester.tap(button);
+        await tester.pumpAndSettle();
+        expect(find.byType(AssistantScreen), findsOneWidget);
+        expect(find.text('AI 비서'), findsOneWidget);
+        expect(find.byType(AppTabBar), findsNothing);
+        expect(app.router.state.uri.path, Routes.assistant);
+
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+        expect(find.byType(AssistantScreen), findsNothing);
+        expect(find.byType(TaskListScreen), findsOneWidget);
+        _expectTabs(tester, selected: '할 일');
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('탭을 바꿔도 각 탭의 화면이 남고, 지금 탭을 다시 누르면 그 탭의 첫 화면으로 돌아간다', (
+        tester,
+      ) async {
+        final app = await pumpTestApp(tester, textScale: textScale);
+
+        app.router.go(Routes.day('2026-10-29'));
+        await tester.pumpAndSettle();
+        expect(find.byType(DayScreen), findsOneWidget);
+
+        await tapTab(tester, '나');
+        expect(find.byType(MeScreen), findsOneWidget);
+        expect(find.byType(DayScreen), findsNothing);
+
+        // 다른 탭에서 돌아오면 그 탭에서 보던 화면이 그대로다.
+        await tapTab(tester, '오늘');
+        expect(find.byType(DayScreen), findsOneWidget);
+
+        // 지금 탭을 다시 누르면 그 탭의 첫 화면으로 돌아간다.
+        await tapTab(tester, '오늘');
+        expect(find.byType(TodayScreen), findsOneWidget);
+        expect(find.byType(DayScreen), findsNothing);
+
+        await app.dispose(tester);
+      });
+
       group('시작 위치', () {
-        testWidgets('온보딩을 끝내지 않았으면 /onboarding으로 간다', (tester) async {
-          final app = await _pumpApp(
+        testWidgets('처음 설치했으면 /onboarding으로 간다', (tester) async {
+          final app = await pumpTestApp(
             tester,
-            preferences: {},
+            start: TestStart.fresh,
             textScale: textScale,
           );
 
           expect(find.byType(OnboardingScreen), findsOneWidget);
           expect(find.byType(AppTabBar), findsNothing);
           // 첫 화면 맨 아래의 표시까지 내려 본다(글자가 크면 처음에는 그려지지 않는다).
-          await _scrollTo(tester, find.text(AppStrings.unofficialShort));
+          await scrollTo(tester, find.text(AppStrings.unofficialShort));
           expect(find.text('시작하기'), findsOneWidget);
 
           await app.dispose(tester);
         });
 
-        testWidgets('온보딩을 끝냈고 오늘 브리핑을 아직 열지 않았으면 /briefing으로 간다', (
-          tester,
-        ) async {
-          final app = await _pumpApp(
+        testWidgets('로그인했고 오늘 브리핑을 아직 열지 않았으면 /briefing으로 간다', (tester) async {
+          final app = await pumpTestApp(
             tester,
-            preferences: {'onboarding_done': true},
             briefingOpenedToday: false,
             textScale: textScale,
           );
@@ -129,16 +168,42 @@ void main() {
           expect(find.byType(BriefingScreen), findsOneWidget);
           expect(find.byType(AppTabBar), findsNothing);
 
-          await _tapText(tester, '오늘로 가기');
+          await tapText(tester, '오늘로 가기');
           expect(find.byType(TodayScreen), findsOneWidget);
 
           await app.dispose(tester);
         });
 
-        testWidgets('알림 payload가 온보딩보다 먼저다', (tester) async {
-          final app = await _pumpApp(
+        testWidgets('오늘 브리핑을 열었는지 확인하지 못하면 /today로 간다', (tester) async {
+          final app = await pumpTestApp(
             tester,
-            preferences: {},
+            briefingCheckFails: true,
+            textScale: textScale,
+          );
+
+          // 시작 위치로 다시 보내 같은 실패를 되풀이하지 않고 오늘로 간다.
+          expect(find.byType(TodayScreen), findsOneWidget);
+          expect(find.byType(BriefingScreen), findsNothing);
+          expect(app.router.state.uri.path, Routes.today);
+
+          await app.dispose(tester);
+        });
+
+        testWidgets('없는 경로로 가면 시작 위치로 돌아간다', (tester) async {
+          final app = await pumpTestApp(tester, textScale: textScale);
+
+          app.router.go('/no-such-path');
+          await tester.pumpAndSettle();
+          expect(find.byType(TodayScreen), findsOneWidget);
+          expect(app.router.state.uri.path, Routes.today);
+
+          await app.dispose(tester);
+        });
+
+        testWidgets('알림 payload가 온보딩보다 먼저다', (tester) async {
+          final app = await pumpTestApp(
+            tester,
+            start: TestStart.fresh,
             launchPayload: Routes.task(3),
             textScale: textScale,
           );
@@ -159,9 +224,9 @@ void main() {
         testWidgets('온보딩 중에도 /me/timetable을 열 수 있고 닫으면 온보딩으로 돌아온다', (
           tester,
         ) async {
-          final app = await _pumpApp(
+          final app = await pumpTestApp(
             tester,
-            preferences: {},
+            start: TestStart.fresh,
             textScale: textScale,
           );
           expect(find.byType(OnboardingScreen), findsOneWidget);
@@ -181,11 +246,7 @@ void main() {
         });
 
         testWidgets('온보딩을 끝냈으면 /onboarding으로 가는 이동은 오늘로 돌린다', (tester) async {
-          final app = await _pumpApp(
-            tester,
-            preferences: {'onboarding_done': true},
-            textScale: textScale,
-          );
+          final app = await pumpTestApp(tester, textScale: textScale);
 
           app.router.go(Routes.onboarding);
           await tester.pumpAndSettle();
@@ -198,9 +259,9 @@ void main() {
         testWidgets('데모 모드면 payload와 onboarding_done을 보지 않고 브리핑 규칙만 따른다', (
           tester,
         ) async {
-          final app = await _pumpApp(
+          final app = await pumpTestApp(
             tester,
-            preferences: {'app_mode': 'demo', 'demo_entry': 'onboarding'},
+            start: TestStart.demo,
             briefingOpenedToday: false,
             launchPayload: Routes.task(3),
             textScale: textScale,
@@ -216,14 +277,11 @@ void main() {
       });
 
       testWidgets('라우트 표의 경로마다 그 화면이 탭 안이나 셸 밖에 뜬다', (tester) async {
-        final app = await _pumpApp(
-          tester,
-          preferences: {'onboarding_done': true},
-          textScale: textScale,
-        );
+        final app = await pumpTestApp(tester, textScale: textScale);
 
-        // (경로, 화면, 하단 탭이 보이는지)
+        // (경로, 화면, 하단 탭이 보이는지). `/`는 시작 위치 규칙으로 /today에 간다.
         final table = <(String, Type, bool)>[
+          (Routes.root, TodayScreen, true),
           (Routes.day('2026-10-29'), DayScreen, true),
           (Routes.calendarWeek, WeekScreen, true),
           (Routes.meRules, RulesScreen, true),
@@ -246,15 +304,29 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('나 탭에서 데모 모드에 들어가면 데모 띠가 보이고 끝내기로 /me에 돌아온다', (tester) async {
-        final app = await _pumpApp(
+      testWidgets('처음 설치한 상태에서 /와 /onboarding은 셸 밖의 14 온보딩이다', (tester) async {
+        final app = await pumpTestApp(
           tester,
-          preferences: {'onboarding_done': true},
+          start: TestStart.fresh,
           textScale: textScale,
         );
 
-        await _tapTab(tester, '나');
-        await _tapText(tester, '데모 모드 들어가기');
+        for (final path in [Routes.root, Routes.onboarding]) {
+          app.router.go(path);
+          await tester.pumpAndSettle();
+          expect(find.byType(OnboardingScreen), findsOneWidget, reason: path);
+          expect(find.byType(AppTabBar), findsNothing, reason: path);
+          expect(app.router.state.uri.path, Routes.onboarding, reason: path);
+        }
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('나 탭에서 데모 모드에 들어가면 데모 띠가 보이고 끝내기로 /me에 돌아온다', (tester) async {
+        final app = await pumpTestApp(tester, textScale: textScale);
+
+        await tapTab(tester, '나');
+        await tapText(tester, '데모 모드 들어가기');
 
         expect(find.byType(DemoBand), findsOneWidget);
         expect(find.byType(TodayScreen), findsOneWidget);
@@ -262,7 +334,7 @@ void main() {
         expect(app.preferences.getString('demo_entry'), 'me');
         expect(app.container.read(databaseProvider), same(app.demoDb));
 
-        await _tapText(tester, '끝내기');
+        await tapText(tester, '끝내기');
 
         expect(find.byType(DemoBand), findsNothing);
         expect(find.byType(MeScreen), findsOneWidget);
@@ -276,24 +348,24 @@ void main() {
       testWidgets('온보딩 첫 화면의 둘러보기로 데모에 들어가면 끝내기로 온보딩 첫 화면에 돌아온다', (
         tester,
       ) async {
-        final app = await _pumpApp(
+        final app = await pumpTestApp(
           tester,
-          preferences: {},
+          start: TestStart.fresh,
           textScale: textScale,
         );
 
-        await _tapText(tester, '둘러보기 · 샘플 학생의 하루');
+        await tapText(tester, '둘러보기 · 샘플 학생의 하루');
 
         // 데모 모드는 onboarding_done을 보지 않는다.
         expect(find.byType(DemoBand), findsOneWidget);
         expect(find.byType(TodayScreen), findsOneWidget);
         expect(app.preferences.getString('demo_entry'), 'onboarding');
 
-        await _tapText(tester, '끝내기');
+        await tapText(tester, '끝내기');
 
         expect(find.byType(DemoBand), findsNothing);
         expect(find.byType(OnboardingScreen), findsOneWidget);
-        await _scrollTo(tester, find.text('시작하기'));
+        await scrollTo(tester, find.text('시작하기'));
         expect(find.text('시작하기'), findsOneWidget);
 
         await app.dispose(tester);
@@ -303,32 +375,32 @@ void main() {
       // 태블릿 가로 폭에서도 넘치지 않는지만 본다(docs/decisions.md 2026-11-06 '화면은 세로 폰만 지원한다').
       group('태블릿 가로 폭(1280×800pt)', () {
         testWidgets('/today와 네 탭 화면이 넘치지 않는다', (tester) async {
-          final app = await _pumpApp(
+          final app = await pumpTestApp(
             tester,
-            preferences: {'onboarding_done': true},
             textScale: textScale,
-            size: _tabletLandscape,
+            size: tabletLandscape,
           );
 
           expect(find.byType(TodayScreen), findsOneWidget);
-          for (final label in ['캘린더', '과제', '나', '오늘']) {
-            await _tapTab(tester, label);
+          for (final label in ['캘린더', '할 일', '나', '오늘']) {
+            await tapTab(tester, label);
           }
           expect(find.byType(TodayScreen), findsOneWidget);
+          expect(assistantButton(), findsOneWidget);
 
           await app.dispose(tester);
         });
 
         testWidgets('온보딩 첫 화면이 넘치지 않는다', (tester) async {
-          final app = await _pumpApp(
+          final app = await pumpTestApp(
             tester,
-            preferences: {},
+            start: TestStart.fresh,
             textScale: textScale,
-            size: _tabletLandscape,
+            size: tabletLandscape,
           );
 
           expect(find.byType(OnboardingScreen), findsOneWidget);
-          await _scrollTo(tester, find.text('시작하기'));
+          await scrollTo(tester, find.text('시작하기'));
           expect(find.text('시작하기'), findsOneWidget);
 
           await app.dispose(tester);
@@ -355,117 +427,26 @@ void main() {
   });
 }
 
-/// 띄운 앱과 정리 함수.
-class _TestApp {
-  _TestApp(this.db, this.demoDb, this.preferences, this.container);
-
-  final AppDatabase db;
-  final AppDatabase demoDb;
-  final SharedPreferences preferences;
-  final ProviderContainer container;
-
-  GoRouter get router => container.read(routerProvider);
-
-  /// 위젯 트리를 내려 provider를 정리한 뒤 DB를 닫는다(drift 스트림 타이머가 남지 않게).
-  Future<void> dispose(WidgetTester tester) async {
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-    await db.close();
-    await demoDb.close();
-  }
-}
-
-/// 폰 화면 크기(세로, 390×844pt).
-const _phonePortrait = Size(390, 844);
-
-/// Android 16이 방향 고정을 따르지 않는 큰 화면(태블릿 가로) 크기.
-const _tabletLandscape = Size(1280, 800);
-
-/// [size](기본은 폰 세로)에서 RootApp을 띄운다.
-Future<_TestApp> _pumpApp(
-  WidgetTester tester, {
-  required Map<String, Object> preferences,
-  bool briefingOpenedToday = true,
-  String? launchPayload,
-  double textScale = 1.0,
-  Size size = _phonePortrait,
-}) async {
-  tester.view.physicalSize = size * 3;
-  tester.view.devicePixelRatio = 3;
-  addTearDown(tester.view.reset);
-
-  SharedPreferences.setMockInitialValues(preferences);
-  final sharedPreferences = await SharedPreferences.getInstance();
-  final db = AppDatabase.memory();
-  final demoDb = AppDatabase.memory();
-
-  await tester.pumpWidget(
-    ProviderScope(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(sharedPreferences),
-        // 실제 databaseProvider처럼 앱 모드를 보고 DB를 고르게 해, 데모 전환이 provider 사이
-        // 의존 관계까지 그대로 돌게 한다. 파일 대신 모드마다 메모리 DB를 쓴다.
-        databaseProvider.overrideWith(
-          (ref) => switch (ref.watch(appModeProvider)) {
-            AppMode.real => db,
-            AppMode.demo => demoDb,
-          },
-        ),
-        motionLevelProvider.overrideWithValue(MotionLevel.off),
-        briefingOpenedTodayProvider.overrideWithValue(
-          () async => briefingOpenedToday,
-        ),
-        launchPayloadProvider.overrideWithValue(launchPayload),
-      ],
-      child: Builder(
-        builder: (context) => MediaQuery(
-          data: MediaQuery.of(context)
-              .copyWith(textScaler: TextScaler.linear(textScale)),
-          child: const RootApp(),
-        ),
+/// 하단 탭 넷이 있고, 탭마다 따로 읽히는 버튼이며, [selected] 탭만 선택됨으로 읽히고 글자를 그린다.
+void _expectTabs(WidgetTester tester, {required String selected}) {
+  for (final label in _tabLabels) {
+    final tab = tabButton(label);
+    expect(tab, findsOneWidget, reason: '탭 $label');
+    expect(
+      tester.getSemantics(tab),
+      isSemantics(
+        label: label,
+        isButton: true,
+        hasSelectedState: true,
+        isSelected: label == selected,
+        hasTapAction: true,
       ),
-    ),
-  );
-  await tester.pumpAndSettle();
-  final container = ProviderScope.containerOf(
-    tester.element(find.byType(RootApp)),
-  );
-  return _TestApp(db, demoDb, sharedPreferences, container);
-}
-
-Finder _tab(String label) =>
-    find.descendant(of: find.byType(AppTabBar), matching: find.text(label));
-
-Future<void> _tapTab(WidgetTester tester, String label) async {
-  await tester.tap(_tab(label));
-  await tester.pumpAndSettle();
-}
-
-/// 글자 [text]를 누른다. 글자가 크면 버튼이 화면 밖에 있을 수 있으므로 먼저 보이게 스크롤한다.
-Future<void> _tapText(WidgetTester tester, String text) async {
-  final target = find.text(text);
-  await _scrollTo(tester, target);
-  await tester.tap(target);
-  await tester.pumpAndSettle();
-}
-
-/// [target]이 화면에 보이게 스크롤한다. 글자가 크면 아래쪽 버튼은 스크롤해야 그려지므로,
-/// 아직 없으면 세로로 스크롤되는 첫 영역을 내려 가며 찾는다.
-Future<void> _scrollTo(WidgetTester tester, Finder target) async {
-  if (target.evaluate().isEmpty) {
-    await tester.scrollUntilVisible(
-      target,
-      100,
-      scrollable: find
-          .byWidgetPredicate(
-            (widget) =>
-                widget is Scrollable &&
-                widget.axisDirection == AxisDirection.down,
-          )
-          .first,
+      reason: '탭 접근성 $label',
+    );
+    expect(
+      find.descendant(of: find.byType(AppTabBar), matching: find.text(label)),
+      label == selected ? findsOneWidget : findsNothing,
+      reason: '지금 탭만 글자를 그린다($label)',
     );
   }
-  await tester.ensureVisible(target);
-  await tester.pumpAndSettle();
 }
