@@ -94,6 +94,30 @@ void main() {
       expect(due(null), '마감 없음');
       expect(due(null, unknown: true), '마감 없음');
     });
+
+    test('03 할 일(farAsDate)은 7일 이상 남았거나 이틀 이상 지난 마감을 날짜로 쓴다', () {
+      String far(DateTime at, {bool unknown = false}) => dueText(
+        at,
+        dueTimeUnknown: unknown,
+        now: now,
+        dayBoundaryMin: Defaults.dayBoundaryMin,
+        farAsDate: true,
+      );
+
+      expect(far(DateTime(2026, 10, 19, 18)), '10월 19일 (월) 18:00 마감');
+      expect(far(DateTime(2026, 10, 18, 18)), '일요일 18:00 마감');
+      expect(
+        far(DateTime(2026, 10, 10, 23, 59), unknown: true),
+        '10월 10일 (토) 마감 · 시각 미상',
+      );
+      expect(far(DateTime(2026, 10, 11, 23, 59)), '어제 23:59 마감');
+      // 기본(farAsDate false)은 같은 날도 날짜 말로 쓴다(01 아침 브리핑·02 홈·09 일간).
+      expect(due(DateTime(2026, 10, 19, 18)), '7일 뒤 18:00 마감');
+      expect(
+        due(DateTime(2026, 10, 10, 23, 59), unknown: true),
+        '2일 전 마감 · 시각 미상',
+      );
+    });
   });
 
   group('durationText', () {
@@ -204,6 +228,246 @@ void main() {
         ),
         '어제',
       );
+    });
+  });
+
+  group('monthDayText', () {
+    final today = DateTime(2026, 10, 12);
+
+    test("'10월 21일 (수)'처럼 쓰고, 해가 다를 때만 연도를 붙인다", () {
+      expect(monthDayText(DateTime(2026, 10, 21), today: today), '10월 21일 (수)');
+      expect(monthDayText(DateTime(2026, 1, 5), today: today), '1월 5일 (월)');
+      expect(
+        monthDayText(DateTime(2027, 1, 5), today: today),
+        '2027년 1월 5일 (화)',
+      );
+      expect(
+        monthDayText(DateTime(2025, 12, 31), today: today),
+        '2025년 12월 31일 (수)',
+      );
+    });
+  });
+
+  group('taskDayText', () {
+    // 오늘은 10월 12일 월요일이다.
+    final now = DateTime(2026, 10, 12, 12);
+
+    String day(DateTime at) =>
+        taskDayText(at, now: now, dayBoundaryMin: Defaults.dayBoundaryMin);
+
+    test('6일 뒤까지와 어제까지는 날짜 말, 7일 뒤부터와 이틀 전부터는 날짜다', () {
+      expect(day(DateTime(2026, 10, 18, 9)), '일요일');
+      expect(day(DateTime(2026, 10, 19, 9)), '10월 19일 (월)');
+      expect(day(DateTime(2026, 10, 11, 9)), '어제');
+      expect(day(DateTime(2026, 10, 10, 9)), '10월 10일 (토)');
+      expect(day(DateTime(2026, 10, 12, 9)), '오늘');
+    });
+
+    test('날짜는 논리적 날짜다(24:00 마감인 다음 날 00:00은 그 전날)', () {
+      expect(day(DateTime(2026, 10, 20)), '10월 19일 (월)');
+    });
+
+    test('해가 다른 먼 날짜는 연도를 붙인다', () {
+      expect(
+        taskDayText(
+          DateTime(2027, 1, 5, 9),
+          now: DateTime(2026, 12, 20, 9),
+          dayBoundaryMin: Defaults.dayBoundaryMin,
+        ),
+        '2027년 1월 5일 (화)',
+      );
+    });
+  });
+
+  group('elapsedText', () {
+    test('1시간까지는 분, 그 뒤는 내린 시간으로 쓰고 분은 정수로 센다', () {
+      String ago(Duration since) => elapsedText(since);
+
+      expect(ago(Duration.zero), '0분 전');
+      expect(ago(const Duration(seconds: 59)), '0분 전');
+      expect(ago(const Duration(minutes: 1)), '1분 전');
+      expect(ago(const Duration(minutes: 59)), '59분 전');
+      expect(ago(const Duration(minutes: 60)), '60분 전');
+      expect(ago(const Duration(minutes: 60, seconds: 59)), '60분 전');
+      expect(ago(const Duration(minutes: 61)), '1시간 전');
+      expect(ago(const Duration(minutes: 119)), '1시간 전');
+      expect(ago(const Duration(minutes: 120)), '2시간 전');
+      expect(ago(const Duration(minutes: 1500)), '25시간 전');
+    });
+
+    test('기기 시각이 뒤로 가 음수면 0분으로 본다', () {
+      expect(elapsedText(const Duration(minutes: -5)), '0분 전');
+    });
+  });
+
+  group('lmsInfoText', () {
+    final now = DateTime(2026, 10, 12, 12);
+
+    test('확인에 성공한 적이 없으면 받기 전이다', () {
+      expect(lmsInfoText(lastSuccessAt: null, now: now), 'LMS 정보 받기 전');
+      expect(
+        lmsInfoText(lastSuccessAt: null, now: now, byUserRefresh: true),
+        'LMS 정보 받기 전',
+      );
+    });
+
+    test('마지막 확인이 사용자 새로 고침이면 그 뒤 10분 동안만 방금이다', () {
+      expect(
+        lmsInfoText(
+          lastSuccessAt: now.subtract(const Duration(minutes: 9, seconds: 59)),
+          now: now,
+          byUserRefresh: true,
+        ),
+        'LMS 정보 방금',
+      );
+      expect(
+        lmsInfoText(
+          lastSuccessAt: now.subtract(const Duration(minutes: 10)),
+          now: now,
+          byUserRefresh: true,
+        ),
+        'LMS 정보 10분 전',
+      );
+    });
+
+    test('자동 동기화로 받았으면(새로 고침이 실패한 뒤 자동으로 받은 때 포함) 지난 시간이다', () {
+      expect(
+        lmsInfoText(
+          lastSuccessAt: now.subtract(const Duration(minutes: 3)),
+          now: now,
+        ),
+        'LMS 정보 3분 전',
+      );
+      expect(
+        lmsInfoText(
+          lastSuccessAt: now.subtract(const Duration(hours: 2)),
+          now: now,
+        ),
+        'LMS 정보 2시간 전',
+      );
+    });
+  });
+
+  group('approxHoursText', () {
+    test('1시간이 안 되면 1시간 미만, 그 밖에는 30분부터 올려 시간으로 쓴다', () {
+      expect(approxHoursText(0), '1시간 미만');
+      expect(approxHoursText(20), '1시간 미만');
+      expect(approxHoursText(30), '1시간 미만');
+      expect(approxHoursText(59), '1시간 미만');
+      expect(approxHoursText(60), '약 1시간');
+      expect(approxHoursText(89), '약 1시간');
+      expect(approxHoursText(90), '약 2시간');
+      expect(approxHoursText(149), '약 2시간');
+      expect(approxHoursText(150), '약 3시간');
+      expect(() => approxHoursText(-1), throwsRangeError);
+    });
+  });
+
+  group('opensText', () {
+    // 지금은 10월 12일 월요일 10:00이다.
+    final now = DateTime(2026, 10, 12, 10);
+
+    String opens(DateTime openAt, {DateTime? at}) => opensText(
+      openAt,
+      now: at ?? now,
+      dayBoundaryMin: Defaults.dayBoundaryMin,
+    );
+
+    test('공개 날짜의 날짜 말과 HH:MM에 열려요를 붙인다', () {
+      expect(opens(DateTime(2026, 10, 12, 15)), '오늘 15:00에 열려요');
+      expect(opens(DateTime(2026, 10, 16, 9, 30)), '금요일 09:30에 열려요');
+      expect(opens(DateTime(2026, 10, 18, 9)), '일요일 09:00에 열려요');
+    });
+
+    test('공개 날짜는 달력으로 본다(00:00 공개는 그날)', () {
+      expect(opens(DateTime(2026, 10, 13)), '내일 00:00에 열려요');
+      expect(opens(DateTime(2026, 10, 19)), '10월 19일 (월) 00:00에 열려요');
+    });
+
+    test('오늘은 논리적 하루로 세어 같은 줄의 마감 날짜 말과 맞춘다', () {
+      // 하루 경계 04:00 전인 화요일 01:00은 아직 월요일이다.
+      final dawn = DateTime(2026, 10, 13, 1);
+      expect(opens(DateTime(2026, 10, 13, 9), at: dawn), '내일 09:00에 열려요');
+      expect(
+        dueText(
+          DateTime(2026, 10, 13, 23, 59),
+          dueTimeUnknown: false,
+          now: dawn,
+          dayBoundaryMin: Defaults.dayBoundaryMin,
+          farAsDate: true,
+        ),
+        '내일 23:59 마감',
+      );
+      // 월요일 01:00(논리적으로는 일요일)에 보면 다음 일요일은 7일 뒤라 날짜로 쓴다.
+      expect(
+        opens(DateTime(2026, 10, 18, 9), at: DateTime(2026, 10, 12, 1)),
+        '10월 18일 (일) 09:00에 열려요',
+      );
+    });
+
+    test('7일 뒤부터는 날짜로 쓰고, 해가 다르면 연도를 붙인다', () {
+      expect(opens(DateTime(2026, 10, 19, 9)), '10월 19일 (월) 09:00에 열려요');
+      expect(opens(DateTime(2027, 1, 5, 9)), '2027년 1월 5일 (화) 09:00에 열려요');
+    });
+  });
+
+  group('homeSummaryText', () {
+    test("02 홈 머리의 'HH:MM · 남은 일정 N개 · 할 일 N개'", () {
+      expect(
+        homeSummaryText(now: DateTime(2026, 11, 13, 9, 5), events: 3, tasks: 0),
+        '09:05 · 남은 일정 3개 · 할 일 0개',
+      );
+    });
+  });
+
+  group('weekRangeText', () {
+    final today = DateTime(2026, 11, 13);
+
+    test('달이 같으면 끝은 날만, 달이 바뀌면 달도 쓴다', () {
+      expect(
+        weekRangeText(DateTime(2026, 11, 9), today: today),
+        '11월 9일 – 15일',
+      );
+      expect(
+        weekRangeText(DateTime(2026, 10, 26), today: today),
+        '10월 26일 – 11월 1일',
+      );
+    });
+
+    test('해가 오늘과 다른 시작일과 해가 바뀌는 끝 날은 연도를 붙인다', () {
+      expect(
+        weekRangeText(DateTime(2026, 12, 28), today: today),
+        '12월 28일 – 2027년 1월 3일',
+      );
+      expect(
+        weekRangeText(DateTime(2027, 1, 4), today: today),
+        '2027년 1월 4일 – 10일',
+      );
+    });
+
+    test('월요일이 아니면 받지 않는다', () {
+      expect(
+        () => weekRangeText(DateTime(2026, 11, 10), today: today),
+        throwsArgumentError,
+      );
+    });
+  });
+
+  group('importedOnText', () {
+    test("'11월 13일 불러옴'이고 해가 다르면 연도를 붙인다", () {
+      final today = DateTime(2026, 11, 13);
+      expect(importedOnText(today, today: today), '11월 13일 불러옴');
+      expect(
+        importedOnText(DateTime(2025, 11, 13), today: today),
+        '2025년 11월 13일 불러옴',
+      );
+    });
+  });
+
+  group('timeRangeText', () {
+    test("근거 시트의 'HH:MM–HH:MM'이고 자정을 넘는 끝은 아직 받지 않는다", () {
+      expect(timeRangeText(540, 630), '09:00–10:30');
+      expect(() => timeRangeText(1380, 1440), throwsRangeError);
     });
   });
 
