@@ -8,6 +8,8 @@
 // 두 벌로 둔다'). R0는 라이트만 쓰고, 다크 값은 최종 프로토타입의 다크 화면이 검수되지 않은
 // 임시값이다(R1).
 
+import 'dart:ui' show ImageFilter;
+
 import 'package:material_ui/material_ui.dart';
 
 /// 색(임시값). 테마의 `extensions`에 들어가는 라이트([light])·다크([dark]) 두 벌이고, 화면은
@@ -443,11 +445,30 @@ abstract final class AppSize {
   static const double tabIcon = 20;
 }
 
-/// 하단 탭바의 유리 효과(임시값): 흰색 32%에 blur 18px. 유리는 하단 탭바 한 곳에서만 쓴다.
+/// 하단 탭바와 그 옆 AI 비서 버튼의 유리 효과(임시값): 흰색 32%에 blur 18px, saturate 110%.
+/// 유리는 이 두 곳에만 쓴다. 모션 등급이 `light`·`off`이거나 OS가 투명도를 줄이라고 하면 유리 대신
+/// 흰 배경으로 그린다.
 abstract final class AppGlass {
   /// 흰색 32%.
   static const Color fill = Color.fromRGBO(255, 255, 255, 0.32);
 
   /// blur(CSS `blur(18px)`의 표준편차와 같은 시그마).
   static const double blur = 18;
+
+  /// 채도(CSS `saturate(110%)`).
+  static const double saturate = 1.1;
+
+  /// 유리 뒤를 흐리게 한 뒤 채도를 올리는 필터(CSS `backdrop-filter: blur(18px) saturate(110%)`).
+  static ImageFilter get filter => ImageFilter.compose(
+    outer: ColorFilter.matrix(saturationMatrix(saturate)),
+    inner: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+  );
+
+  /// CSS `saturate(s)`와 같은 색 행렬(Filter Effects 명세의 계수).
+  static List<double> saturationMatrix(double s) => [
+    0.213 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s, 0, 0, //
+    0.213 - 0.213 * s, 0.715 + 0.285 * s, 0.072 - 0.072 * s, 0, 0, //
+    0.213 - 0.213 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s, 0, 0, //
+    0, 0, 0, 1, 0, //
+  ];
 }

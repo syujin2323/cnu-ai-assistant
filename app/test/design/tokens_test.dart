@@ -93,6 +93,31 @@ void main() {
     expect(AppColors.light.lerp(AppColors.dark, 1).sheet, AppColors.dark.sheet);
     expect(AppColors.light.lerp(null, 0.5), same(AppColors.light));
   });
+
+  test('유리는 흰색 32%, blur 18, saturate 110%이고 채도 행렬은 CSS와 같다', () {
+    expect(AppGlass.fill, const Color.fromRGBO(255, 255, 255, 0.32));
+    expect(AppGlass.blur, 18);
+    expect(AppGlass.saturate, 1.1);
+    // saturate(100%)는 아무것도 바꾸지 않는다.
+    final identity = AppGlass.saturationMatrix(1);
+    for (var row = 0; row < 4; row++) {
+      for (var column = 0; column < 5; column++) {
+        expect(
+          identity[row * 5 + column],
+          closeTo(row == column ? 1 : 0, 1e-9),
+          reason: '($row, $column)',
+        );
+      }
+    }
+    // 회색은 채도를 바꿔도 그대로다(행마다 합이 1).
+    final saturated = AppGlass.saturationMatrix(AppGlass.saturate);
+    for (var row = 0; row < 3; row++) {
+      final sum = saturated
+          .sublist(row * 5, row * 5 + 3)
+          .reduce((a, b) => a + b);
+      expect(sum, closeTo(1, 1e-9), reason: 'row $row');
+    }
+  });
 }
 
 /// '디자인 토큰' 절의 색 표를 읽는다. 이름 → (라이트, 다크).

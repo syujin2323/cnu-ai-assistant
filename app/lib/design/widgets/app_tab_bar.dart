@@ -8,8 +8,6 @@
 // 탭 모션(navDrop·navIconPop), 지금 탭이 넓어지는 배치와 활성 표시의 모양 바꾸기는 R0 모션 PR에서
 // 더한다.
 
-import 'dart:ui' show ImageFilter;
-
 import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
@@ -80,10 +78,7 @@ class AppTabBar extends StatelessWidget {
       ),
     );
     if (glass) {
-      bar = BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: AppGlass.blur, sigmaY: AppGlass.blur),
-        child: bar,
-      );
+      bar = BackdropFilter(filter: AppGlass.filter, child: bar);
     }
     return SafeArea(
       top: false,
@@ -211,10 +206,7 @@ class _AssistantButton extends StatelessWidget {
       ),
     );
     if (glass) {
-      button = BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: AppGlass.blur, sigmaY: AppGlass.blur),
-        child: button,
-      );
+      button = BackdropFilter(filter: AppGlass.filter, child: button);
     }
     return Semantics(
       container: true,
