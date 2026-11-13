@@ -31,7 +31,7 @@ enum RuleKind {
   /// 예상 시간.
   estimate,
 
-  /// 알림(브리핑 시각·하루 상한·조용한 시간).
+  /// 알림. 지금은 브리핑 시각만 쓰고, 하루 상한·조용한 시간은 재설계 예정이다.
   notify,
 }
 
@@ -133,7 +133,7 @@ class RuleParams {
   };
 }
 
-/// 사용자가 말이나 폼으로 정한 배치·알림 조건. `rules` 표의 한 행.
+/// 사용자가 말이나 폼으로 정한 배치 조건과 아침 브리핑 시각. `rules` 표의 한 행.
 class Rule {
   const Rule({
     required this.id,
