@@ -6,6 +6,7 @@
 // 셸 밖 전체 화면은 루트 Navigator에 띄우고, 여는 곳에서 push로 열어 닫으면 연 화면으로 돌아오게
 // 한다(go로 열면 돌아갈 곳이 없다). 그 가운데 `/tasks/:id`, `/me/rules`, `/me/timetable`은 그 탭 경로
 // 아래에 두어, 바로 열어도(go) 뒤로 가면 그 탭으로 돌아간다.
+// 화면 진입 인자: 06 AI 비서는 [AssistantArgs]를 `extra`로만 받는다(사용자 문장을 경로에 넣지 않음).
 //
 // 시작 위치는 [_redirect] 한 곳에서만 정한다. 앱으로 돌아올 때(resumed)는 RootApp이
 // [StartRules.onResume]으로 그 규칙을 다시 돌릴지 본다. 플랫폼이 넘기는 경로(Android intent의
@@ -23,6 +24,7 @@ import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
+import 'package:cnu_ai_assistant/features/assistant/assistant_args.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_screen.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_controller.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_screen.dart';
@@ -82,7 +84,8 @@ abstract final class Routes {
   /// 01 아침 브리핑(셸 밖 전체 화면).
   static const String briefing = '/briefing';
 
-  /// 06 AI 비서(셸 밖 전체 화면).
+  /// 06 AI 비서(셸 밖 전체 화면). push로 열고, 연 곳마다 다른 인자는 [AssistantArgs]로 `extra`에만
+  /// 담는다(사용자가 쓴 문장을 경로에 넣지 않음).
   static const String assistant = '/assistant';
 
   // 하위 경로 조각과 경로 매개변수 이름. 라우터 정의에만 쓴다.
@@ -146,7 +149,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: Routes.assistant,
-        builder: (context, state) => const AssistantScreen(),
+        // 인자는 extra로만 받는다. 없거나 다른 값이면 기본 인자로 연다.
+        builder: (context, state) => AssistantScreen(
+          args: switch (state.extra) {
+            final AssistantArgs args => args,
+            _ => const AssistantArgs(),
+          },
+        ),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => _TabShell(shell: shell),

@@ -15,6 +15,7 @@ import 'package:cnu_ai_assistant/design/widgets/app_tab_bar.dart';
 import 'package:cnu_ai_assistant/design/widgets/demo_band.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
+import 'package:cnu_ai_assistant/features/assistant/assistant_args.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_screen.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_screen.dart';
 import 'package:cnu_ai_assistant/features/calendar/month_screen.dart';
@@ -606,6 +607,69 @@ void main() {
         _expectTabs(tester, selected: '할 일');
 
         await app.dispose(tester);
+      });
+
+      group('화면 진입 인자', () {
+        testWidgets('06 AI 비서는 연 곳이 extra로 넘긴 인자를 받고, 문장은 경로에 들어가지 않으며, '
+            '닫으면 연 화면으로 돌아온다', (tester) async {
+          final app = await pumpTestApp(
+            tester,
+            briefingOpenedToday: false,
+            textScale: textScale,
+          );
+          AssistantArgs args() =>
+              tester.widget<AssistantScreen>(find.byType(AssistantScreen)).args;
+          expect(find.byType(BriefingScreen), findsOneWidget);
+
+          // 01 아침 브리핑의 말로 추가처럼, 쓴 문장을 바로 보내게 연다.
+          const fromBriefing = AssistantArgs(
+            prefill: '내일 3시 팀플 회의',
+            sendNow: true,
+          );
+          app.router.push(Routes.assistant, extra: fromBriefing);
+          await tester.pumpAndSettle();
+          expect(args(), fromBriefing);
+          expect(app.router.state.uri.toString(), Routes.assistant);
+          await tester.tap(find.byType(BackButton));
+          await tester.pumpAndSettle();
+          expect(find.byType(AssistantScreen), findsNothing);
+          expect(find.byType(BriefingScreen), findsOneWidget);
+
+          // 03 할 일의 '할 일 추가'처럼, 직접 추가 폼을 할 일로 연다.
+          await tapText(tester, '오늘로 가기');
+          await tapTab(tester, '할 일');
+          const fromTasks = AssistantArgs(form: DirectAddKind.task);
+          app.router.push(Routes.assistant, extra: fromTasks);
+          await tester.pumpAndSettle();
+          expect(args(), fromTasks);
+          await tester.tap(find.byType(BackButton));
+          await tester.pumpAndSettle();
+          expect(find.byType(TaskListScreen), findsOneWidget);
+          _expectTabs(tester, selected: '할 일');
+
+          await app.dispose(tester);
+        });
+
+        testWidgets('06 AI 비서는 extra가 없거나 AssistantArgs가 아니면 기본 인자로 열린다', (
+          tester,
+        ) async {
+          final app = await pumpTestApp(tester, textScale: textScale);
+          AssistantArgs args() =>
+              tester.widget<AssistantScreen>(find.byType(AssistantScreen)).args;
+
+          // 탭바 옆 'AI 비서에게 말하기'는 인자 없이 연다.
+          await tester.tap(assistantButton());
+          await tester.pumpAndSettle();
+          expect(args(), const AssistantArgs());
+          await tester.tap(find.byType(BackButton));
+          await tester.pumpAndSettle();
+
+          app.router.push(Routes.assistant, extra: '내일 3시 회의');
+          await tester.pumpAndSettle();
+          expect(args(), const AssistantArgs());
+
+          await app.dispose(tester);
+        });
       });
 
       testWidgets('처음 설치한 상태에서 /와 /onboarding은 셸 밖의 14 온보딩이다', (tester) async {
