@@ -17,6 +17,7 @@ class MeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = AppColors.of(context);
     final demo = ref.watch(appModeProvider) == AppMode.demo;
     return Scaffold(
       body: SafeArea(
@@ -39,7 +40,7 @@ class MeScreen extends ConsumerWidget {
                   ),
                   Text(
                     AppStrings.unofficialShort,
-                    style: AppText.caption.copyWith(color: AppColors.muted),
+                    style: AppText.caption.copyWith(color: colors.muted),
                   ),
                 ],
               ),
@@ -49,7 +50,7 @@ class MeScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: AppSpace.screen),
               child: Text(
                 AppStrings.inProgress,
-                style: AppText.body.copyWith(color: AppColors.muted),
+                style: AppText.body.copyWith(color: colors.muted),
               ),
             ),
             const SizedBox(height: AppSpace.s16),

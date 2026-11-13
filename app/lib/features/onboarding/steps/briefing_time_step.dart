@@ -23,13 +23,14 @@ class BriefingTimeStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return OnboardingStepLayout(
       content: [
         Text(
           OnboardingStep.briefingTime.title,
           style: AppText.small.copyWith(
             fontWeight: AppText.semibold,
-            color: AppColors.accent,
+            color: colors.accent,
           ),
         ),
         const SizedBox(height: AppSpace.s8),
@@ -40,7 +41,7 @@ class BriefingTimeStep extends StatelessWidget {
         const SizedBox(height: AppSpace.s8),
         Text(
           "고른 시각은 '내 규칙'에 저장해요. 나중에 언제든 바꿀 수 있어요.",
-          style: AppText.body.copyWith(color: AppColors.muted),
+          style: AppText.body.copyWith(color: colors.muted),
         ),
         const SizedBox(height: AppSpace.s24),
         const OutlinedButton(onPressed: null, child: Text('시각 고르기')),

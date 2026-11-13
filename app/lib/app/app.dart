@@ -52,6 +52,8 @@ class _RootAppState extends ConsumerState<RootApp> {
       title: AppStrings.appName,
       routerConfig: ref.watch(routerProvider),
       theme: buildAppTheme(),
+      darkTheme: buildAppTheme(brightness: Brightness.dark),
+      // R0는 라이트만 쓴다(다크는 R1).
       themeMode: ThemeMode.light,
       locale: const Locale('ko'),
       supportedLocales: const [Locale('ko')],

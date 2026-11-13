@@ -76,13 +76,14 @@ class AppIcon extends StatelessWidget {
   final AppIconName name;
   final double size;
 
-  /// 선 색. 없으면 주변 `IconTheme`의 색, 그것도 없으면 [AppColors.ink].
+  /// 선 색. 없으면 주변 `IconTheme`의 색, 그것도 없으면 지금 테마의 `ink`([AppColors.of]).
   final Color? color;
   final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
-    final strokeColor = color ?? IconTheme.of(context).color ?? AppColors.ink;
+    final strokeColor =
+        color ?? IconTheme.of(context).color ?? AppColors.of(context).ink;
     return SvgPicture.asset(
       name.asset,
       width: size,

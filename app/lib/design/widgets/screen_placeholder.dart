@@ -30,7 +30,7 @@ class ScreenPlaceholder extends StatelessWidget {
         ],
         Text(
           AppStrings.inProgress,
-          style: AppText.body.copyWith(color: AppColors.muted),
+          style: AppText.body.copyWith(color: AppColors.of(context).muted),
         ),
         if (children.isNotEmpty) const SizedBox(height: AppSpace.s24),
         ...children,

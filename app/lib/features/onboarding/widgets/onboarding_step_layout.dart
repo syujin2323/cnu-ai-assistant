@@ -84,7 +84,7 @@ class OnboardingStepPlaceholder extends StatelessWidget {
         const SizedBox(height: AppSpace.s8),
         Text(
           AppStrings.inProgress,
-          style: AppText.body.copyWith(color: AppColors.muted),
+          style: AppText.body.copyWith(color: AppColors.of(context).muted),
         ),
       ],
     );

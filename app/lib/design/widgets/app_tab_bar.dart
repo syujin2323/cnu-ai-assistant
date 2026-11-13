@@ -8,8 +8,6 @@
 // 탭 모션(navDrop·navIconPop), 지금 탭이 넓어지는 배치와 활성 표시의 모양 바꾸기는 R0 모션 PR에서
 // 더한다.
 
-import 'dart:ui' show ImageFilter;
-
 import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
@@ -50,14 +48,15 @@ class AppTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final radius = BorderRadius.circular(AppRadius.pill);
     // 지금 탭의 배경(Ink)은 가장 가까운 Material에 그려진다. 그 Material을 유리 배경 안쪽에 두어,
     // 배경이 blur 아래에 깔려 함께 흐려지거나 알약 밖으로 번지지 않게 한다.
     Widget bar = DecoratedBox(
       decoration: BoxDecoration(
-        color: glass ? AppGlass.fill : AppColors.bg,
+        color: glass ? AppGlass.fill : colors.bg,
         borderRadius: radius,
-        border: Border.all(color: AppColors.edge),
+        border: Border.all(color: colors.edge),
       ),
       child: Material(
         type: MaterialType.transparency,
@@ -79,10 +78,7 @@ class AppTabBar extends StatelessWidget {
       ),
     );
     if (glass) {
-      bar = BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: AppGlass.blur, sigmaY: AppGlass.blur),
-        child: bar,
-      );
+      bar = BackdropFilter(filter: AppGlass.filter, child: bar);
     }
     return SafeArea(
       top: false,
@@ -126,8 +122,9 @@ class _TabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final radius = BorderRadius.circular(AppRadius.pill);
-    final iconColor = selected ? AppColors.accent : AppColors.icon;
+    final iconColor = selected ? colors.accent : colors.icon;
     // 탭마다 따로 읽히는 버튼으로 묶는다. 지금 탭만 글자를 그리므로 이름은 글자가 아니라
     // Semantics의 label로 주고, 안쪽(글자·InkWell)의 의미는 빼서 두 번 읽히지 않게 한다.
     return Semantics(
@@ -145,7 +142,7 @@ class _TabButton extends StatelessWidget {
           borderRadius: radius,
           child: Ink(
             decoration: BoxDecoration(
-              color: selected ? AppColors.tint : null,
+              color: selected ? colors.tint : null,
               borderRadius: radius,
             ),
             child: ConstrainedBox(
@@ -166,7 +163,7 @@ class _TabButton extends StatelessWidget {
                         textAlign: TextAlign.center,
                         style: AppText.small.copyWith(
                           fontWeight: AppText.medium,
-                          color: AppColors.accent,
+                          color: colors.accent,
                         ),
                       ),
                   ],
@@ -189,29 +186,27 @@ class _AssistantButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     Widget button = Material(
       type: MaterialType.transparency,
       child: Ink(
         decoration: BoxDecoration(
-          color: glass ? AppGlass.fill : AppColors.bg,
+          color: glass ? AppGlass.fill : colors.bg,
           shape: BoxShape.circle,
-          border: Border.all(color: AppColors.edge),
+          border: Border.all(color: colors.edge),
         ),
         child: InkWell(
           onTap: onTap,
           customBorder: const CircleBorder(),
-          child: const SizedBox.square(
+          child: SizedBox.square(
             dimension: AppTabBar.barHeight,
-            child: Center(child: AppIcon.assistant(color: AppColors.accent)),
+            child: Center(child: AppIcon.assistant(color: colors.accent)),
           ),
         ),
       ),
     );
     if (glass) {
-      button = BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: AppGlass.blur, sigmaY: AppGlass.blur),
-        child: button,
-      );
+      button = BackdropFilter(filter: AppGlass.filter, child: button);
     }
     return Semantics(
       container: true,
