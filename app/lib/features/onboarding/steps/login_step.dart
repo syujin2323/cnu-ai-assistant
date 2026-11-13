@@ -34,13 +34,14 @@ class LoginStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return OnboardingStepLayout(
       content: [
         Text(
           AppStrings.appName,
           style: AppText.body.copyWith(
             fontWeight: AppText.semibold,
-            color: AppColors.accent,
+            color: colors.accent,
           ),
         ),
         const SizedBox(height: AppSpace.s24),
@@ -51,7 +52,7 @@ class LoginStep extends StatelessWidget {
         const SizedBox(height: AppSpace.s8),
         Text(
           AppStrings.inProgress,
-          style: AppText.body.copyWith(color: AppColors.muted),
+          style: AppText.body.copyWith(color: colors.muted),
         ),
       ],
       actions: [
@@ -71,7 +72,7 @@ class LoginStep extends StatelessWidget {
         Text(
           AppStrings.unofficialShort,
           textAlign: TextAlign.center,
-          style: AppText.caption.copyWith(color: AppColors.muted),
+          style: AppText.caption.copyWith(color: colors.muted),
         ),
       ],
     );

@@ -136,6 +136,7 @@ class _OnboardingHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final count = OnboardingStep.values.length;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpace.s4),
@@ -155,8 +156,8 @@ class _OnboardingHeader extends StatelessWidget {
                 // 진행 막대의 접근성 값은 숫자(백분율)여야 하므로 단계 위치는 라벨에 넣는다.
                 child: LinearProgressIndicator(
                   value: step.number / count,
-                  color: AppColors.accent,
-                  backgroundColor: AppColors.tint,
+                  color: colors.accent,
+                  backgroundColor: colors.tint,
                   semanticsLabel: '온보딩 $count단계 중 ${step.number}단계',
                 ),
               ),
@@ -165,7 +166,7 @@ class _OnboardingHeader extends StatelessWidget {
             if (onSkip case final onSkip?)
               TextButton(
                 onPressed: onSkip,
-                style: TextButton.styleFrom(foregroundColor: AppColors.muted),
+                style: TextButton.styleFrom(foregroundColor: colors.muted),
                 child: const Text('건너뛰기'),
               )
             else

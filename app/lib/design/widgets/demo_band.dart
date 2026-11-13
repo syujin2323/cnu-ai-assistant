@@ -16,9 +16,10 @@ class DemoBand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final onInk = AppColors.bg;
+    final colors = AppColors.of(context);
+    final onInk = colors.bg;
     return Material(
-      color: AppColors.bg,
+      color: colors.bg,
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -32,7 +33,7 @@ class DemoBand extends StatelessWidget {
               liveRegion: true,
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: AppColors.ink,
+                  color: colors.ink,
                   borderRadius: BorderRadius.circular(AppRadius.pill),
                 ),
                 child: Padding(
