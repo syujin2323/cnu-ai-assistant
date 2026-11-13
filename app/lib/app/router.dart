@@ -6,7 +6,9 @@
 // 셸 밖 전체 화면은 루트 Navigator에 띄우고, 여는 곳에서 push로 열어 닫으면 연 화면으로 돌아오게
 // 한다(go로 열면 돌아갈 곳이 없다). 그 가운데 `/tasks/:id`, `/me/rules`, `/me/timetable`은 그 탭 경로
 // 아래에 두어, 바로 열어도(go) 뒤로 가면 그 탭으로 돌아간다.
-// 화면 진입 인자: 06 AI 비서는 [AssistantArgs]를 `extra`로만 받는다(사용자 문장을 경로에 넣지 않음).
+// 화면 진입 인자: 06 AI 비서는 [AssistantArgs]를 `extra`로만 받고(사용자 문장을 경로에 넣지 않음),
+// 03 할 일·13 시간표·고정 일정은 처음 탭을 `?tab=` 쿼리로 받는다([Routes.tasksTab],
+// [Routes.meTimetableTab]). 모르는 값이면 기본 탭이다.
 //
 // 시작 위치는 [_redirect] 한 곳에서만 정한다. 앱으로 돌아올 때(resumed)는 RootApp이
 // [StartRules.onResume]으로 그 규칙을 다시 돌릴지 본다. 플랫폼이 넘기는 경로(Android intent의
@@ -66,8 +68,12 @@ abstract final class Routes {
   /// 주간(캘린더 탭, R1).
   static const String calendarWeek = '$calendar/$_weekSegment';
 
-  /// 03 할 일(할 일 탭).
+  /// 03 할 일(할 일 탭). 처음 탭을 고르려면 [tasksTab]을 쓴다.
   static const String tasks = '/tasks';
+
+  /// 03 할 일을 [tab] 탭으로 연다(`/tasks?tab=all`). 기본 탭(주간 할 일)이면 [tasks]와 같다.
+  static String tasksTab(TaskListTab tab) =>
+      tab == TaskListTab.weekly ? tasks : '$tasks?$_tabParam=${tab.name}';
 
   /// 04 할 일 상세(셸 밖 전체 화면, 재설계 예정).
   static String task(int id) => '$tasks/$id';
@@ -78,8 +84,16 @@ abstract final class Routes {
   /// 12 내 규칙(셸 밖 전체 화면).
   static const String meRules = '$me/$_rulesSegment';
 
-  /// 시간표·고정 일정 편집(셸 밖 전체 화면).
+  /// 13 시간표·고정 일정(셸 밖 전체 화면). 다른 탭·시트에서도 push로 연다. 처음 탭을 고르려면
+  /// [meTimetableTab]을 쓴다.
   static const String meTimetable = '$me/$_timetableSegment';
+
+  /// 13 시간표·고정 일정을 [tab] 탭으로 연다(`/me/timetable?tab=fixed`). 기본 탭(시간표)이면
+  /// [meTimetable]과 같다.
+  static String meTimetableTab(TimetableTab tab) =>
+      tab == TimetableTab.timetable
+      ? meTimetable
+      : '$meTimetable?$_tabParam=${tab.name}';
 
   /// 01 아침 브리핑(셸 밖 전체 화면).
   static const String briefing = '/briefing';
@@ -88,13 +102,21 @@ abstract final class Routes {
   /// 담는다(사용자가 쓴 문장을 경로에 넣지 않음).
   static const String assistant = '/assistant';
 
-  // 하위 경로 조각과 경로 매개변수 이름. 라우터 정의에만 쓴다.
+  // 하위 경로 조각과 경로·쿼리 매개변수 이름. 라우터 정의에만 쓴다.
   static const String _daySegment = 'day';
   static const String _weekSegment = 'week';
   static const String _rulesSegment = 'rules';
   static const String _timetableSegment = 'timetable';
   static const String _dateParam = 'date';
   static const String _idParam = 'id';
+  static const String _tabParam = 'tab';
+
+  /// 쿼리 `tab`의 값을 [values]의 이름에서 찾는다. 없거나 모르는 값이면 [fallback](기본 탭)이다.
+  static T _tab<T extends Enum>(
+    GoRouterState state,
+    List<T> values,
+    T fallback,
+  ) => values.asNameMap()[state.uri.queryParameters[_tabParam]] ?? fallback;
 }
 
 /// 앱을 켠 알림의 payload(go_router 경로 문자열). 알림으로 켜지지 않았으면 null이다.
@@ -194,7 +216,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: Routes.tasks,
-                builder: (context, state) => const TaskListScreen(),
+                builder: (context, state) => TaskListScreen(
+                  initialTab: Routes._tab(
+                    state,
+                    TaskListTab.values,
+                    TaskListTab.weekly,
+                  ),
+                ),
                 routes: [
                   GoRoute(
                     path: ':${Routes._idParam}',
@@ -223,7 +251,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: Routes._timetableSegment,
                     parentNavigatorKey: rootNavigatorKey,
-                    builder: (context, state) => const TimetableScreen(),
+                    builder: (context, state) => TimetableScreen(
+                      initialTab: Routes._tab(
+                        state,
+                        TimetableTab.values,
+                        TimetableTab.timetable,
+                      ),
+                    ),
                   ),
                 ],
               ),
