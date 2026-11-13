@@ -17,11 +17,14 @@ abstract final class AppStrings {
   /// 03 할 일 LMS 정보 시트 아래.
   static const String unofficialReadOnly = '충남대 비공식 앱 · LMS에서 읽기만 해요';
 
-  // 하단 탭(오늘 · 캘린더 · 과제 · 나 순서).
+  // 하단 탭(오늘 · 캘린더 · 할 일 · 나 순서). docs/screens.md '하단 탭과 AI 비서 버튼'.
   static const String tabToday = '오늘';
   static const String tabCalendar = '캘린더';
-  static const String tabTasks = '과제';
+  static const String tabTasks = '할 일';
   static const String tabMe = '나';
+
+  /// 하단 탭 옆 둥근 버튼의 이름(접근성 이름과 툴팁). 누르면 06 AI 비서를 연다.
+  static const String askAssistant = 'AI 비서에게 말하기';
 
   /// 아직 내용이 없는 화면의 안내.
   static const String inProgress = '이 화면은 아직 만들고 있어요';
