@@ -17,6 +17,7 @@ class FixedBlock {
     required this.kind,
     this.prep,
     required this.source,
+    this.place,
   });
 
   final int id;
@@ -41,4 +42,7 @@ class FixedBlock {
   final String? prep;
 
   final EntrySource source;
+
+  /// 반복 일정의 장소. 없으면 null.
+  final String? place;
 }

@@ -13,7 +13,8 @@
 //   `domain/timetable_checks.dart`처럼 저장소가 먼저 부르는 Dart 검사에 둔다. CHECK에 걸리면
 //   저장소는 `StorageError`를 돌려준다.
 // - 열거형은 `EnumConverter`로 영문 snake_case, 구조가 있는 값은 JSON 문자열.
-// - R1 표(`suggestions`, `public_calendar`)는 아직 두지 않는다. 알림 기록 표는 알림 재설계 때 정한다.
+// - `public_calendar`(R1)와 `suggestions`(07 알림 감지, 스토어 공개 뒤)는 아직 두지 않는다. 알림 기록 표는
+//   알림 재설계 때 정한다.
 
 import 'package:cnu_ai_assistant/data/db/enum_converter.dart';
 import 'package:cnu_ai_assistant/data/db/json_converters.dart';
@@ -119,6 +120,9 @@ class FixedBlocks extends Table {
     const EnumConverter(EntrySource.values, fallback: EntrySource.manual),
   )();
 
+  /// 반복 일정의 장소(13·직접 추가 폼에서 넣음). 없으면 null.
+  TextColumn get place => text().nullable()();
+
   /// 요일 목록의 값(1–7)과 앞뒤 여유의 위 끝(0–60분)은 `domain/timetable_checks.dart`가 본다.
   @override
   List<String> get customConstraints => const [
@@ -168,6 +172,34 @@ class Tasks extends Table {
   /// 과목을 정해 만든 할 일의 과목. LMS 할 일은 null이고 과목은 `lms_items.courseId`에서 읽는다
   /// (동기화는 이 열을 쓰지 않는다).
   IntColumn get courseId => integer().nullable().references(Courses, #id)();
+
+  /// 할 일을 넣은 곳: 직접 추가 폼(`manual`), 06 AI 비서(`ai`). LMS 할 일은 null이다.
+  TextColumn get source => text().nullable().map(
+    const EnumConverter(EntrySource.values, fallback: EntrySource.manual),
+  )();
+
+  /// 끝낸 시각(03 할 일의 동그라미). 끝내기를 되돌리면 null로 돌아간다.
+  DateTimeColumn get completedAt =>
+      dateTime().nullable().map(const KstDateTimeConverter())();
+
+  /// '얼마나 걸렸어요?'에 답한 걸린 시간(분). 블록으로 한 만큼인 `spentMin`과 다르다.
+  IntColumn get actualMin => integer().nullable()();
+
+  /// 시간 부족에서 '부분 목표'를 고른 목표 시간(분). 블록의 '부분' 표시는 이 값으로 판단한다.
+  IntColumn get partialGoalMin => integer().nullable()();
+
+  /// 시간 부족에서 '밤 시간 쓰기'를 고른 날(`YYYY-MM-DD`). 그날부터 이 할 일의 마감일까지 하루 창
+  /// 끝을 늘린다.
+  TextColumn get nightWindowFrom => text().nullable()();
+
+  /// 시간 부족에서 '다른 일 미루기'로 이번 계획에서 뺀 할 일이 다시 배치되는 날(`YYYY-MM-DD`).
+  TextColumn get deferredUntil => text().nullable()();
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK ("actual_min" IS NULL OR "actual_min" >= 0)',
+    'CHECK ("partial_goal_min" IS NULL OR "partial_goal_min" > 0)',
+  ];
 }
 
 @TableIndex.sql(
@@ -190,6 +222,13 @@ class PlanBlocks extends Table {
   )();
   TextColumn get reason =>
       text().nullable().map(const BlockReasonConverter())();
+
+  /// 02 홈 피드백 카드에서 '했어요'·'못 했어요'로 답한 시각. 답한 블록은 다시 묻지 않는다.
+  DateTimeColumn get answeredAt =>
+      dateTime().nullable().map(const KstDateTimeConverter())();
+
+  /// 01 아침 브리핑에서 확정한 블록. 브리핑에서 다시 확정하면 이 블록을 새 선택으로 바꾼다.
+  BoolColumn get fromBriefing => boolean().withDefault(const Constant(false))();
 
   @override
   List<String> get customConstraints => const [
@@ -269,6 +308,12 @@ class Briefings extends Table {
       dateTime().nullable().map(const KstDateTimeConverter())();
   DateTimeColumn get confirmedAt =>
       dateTime().nullable().map(const KstDateTimeConverter())();
+
+  /// 확정하기 전에 고른 것을 바꾼 횟수(사용 지표).
+  IntColumn get editCount => integer().withDefault(const Constant(0))();
+
+  @override
+  List<String> get customConstraints => const ['CHECK ("edit_count" >= 0)'];
 }
 
 @UseRowClass(SyncRun)
