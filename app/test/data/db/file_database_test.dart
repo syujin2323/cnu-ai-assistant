@@ -87,7 +87,7 @@ void main() {
     var secondElapsed = Duration.zero;
     final secondWrite = guardStorage(
       'settings.write',
-      () => addSetting(second, 'second'),
+      () => second.transaction(() => addSetting(second, 'second')),
     ).whenComplete(() => secondElapsed = watch.elapsed);
     await Future<void>.delayed(const Duration(milliseconds: 300));
     release.complete();
