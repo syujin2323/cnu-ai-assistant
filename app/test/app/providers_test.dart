@@ -1,14 +1,18 @@
 // 앱 전역 provider 테스트. docs/architecture.md '모션 프리셋', '데모 모드'.
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
+import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
+import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/class_slot.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
+import 'package:drift/native.dart' show NativeDatabase;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -57,7 +61,11 @@ void main() {
         'demo_entry': 'me',
       });
       final preferences = await SharedPreferences.getInstance();
-      final db = AppDatabase.memory();
+      // 끝내기는 비운 데모 DB를 닫으므로, 비웠는지는 같은 파일을 다시 열어(다음 데모처럼) 본다.
+      final directory = await Directory.systemTemp.createTemp('demo_exit');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File('${directory.path}/app_demo.sqlite');
+      final db = AppDatabase(NativeDatabase(file));
       addTearDown(db.close);
       final container = ProviderContainer(
         overrides: [
@@ -97,8 +105,53 @@ void main() {
       expect(container.read(appModeProvider), AppMode.real);
       expect(preferences.getString('app_mode'), 'real');
       expect(preferences.containsKey('demo_entry'), isFalse);
-      expect(await db.select(db.courses).get(), isEmpty);
-      expect(await db.select(db.classSlots).get(), isEmpty);
+      driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+      addTearDown(
+        () => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false,
+      );
+      final reopened = AppDatabase(NativeDatabase(file));
+      addTearDown(reopened.close);
+      expect(await reopened.select(reopened.courses).get(), isEmpty);
+      expect(await reopened.select(reopened.classSlots).get(), isEmpty);
+    });
+
+    test('끝내기는 데모 DB를 비운 직후 스스로 닫아, 그 뒤의 데모 DB 저장은 Err다', () async {
+      driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+      addTearDown(
+        () => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false,
+      );
+      SharedPreferences.setMockInitialValues({
+        'app_mode': 'demo',
+        'demo_entry': 'me',
+      });
+      final realDb = AppDatabase.memory();
+      final demoDb = AppDatabase.memory();
+      addTearDown(realDb.close);
+      addTearDown(demoDb.close);
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(
+            await SharedPreferences.getInstance(),
+          ),
+          // provider가 데모 DB를 닫지 않게 두어(늦게 닫히는 경우) 끝내기가 스스로 닫는지만 본다.
+          databaseProvider.overrideWith(
+            (ref) => switch (ref.watch(appModeProvider)) {
+              AppMode.real => realDb,
+              AppMode.demo => demoDb,
+            },
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      expect(
+        await container.read(appModeProvider.notifier).exitDemo(demoDb),
+        const Ok(DemoEntry.me),
+      );
+      expect(
+        await SettingsRepository(demoDb).write(SettingKeys.aiEnabled, true),
+        isA<Err<void>>(),
+      );
     });
 
     group('데모 끝내기·들어가기를 거듭 부를 때', () {

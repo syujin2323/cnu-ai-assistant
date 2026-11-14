@@ -5,6 +5,7 @@
 // 하는지 본다.
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
@@ -15,6 +16,7 @@ import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_controller.dart';
 import 'package:drift/drift.dart' show Value, driftRuntimeOptions;
+import 'package:drift/native.dart' show NativeDatabase;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -59,6 +61,22 @@ void main() {
     for (final row in await target.select(target.briefings).get())
       if (row.openedAt != null) row.date,
   ];
+
+  /// 파일에 둔 데모 DB. 데모를 끝내면 비운 뒤 닫으므로, 끝낸 뒤에는 [seenDatesInFile]로 다시 열어 본다.
+  Future<File> demoFile() async {
+    final directory = await Directory.systemTemp.createTemp('briefing_demo');
+    addTearDown(() => directory.delete(recursive: true));
+    return File('${directory.path}/app_demo.sqlite');
+  }
+
+  Future<List<String>> seenDatesInFile(File file) async {
+    final reopened = AppDatabase(NativeDatabase(file));
+    try {
+      return await seenDates(reopened);
+    } finally {
+      await reopened.close();
+    }
+  }
 
   group('briefingOpenedTodayProvider', () {
     test('하루 경계(기본 04:00) 전은 전날 행을, 경계부터는 그날 행을 본다', () async {
@@ -164,7 +182,8 @@ void main() {
       addTearDown(
         () => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false,
       );
-      final demoDb = AppDatabase.memory();
+      final file = await demoFile();
+      final demoDb = AppDatabase(NativeDatabase(file));
       addTearDown(demoDb.close);
       SharedPreferences.setMockInitialValues({
         'app_mode': 'demo',
@@ -194,7 +213,7 @@ void main() {
       expect(await exit, const Ok(DemoEntry.onboarding));
       expect(await mark, isNull);
 
-      expect(await seenDates(demoDb), isEmpty);
+      expect(await seenDatesInFile(file), isEmpty);
       expect(await seenDates(db), isEmpty);
     });
 
@@ -203,7 +222,8 @@ void main() {
       addTearDown(
         () => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false,
       );
-      final demoDb = AppDatabase.memory();
+      final file = await demoFile();
+      final demoDb = AppDatabase(NativeDatabase(file));
       addTearDown(demoDb.close);
       final settings = _GatedSettings(demoDb);
       SharedPreferences.setMockInitialValues({
@@ -238,7 +258,7 @@ void main() {
       settings.gate.complete();
       expect(await mark, isNull);
 
-      expect(await seenDates(demoDb), isEmpty);
+      expect(await seenDatesInFile(file), isEmpty);
       expect(await seenDates(db), isEmpty);
     });
   });
