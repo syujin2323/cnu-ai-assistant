@@ -211,7 +211,7 @@ cnu-ai-assistant/
 
 ### 모션 프리셋
 
-이 절의 값도 임시 결정입니다. 정해진 디자인이 아니라 최종 프로토타입에서 뽑은 값이며, 디자인이 확정되면 바꿉니다. 값은 `app/lib/design/motion.dart`에 상수와 프리셋 위젯으로 둡니다. 화면 코드는 프리셋만 쓰고 곡선·시간 값을 직접 쓰지 않습니다. R0 핵심은 `press`, `rise`(홈 시간표 카드 포함), `pop`, 하단 탭(`navDrop` + `navIconPop`), `sheet`(배경 `fade` 포함), `pulse`와 이들이 쓰는 곡선(`ease.emphasized`, `ease.spring`, `ease.morph`), R0 화면의 높이·위치 변화에 쓰는 `ease.standard`이고, `layer`·`toast`는 단계 미정, 나머지(`stagger.list`, `stagger.word`)는 R1입니다.
+이 절의 값도 임시 결정입니다. 정해진 디자인이 아니라 최종 프로토타입에서 뽑은 값이며, 디자인이 확정되면 바꿉니다. 값은 `app/lib/design/motion.dart`에 상수와 프리셋 위젯으로 둡니다. 화면 코드는 프리셋만 쓰고 곡선·시간 값을 직접 쓰지 않습니다. R0 핵심은 `press`, `rise`(홈 시간표 카드 포함), `pop`, 하단 탭(`navDrop` + `navIconPop`), `sheet`(배경 `fade` 포함), `pulse`와 이들이 쓰는 곡선(`ease.emphasized`, `ease.spring`, `ease.morph`), R0 화면의 높이·위치 변화에 쓰는 `ease.standard`이고, `layer`(전체 화면 덮개)·`toast`(되돌리기 토스트)도 R0입니다(decisions.md 2026-11-15 '토스트·덮개 모션을 R0에 넣는다'). 나머지(`stagger.list`, `stagger.word`)는 R1입니다. 값과 키프레임은 최종 프로토타입의 CSS와 같습니다.
 
 | 프리셋 | 값 |
 |---|---|
@@ -219,22 +219,22 @@ cnu-ai-assistant/
 | `ease.standard` | cubic-bezier(.3, .9, .3, 1), 500ms. 그 밖의 상태 전환(높이·너비·위치 변화) |
 | `ease.spring` | cubic-bezier(.34, 1.45, .64, 1). pop, 칩, 배지. `CurvedAnimation`·`CurveTween`으로만 겁니다 |
 | `ease.morph` | cubic-bezier(.5, .15, 0, 1). 탭 활성 표시 |
-| `press` | 180ms, scale .97. 모든 버튼 |
+| `press` | 180ms, 누르는 동안 scale .97, 떼면 돌아옴(줄 때와 돌아올 때 모두 `ease.emphasized`). 모든 버튼 |
 | `fade` | 500ms. 배경 어둡게, 띠 글자 |
-| `pop` | 550ms, scale .6 → 1. 체크, 칩 |
-| `rise` | 800ms, 아래 18px + scale .985 + blur 6px → 원래대로. 카드·제목 등장. 브리핑 화면은 900ms |
-| `rise` 홈 시간표 카드 | 600ms, 아래 12px + scale .97 + blur 4px → 원래대로 |
+| `pop` | 550ms, 투명 + scale .6 → 원래대로(`ease.spring`). 체크, 칩 |
+| `rise` | 800ms, 투명 + 아래 18px + scale .985 + blur 6px → 원래대로(`ease.emphasized`). 카드·제목 등장. 브리핑 화면은 900ms |
+| `rise` 홈 시간표 카드 | 600ms, 투명 + 아래 12px + scale .97 + blur 4px → 원래대로 |
 | `sheet` | 750ms, 아래에서 위로 |
-| `navDrop` | 660ms, 가로 1.07·세로 .8 → .97·1.08 → 1.01·.98 → 1 |
-| `navIconPop` | 500ms, scale .78 → 1.14 → 1 |
-| `pulse` | 1.8s 반복, scale .6 → 1.9, 투명해짐. 02 홈 지금 할 일 카드의 점 (R0) |
+| `navDrop` | 660ms, cubic-bezier(.3, .7, .4, 1). 가로·세로 배율이 30%에 1.07·.8, 62%에 .97·1.08, 84%에 1.01·.98, 끝에 1 |
+| `navIconPop` | 500ms, cubic-bezier(.34, 1.5, .64, 1). scale .78 → 55%에 1.14 → 1 |
+| `pulse` | 1.8s 반복(ease-out), scale .6 → 1.9, 투명도 .9 → 0. 02 홈 지금 할 일 카드의 점 (R0) |
 | `stagger.list` | 항목당 60ms. 홈 시간표 카드는 45ms |
 | `stagger.word` | 단어당 42ms 간격, 단어당 700ms blur-in. 06 AI 비서 처음 화면 안내 줄 (R1) |
-| `layer` | 550ms, `ease.emphasized`. 전체 화면 덮개 |
-| `toast` | 450ms 등장. 되돌리기가 있으면 10초, 없으면 3.4초 보임 |
+| `layer` | 550ms, `ease.emphasized`. 오른쪽에서 들어오고 닫으면 오른쪽으로 나감. 전체 화면 덮개(06 AI 비서의 직접 추가 폼 등) (R0) |
+| `toast` | 450ms 등장(아래 16px에서 cubic-bezier(.34, 1.3, .64, 1)로 올라옴, 투명도는 300ms ease), 사라질 때는 거꾸로. 되돌리기가 있으면 10초, 없으면 3.4초 보임 (R0) |
 
-- 프리셋 위젯은 `design/motion/`의 `Press`, `Rise`, `Pop`, `NavDrop`(`navIconPop` 포함), `Sheet`, `Pulse`(R0), `WordIn`(R1)이고 `AnimationController`와 `CurvedAnimation`으로 만듭니다. 시간은 `MotionLevel.duration`을 거쳐 씁니다. 되돌리기가 있는 토스트가 보이는 10초는 `Defaults.undoWindow` 하나를 토스트(`AppMotion.toastWithUndo`)와 저장소(`UndoRepository.undoLast`)가 함께 씁니다.
-- 모션은 모든 사람에게 같습니다(decisions.md 2026-11-13 '모션은 모든 사람에게 같게 보인다'). 앱 안의 모션 선택은 없고, OS의 동작 줄이기(iOS)·애니메이션 삭제(Android)와 기기(오래된 Android)를 보지 않으며, 화면 전환과 온보딩 PageView도 늘 움직입니다. Android '애니메이션 삭제'를 켜면 Flutter가 OS의 애니메이션 끄기 신호를 보고 기본 `AnimationController`의 시간을 5%로 줄이므로(시트·화면 전환·프리셋), 앱 바인딩(`app/app_binding.dart`의 `AppBinding`, `main`이 맨 처음 만듦)이 이 신호를 늘 false로 보고 `RootApp`이 위젯이 보는 `MediaQuery`의 값도 false로 덮어씁니다(decisions.md 2026-11-14 'OS의 애니메이션 끄기 신호는 앱 전체에서 무시한다'). 모션 등급 `MotionLevel`은 앱이 늘 쓰는 `full`과 화면 테스트가 덮어쓰는 `off`(모든 시간 0) 둘이고 `motionLevelProvider`로 읽습니다(앱에서는 늘 `full`). 하단 탭바와 AI 비서 버튼은 늘 유리로 그리고, (R1) OS가 투명도를 줄이라고 하면 흰 배경으로 그립니다.
+- 프리셋 위젯은 `design/motion/`의 `Press`, `Rise`(`RiseStyle`: 카드·브리핑·홈 시간표 카드), `Pop`, `Pulse`, `ToastTransition`, `layerRoute`(R0)이고, R1의 `WordIn`도 여기에 둡니다. `sheet`는 `design/widgets/app_sheet.dart`의 `showAppSheet`가 쓰고, 하단 탭의 `navDrop`·`navIconPop`(값은 `AppMotion.navDropScales`·`navDropStops`·`navIconPopScales`·`navIconPopPeakAt`)은 하단 탭 PR에서 `design/widgets/app_tab_bar.dart`에 더합니다. 프로토타입의 CSS 전환(누름·토스트·탭 표시)은 목표가 바뀌면 그때 값에서 새 목표로 같은 곡선을 따라가므로 `design/motion/transition_value.dart`의 `TransitionValue`로 만듭니다. `CurvedAnimation`을 거꾸로 돌리면 도중에 방향을 바꿀 때 앞 곡선을 거꾸로 써서 되돌아갈 때 천천히 출발하기 때문입니다. 시간은 `MotionLevel.duration`을 거쳐 씁니다. 되돌리기가 있는 토스트가 보이는 10초는 `Defaults.undoWindow` 하나를 토스트(`AppMotion.toastWithUndo`)와 저장소(`UndoRepository.undoLast`)가 함께 씁니다.
+- 모션은 모든 사람에게 같습니다(decisions.md 2026-11-13 '모션은 모든 사람에게 같게 보인다'). 앱 안의 모션 선택은 없고, OS의 동작 줄이기(iOS)·애니메이션 삭제(Android)와 기기(오래된 Android)를 보지 않으며, 화면 전환과 온보딩 PageView도 늘 움직입니다. Android '애니메이션 삭제'를 켜면 Flutter가 OS의 애니메이션 끄기 신호를 보고 기본 `AnimationController`의 시간을 5%로 줄이므로(시트·화면 전환·프리셋), 앱 바인딩(`app/app_binding.dart`의 `AppBinding`, `main`이 맨 처음 만듦)이 이 신호를 늘 false로 보고 `RootApp`이 위젯이 보는 `MediaQuery`의 값도 false로 덮어씁니다(decisions.md 2026-11-14 'OS의 애니메이션 끄기 신호는 앱 전체에서 무시한다'). 모션 등급 `MotionLevel`은 앱이 늘 쓰는 `full`과 화면 테스트가 덮어쓰는 `off`(모든 시간 0) 둘이고 `motionLevelProvider`로 읽습니다(앱에서는 늘 `full`). 프리셋 위젯은 `RootApp`이 이 값으로 앱 전체를 감싼 `MotionScope`에서 읽고(감싸지 않은 곳은 `full`), off면 처음부터 끝 상태로 그리며 `pulse`는 고리를 그리지 않습니다(되풀이하는 애니메이션은 테스트의 `pumpAndSettle`을 끝나지 않게 하므로). 하단 탭바와 AI 비서 버튼은 늘 유리로 그리고, (R1) OS가 투명도를 줄이라고 하면 흰 배경으로 그립니다.
 - 첫 의미 있는 내용은 300ms 안에 보이고, 등장 중에도 누를 수 있어야 하며, 한 화면 전체 등장은 1.6초를 넘지 않습니다.
 
 ## 폰 DB (drift)
