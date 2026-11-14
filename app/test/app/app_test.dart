@@ -1279,6 +1279,18 @@ void main() {
         expect(find.byType(DemoBand), findsOneWidget);
         expect(app.preferences.getString('app_mode'), 'demo');
 
+        // 끝내기 상태도 대기로 돌아와 있어, 두 번째 데모도 끝낼 수 있다.
+        expect(app.container.read(demoExitProvider), DemoExitState.idle);
+        expect(
+          tester
+              .widget<TextButton>(find.widgetWithText(TextButton, '끝내기'))
+              .onPressed,
+          isNotNull,
+        );
+        await tapText(tester, '끝내기');
+        expect(find.byType(DemoBand), findsNothing);
+        expect(find.byType(OnboardingScreen), findsOneWidget);
+
         await app.dispose(tester);
       });
 
@@ -1310,6 +1322,8 @@ void main() {
         expect(find.byType(DemoBand), findsNothing);
         expect(find.byType(OnboardingScreen), findsOneWidget);
         expect(app.preferences.getString('app_mode'), 'real');
+        // 다시 시도로 끝낸 뒤에도 끝내기 상태는 대기다(다음 데모에서 끝내기가 막히지 않게).
+        expect(app.container.read(demoExitProvider), DemoExitState.idle);
 
         await app.dispose(tester);
       });

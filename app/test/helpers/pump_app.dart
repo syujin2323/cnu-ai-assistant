@@ -124,7 +124,7 @@ class _FakeBriefingCheck {
 class TestApp {
   TestApp._(
     this.db,
-    this.demoDb,
+    this._demoDbs,
     this.preferences,
     this.container,
     this.clock,
@@ -134,8 +134,11 @@ class TestApp {
   /// 실제 모드의 폰 DB(메모리).
   final AppDatabase db;
 
-  /// 데모 모드의 폰 DB(메모리).
-  final AppDatabase demoDb;
+  /// 지금(마지막으로 들어간) 데모 세션의 폰 DB(메모리). 실제처럼 데모에 들어갈 때마다 새로 열고, 끝내기가
+  /// 닫는다. 첫 데모 세션은 띄울 때 만든 것이라 띄우기 전후에 행을 넣을 수 있다.
+  AppDatabase get demoDb => _demoDbs.last;
+
+  final List<AppDatabase> _demoDbs;
   final SharedPreferences preferences;
   final ProviderContainer container;
 
@@ -166,7 +169,9 @@ class TestApp {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
     await db.close();
-    await demoDb.close();
+    for (final demoDb in _demoDbs) {
+      await demoDb.close();
+    }
   }
 }
 
@@ -208,7 +213,10 @@ Future<TestApp> pumpTestApp(
   // 두 인스턴스가 같은 연결을 쓸 때를 알리는 것이라 여기에는 해당하지 않으므로 끈다.
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   final db = AppDatabase.memory();
-  final demoDb = AppDatabase.memory();
+  // 데모 DB는 실제처럼 데모에 들어갈 때마다 새로 연다(끝내기가 비운 뒤 닫으므로). 첫 데모 세션은 미리 만든
+  // 것을 쓴다.
+  final demoDbs = [AppDatabase.memory()];
+  var demoSessions = 0;
 
   // LMS 상태는 앱 모드와 관계없이 실제 DB의 settings에 있다(docs/architecture.md '데모 모드').
   final settingsRepository = SettingsRepository(db);
@@ -244,12 +252,15 @@ Future<TestApp> pumpTestApp(
         sharedPreferencesProvider.overrideWithValue(sharedPreferences),
         // 실제 databaseProvider처럼 앱 모드를 보고 DB를 고르게 해, 데모 전환이 provider 사이
         // 의존 관계까지 그대로 돌게 한다. 파일 대신 모드마다 메모리 DB를 쓴다.
-        databaseProvider.overrideWith(
-          (ref) => switch (ref.watch(appModeProvider)) {
-            AppMode.real => db,
-            AppMode.demo => demoDb,
-          },
-        ),
+        databaseProvider.overrideWith((ref) {
+          switch (ref.watch(appModeProvider)) {
+            case AppMode.real:
+              return db;
+            case AppMode.demo:
+              if (demoSessions++ > 0) demoDbs.add(AppDatabase.memory());
+              return demoDbs.last;
+          }
+        }),
         motionLevelProvider.overrideWithValue(MotionLevel.off),
         if (!realBriefingCheck)
           briefingOpenedTodayProvider.overrideWithValue(briefingCheck.call),
@@ -272,7 +283,7 @@ Future<TestApp> pumpTestApp(
   );
   return TestApp._(
     db,
-    demoDb,
+    demoDbs,
     sharedPreferences,
     container,
     clock,

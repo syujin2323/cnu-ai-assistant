@@ -54,15 +54,17 @@ class AppDatabase extends _$AppDatabase {
     DemoSeeder? demoSeeder,
     Clock clock = const Clock(),
   }) => AppDatabase(
-    driftDatabase(
-      name: switch (mode) {
-        AppMode.real => 'app',
-        AppMode.demo => 'app_demo',
-      },
-    ),
+    driftDatabase(name: fileName(mode)),
     demoSeeder: demoSeeder,
     clock: clock,
   );
+
+  /// 앱 모드의 DB 파일 이름(확장자 `.sqlite` 앞). 열지 못한 데모 DB를 지울 때도 쓴다
+  /// (`data/db/demo_database_files.dart`).
+  static String fileName(AppMode mode) => switch (mode) {
+    AppMode.real => 'app',
+    AppMode.demo => 'app_demo',
+  };
 
   /// 메모리에만 있는 DB(테스트용).
   factory AppDatabase.memory() => AppDatabase(NativeDatabase.memory());
@@ -90,18 +92,20 @@ class AppDatabase extends _$AppDatabase {
     },
   );
 
-  /// 모든 표가 비어 있으면 [seed]로 샘플을 넣는다. 넣지 못하면(트랜잭션이라 아무것도 남지 않음) 기록만
-  /// 남기고 빈 데모로 연다. 열지 못하게 두면 데모를 끝낼 수도 없게 되기 때문이다.
+  /// 모든 표가 비어 있으면 [seed]로 샘플을 넣는다. 비었는지 보거나 넣다가 무엇이 실패하든(샘플 코드의
+  /// `Error`까지. 넣기는 트랜잭션이라 아무것도 남지 않음) 기록만 남기고 빈 데모로 연다. 여기서 던지면 데모
+  /// DB가 열리지 않아 데모를 끝낼 수도 없게 되고, 처음 만들 때라면 그 파일은 다음에도 열리지 않기 때문이다.
   Future<void> _seedIfEmpty(DemoSeeder seed) async {
-    for (final table in allTables) {
-      final row = await customSelect(
-        'SELECT 1 FROM "${table.actualTableName}" LIMIT 1',
-      ).getSingleOrNull();
-      if (row != null) return;
-    }
     try {
+      for (final table in allTables) {
+        final row = await customSelect(
+          'SELECT 1 FROM "${table.actualTableName}" LIMIT 1',
+        ).getSingleOrNull();
+        if (row != null) return;
+      }
       await transaction(() => seed(this, _clock.now()));
-    } on Exception catch (error) {
+    } catch (error) {
+      // 샘플 코드의 Error도 열기를 막지 않도록 모두 잡는다(위 설명).
       appLog(
         'demo_seed_failed',
         area: 'storage',

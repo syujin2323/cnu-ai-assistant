@@ -2,6 +2,8 @@
 //
 // - [runStartupTasks]: runApp 전에 기다린다. 설치 표식을 확인하고 LMS 상태를 정리한다.
 //   시작 위치 규칙이 첫 화면을 고르기 전에 맞는 값을 읽어야 하기 때문이다.
+// - [openCurrentDatabase]: runApp 전에 기다린다. 지금 모드의 폰 DB를 열고, 데모 DB를 열지 못하면 데모를
+//   버리고 실제 모드로 연다.
 // - [runDeferredStartupTasks]: runApp 뒤에 기다리지 않고 돌린다. 보관 기간이 지난 기록을 지운다.
 //
 // 모두 앱 모드와 관계없이 실제 모드의 폰 DB(`app.sqlite`)에서 한다. 설치 표식과 LMS 상태(`lms*` 키)는
@@ -17,13 +19,37 @@ import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/retention_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
 import 'package:cnu_ai_assistant/data/secure_storage.dart';
+import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/lms/session_state.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// 지금 모드의 폰 DB를 연다. bootstrap이 시작 작업 뒤 runApp 전에 기다린다(첫 화면이 기다리지 않고 DB를 읽게).
+///
+/// 데모 DB를 열지 못하면(파일 손상, 이 앱보다 새 버전 등) 데모를 버리고 실제 모드로 연다(docs/decisions.md
+/// 2026-11-14 '앱을 켤 때 데모 DB를 열지 못하면 실제 모드로 돌아간다'). 그러지 않으면 데모를 끝낼 수 없어 앱을
+/// 켤 때마다 시작 실패 화면에 갇히고, 빠져나가려면 앱을 지워 백업되지 않는 실제 폰 DB까지 잃는다. 실제 DB를
+/// 열지 못하면 그 오류를 그대로 던져 시작 실패 화면으로 가게 한다.
+Future<void> openCurrentDatabase(ProviderContainer container) async {
+  final db = container.read(databaseProvider);
+  try {
+    await db.customSelect('SELECT 1').get();
+  } catch (error) {
+    if (container.read(appModeProvider) != AppMode.demo) rethrow;
+    appLog(
+      'demo_open_failed',
+      area: 'startup',
+      data: {'error': errorKind(error)},
+    );
+    await container.read(appModeProvider.notifier).abandonDemo(db);
+    await container.read(databaseProvider).customSelect('SELECT 1').get();
+  }
+}
 
 /// runApp 전에 기다리는 시작 작업. [realDb]는 실제 모드의 폰 DB다.
 ///

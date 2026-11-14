@@ -71,7 +71,12 @@ class ClassSlots extends Table {
   ];
 }
 
-@TableIndex(name: 'class_exceptions_slot_date', columns: {#classSlotId, #date})
+// 인덱스는 `IF NOT EXISTS`로 만든다. 처음 만들다 버전(user_version)을 적기 전에 멈춘 파일은 다음에 열 때 표와
+// 인덱스를 다시 만드는데, 이미 있는 인덱스에서 실패하면 그 파일은 영영 열리지 않는다(drift는 표만 `IF NOT EXISTS`).
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS class_exceptions_slot_date '
+  'ON class_exceptions (class_slot_id, date)',
+)
 @UseRowClass(ClassException)
 class ClassExceptions extends Table {
   IntColumn get id => integer().autoIncrement()();
@@ -143,7 +148,9 @@ class Tasks extends Table {
       text().nullable().unique().references(LmsItems, #remoteKey)();
 }
 
-@TableIndex(name: 'plan_blocks_task_id', columns: {#taskId})
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS plan_blocks_task_id ON plan_blocks (task_id)',
+)
 @UseRowClass(PlanBlock)
 class PlanBlocks extends Table {
   IntColumn get id => integer().autoIncrement()();

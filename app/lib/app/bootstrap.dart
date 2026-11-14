@@ -3,11 +3,11 @@
 // 서버 주소 확인(release는 https만, [isAllowedApiBase]) → `Firebase.initializeApp` → App Check
 // `activate` → Remote Config 설정·앱 기본값·지난 실행에서 받은 값 적용(세 단계를 따로) → 실제 모드의 폰 DB
 // 열기 → 시작 작업(설치 표식 확인, LMS 상태 정리, `app/startup.dart`) → 지금 모드의 폰 DB 열기까지만
-// 기다린 뒤 `runApp`을 부른다(`main.dart`). 이 가운데 하나라도 실패하면 [BootFailed]를 돌려주고, main은
-// 앱 대신 20 시스템의 시작 실패 화면을 띄운다(OS 시작 화면에서 멈추지 않게). 먼저 시작한 준비도
-// 기다려, 그 오류가 잡히지 않은 채 남지 않게 한다. Remote Config `fetchAndActivate()`
-// ([fetchRemoteConfigAfterLaunch])와 보관 기간이 지난 기록 정리는 runApp 뒤에 시작하고 화면은
-// 기다리지 않는다. 위젯 테스트는 Firebase 없이 `RootApp`만 띄우므로 이 파일을 부르지 않는다.
+// 기다린 뒤 `runApp`을 부른다(`main.dart`). 데모 DB를 열지 못하면 데모를 버리고 실제 모드로 연다. 이 가운데
+// 하나라도 실패하면 [BootFailed]를 돌려주고, main은 앱 대신 20 시스템의 시작 실패 화면을 띄운다(OS 시작
+// 화면에서 멈추지 않게). 먼저 시작한 준비도 기다려, 그 오류가 잡히지 않은 채 남지 않게 한다. Remote Config
+// `fetchAndActivate()`([fetchRemoteConfigAfterLaunch])와 보관 기간이 지난 기록 정리는 runApp 뒤에 시작하고
+// 화면은 기다리지 않는다. 위젯 테스트는 Firebase 없이 `RootApp`만 띄우므로 이 파일을 부르지 않는다.
 
 import 'package:cnu_ai_assistant/app/config.dart';
 import 'package:cnu_ai_assistant/app/logging.dart';
@@ -104,8 +104,9 @@ Future<BootOutcome> bootstrap() async {
     );
     await dateFormatting;
     await orientation;
-    // 지금 모드의 폰 DB를 연다(데모면 데모 DB). 첫 화면이 기다리지 않고 DB를 읽게 여기서 끝낸다.
-    await container.read(databaseProvider).customSelect('SELECT 1').get();
+    // 지금 모드의 폰 DB를 연다(데모면 데모 DB). 첫 화면이 기다리지 않고 DB를 읽게 여기서 끝낸다. 데모 DB를
+    // 열지 못하면 데모를 버리고 실제 모드로 연다(`openCurrentDatabase`).
+    await openCurrentDatabase(container);
     return BootReady(container);
   } catch (error) {
     appLog(
