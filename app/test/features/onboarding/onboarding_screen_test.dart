@@ -204,6 +204,11 @@ void main() {
         );
         await _goToStep(tester, OnboardingStep.aiConsent);
         expect(find.text('보내는 것'), findsOneWidget);
+        // 실제로 보내는 항목만 적는다(과목 별칭은 두지 않으므로 보내지 않는다).
+        expect(
+          find.text('AI 비서에 쓴 문장, 과목 이름, 오늘 날짜·요일·지금 시각을 보내요.'),
+          findsOneWidget,
+        );
 
         await _tapInStep(tester, find.text('동의하고 계속'));
         _expectStep(OnboardingStep.briefingTime);
