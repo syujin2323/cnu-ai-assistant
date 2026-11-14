@@ -388,10 +388,10 @@ int _byStart(BusySpan a, BusySpan b) {
   return (a.sourceId ?? -1).compareTo(b.sourceId ?? -1);
 }
 
-/// [date]의 논리적 하루: 하루 경계부터 다음 날 하루 경계 전까지.
+/// [date]의 논리적 하루: 하루 경계부터 다음 날 하루 경계 전까지(`domain/clock.dart`).
 TimeSpan _logicalDay(DateTime date, int dayBoundaryMin) => TimeSpan(
-  _at(date, dayBoundaryMin),
-  _at(date, dayBoundaryMin + _minutesPerDay),
+  logicalDayStart(date, dayBoundaryMin: dayBoundaryMin),
+  logicalDayEnd(date, dayBoundaryMin: dayBoundaryMin),
 );
 
 /// 전날·그날·다음 날.
