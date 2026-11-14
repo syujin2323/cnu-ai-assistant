@@ -147,6 +147,26 @@ void main() {
       expect(byId[again.id]!.active, isTrue);
     });
 
+    test('점심을 다시 정하면 이전 점심만 끄고 저녁은 둔다', () async {
+      final lunch = await save(
+        RuleKind.meal,
+        const RuleParams(startMin: 720, endMin: 780, minutes: 40),
+      );
+      final dinner = await save(
+        RuleKind.meal,
+        const RuleParams(startMin: 1080, endMin: 1200, minutes: 40),
+      );
+      final again = await save(
+        RuleKind.meal,
+        const RuleParams(startMin: 810, endMin: 870, minutes: 40),
+        at: later,
+      );
+      final byId = {for (final rule in await all()) rule.id: rule};
+      expect(byId[lunch.id]!.active, isFalse);
+      expect(byId[dinner.id]!.active, isTrue);
+      expect(byId[again.id]!.active, isTrue);
+    });
+
     test('피할 시간은 여러 개 둔다', () async {
       await save(
         RuleKind.blackout,

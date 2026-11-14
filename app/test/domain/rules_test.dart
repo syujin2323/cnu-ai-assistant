@@ -179,6 +179,42 @@ void main() {
       );
     });
 
+    test('estimate는 영상·자료에 두지 않고, 개인이면 과목을 두지 않는다', () {
+      // docs/decisions.md 2026-11-14 '예상 시간 규칙은 10–720분이고 영상·자료·개인 과목 할 일에 두지 않는다'.
+      for (final kind in [TaskKind.video, TaskKind.material]) {
+        expect(
+          issues(RuleKind.estimate, RuleParams(taskKind: kind, minutes: 60)),
+          [issue('taskKind', RuleIssueKind.notAllowed)],
+          reason: kind.name,
+        );
+      }
+      expect(
+        issues(
+          RuleKind.estimate,
+          const RuleParams(
+            courseId: 3,
+            taskKind: TaskKind.personal,
+            minutes: 60,
+          ),
+        ),
+        [issue('courseId', RuleIssueKind.notAllowed)],
+      );
+      expect(
+        issues(
+          RuleKind.estimate,
+          const RuleParams(taskKind: TaskKind.personal, minutes: 60),
+        ),
+        isEmpty,
+      );
+      expect(
+        issues(
+          RuleKind.estimate,
+          const RuleParams(courseId: 3, taskKind: TaskKind.exam, minutes: 300),
+        ),
+        isEmpty,
+      );
+    });
+
     test('notify는 값이 하나는 있어야 하고 조용한 시간은 시작과 끝을 함께 둔다', () {
       expect(issues(RuleKind.notify, const RuleParams()), [
         issue(
@@ -250,7 +286,7 @@ void main() {
       expectLimit(RuleKind.classBuffer, RuleLimits.minutes);
       expectLimit(RuleKind.travel, RuleLimits.minutes);
       expectLimit(RuleKind.meal, RuleLimits.minutes);
-      expectLimit(RuleKind.estimate, RuleLimits.minutes);
+      expectLimit(RuleKind.estimate, RuleLimits.estimate);
       expectLimit(RuleKind.dailyCap, RuleLimits.dailyCap);
       expectLimit(RuleKind.maxBlock, RuleLimits.maxBlock);
     });
@@ -262,6 +298,7 @@ void main() {
     test('범위 상수는 docs/architecture.md \'내 규칙\'의 값 범위와 같다(임시값)', () {
       expect(RuleLimits.minutes, (low: 0, high: 240));
       expect(RuleLimits.dailyCap, (low: 30, high: 720));
+      expect(RuleLimits.estimate, (low: 10, high: 720));
       expect(RuleLimits.maxBlock.high, 240);
       expect(RuleLimits.notifyCap, (low: 0, high: 20));
       expect(RuleLimits.briefing, (low: 360, high: 720));
@@ -683,7 +720,7 @@ void main() {
       ]);
     });
 
-    test('기본 식사 시간대와 겹치는 식사 규칙은 기본값을 바꾼다', () {
+    test('점심 띠와 겹치는 식사 규칙은 기본 점심을 바꾼다', () {
       final config = PlannerConfig.from([
         rule(
           RuleKind.meal,
@@ -695,7 +732,7 @@ void main() {
       ]);
     });
 
-    test('기본 식사 시간대와 겹치지 않는 식사 규칙은 기본값에 더한다', () {
+    test('점심 띠 밖의 식사 규칙(저녁)은 기본 점심에 더한다', () {
       final config = PlannerConfig.from([
         rule(
           RuleKind.meal,
@@ -706,6 +743,183 @@ void main() {
         defaultMeal,
         MealGuard(window: MinuteRange(1080, 1200), minutes: 60),
       ]);
+    });
+
+    test('점심을 두 번 정하면 나중 것만 쓴다', () {
+      // docs/decisions.md 2026-11-14 '점심 자리는 넓은 점심 띠로 가린다'.
+      final config = PlannerConfig.from([
+        rule(
+          RuleKind.meal,
+          const RuleParams(startMin: 720, endMin: 780, minutes: 40),
+          id: 1,
+        ),
+        rule(
+          RuleKind.meal,
+          const RuleParams(startMin: 780, endMin: 840, minutes: 40),
+          id: 2,
+        ),
+      ]);
+      expect(config.meals, const [
+        MealGuard(window: MinuteRange(780, 840), minutes: 40),
+      ]);
+    });
+
+    test('기본 점심 시간대에 닿기만 하거나 벗어나도 점심 띠 안이면 기본 점심을 바꾼다', () {
+      for (final window in const [
+        MinuteRange(810, 870), // 13:30–14:30
+        MinuteRange(630, 690), // 10:30–11:30
+      ]) {
+        final config = PlannerConfig.from([
+          rule(
+            RuleKind.meal,
+            RuleParams(
+              startMin: window.startMin,
+              endMin: window.endMin,
+              minutes: 40,
+            ),
+          ),
+        ]);
+        expect(config.meals, [
+          MealGuard(window: window, minutes: 40),
+        ], reason: '$window');
+      }
+    });
+
+    test('점심과 저녁, 겹치지 않는 저녁 둘은 함께 둔다', () {
+      final config = PlannerConfig.from([
+        rule(
+          RuleKind.meal,
+          const RuleParams(startMin: 720, endMin: 780, minutes: 30),
+          id: 1,
+        ),
+        rule(
+          RuleKind.meal,
+          const RuleParams(startMin: 1020, endMin: 1080, minutes: 30),
+          id: 2,
+        ),
+        rule(
+          RuleKind.meal,
+          const RuleParams(startMin: 1140, endMin: 1200, minutes: 30),
+          id: 3,
+        ),
+      ]);
+      expect(config.meals, const [
+        MealGuard(window: MinuteRange(720, 780), minutes: 30),
+        MealGuard(window: MinuteRange(1020, 1080), minutes: 30),
+        MealGuard(window: MinuteRange(1140, 1200), minutes: 30),
+      ]);
+    });
+
+    test('자정을 넘는 식사 시간대는 저장 순서와 관계없이 새벽 시간대와 겹쳐 본다', () {
+      // 23:30–00:30과 00:00–01:00. 어느 쪽을 나중에 저장해도 나중 것만 남는다.
+      for (final (older, newer) in const [
+        (MinuteRange(1410, 1470), MinuteRange(0, 60)),
+        (MinuteRange(0, 60), MinuteRange(1410, 1470)),
+      ]) {
+        final config = PlannerConfig.from([
+          rule(
+            RuleKind.meal,
+            RuleParams(
+              startMin: older.startMin,
+              endMin: older.endMin,
+              minutes: 20,
+            ),
+            id: 1,
+          ),
+          rule(
+            RuleKind.meal,
+            RuleParams(
+              startMin: newer.startMin,
+              endMin: newer.endMin,
+              minutes: 20,
+            ),
+            id: 2,
+          ),
+        ]);
+        expect(config.meals.where((meal) => meal != defaultMeal), [
+          MealGuard(window: newer, minutes: 20),
+        ], reason: '$older 다음 $newer');
+      }
+    });
+
+    test('시간대가 겹치는 식사는 나중 것만 쓰고, 자정을 넘는 시간대는 같은 날 기준으로 견준다', () {
+      final config = PlannerConfig.from([
+        rule(
+          RuleKind.meal,
+          const RuleParams(startMin: 1080, endMin: 1200, minutes: 40),
+          id: 1,
+        ),
+        rule(
+          RuleKind.meal,
+          const RuleParams(startMin: 1140, endMin: 1260, minutes: 40),
+          id: 2,
+        ),
+        // 23:30–00:30과 00:00–01:00은 00:00–00:30에서 겹친다.
+        rule(
+          RuleKind.meal,
+          const RuleParams(startMin: 1410, endMin: 1470, minutes: 20),
+          id: 3,
+        ),
+        rule(
+          RuleKind.meal,
+          const RuleParams(startMin: 0, endMin: 60, minutes: 20),
+          id: 4,
+        ),
+      ]);
+      expect(config.meals, const [
+        MealGuard(window: MinuteRange(0, 60), minutes: 20),
+        defaultMeal,
+        MealGuard(window: MinuteRange(1140, 1260), minutes: 40),
+      ]);
+    });
+
+    test('점심 띠 안의 0분 식사 규칙은 기본 점심을 끈다', () {
+      final config = PlannerConfig.from([
+        rule(
+          RuleKind.meal,
+          const RuleParams(
+            startMin: Defaults.mealWindowStartMin,
+            endMin: Defaults.mealWindowEndMin,
+            minutes: 0,
+          ),
+        ),
+      ]);
+      expect(config.meals, const [
+        MealGuard(
+          window: MinuteRange(
+            Defaults.mealWindowStartMin,
+            Defaults.mealWindowEndMin,
+          ),
+          minutes: 0,
+        ),
+      ]);
+    });
+
+    test('점심 규칙이 더 새 식사에 밀려도 기본 점심은 돌아오지 않는다', () {
+      // 14:00–16:40 점심(점심 띠와 겹침)과 그보다 나중에 저장한 16:00–18:00 저녁이 16:00–16:40에서 겹친다.
+      final config = PlannerConfig.from([
+        rule(
+          RuleKind.meal,
+          const RuleParams(startMin: 840, endMin: 1000, minutes: 40),
+          id: 1,
+        ),
+        rule(
+          RuleKind.meal,
+          const RuleParams(startMin: 960, endMin: 1080, minutes: 40),
+          id: 2,
+        ),
+      ]);
+      expect(config.meals, const [
+        MealGuard(window: MinuteRange(960, 1080), minutes: 40),
+      ]);
+    });
+
+    test('영상은 과목 규칙이 있어도 예상 시간 규칙을 쓰지 않는다', () {
+      final config = PlannerConfig.from([
+        rule(RuleKind.estimate, const RuleParams(courseId: 7, minutes: 90)),
+      ]);
+      expect(config.estimateMin(courseId: 7, kind: TaskKind.video), isNull);
+      expect(config.estimateMin(courseId: 7, kind: TaskKind.quiz), 90);
     });
 
     test('예상 시간은 과목·종류, 과목, 종류 순서로 찾는다', () {
@@ -1107,14 +1321,57 @@ void main() {
       );
     });
 
-    test('피할 시간·선호 시간대·식사는 여러 개 두므로 대신하지 않는다', () {
+    test('식사는 같은 자리(점심끼리, 시간대가 겹치는 것)의 켜진 행만 대신한다', () {
+      final lunch = rule(
+        RuleKind.meal,
+        const RuleParams(startMin: 720, endMin: 780, minutes: 40),
+        id: 1,
+      );
+      final dinner = rule(
+        RuleKind.meal,
+        const RuleParams(startMin: 1080, endMin: 1200, minutes: 40),
+        id: 2,
+      );
+      final lunchOff = rule(
+        RuleKind.meal,
+        const RuleParams(startMin: 700, endMin: 760, minutes: 40),
+        id: 3,
+        active: false,
+      );
+      final existing = [lunch, dinner, lunchOff];
+      expect(
+        rulesReplacedBy(
+          RuleKind.meal,
+          const RuleParams(startMin: 810, endMin: 870, minutes: 40),
+          null,
+          existing,
+        ),
+        [lunch],
+      );
+      expect(
+        rulesReplacedBy(
+          RuleKind.meal,
+          const RuleParams(startMin: 1140, endMin: 1260, minutes: 40),
+          null,
+          existing,
+        ),
+        [dinner],
+      );
+      expect(
+        rulesReplacedBy(
+          RuleKind.meal,
+          const RuleParams(startMin: 1260, endMin: 1320, minutes: 30),
+          null,
+          existing,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('피할 시간·선호 시간대는 여러 개 두므로 대신하지 않는다', () {
       for (final (kind, params) in [
         (RuleKind.blackout, const RuleParams(startMin: 600, endMin: 660)),
         (RuleKind.preferred, const RuleParams(startMin: 600, endMin: 660)),
-        (
-          RuleKind.meal,
-          const RuleParams(startMin: 1080, endMin: 1200, minutes: 40),
-        ),
       ]) {
         expect(
           rulesReplacedBy(kind, params, null, [rule(kind, params)]),

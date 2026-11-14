@@ -44,6 +44,14 @@ abstract final class Defaults {
   /// 식사 보호 시간대 끝 13:30.
   static const int mealWindowEndMin = 810;
 
+  /// 점심으로 보는 넓은 시간대 시작 10:30. 이 띠([lunchBandStartMin]–[lunchBandEndMin])와 겹치는 식사 규칙은
+  /// '점심 자리' 하나로 보고 가장 나중에 저장한 것만 기본 점심 대신 쓴다(docs/decisions.md 2026-11-14
+  /// '점심 자리는 넓은 점심 띠로 가린다'). 기본 점심 시간대는 이 띠 안에 있어야 한다.
+  static const int lunchBandStartMin = 630;
+
+  /// 점심으로 보는 넓은 시간대 끝 15:30.
+  static const int lunchBandEndMin = 930;
+
   // 고정 일정
 
   /// 14 온보딩 3단계 '통학'의 시간 칩(분). 고른 값은 이동 시간 규칙(`travel`, `day_edges`)으로

@@ -28,6 +28,10 @@ abstract final class RuleLimits {
   /// 하루 최대 공부량(`daily_cap`)의 분 범위.
   static const dailyCap = (low: 30, high: 720);
 
+  /// 예상 시간(`estimate`)의 분 범위. 0분은 그 할 일을 끝내 제안하지 않게 만들고, 상한은 하루 최대 공부량과
+  /// 같다(docs/decisions.md 2026-11-14 '예상 시간 규칙은 10–720분이고 영상·자료·개인 과목 할 일에 두지 않는다').
+  static const estimate = (low: 10, high: 720);
+
   /// 한 번에 할 최대 시간(`max_block`)의 분 범위. 하한은 배치 최소 조각([Defaults.minChunkMin])과
   /// 같다. 배치 엔진은 그보다 짧은 조각을 만들지 않으므로 더 낮은 상한은 지킬 수 없다.
   static const maxBlock = (low: Defaults.minChunkMin, high: 240);
@@ -146,6 +150,7 @@ final class RuleIssue {
 /// 범위는 [RuleLimits](임시값)이고, 시각은 하루 안(0–1439)에서 시작해 끝이 시작보다 늦고
 /// 하루를 넘지 않아야 한다(자정을 넘으면 끝에 1440을 더한다). 그 종류가 쓰지 않는 값은
 /// [RuleIssueKind.notAllowed]만 내고 범위·짝을 검사하지 않는다. 식사 길이는 시간대와 분이 맞을 때만 본다.
+/// `estimate`의 종류가 영상·자료면 `taskKind`가, 개인인데 과목이 있으면 `courseId`가 [RuleIssueKind.notAllowed]다.
 List<RuleIssue> validateRule(
   RuleKind kind,
   RuleParams params, {
@@ -222,6 +227,17 @@ List<RuleIssue> validateRule(
     issues.add(const RuleIssue('minutes', RuleIssueKind.outOfRange));
   }
 
+  // 예상 시간 규칙은 영상(출석 인정 시간을 씀)과 자료(할 일로 만들지 않음)에 두지 않고, 개인 할 일 규칙에는
+  // 과목을 두지 않는다(과목 할 일의 종류 칩에 '개인'이 없다).
+  if (kind == RuleKind.estimate) {
+    final taskKind = params.taskKind;
+    if (taskKind == TaskKind.video || taskKind == TaskKind.material) {
+      issues.add(RuleIssue(RuleField.taskKind.name, RuleIssueKind.notAllowed));
+    } else if (taskKind == TaskKind.personal && params.courseId != null) {
+      issues.add(RuleIssue(RuleField.courseId.name, RuleIssueKind.notAllowed));
+    }
+  }
+
   if (weekdays != null) {
     if (!kind.allowsWeekdays) {
       issues.add(RuleIssue(RuleField.weekdays.name, RuleIssueKind.notAllowed));
@@ -296,7 +312,8 @@ List<int>? canonicalWeekdays(List<int>? days) {
 /// - 하나만 두는 종류: 그 종류의 행 전부(꺼진 행도). 저장소는 맨 앞 행에 새 값을 합쳐 켜고 나머지는 끈다.
 /// - 같은 요일을 대신하는 종류: 요일 집합([canonicalWeekdays]로 견줌)이 같은 켜진 행. 저장소가 끈다.
 /// - `estimate`: 과목·종류가 같은 켜진 행. 저장소가 끈다(같은 조합에 하나).
-/// - 그 밖(`blackout`, `preferred`, `meal`): 없다(여러 개 둔다).
+/// - `meal`: 같은 자리(점심 띠와 겹치는 점심끼리, 그 밖에는 시간대가 겹치는 것)의 켜진 행. 저장소가 끈다.
+/// - 그 밖(`blackout`, `preferred`): 없다(여러 개 둔다).
 List<Rule> rulesReplacedBy(
   RuleKind kind,
   RuleParams params,
@@ -320,6 +337,14 @@ List<Rule> rulesReplacedBy(
           rule.params.courseId == params.courseId &&
           rule.params.taskKind == params.taskKind,
     );
+  } else if (kind == RuleKind.meal) {
+    final window = _mealWindow(params);
+    replaced = window == null
+        ? const []
+        : sameKind.where((rule) {
+            final other = _mealWindow(rule.params);
+            return rule.active && other != null && _sameMealSlot(other, window);
+          });
   } else {
     replaced = const [];
   }
@@ -483,17 +508,22 @@ final class PlannerConfig {
       ),
       minutes: Defaults.mealMin,
     );
-    final mealRules = [
-      for (final rule in ofKind(RuleKind.meal))
-        MealGuard(
-          window: MinuteRange(rule.params.startMin!, rule.params.endMin!),
-          minutes: rule.params.minutes!,
-        ),
-    ];
-    // 기본 식사 시간대와 겹치는 규칙은 기본값을 바꾼 것이고, 겹치지 않으면 저녁처럼 더한 것이다.
-    final replacesDefault = mealRules.any(
-      (meal) => meal.window.overlaps(defaultMeal.window),
-    );
+    // 같은 자리를 다투는 식사 규칙은 나중에 저장한 것만 쓴다. 점심 띠와 겹치는 규칙은 모두 '점심 자리' 하나이고,
+    // 그 밖에는 시간대가 겹치면 같은 자리다. 점심 규칙이 하나라도 있으면 기본 점심 대신 쓰고(0분이면 점심을
+    // 비우지 않는다), 없으면 기본 점심을 더한다. 저녁처럼 점심 띠 밖의 규칙은 기본 점심에 더한다.
+    final mealRules = <MealGuard>[];
+    for (final rule in ofKind(RuleKind.meal)) {
+      final meal = MealGuard(
+        window: MinuteRange(rule.params.startMin!, rule.params.endMin!),
+        minutes: rule.params.minutes!,
+      );
+      if (mealRules.any((kept) => _sameMealSlot(kept.window, meal.window))) {
+        continue;
+      }
+      mealRules.add(meal);
+    }
+    final replacesDefault = ofKind(RuleKind.meal)
+        .any((rule) => _isLunch(_mealWindow(rule.params)!));
 
     return PlannerConfig._(
       classBufferMin:
@@ -546,9 +576,11 @@ final class PlannerConfig {
   }
 
   /// `estimate` 규칙의 예상 시간(분). 과목·종류가 모두 맞는 것, 과목만 맞는 것, 종류만 맞는 것
-  /// 순서로 찾고, 없으면 null이다(배치 엔진이 종류별 기본값을 쓰고 한 번 묻는다).
-  /// 할 일마다 사용자가 답한 값은 이것보다 우선하므로 부르는 쪽이 먼저 본다.
+  /// 순서로 찾고, 없으면 null이다(부르는 쪽이 종류별 기본값을 쓴다). 영상은 이 규칙을 쓰지 않아 늘 null이다
+  /// (출석 인정 시간 → 영상 길이 → 기본값). 할 일마다 사용자가 넣은 값은 이것보다 우선하므로 부르는 쪽이
+  /// 먼저 본다.
   int? estimateMin({required int? courseId, required TaskKind kind}) {
+    if (kind == TaskKind.video) return null;
     bool courseMatches(Rule rule) =>
         courseId != null && rule.params.courseId == courseId;
     final tiers = <bool Function(Rule)>[
@@ -650,6 +682,7 @@ _Shape _shapeOf(RuleKind kind) => switch (kind) {
 ({int low, int high}) _minutesLimit(RuleKind kind) => switch (kind) {
   RuleKind.dailyCap => RuleLimits.dailyCap,
   RuleKind.maxBlock => RuleLimits.maxBlock,
+  RuleKind.estimate => RuleLimits.estimate,
   _ => RuleLimits.minutes,
 };
 
@@ -754,3 +787,35 @@ bool _listEquals<T>(List<T> a, List<T> b) {
 }
 
 const int _minutesPerDay = 1440;
+
+/// 식사 규칙 값의 시간대. 시작이나 끝이 없으면 null이다(값 검사 전의 값).
+MinuteRange? _mealWindow(RuleParams params) {
+  final start = params.startMin;
+  final end = params.endMin;
+  return start == null || end == null ? null : MinuteRange(start, end);
+}
+
+const _lunchBand = MinuteRange(
+  Defaults.lunchBandStartMin,
+  Defaults.lunchBandEndMin,
+);
+
+/// 점심 자리인 식사 시간대: 넓은 점심 띠([Defaults.lunchBandStartMin]–[Defaults.lunchBandEndMin])와 겹친다.
+bool _isLunch(MinuteRange window) =>
+    _overlapsAroundMidnight(window, _lunchBand);
+
+/// 두 식사 시간대가 같은 자리인지. 둘 다 점심이거나 시간대가 겹치면 같은 자리이고, 같은 자리의 식사 규칙은
+/// 나중에 저장한 것만 쓴다.
+bool _sameMealSlot(MinuteRange a, MinuteRange b) =>
+    (_isLunch(a) && _isLunch(b)) || _overlapsAroundMidnight(a, b);
+
+/// [a]와 [b]가 실제 시각으로 겹치는지. 자정을 넘는 시간대(끝에 1440을 더한 값)와 새벽 시간대를 같은 날 기준으로
+/// 맞춰 본다(23:30–00:30과 00:00–01:00은 겹친다).
+bool _overlapsAroundMidnight(MinuteRange a, MinuteRange b) =>
+    a.overlaps(b) ||
+    a.overlaps(
+      MinuteRange(b.startMin + _minutesPerDay, b.endMin + _minutesPerDay),
+    ) ||
+    a.overlaps(
+      MinuteRange(b.startMin - _minutesPerDay, b.endMin - _minutesPerDay),
+    );
