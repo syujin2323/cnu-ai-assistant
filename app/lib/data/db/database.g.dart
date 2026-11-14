@@ -980,6 +980,26 @@ class $ClassExceptionsTable extends ClassExceptions
         type: DriftSqlType.string,
         requiredDuringInsert: true,
       ).withConverter<EntrySource>($ClassExceptionsTable.$convertersource);
+  static const VerificationMeta _startMinMeta = const VerificationMeta(
+    'startMin',
+  );
+  @override
+  late final GeneratedColumn<int> startMin = GeneratedColumn<int>(
+    'start_min',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _endMinMeta = const VerificationMeta('endMin');
+  @override
+  late final GeneratedColumn<int> endMin = GeneratedColumn<int>(
+    'end_min',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -988,6 +1008,8 @@ class $ClassExceptionsTable extends ClassExceptions
     kind,
     place,
     source,
+    startMin,
+    endMin,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1029,6 +1051,18 @@ class $ClassExceptionsTable extends ClassExceptions
         place.isAcceptableOrUnknown(data['place']!, _placeMeta),
       );
     }
+    if (data.containsKey('start_min')) {
+      context.handle(
+        _startMinMeta,
+        startMin.isAcceptableOrUnknown(data['start_min']!, _startMinMeta),
+      );
+    }
+    if (data.containsKey('end_min')) {
+      context.handle(
+        _endMinMeta,
+        endMin.isAcceptableOrUnknown(data['end_min']!, _endMinMeta),
+      );
+    }
     return context;
   }
 
@@ -1066,6 +1100,14 @@ class $ClassExceptionsTable extends ClassExceptions
           data['${effectivePrefix}source'],
         )!,
       ),
+      startMin: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_min'],
+      ),
+      endMin: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_min'],
+      ),
     );
   }
 
@@ -1087,6 +1129,8 @@ class ClassExceptionsCompanion extends UpdateCompanion<ClassException> {
   final Value<ClassExceptionKind> kind;
   final Value<String?> place;
   final Value<EntrySource> source;
+  final Value<int?> startMin;
+  final Value<int?> endMin;
   const ClassExceptionsCompanion({
     this.id = const Value.absent(),
     this.date = const Value.absent(),
@@ -1094,6 +1138,8 @@ class ClassExceptionsCompanion extends UpdateCompanion<ClassException> {
     this.kind = const Value.absent(),
     this.place = const Value.absent(),
     this.source = const Value.absent(),
+    this.startMin = const Value.absent(),
+    this.endMin = const Value.absent(),
   });
   ClassExceptionsCompanion.insert({
     this.id = const Value.absent(),
@@ -1102,6 +1148,8 @@ class ClassExceptionsCompanion extends UpdateCompanion<ClassException> {
     required ClassExceptionKind kind,
     this.place = const Value.absent(),
     required EntrySource source,
+    this.startMin = const Value.absent(),
+    this.endMin = const Value.absent(),
   }) : date = Value(date),
        classSlotId = Value(classSlotId),
        kind = Value(kind),
@@ -1113,6 +1161,8 @@ class ClassExceptionsCompanion extends UpdateCompanion<ClassException> {
     Expression<String>? kind,
     Expression<String>? place,
     Expression<String>? source,
+    Expression<int>? startMin,
+    Expression<int>? endMin,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1121,6 +1171,8 @@ class ClassExceptionsCompanion extends UpdateCompanion<ClassException> {
       if (kind != null) 'kind': kind,
       if (place != null) 'place': place,
       if (source != null) 'source': source,
+      if (startMin != null) 'start_min': startMin,
+      if (endMin != null) 'end_min': endMin,
     });
   }
 
@@ -1131,6 +1183,8 @@ class ClassExceptionsCompanion extends UpdateCompanion<ClassException> {
     Value<ClassExceptionKind>? kind,
     Value<String?>? place,
     Value<EntrySource>? source,
+    Value<int?>? startMin,
+    Value<int?>? endMin,
   }) {
     return ClassExceptionsCompanion(
       id: id ?? this.id,
@@ -1139,6 +1193,8 @@ class ClassExceptionsCompanion extends UpdateCompanion<ClassException> {
       kind: kind ?? this.kind,
       place: place ?? this.place,
       source: source ?? this.source,
+      startMin: startMin ?? this.startMin,
+      endMin: endMin ?? this.endMin,
     );
   }
 
@@ -1167,6 +1223,12 @@ class ClassExceptionsCompanion extends UpdateCompanion<ClassException> {
         $ClassExceptionsTable.$convertersource.toSql(source.value),
       );
     }
+    if (startMin.present) {
+      map['start_min'] = Variable<int>(startMin.value);
+    }
+    if (endMin.present) {
+      map['end_min'] = Variable<int>(endMin.value);
+    }
     return map;
   }
 
@@ -1178,7 +1240,9 @@ class ClassExceptionsCompanion extends UpdateCompanion<ClassException> {
           ..write('classSlotId: $classSlotId, ')
           ..write('kind: $kind, ')
           ..write('place: $place, ')
-          ..write('source: $source')
+          ..write('source: $source, ')
+          ..write('startMin: $startMin, ')
+          ..write('endMin: $endMin')
           ..write(')'))
         .toString();
   }
@@ -6559,6 +6623,8 @@ typedef $$ClassExceptionsTableCreateCompanionBuilder =
       required ClassExceptionKind kind,
       Value<String?> place,
       required EntrySource source,
+      Value<int?> startMin,
+      Value<int?> endMin,
     });
 typedef $$ClassExceptionsTableUpdateCompanionBuilder =
     ClassExceptionsCompanion Function({
@@ -6568,6 +6634,8 @@ typedef $$ClassExceptionsTableUpdateCompanionBuilder =
       Value<ClassExceptionKind> kind,
       Value<String?> place,
       Value<EntrySource> source,
+      Value<int?> startMin,
+      Value<int?> endMin,
     });
 
 final class $$ClassExceptionsTableReferences
@@ -6633,6 +6701,16 @@ class $$ClassExceptionsTableFilterComposer
         builder: (column) => ColumnWithTypeConverterFilters(column),
       );
 
+  ColumnFilters<int> get startMin => $composableBuilder(
+    column: $table.startMin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endMin => $composableBuilder(
+    column: $table.endMin,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$ClassSlotsTableFilterComposer get classSlotId {
     final $$ClassSlotsTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -6691,6 +6769,16 @@ class $$ClassExceptionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get startMin => $composableBuilder(
+    column: $table.startMin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endMin => $composableBuilder(
+    column: $table.endMin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ClassSlotsTableOrderingComposer get classSlotId {
     final $$ClassSlotsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -6738,6 +6826,12 @@ class $$ClassExceptionsTableAnnotationComposer
 
   GeneratedColumnWithTypeConverter<EntrySource, String> get source =>
       $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<int> get startMin =>
+      $composableBuilder(column: $table.startMin, builder: (column) => column);
+
+  GeneratedColumn<int> get endMin =>
+      $composableBuilder(column: $table.endMin, builder: (column) => column);
 
   $$ClassSlotsTableAnnotationComposer get classSlotId {
     final $$ClassSlotsTableAnnotationComposer composer = $composerBuilder(
@@ -6799,6 +6893,8 @@ class $$ClassExceptionsTableTableManager
                 Value<ClassExceptionKind> kind = const Value.absent(),
                 Value<String?> place = const Value.absent(),
                 Value<EntrySource> source = const Value.absent(),
+                Value<int?> startMin = const Value.absent(),
+                Value<int?> endMin = const Value.absent(),
               }) => ClassExceptionsCompanion(
                 id: id,
                 date: date,
@@ -6806,6 +6902,8 @@ class $$ClassExceptionsTableTableManager
                 kind: kind,
                 place: place,
                 source: source,
+                startMin: startMin,
+                endMin: endMin,
               ),
           createCompanionCallback:
               ({
@@ -6815,6 +6913,8 @@ class $$ClassExceptionsTableTableManager
                 required ClassExceptionKind kind,
                 Value<String?> place = const Value.absent(),
                 required EntrySource source,
+                Value<int?> startMin = const Value.absent(),
+                Value<int?> endMin = const Value.absent(),
               }) => ClassExceptionsCompanion.insert(
                 id: id,
                 date: date,
@@ -6822,6 +6922,8 @@ class $$ClassExceptionsTableTableManager
                 kind: kind,
                 place: place,
                 source: source,
+                startMin: startMin,
+                endMin: endMin,
               ),
           withReferenceMapper: (p0) => p0
               .map(
