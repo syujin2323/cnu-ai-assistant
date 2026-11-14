@@ -53,6 +53,29 @@ class UndoRecorder {
     _steps.add(UndoRestore(table, row.data));
   }
 
+  /// [table]의 [id] 행에서 [columns](SQL 열 이름)만 고치기 전에 부른다. 되돌리면 그 열만 직전 값으로
+  /// 돌리고 나머지 열은 지금 값을 둔다. 동기화가 다른 열을 바꾸는 표(`tasks`)의 사용자 열에 쓴다.
+  /// 행이 없으면 담지 않는다. [columns]가 비었거나 `id`를 담으면 [ArgumentError]다.
+  Future<void> beforeColumns(String table, int id, Set<String> columns) async {
+    _checkTable(table);
+    if (columns.isEmpty || columns.contains('id')) {
+      throw ArgumentError.value(columns, 'columns');
+    }
+    if (!_rows.add((table, id))) return;
+    final names = columns.map((column) => '"$column"').join(', ');
+    final row = await _db
+        .customSelect(
+          'SELECT $names FROM "$table" WHERE "id" = ?',
+          variables: [Variable.withInt(id)],
+        )
+        .getSingleOrNull();
+    if (row == null) {
+      _rows.remove((table, id));
+      return;
+    }
+    _steps.add(UndoPatch(table, id, Map.of(row.data)));
+  }
+
   /// [table]에 새로 넣은 [id] 행을 담는다(되돌리면 지운다).
   void inserted(String table, int id) {
     _checkTable(table);

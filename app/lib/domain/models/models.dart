@@ -15,5 +15,6 @@ export 'package:cnu_ai_assistant/domain/models/rule.dart';
 export 'package:cnu_ai_assistant/domain/models/sync_lease.dart';
 export 'package:cnu_ai_assistant/domain/models/sync_run.dart';
 export 'package:cnu_ai_assistant/domain/models/task.dart';
+export 'package:cnu_ai_assistant/domain/models/task_entry.dart';
 export 'package:cnu_ai_assistant/domain/models/undo_log_entry.dart';
 export 'package:cnu_ai_assistant/domain/models/value_codec.dart';

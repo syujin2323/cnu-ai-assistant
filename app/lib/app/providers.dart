@@ -19,8 +19,10 @@ import 'package:cnu_ai_assistant/data/db/demo_database_files.dart';
 import 'package:cnu_ai_assistant/data/demo/demo_seed.dart';
 import 'package:cnu_ai_assistant/data/repositories/briefing_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/demo_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/plan_block_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/rules_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/schedule_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/task_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/undo_repository.dart';
 import 'package:cnu_ai_assistant/data/secure_storage.dart';
@@ -232,6 +234,16 @@ final undoRepositoryProvider = Provider<UndoRepository>(
 /// 배치 계산의 입력(수업 칸·수업 예외·고정 일정·일정·블록) 읽기 저장소. 지금 모드의 폰 DB를 본다.
 final scheduleRepositoryProvider = Provider<ScheduleRepository>(
   (ref) => ScheduleRepository(ref.watch(databaseProvider)),
+);
+
+/// 할 일 저장소(`tasks` 표, LMS 원본·과목과 함께 읽음). 지금 모드의 폰 DB를 본다.
+final taskRepositoryProvider = Provider<TaskRepository>(
+  (ref) => TaskRepository(ref.watch(databaseProvider)),
+);
+
+/// 할 일 블록 저장소(`plan_blocks` 표). 지금 모드의 폰 DB를 본다.
+final planBlockRepositoryProvider = Provider<PlanBlockRepository>(
+  (ref) => PlanBlockRepository(ref.watch(databaseProvider)),
 );
 
 /// 설정 값. 표에 없는 키는 기본값으로 채워진다.

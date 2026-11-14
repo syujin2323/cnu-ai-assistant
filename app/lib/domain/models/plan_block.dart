@@ -114,3 +114,26 @@ class PlanBlock {
   /// 01 아침 브리핑에서 확정한 블록인지. 브리핑에서 다시 확정하면 이 블록을 새 선택으로 바꾼다.
   final bool fromBriefing;
 }
+
+/// 새로 놓을 블록의 값. 배치 엔진의 제안과 01 아침 브리핑의 확정이 저장소에 넘긴다.
+final class BlockDraft {
+  const BlockDraft({
+    required this.taskId,
+    required this.startAt,
+    required this.endAt,
+    this.source = BlockSource.auto,
+    this.reason,
+  });
+
+  /// `tasks.id`.
+  final int taskId;
+
+  final DateTime startAt;
+
+  final DateTime endAt;
+
+  final BlockSource source;
+
+  /// 엔진이 고른 자리의 근거. 직접 정한 자리는 null.
+  final BlockReason? reason;
+}

@@ -1,0 +1,15 @@
+{
+  "intent": "create_event",
+  "needsClarification": true,
+  "clarification": {
+    "field": "intent",
+    "question": "두 가지를 한 번에 하기는 어려워요. 먼저 내일 스터디를 넣을까요?"
+  },
+  "queryType": null,
+  "queryFrom": null,
+  "queryTo": null,
+  "queryCourse": null,
+  "unsupportedRule": null,
+  "items": [],
+  "rules": []
+}
