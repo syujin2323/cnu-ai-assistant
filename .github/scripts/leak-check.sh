@@ -291,6 +291,12 @@ SAMPLES
     if fixture_problem "$sample"; then echo "::error::자체 시험: 맞는 합성 샘플을 잡았습니다: $line"; failed=1; else n_miss=$((n_miss + 1)); fi
   done
 
+  # scan_pr 전체를 임시 레포에서 돌린다. 넣었다 지운 쿠키 줄, 이 스크립트 파일에 넣은 줄을 잡고 깨끗한 PR은
+  # 통과시키는지 본다(파일을 고르는 git 명령이 바뀌어도 잡히게).
+  if ! self_test_scan; then
+    failed=1
+  fi
+
   # grep 오류는 '일치 없음'이 아니라 검사 실패(종료 코드 2)여야 한다.
   rc=0
   (grep_rc -Eq '(' /dev/null) > /dev/null 2>&1 || rc=$?
@@ -302,7 +308,56 @@ SAMPLES
   if (( failed )); then
     return 1
   fi
-  echo "leak-check 자체 시험 통과: 잡아야 할 샘플 ${n_hit}개를 잡고 통과시킬 샘플 ${n_miss}개를 통과시켰습니다. 이름 형식과 grep 오류 처리도 확인했습니다."
+  echo "leak-check 자체 시험 통과: 잡아야 할 샘플 ${n_hit}개를 잡고 통과시킬 샘플 ${n_miss}개를 통과시켰습니다. 이름 형식, 임시 레포 검사, grep 오류 처리도 확인했습니다."
+}
+
+# 임시 레포($1)의 $2..$3 범위를 LMS_COOKIE_NAMES=$5로 검사해 종료 코드가 $4인지 본다. $6은 PR을 낸 레포와
+# 이 레포의 이름이다(비우면 포크 PR처럼 이름이 없어도 경고만 낸다).
+self_test_scan_case() {
+  local repo="$1" base_ref="$2" head_ref="$3" expect="$4" names="$5" own="${6:-}" rc=0
+  git -C "$repo" update-ref refs/remotes/origin/self-test "$base_ref"
+  (cd "$repo" && names_file="" && BASE=self-test HEAD_SHA="$head_ref" HEAD_REPO="$own" REPO="$own" PR_TITLE=self-test PR_BODY= \
+    LMS_COOKIE_NAMES="$names" scan_pr) > /dev/null 2>&1 || rc=$?
+  if (( rc != expect )); then
+    echo "::error::자체 시험: 임시 레포 검사의 종료 코드가 ${rc}입니다(기대한 값 ${expect}, 범위 ${base_ref:0:7}..${head_ref:0:7})."
+    return 1
+  fi
+}
+
+# 임시 레포에서 scan_pr을 돌려 본다. 모두 맞으면 0이다.
+self_test_scan() {
+  local repo="$work/scan-repo" base_a base_b base_c base_d bad=0
+  local -a git_in=(git -C "$repo" -c user.name=leak-check -c user.email=leak-check@example.invalid
+    -c commit.gpgsign=false -c core.hooksPath=/dev/null)
+  git init -q "$repo"
+  "${git_in[@]}" commit -q --allow-empty -m base
+  base_a="$("${git_in[@]}" rev-parse HEAD)"
+  # A: 쿠키 줄을 넣었다가 다음 커밋에서 지운다(PR 기록에는 남는다).
+  printf '%s\n' "${CK}: SAMPLEID=abc123" > "$repo/a.txt"
+  "${git_in[@]}" add a.txt && "${git_in[@]}" commit -q -m add
+  "${git_in[@]}" rm -q a.txt && "${git_in[@]}" commit -q -m remove
+  base_b="$("${git_in[@]}" rev-parse HEAD)"
+  # B: 이 스크립트 파일 자리에 쿠키 줄을 넣는다.
+  mkdir -p "$repo/.github/scripts"
+  printf '%s\n' "final ${ck} = 'SAMPLEID=abc123'" > "$repo/$SELF_PATH"
+  "${git_in[@]}" add "$SELF_PATH" && "${git_in[@]}" commit -q -m script
+  base_c="$("${git_in[@]}" rev-parse HEAD)"
+  # C: 깨끗한 줄
+  printf 'hello\n' > "$repo/ok.txt"
+  "${git_in[@]}" add ok.txt && "${git_in[@]}" commit -q -m clean
+  base_d="$("${git_in[@]}" rev-parse HEAD)"
+  # D: LMS 쿠키 이름으로만 잡히는 줄
+  printf '%s\n' "id = 'SAMPLENAME'" > "$repo/d.txt"
+  "${git_in[@]}" add d.txt && "${git_in[@]}" commit -q -m name
+
+  self_test_scan_case "$repo" "$base_a" "$base_b" 1 '' || bad=1
+  self_test_scan_case "$repo" "$base_b" "$base_c" 1 '' || bad=1
+  self_test_scan_case "$repo" "$base_c" "$base_d" 0 '' || bad=1
+  # 비밀값 끝의 줄바꿈은 지우고 이름으로 잡는다. 이름 사이를 줄바꿈으로 나눈 값과 이 레포 PR의 빈 값은 검사 실패(2)다.
+  self_test_scan_case "$repo" "$base_d" HEAD 1 $'OTHERNAME|SAMPLENAME\n' || bad=1
+  self_test_scan_case "$repo" "$base_d" HEAD 2 $'OTHERNAME\nSAMPLENAME' || bad=1
+  self_test_scan_case "$repo" "$base_c" "$base_d" 2 '' self-test/repo || bad=1
+  return "$bad"
 }
 
 case "${1:-}" in
