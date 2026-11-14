@@ -9,6 +9,7 @@ class Briefing {
     required this.createdAt,
     this.openedAt,
     this.confirmedAt,
+    this.editCount = 0,
   });
 
   final int id;
@@ -23,4 +24,7 @@ class Briefing {
 
   /// 브리핑에서 계획을 확정한 시각('N개 확정하기').
   final DateTime? confirmedAt;
+
+  /// 확정하기 전에 고른 것을 바꾼 횟수(사용 지표).
+  final int editCount;
 }

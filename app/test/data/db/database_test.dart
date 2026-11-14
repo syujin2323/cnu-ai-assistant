@@ -534,6 +534,126 @@ void main() {
     expect(tasks[fromLms]!.courseIdWith(lmsItem), courseId);
   });
 
+  test('첫 배포 전에 넣은 열을 저장하고 다시 읽으며, 블록·브리핑 표시는 기본값이 있다', () async {
+    // docs/decisions.md 2026-11-15 '배치 기본값과 간격(E1–E7)', docs/architecture.md '폰 DB'.
+    final fixedId = await db
+        .into(db.fixedBlocks)
+        .insert(
+          FixedBlocksCompanion.insert(
+            name: '알바',
+            weekdays: [6, 7],
+            startMin: 840,
+            endMin: 1020,
+            bufferMin: 0,
+            kind: FixedBlockKind.work,
+            source: EntrySource.ai,
+            place: const Value('카페'),
+          ),
+        );
+    final doneId = await db
+        .into(db.tasks)
+        .insert(
+          TasksCompanion.insert(
+            title: '보고서',
+            kind: TaskKind.personal,
+            dueTimeUnknown: false,
+            status: TaskStatus.done,
+            source: const Value(EntrySource.ai),
+            completedAt: Value(at),
+            actualMin: const Value(90),
+          ),
+        );
+    final shortId = await db
+        .into(db.tasks)
+        .insert(
+          TasksCompanion.insert(
+            title: '팀플',
+            kind: TaskKind.team,
+            dueTimeUnknown: false,
+            status: TaskStatus.todo,
+            partialGoalMin: const Value(60),
+            nightWindowFrom: const Value('2026-10-29'),
+          ),
+        );
+    final deferredId = await db
+        .into(db.tasks)
+        .insert(
+          TasksCompanion.insert(
+            title: '퀴즈',
+            kind: TaskKind.quiz,
+            dueTimeUnknown: false,
+            status: TaskStatus.todo,
+            deferredUntil: const Value('2026-10-31'),
+          ),
+        );
+    final answeredId = await db
+        .into(db.planBlocks)
+        .insert(
+          PlanBlocksCompanion.insert(
+            taskId: shortId,
+            startAt: at,
+            endAt: at.add(const Duration(minutes: 60)),
+            status: PlanBlockStatus.missed,
+            source: BlockSource.auto,
+            answeredAt: Value(at),
+            fromBriefing: const Value(true),
+          ),
+        );
+    final plainId = await db
+        .into(db.planBlocks)
+        .insert(
+          PlanBlocksCompanion.insert(
+            taskId: shortId,
+            startAt: at,
+            endAt: at.add(const Duration(minutes: 30)),
+            status: PlanBlockStatus.suggested,
+            source: BlockSource.auto,
+          ),
+        );
+    await db
+        .into(db.briefings)
+        .insert(BriefingsCompanion.insert(date: '2026-10-29', createdAt: at));
+
+    expect(
+      (await (db.select(
+        db.fixedBlocks,
+      )..where((t) => t.id.equals(fixedId))).getSingle()).place,
+      '카페',
+    );
+    final tasks = {
+      for (final task in await db.select(db.tasks).get()) task.id: task,
+    };
+    final done = tasks[doneId]!;
+    expect(done.source, EntrySource.ai);
+    expect(done.completedAt, at);
+    expect(done.actualMin, 90);
+    expect(tasks[shortId]!.source, isNull);
+    expect(tasks[shortId]!.partialGoalMin, 60);
+    expect(tasks[shortId]!.nightWindowFrom, '2026-10-29');
+    expect(tasks[deferredId]!.deferredUntil, '2026-10-31');
+    expect(tasks[deferredId]!.completedAt, isNull);
+    final blocks = {
+      for (final block in await db.select(db.planBlocks).get()) block.id: block,
+    };
+    expect(blocks[answeredId]!.answeredAt, at);
+    expect(blocks[answeredId]!.fromBriefing, isTrue);
+    expect(blocks[plainId]!.answeredAt, isNull);
+    expect(blocks[plainId]!.fromBriefing, isFalse);
+    expect((await db.select(db.briefings).getSingle()).editCount, 0);
+    // 출처는 snake_case, 시각은 그 순간의 UTC 문자열로 저장한다.
+    expect(await rawText('SELECT source FROM tasks WHERE id = $doneId'), 'ai');
+    expect(
+      await rawText('SELECT completed_at FROM tasks WHERE id = $doneId'),
+      utcText,
+    );
+    expect(
+      await rawText(
+        'SELECT answered_at FROM plan_blocks WHERE id = $answeredId',
+      ),
+      utcText,
+    );
+  });
+
   test('수업 칸은 불러온 원래 요일·시각·강의실과 고친 표시를 두고, 직접 넣은 수업은 비어 있다', () async {
     final courseId = await addCourse();
     await db
@@ -712,6 +832,7 @@ void main() {
             "reason = '{\"slackMin\":\"x\"}'",
         "UPDATE rules SET source = 'synced'",
         "UPDATE sync_runs SET result = 'throttled'",
+        "UPDATE tasks SET source = 'imported'",
       ]) {
         await db.customStatement(sql);
       }
@@ -746,6 +867,10 @@ void main() {
       expect(
         (await db.select(db.syncRuns).getSingle()).result,
         SyncResultKind.parseFailure,
+      );
+      expect(
+        (await db.select(db.tasks).getSingle()).source,
+        EntrySource.manual,
       );
       // 읽기만 해서는 저장된 값이 바뀌지 않는다.
       expect(await rawText('SELECT status FROM plan_blocks'), 'snoozed');
@@ -1084,6 +1209,37 @@ void main() {
                 lastSeenAt: at,
                 missCount: -1,
                 contentHash: 'hash9',
+              ),
+            ),
+        checkFailed,
+      );
+    });
+
+    test('할 일의 걸린 시간은 0 이상, 부분 목표는 0보다 크고, 브리핑의 수정 횟수는 0 이상이다', () async {
+      Future<int> addTask({int? actualMin, int? partialGoalMin}) => db
+          .into(db.tasks)
+          .insert(
+            TasksCompanion.insert(
+              title: '할 일',
+              kind: TaskKind.assignment,
+              dueTimeUnknown: false,
+              status: TaskStatus.todo,
+              actualMin: Value(actualMin),
+              partialGoalMin: Value(partialGoalMin),
+            ),
+          );
+      expect(await accepted(() => addTask(actualMin: 0)), isTrue);
+      expect(await accepted(() => addTask(actualMin: -1)), isFalse);
+      expect(await accepted(() => addTask(partialGoalMin: 1)), isTrue);
+      expect(await accepted(() => addTask(partialGoalMin: 0)), isFalse);
+      await expectLater(
+        db
+            .into(db.briefings)
+            .insert(
+              BriefingsCompanion.insert(
+                date: '2026-10-29',
+                createdAt: at,
+                editCount: const Value(-1),
               ),
             ),
         checkFailed,

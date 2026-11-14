@@ -1,3 +1,4 @@
+import 'package:cnu_ai_assistant/domain/models/entry_source.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_item.dart';
 
 /// 할 일의 종류. [personal]을 뺀 값은 LMS 항목의 종류와 같다.
@@ -18,9 +19,9 @@ enum TaskStatus { todo, done, hidden }
 /// 할 일. `tasks` 표의 한 행.
 ///
 /// LMS 항목에서 만든 할 일은 [lmsKey]로 `lms_items`를 가리키고, 동기화는
-/// [title]·[kind]·[dueAt]·[dueTimeUnknown]만 원본에서 다시 복사한다.
-/// [estimateMin]·[spentMin]·[status]는 사용자 값이라 동기화가 바꾸지 않는다. 할 일의 과목은
-/// [courseIdWith]로 구한다.
+/// [title]·[kind]·[dueAt]·[dueTimeUnknown]만 원본에서 다시 복사한다. 나머지 열([estimateMin]·
+/// [spentMin]·[status]·[completedAt]·[actualMin]과 시간 부족 선택 등)은 사용자 값이라 동기화가 바꾸지
+/// 않는다. 할 일의 과목은 [courseIdWith]로 구한다.
 class Task {
   const Task({
     required this.id,
@@ -33,6 +34,12 @@ class Task {
     required this.status,
     this.lmsKey,
     this.courseId,
+    this.source,
+    this.completedAt,
+    this.actualMin,
+    this.partialGoalMin,
+    this.nightWindowFrom,
+    this.deferredUntil,
   });
 
   final int id;
@@ -60,6 +67,25 @@ class Task {
   /// 06 AI 비서·직접 추가 폼에서 과목을 정해 만든 할 일의 과목(`courses.id`). LMS 할 일은 null로 두고
   /// 과목은 그 LMS 항목에서 읽는다(동기화가 쓰는 열을 늘리지 않음). 개인 할 일도 null이다.
   final int? courseId;
+
+  /// 할 일을 넣은 곳: 직접 추가 폼([EntrySource.manual]), 06 AI 비서([EntrySource.ai]). LMS 할 일은 null.
+  final EntrySource? source;
+
+  /// 끝낸 시각(03 할 일의 동그라미). 아직 끝내지 않았으면 null.
+  final DateTime? completedAt;
+
+  /// '얼마나 걸렸어요?'에 답한 걸린 시간(분). 블록으로 한 만큼인 [spentMin]과 다르다.
+  final int? actualMin;
+
+  /// 시간 부족에서 '부분 목표'를 고른 목표 시간(분). 이 할 일의 블록은 '부분'으로 보인다.
+  final int? partialGoalMin;
+
+  /// 시간 부족에서 '밤 시간 쓰기'를 고른 날(`YYYY-MM-DD`). 그날부터 이 할 일의 마감일까지 하루 창 끝을
+  /// 늘린다.
+  final String? nightWindowFrom;
+
+  /// 시간 부족에서 '다른 일 미루기'로 이번 계획에서 뺀 할 일이 다시 배치되는 날(`YYYY-MM-DD`).
+  final String? deferredUntil;
 
   /// 이 할 일의 과목 id. LMS 할 일은 [lmsKey]로 찾은 [lmsItem]의 과목이고(못 찾았으면 null), 그 밖에는
   /// [courseId]다. 예상 시간 규칙(`PlannerConfig.estimateMin`)과 03 할 일 줄의 과목이 이것을 쓴다.
