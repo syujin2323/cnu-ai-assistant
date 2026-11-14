@@ -1,0 +1,183 @@
+name: native-build
+
+# app-check는 flutter build를 하지 않으므로, Kotlin·Swift·매니페스트·Gradle·Xcode 설정을 바꾼 PR에서만 두 OS의 debug
+# 빌드를 실제로 만들어 본다(docs/decisions.md 2026-11-14 'android·ios를 바꾼 PR은 CI가 네이티브 빌드를 해 본다').
+# macOS 러너는 분 단가가 커서 iOS는 app/ios/**가 바뀐 때만 돈다. 필수 검사는 아니다.
+on:
+  pull_request:
+    paths:
+      - "app/android/**"
+      - "app/ios/**"
+      - ".github/workflows/native-build.yml"
+
+permissions: {}
+
+jobs:
+  changes:
+    name: native-build-changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    outputs:
+      android: ${{ steps.diff.outputs.android }}
+      ios: ${{ steps.diff.outputs.ios }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: 바뀐 OS 보기
+        id: diff
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed="$(git diff --name-only "$PR_BASE" HEAD)"
+          workflow=false
+          if grep -q '^\.github/workflows/native-build\.yml$' <<< "$changed"; then workflow=true; fi
+          android=$workflow
+          ios=$workflow
+          if grep -q '^app/android/' <<< "$changed"; then android=true; fi
+          if grep -q '^app/ios/' <<< "$changed"; then ios=true; fi
+          echo "android=$android" >> "$GITHUB_OUTPUT"
+          echo "ios=$ios" >> "$GITHUB_OUTPUT"
+
+  android:
+    name: native-build-android
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # docs/architecture.md '플랫폼 프로젝트 설정'의 Java 17. 러너에 깔린 Java 17을 쓴다.
+      - name: Java 17 고르기
+        run: echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+
+      # app-check와 같은 이유로 서드파티 액션은 릴리스 커밋 SHA로 고정한다.
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version-file: app/pubspec.yaml
+          cache: true
+
+      # Dart 코드 컴파일에 firebase_options.dart가 필요하다. 만드는 방법과 이유는 app-check.yml과 같다.
+      - name: Firebase 설정 파일 만들기
+        env:
+          FIREBASE_OPTIONS_DART: ${{ secrets.FIREBASE_OPTIONS_DART }}
+        run: |
+          if [[ -z "$FIREBASE_OPTIONS_DART" ]]; then
+            echo "::error::Actions 비밀값 FIREBASE_OPTIONS_DART가 비어 있습니다. app-check와 같은 값을 넣은 뒤 다시 돌리세요."
+            exit 1
+          fi
+          content="$(printf '%s' "$FIREBASE_OPTIONS_DART" | tr -d '\r')"
+          printf '%s\n' "$content" > lib/firebase_options.dart
+
+      # google-services Gradle 플러그인은 빌드 때 이 파일을 읽어 앱 ID(package_name)와 맞춰 본다. 진짜 파일은 CI에 두지
+      # 않으므로 project_info·client 구조만 갖춘 가짜 값을 쓴다(빌드만 하고 실행하지 않는다).
+      - name: 가짜 google-services.json 만들기
+        run: |
+          cat > android/app/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "ci-native-build",
+              "storage_bucket": "ci-native-build.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
+                  "android_client_info": {
+                    "package_name": "io.github.syujin2323.cnuaiassistant"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [{ "current_key": "ci-native-build-not-a-key" }],
+                "services": {
+                  "appinvite_service": { "other_platform_oauth_client": [] }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
+
+      - name: 패키지 받기
+        run: flutter pub get --enforce-lockfile
+
+      - name: Android debug 빌드
+        run: |
+          if ! flutter build apk --debug; then
+            echo "::error::Android debug 빌드가 실패했습니다. 위 로그의 Gradle·Kotlin·매니페스트 오류를 고친 뒤 커밋하세요."
+            exit 1
+          fi
+
+  ios:
+    name: native-build-ios
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version-file: app/pubspec.yaml
+          cache: true
+
+      - name: Firebase 설정 파일 만들기
+        env:
+          FIREBASE_OPTIONS_DART: ${{ secrets.FIREBASE_OPTIONS_DART }}
+        run: |
+          if [[ -z "$FIREBASE_OPTIONS_DART" ]]; then
+            echo "::error::Actions 비밀값 FIREBASE_OPTIONS_DART가 비어 있습니다. app-check와 같은 값을 넣은 뒤 다시 돌리세요."
+            exit 1
+          fi
+          content="$(printf '%s' "$FIREBASE_OPTIONS_DART" | tr -d '\r')"
+          printf '%s\n' "$content" > lib/firebase_options.dart
+
+      # Xcode 프로젝트가 Runner의 리소스로 이 파일을 넣으므로 없으면 빌드가 멈춘다. 가짜 값만 쓴다(빌드만 함).
+      - name: 가짜 GoogleService-Info.plist 만들기
+        run: |
+          cat > ios/Runner/GoogleService-Info.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>API_KEY</key><string>ci-native-build-not-a-key</string>
+            <key>GCM_SENDER_ID</key><string>000000000000</string>
+            <key>PLIST_VERSION</key><string>1</string>
+            <key>BUNDLE_ID</key><string>io.github.syujin2323.cnuaiassistant</string>
+            <key>PROJECT_ID</key><string>ci-native-build</string>
+            <key>STORAGE_BUCKET</key><string>ci-native-build.appspot.com</string>
+            <key>GOOGLE_APP_ID</key><string>1:000000000000:ios:0000000000000000</string>
+          </dict>
+          </plist>
+          PLIST
+
+      - name: 패키지 받기
+        run: flutter pub get --enforce-lockfile
+
+      # 서명 없이 시뮬레이터용으로 만든다(개발 팀·프로비저닝 프로파일을 CI에 두지 않음).
+      - name: iOS 시뮬레이터 debug 빌드
+        run: |
+          if ! flutter build ios --simulator --debug --no-codesign; then
+            echo "::error::iOS 시뮬레이터 debug 빌드가 실패했습니다. 위 로그의 Xcode·Swift·CocoaPods 오류를 고친 뒤 커밋하세요."
+            exit 1
+          fi
