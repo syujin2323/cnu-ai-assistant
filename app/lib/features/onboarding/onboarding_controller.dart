@@ -77,6 +77,12 @@ class OnboardingState {
 
 /// 온보딩 상태. 화면을 떠나면 처음으로 돌아간다. 처음 열 때 시작 단계를 정하려고 `settings`를 한 번
 /// 읽으므로, 그동안은 불러오는 중이다.
+/// 개발용 '로그인 없이 다음으로'를 쓸 수 있는지. debug 빌드(`kDebugMode`)에서만 true다(docs/decisions.md
+/// 2026-11-06 '개발 중에는 debug 빌드에만 로그인 없이 넘어가는 길을 둔다'). 1단계에 버튼을 둘지와
+/// [OnboardingController.skipLoginForDev]가 이 하나만 보므로, 테스트는 false로 덮어써 release·profile 빌드처럼
+/// 버튼도 동작도 없는지 본다(테스트는 늘 debug로 돌아 `kDebugMode`를 바꿀 수 없음).
+final devLoginSkipAllowedProvider = Provider<bool>((ref) => kDebugMode);
+
 final onboardingControllerProvider =
     AsyncNotifierProvider.autoDispose<OnboardingController, OnboardingState>(
       OnboardingController.new,
@@ -96,12 +102,13 @@ class OnboardingController extends AsyncNotifier<OnboardingState> {
     );
   }
 
-  /// 처음 온보딩에서 열 단계. 로그인한 뒤(LMS 상태가 `disconnected`가 아님) 끝내기 전에 앱이 꺼졌으면
-  /// 2단계, 아니면 1단계다. `settings`를 읽지 못하면 1단계다.
+  /// 처음 온보딩에서 열 단계. 로그인한 뒤(LMS 상태가 로그인 전(`disconnected`·`connecting`)이 아님) 끝내기 전에
+  /// 앱이 꺼졌으면 2단계, 아니면 1단계다. 로그인에 실패해 `connecting`으로 남은 채 둘러보기 → 끝내기로 돌아와도
+  /// 1단계다(docs/decisions.md 2026-11-14 '로그인하는 중은 로그인 전으로 본다'). `settings`를 읽지 못하면 1단계다.
   Future<OnboardingStep> _firstStep() async {
     switch (await ref.read(settingsRepositoryProvider).read()) {
       case Ok(:final value):
-        return value.lmsSessionState == LmsSessionState.disconnected
+        return value.lmsSessionState.beforeLogin
             ? OnboardingStep.login
             : OnboardingStep.timetable;
       case Err(:final error):
@@ -199,11 +206,12 @@ class OnboardingController extends AsyncNotifier<OnboardingState> {
   /// 빌드에만 로그인 없이 넘어가는 길을 둔다'). LMS에 요청하지 않고 LMS 상태를 `active`로 쓴 뒤 1단계
   /// 로그인을 마친 것처럼 간다. 시작 위치 규칙은 실제 모드에서 LMS 상태가 `disconnected`면 온보딩으로
   /// 돌려보내므로, LMS 로그인이 붙기 전에 기기에서 실제 모드 화면을 보려면 이 길이 있어야 한다.
-  /// release·profile 빌드에서는 아무것도 하지 않는다. 상태를 쓰지 못하면 이 단계에 머문다.
+  /// release·profile 빌드에서는 아무것도 하지 않는다([devLoginSkipAllowedProvider]). 상태를 쓰지 못하면 이 단계에
+  /// 머문다.
   ///
   /// 온보딩은 실제 모드에서만 열리므로 [settingsRepositoryProvider]가 LMS 상태를 두는 실제 DB다.
   Future<bool> skipLoginForDev() async {
-    if (!kDebugMode) return false;
+    if (!ref.read(devLoginSkipAllowedProvider)) return false;
     return _whileBusy(() async {
       final written = await ref
           .read(settingsRepositoryProvider)

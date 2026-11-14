@@ -9,8 +9,9 @@
 // 보이고 버튼을 '다시 시도'로 바꾼다. 실패 문구는 디자인 전 임시 문구다(docs/screens.md). 원격 스위치가
 // 꺼졌으면 'LMS 연동을 잠시 멈췄어요', 요청 상수를 아직 받지 못했으면 '설정을 받는 중이에요'를 보이고
 // '로그인'을 막는다. 처음 로그인은 LMS에 보내기 전에 개인정보 처리 안내에 동의한 시각을 적는다(처리보다
-// 동의가 먼저). debug 빌드에서는 개발용 '로그인 없이 다음으로'를 둔다([LoginForm.onSkipForDev],
-// docs/decisions.md 2026-11-06 '개발 중에는 debug 빌드에만 로그인 없이 넘어가는 길을 둔다').
+// 동의가 먼저). 개발용 '로그인 없이 다음으로'는 부르는 쪽이 [LoginForm.onSkipForDev]를 넘길 때만 둔다(14 온보딩
+// 1단계가 debug 빌드에서만 넘김, docs/decisions.md 2026-11-06 '개발 중에는 debug 빌드에만 로그인 없이 넘어가는
+// 길을 둔다').
 
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
@@ -20,7 +21,6 @@ import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/privacy_sheet.dart';
 import 'package:cnu_ai_assistant/lms/lms_config.dart';
 import 'package:cnu_ai_assistant/lms/login_flow.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -36,7 +36,6 @@ class LoginForm extends ConsumerStatefulWidget {
     required this.onSucceeded,
     this.onRunningChanged,
     this.onSkipForDev,
-    this.showDevSkip = true,
   });
 
   final LoginMode mode;
@@ -47,12 +46,9 @@ class LoginForm extends ConsumerStatefulWidget {
   /// 로그인을 시작하거나 끝냈을 때. 폼 밖의 버튼(1단계의 '로그인 없이 둘러보기')을 함께 잠근다.
   final ValueChanged<bool>? onRunningChanged;
 
-  /// 개발용 '로그인 없이 다음으로'를 눌렀을 때. null이면 버튼을 두지 않는다.
+  /// 개발용 '로그인 없이 다음으로'를 눌렀을 때. null이면 버튼을 두지 않는다(release·profile 빌드에서는 14 온보딩이
+  /// 넘기지 않음, `devLoginSkipAllowedProvider`).
   final VoidCallback? onSkipForDev;
-
-  /// 개발용 버튼을 보일지. true여도 debug 빌드에서만 보인다. 테스트는 false로 두어 release·profile
-  /// 빌드처럼 버튼이 없는 화면을 본다.
-  final bool showDevSkip;
 
   @override
   ConsumerState<LoginForm> createState() => _LoginFormState();
@@ -300,12 +296,10 @@ class _LoginFormState extends ConsumerState<LoginForm> {
               onPressed: canSubmit ? _submit : null,
               child: Text(retry ? '다시 시도' : '로그인'),
             ),
-            if (kDebugMode &&
-                widget.showDevSkip &&
-                widget.onSkipForDev != null) ...[
+            if (widget.onSkipForDev case final onSkipForDev?) ...[
               const SizedBox(height: AppSpace.s8),
               OutlinedButton(
-                onPressed: _running ? null : widget.onSkipForDev,
+                onPressed: _running ? null : onSkipForDev,
                 child: const Text('로그인 없이 다음으로'),
               ),
             ],

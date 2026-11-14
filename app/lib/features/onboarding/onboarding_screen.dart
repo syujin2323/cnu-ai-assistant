@@ -97,8 +97,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       OnboardingStep.login => LoginStep(
         onLoggedIn: () => _run((controller) => controller.loggedIn()),
         onBrowse: () => _run((controller) => controller.browseDemo()),
-        onSkipLoginForDev: () =>
-            _run((controller) => controller.skipLoginForDev()),
+        onSkipLoginForDev: ref.watch(devLoginSkipAllowedProvider)
+            ? () => _run((controller) => controller.skipLoginForDev())
+            : null,
       ),
       OnboardingStep.timetable => TimetableStep(onConfirm: next),
       OnboardingStep.fixedBlocks => FixedBlocksStep(onNext: next),

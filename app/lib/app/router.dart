@@ -29,7 +29,6 @@ import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
-import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_args.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_screen.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_controller.dart';
@@ -310,14 +309,14 @@ final routerProvider = Provider<GoRouter>((ref) {
 /// 시작 위치를 정하는 한 곳(docs/architecture.md '화면 이동', '데모 모드').
 ///
 /// 시작 위치(`/`)에서 순서대로 정한다. (R1·R2) 업데이트 필요·앱 잠금 화면이 생기면 맨 앞에서 본다.
-/// 실제 모드에서 온보딩을 끝내지 않았거나 LMS 상태가 `disconnected`(로그아웃 뒤처럼 로그인 정보가
-/// 없음)면 `/onboarding` → 알림 payload 경로(알림은 재설계 예정. 순서는 재설계 때 다시 봄) →
+/// 실제 모드에서 온보딩을 끝내지 않았거나 LMS 상태가 로그인 전(`disconnected`·`connecting`. 로그아웃 뒤처럼
+/// 로그인 정보가 없거나 로그인하는 중)이면 `/onboarding` → 알림 payload 경로(알림은 재설계 예정. 순서는 재설계 때 다시 봄) →
 /// 오늘(논리적 하루)의 브리핑을 아직 보지 않았으면 `/briefing` → 그 밖에는 `/today`다. 데모 모드면
 /// `onboarding_done`·LMS 상태·payload를 보지 않고 브리핑 규칙만 따른다. settings는 한 번만 읽고,
 /// 읽지 못하면 `/today`로 간다.
 ///
 /// `/login`처럼 시작 위치 밖의 경로는 막지 않는다. `/onboarding`으로 가는 이동은 데모 모드이거나
-/// 온보딩을 끝냈고 LMS 상태가 `disconnected`가 아닐 때만 브리핑이나 오늘로 돌린다. 다만 이미
+/// 온보딩을 끝냈고 LMS 상태가 로그인 전이 아닐 때만 브리핑이나 오늘로 돌린다. 다만 이미
 /// `/onboarding`에 있으면 돌리지 않는다. 로그아웃 뒤 1단계에서 로그인하는 동안 LMS 상태가
 /// `connecting`·`active`로 바뀌어도 튕기지 않게 하기 위해서이고, 로그인이 끝나면 화면이 `/`로 간다.
 /// 같은 까닭으로 settings에 `refreshListenable`을 달지 않는다. 로그아웃은 LMS 상태를
@@ -380,9 +379,7 @@ Future<String?> _redirect(
   }
 
   if (!demo) {
-    if (settings.lmsSessionState == LmsSessionState.disconnected) {
-      return decide(onboarding);
-    }
+    if (settings.lmsSessionState.beforeLogin) return decide(onboarding);
     if (payload != null) return decide(payload);
   }
   try {
