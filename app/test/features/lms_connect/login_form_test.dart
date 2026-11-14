@@ -258,6 +258,7 @@ void main() {
         ]) {
           testWidgets("$name: 이유와 '다시 시도'를 보이고, 다시 시도하면 같은 값으로 다시 "
               '로그인한다', (tester) async {
+            final semantics = tester.ensureSemantics();
             final flow = FakeLoginFlow(results: [Err(error), const Ok(null)]);
             final app = await pumpStepOne(tester, flow: flow);
             await _fill(tester);
@@ -265,6 +266,11 @@ void main() {
             await tester.pumpAndSettle();
 
             expect(find.text(reason), findsOneWidget);
+            // 이유는 화면 낭독기가 바로 읽는다(로그인을 누르며 포커스가 입력 칸을 떠났으므로).
+            expect(
+              tester.getSemantics(find.text(reason)),
+              isSemantics(isLiveRegion: true),
+            );
             expect(_text(tester, '비밀번호'), _password);
             expect(find.widgetWithText(FilledButton, '로그인'), findsNothing);
             expect(_buttonEnabled(tester, '다시 시도'), isTrue);
@@ -275,6 +281,7 @@ void main() {
             expect(flow.calls.last, flow.calls.first);
 
             await app.dispose(tester);
+            semantics.dispose();
           });
         }
 
@@ -385,6 +392,24 @@ void main() {
           expect(find.byType(TodayScreen), findsOneWidget);
           expect(app.router.state.uri.path, Routes.today);
           expect(await _consentAt(app), isNull);
+          // 폼이 사라질 때 OS의 '비밀번호 저장' 제안을 띄우지 않는다(학번·비밀번호는 이 폰의 보안 저장소에만).
+          expect(
+            tester.testTextInput.log,
+            contains(
+              isMethodCall('TextInput.finishAutofillContext', arguments: false),
+            ),
+          );
+          expect(
+            tester.testTextInput.log,
+            isNot(
+              contains(
+                isMethodCall(
+                  'TextInput.finishAutofillContext',
+                  arguments: true,
+                ),
+              ),
+            ),
+          );
 
           await app.dispose(tester);
         });

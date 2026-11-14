@@ -309,6 +309,34 @@ void main() {
         },
       );
 
+      testWidgets('4단계에서 동의했다가 뒤로 와 동의하지 않고 계속하면 AI는 꺼진다', (tester) async {
+        // 거절은 aiEnabled false를 늘 쓴다(기본값이 꺼짐이어도). 앞에서 동의해 켜 두었을 수 있기 때문이다.
+        final app = await pumpTestApp(
+          tester,
+          start: TestStart.fresh,
+          textScale: textScale,
+        );
+        await _tapInStep(tester, find.text(_devSkip));
+        await _tapInStep(tester, find.text('맞아요'));
+        await _tapInStep(tester, find.text('다음'));
+        _expectStep(OnboardingStep.aiConsent);
+        await _tapInStep(tester, find.text('동의하고 계속'));
+        _expectStep(OnboardingStep.briefingTime);
+        expect((await _settings(app)).aiEnabled, isTrue);
+
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+        _expectStep(OnboardingStep.aiConsent);
+        await _tapInStep(tester, find.text('동의하지 않고 계속'));
+        _expectStep(OnboardingStep.briefingTime);
+        await _tapInStep(tester, find.text('다음'));
+
+        expect(app.preferences.getBool(PrefKeys.onboardingDone), isTrue);
+        expect((await _settings(app)).aiEnabled, isFalse);
+
+        await app.dispose(tester);
+      });
+
       testWidgets('처음 열 때 settings를 읽지 못하면 1단계부터 연다', (tester) async {
         final app = await pumpTestApp(
           tester,
