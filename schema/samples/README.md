@@ -23,4 +23,5 @@
 | `parse_result.other.json` | 고마워! |
 
 - 날짜·시각을 정하는 것은 이 응답까지입니다. `weekday`와 `date`가 맞는지, 지난 날짜인지, 오전·오후를 말하지 않은 8–11시(`timeExpression`)를 되물을지는 앱의 `domain/`이 봅니다.
+- 바꾸기·지우기(`update_shift`, `delete_event`)의 `date`·`start` 같은 칸은 새 값이고, 대상을 가리키는 말의 날짜는 `targetDate`에 둡니다.
 - 빈 값(`work_window`의 시작 등)을 채우거나 되묻는 것도 앱입니다([docs/architecture.md](../../docs/architecture.md) '내 규칙'의 '빈 값 채우기').
