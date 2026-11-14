@@ -152,6 +152,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     return payload;
   }
 
+  final startRules = ref.read(startRulesProvider);
   late final GoRouter router;
   router = GoRouter(
     navigatorKey: rootNavigatorKey,
@@ -297,6 +298,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+  // 시작 위치 규칙의 결과가 실제로 도착했는지 [StartRules]가 보게 한다(도착할 때마다 알림).
+  router.routerDelegate.addListener(() {
+    if (router.routerDelegate.currentConfiguration.isEmpty) return;
+    startRules._landed(router.state.uri.path);
+  });
   ref.onDispose(router.dispose);
   return router;
 });
@@ -317,7 +323,8 @@ final routerProvider = Provider<GoRouter>((ref) {
 /// 같은 까닭으로 settings에 `refreshListenable`을 달지 않는다. 로그아웃은 LMS 상태를
 /// `disconnected`로 먼저 쓰고(await) 그다음 `/onboarding`으로 간다.
 ///
-/// settings를 읽으면 그 논리적 하루를 [StartRules]에 적는다. 앱으로 돌아왔을 때 다시 돌릴지 견주는 날이다.
+/// settings를 읽고 정한 결과의 위치에 실제로 도착하면 그 앱 모드와 논리적 하루를 [StartRules]에 적는다. 앱으로
+/// 돌아왔을 때 다시 돌릴지 견주는 날이다.
 Future<String?> _redirect(
   Ref ref,
   GoRouterState state, {
@@ -331,7 +338,8 @@ Future<String?> _redirect(
   final payload = toOnboarding ? null : takeLaunchPayload();
   // 온보딩으로 가야 하면 `/`는 `/onboarding`으로 보내고, `/onboarding`으로 가는 이동은 그대로 둔다.
   final onboarding = toOnboarding ? null : Routes.onboarding;
-  final demo = ref.read(appModeProvider) == AppMode.demo;
+  final mode = ref.read(appModeProvider);
+  final demo = mode == AppMode.demo;
 
   if (!demo) {
     if (toOnboarding && previousPath() == Routes.onboarding) return null;
@@ -355,20 +363,31 @@ Future<String?> _redirect(
       );
       return Routes.today;
   }
-  ref
-      .read(startRulesProvider)
-      ._recordRun(
-        ref.read(clockProvider).today(dayBoundaryMin: settings.dayBoundaryMin),
-      );
+  final startRules = ref.read(startRulesProvider);
+  final today = ref
+      .read(clockProvider)
+      .today(dayBoundaryMin: settings.dayBoundaryMin);
+  // 이 결과로 보낸다. 그날은 결과의 위치에 실제로 도착했을 때 [StartRules]에 적는다(그사이 다른 이동이 있어
+  // 결과가 버려지면 적지 않음).
+  String? decide(String? target) {
+    final landing = target ?? location;
+    startRules._willLand(
+      mode: mode,
+      day: today,
+      path: Uri.tryParse(landing)?.path ?? landing,
+    );
+    return target;
+  }
+
   if (!demo) {
     if (settings.lmsSessionState == LmsSessionState.disconnected) {
-      return onboarding;
+      return decide(onboarding);
     }
-    if (payload != null) return payload;
+    if (payload != null) return decide(payload);
   }
   try {
     final openedToday = await ref.read(briefingOpenedTodayProvider)();
-    return openedToday ? Routes.today : Routes.briefing;
+    return decide(openedToday ? Routes.today : Routes.briefing);
   } catch (error) {
     // 폰 DB를 읽지 못하면 브리핑도 보여 줄 수 없으므로 오늘로 간다. 여기서 던지면
     // onException이 다시 시작 위치로 보내 같은 실패를 되풀이한다.
@@ -377,7 +396,7 @@ Future<String?> _redirect(
       area: 'router',
       data: {'error': errorKind(error)},
     );
-    return Routes.today;
+    return decide(Routes.today);
   }
 }
 
@@ -389,9 +408,10 @@ final startRulesProvider = Provider<StartRules>(StartRules.new);
 /// (docs/architecture.md '화면 이동', docs/decisions.md 2026-11-06 '앱으로 돌아올 때는 하루가 바뀌었을
 /// 때만 시작 위치를 다시 정한다').
 ///
-/// 논리적 하루가 [_redirect]가 마지막으로 시작 규칙을 돌린 날과 다르고, 그날 브리핑을 아직 보지
-/// 않았으며, 맨 위 화면이 미루는 화면이 아닐 때만 `/`로 가서 [_redirect]가 다시 정하게 한다. 같은 날
-/// 안에서 돌아오면 보던 화면을 그대로 둔다. 시작 위치를 정하는 곳은 여전히 [_redirect] 하나다.
+/// 논리적 하루가 [_redirect]가 마지막으로 시작 규칙을 돌려 도착한 날과 다르거나(앱 모드가 다르면 다른 날로
+/// 봄), 그날 브리핑을 아직 보지 않았으며, 맨 위 화면이 미루는 화면이 아닐 때만 `/`로 가서 [_redirect]가 다시
+/// 정하게 한다. 같은 날 안에서 돌아오면 보던 화면을 그대로 둔다. 시작 위치를 정하는 곳은 여전히 [_redirect]
+/// 하나다.
 class StartRules {
   StartRules(this._ref);
 
@@ -399,7 +419,7 @@ class StartRules {
 
   /// 돌아왔을 때 미루는 화면. 이미 시작 흐름에 있거나(14 온보딩, 다시 로그인, 01 아침 브리핑) 입력
   /// 중일 수 있는 화면(06 AI 비서와 그 위에 덮는 직접 추가 폼)이라 덮지 않는다. 미룬 확인은 다음에
-  /// 돌아올 때 다시 본다.
+  /// 돌아올 때 다시 본다. 01을 띄운 채 하루가 바뀌었으면 01이 스스로 새 날을 적고 다시 그린다.
   static const Set<String> _deferredPaths = {
     Routes.onboarding,
     Routes.login,
@@ -407,14 +427,31 @@ class StartRules {
     Routes.assistant,
   };
 
-  /// [_redirect]가 마지막으로 시작 규칙을 돌린 논리적 하루. 앱을 다시 켜면 처음부터 다시 돌므로
-  /// 메모리에만 둔다. 아직 한 번도 돌리지 않았으면 null이다.
-  DateTime? _lastRunDay;
+  /// [_redirect]가 마지막으로 시작 규칙을 돌려 그 결과의 위치에 도착한 앱 모드와 논리적 하루. 앱을 다시
+  /// 켜면 처음부터 다시 돌므로 메모리에만 둔다. 아직 한 번도 도착하지 않았으면 null이다. 모드를 함께 두는
+  /// 것은 브리핑 기록이 모드의 DB마다 따로 있어서다(데모에서 돌린 날은 실제 모드의 날로 치지 않음).
+  ({AppMode mode, DateTime day})? _lastRun;
+
+  /// [_redirect]가 정했지만 아직 도착하지 않은 결과. 그 위치에 도착하면 [_lastRun]이 되고, 다른 위치에
+  /// 먼저 도착하면(그사이 탭 같은 다른 이동이 있어 결과가 버려짐) 적지 않고 버린다.
+  ({AppMode mode, DateTime day, String path})? _pending;
 
   /// 진행 중인 확인. 돌아왔다는 신호가 겹쳐 와도 확인은 하나만 돈다.
   Future<void>? _resumeCheck;
 
-  void _recordRun(DateTime day) => _lastRunDay = day;
+  void _willLand({
+    required AppMode mode,
+    required DateTime day,
+    required String path,
+  }) => _pending = (mode: mode, day: day, path: path);
+
+  /// 라우터가 [path](맨 위 화면의 경로)에 도착했을 때 부른다(routerDelegate의 리스너).
+  void _landed(String path) {
+    final pending = _pending;
+    if (pending == null) return;
+    _pending = null;
+    if (pending.path == path) _lastRun = (mode: pending.mode, day: pending.day);
+  }
 
   /// 앱으로 돌아왔을 때 부른다. 확인이 이미 돌고 있으면 그 확인을 돌려준다.
   Future<void> onResume() =>
@@ -422,9 +459,9 @@ class StartRules {
 
   Future<void> _checkOnResume() async {
     final router = _ref.read(routerProvider);
-    final lastRunDay = _lastRunDay;
+    final lastRun = _lastRun;
     // 첫 시작 위치를 정하는 중이면 견줄 날이 없다.
-    if (lastRunDay == null || _isDeferred(router)) return;
+    if (lastRun == null || _isDeferred(router)) return;
     final int dayBoundaryMin;
     switch (await _ref.read(settingsRepositoryProvider).read()) {
       case Ok(:final value):
@@ -440,7 +477,9 @@ class StartRules {
     final today = _ref
         .read(clockProvider)
         .today(dayBoundaryMin: dayBoundaryMin);
-    if (today == lastRunDay) return;
+    if (lastRun.mode == _ref.read(appModeProvider) && lastRun.day == today) {
+      return;
+    }
     final bool openedToday;
     try {
       openedToday = await _ref.read(briefingOpenedTodayProvider)();

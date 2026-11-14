@@ -6,6 +6,8 @@
 // 읽는 곳(SharedPreferences와 실제 모드 DB의 settings)에 그대로 쓴다. 셸 테스트와 온보딩 테스트가 이
 // 도우미를 함께 쓴다.
 
+import 'dart:async';
+
 import 'package:cnu_ai_assistant/app/app.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
@@ -78,8 +80,35 @@ class _FakeBriefingCheck {
   bool get opened => _checked(_opened);
   set opened(bool value) => _opened = _checked(value);
 
+  /// 지금까지 부른 횟수.
+  int _calls = 0;
+
+  /// 붙잡아 둘 확인의 차례와 그 확인을 놓아줄 문.
+  int? _holdAt;
+  Completer<void>? _gate;
+
+  /// 지금부터 [nth]번째 확인을 [release]까지 붙잡아 둔다.
+  void hold(int nth) {
+    _checked(true);
+    _holdAt = _calls + nth;
+    _gate = Completer<void>();
+  }
+
+  /// 붙잡아 둔 확인이 시작되어 기다리는 중인지.
+  bool get held => _gate != null && _calls >= _holdAt!;
+
+  /// 붙잡아 둔 확인을 놓아준다. 그 확인은 놓아줄 때의 값을 돌려준다.
+  void release() {
+    _gate?.complete();
+    _gate = null;
+    _holdAt = null;
+  }
+
   Future<bool> call() async {
+    _calls++;
     if (fails) throw StateError('브리핑 확인 실패(시험)');
+    final gate = _gate;
+    if (gate != null && _calls == _holdAt) await gate.future;
     return _opened;
   }
 
@@ -120,6 +149,16 @@ class TestApp {
   /// 오늘(논리적 하루) 브리핑을 이미 열었는지. 앱이 다음에 확인할 때 이 값을 받는다.
   bool get briefingOpenedToday => _briefingCheck.opened;
   set briefingOpenedToday(bool value) => _briefingCheck.opened = value;
+
+  /// 지금부터 [nth]번째 브리핑 확인을 [releaseBriefingCheck]까지 붙잡아 둔다. 시작 위치 규칙이 확인을
+  /// 기다리는 사이에 다른 이동이 끼어드는 경우를 흉내 낸다.
+  void holdBriefingCheck({int nth = 1}) => _briefingCheck.hold(nth);
+
+  /// 붙잡아 둔 브리핑 확인이 시작되어 기다리는 중인지.
+  bool get briefingCheckHeld => _briefingCheck.held;
+
+  /// 붙잡아 둔 브리핑 확인을 놓아준다.
+  void releaseBriefingCheck() => _briefingCheck.release();
 
   /// 위젯 트리를 내려 provider를 정리한 뒤 DB를 닫는다(drift 스트림 타이머가 남지 않게).
   Future<void> dispose(WidgetTester tester) async {
