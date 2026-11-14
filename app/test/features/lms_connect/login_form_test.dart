@@ -42,7 +42,7 @@ void main() {
           WidgetTester tester, {
           FakeLoginFlow? flow,
           bool enabled = true,
-          String requestParams = '{}',
+          String? requestParams,
           List<Override> overrides = const [],
         }) => pumpTestApp(
           tester,

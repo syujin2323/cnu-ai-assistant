@@ -1,0 +1,9 @@
+{
+  "header": {"code": 200, "msg": "합성"},
+  "body": {
+    "todo_list": [
+      {"course_id": "1", "class_no": "1", "course_nm": "과목A", "item_title_temp": "과제 1"},
+      {"course_id": "2", "class_no": "1", "course_nm": "과목B", "item_title_temp": "영상 1"}
+    ]
+  }
+}
