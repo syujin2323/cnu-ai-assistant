@@ -39,7 +39,7 @@ void main() {
     expect(filters, everyElement(AppGlass.filter));
   });
 
-  testWidgets('유리가 아니면(모션 light·off) 흐리게 하지 않는다', (tester) async {
+  testWidgets('유리가 아니면((R1) OS가 투명도를 줄이라고 할 때) 흐리게 하지 않는다', (tester) async {
     await pumpBar(tester, glass: false);
     expect(find.byType(BackdropFilter), findsNothing);
   });
