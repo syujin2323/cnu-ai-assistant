@@ -7,6 +7,7 @@ import 'package:cnu_ai_assistant/domain/models/event.dart';
 import 'package:cnu_ai_assistant/domain/models/fixed_block.dart';
 import 'package:cnu_ai_assistant/domain/models/plan_block.dart';
 import 'package:cnu_ai_assistant/domain/models/rule.dart';
+import 'package:cnu_ai_assistant/domain/planner/day_availability.dart';
 import 'package:cnu_ai_assistant/domain/planner/schedule.dart';
 import 'package:cnu_ai_assistant/domain/planner/time_span.dart';
 import 'package:cnu_ai_assistant/domain/rules.dart';
@@ -69,6 +70,21 @@ void main() {
     schedule: schedule,
     config: PlannerConfig.from([...baseRules, if (!meals) noLunch, ...rules]),
     dayBoundaryMin: boundary,
+  );
+
+  DayAvailability availability(
+    Schedule schedule, {
+    List<Rule> rules = const [],
+    int day = monday,
+    bool meals = false,
+    int boundary = Defaults.dayBoundaryMin,
+    bool nightWindow = false,
+  }) => dayAvailability(
+    DateTime(2026, 10, day),
+    schedule: schedule,
+    config: PlannerConfig.from([...baseRules, if (!meals) noLunch, ...rules]),
+    dayBoundaryMin: boundary,
+    nightWindow: nightWindow,
   );
 
   Rule window(int startMin, int endMin, {List<int>? weekdays}) => rule(
@@ -892,6 +908,320 @@ void main() {
       expect(withLunch(const Schedule(), rules: [dinner]), [
         span(at(monday, 9), at(monday, 11, 30)),
         span(at(monday, 12, 10), at(monday, 17, 20)),
+      ]);
+    });
+  });
+
+  group('dayAvailability', () {
+    // docs/architecture.md '도메인 기본값과 배치 엔진' 1단계. 02 홈·09 일간·11 주간이 같은 결과를 쓴다.
+    Rule travel(int minutes, TravelPosition position) => rule(
+      RuleKind.travel,
+      RuleParams(minutes: minutes, position: position),
+      id: 102,
+    );
+
+    test('바쁜 구간마다 이유와 그 행의 id를 시작 순서로 담고, 빈 구간은 freeSlots와 같다', () {
+      final schedule = Schedule(
+        classSlots: [classSlot(startMin: 600, endMin: 660)],
+        fixedBlocks: [fixedBlock(startMin: 780, endMin: 840, bufferMin: 15)],
+        events: [event(at(monday, 15), at(monday, 15, 30))],
+        planBlocks: [
+          planBlock(
+            at(monday, 17),
+            at(monday, 17, 30),
+            PlanBlockStatus.confirmed,
+          ),
+        ],
+      );
+      final rules = [travel(30, TravelPosition.dayEdges), blackout(960, 990)];
+      final result = availability(schedule, rules: rules);
+
+      expect(result.windows, [span(at(monday, 9), at(monday, 18))]);
+      expect(result.busy, [
+        BusySpan(
+          span(at(monday, 9, 30), at(monday, 10)),
+          BusyKind.travel,
+          sourceId: 1,
+        ),
+        BusySpan(
+          span(at(monday, 9, 50), at(monday, 10)),
+          BusyKind.classBuffer,
+          sourceId: 1,
+        ),
+        BusySpan(
+          span(at(monday, 10), at(monday, 11)),
+          BusyKind.classTime,
+          sourceId: 1,
+        ),
+        BusySpan(
+          span(at(monday, 11), at(monday, 11, 10)),
+          BusyKind.classBuffer,
+          sourceId: 1,
+        ),
+        BusySpan(
+          span(at(monday, 11), at(monday, 11, 30)),
+          BusyKind.travel,
+          sourceId: 1,
+        ),
+        BusySpan(
+          span(at(monday, 12, 45), at(monday, 13)),
+          BusyKind.fixedBuffer,
+          sourceId: 1,
+        ),
+        BusySpan(
+          span(at(monday, 13), at(monday, 14)),
+          BusyKind.fixedBlock,
+          sourceId: 1,
+        ),
+        BusySpan(
+          span(at(monday, 14), at(monday, 14, 15)),
+          BusyKind.fixedBuffer,
+          sourceId: 1,
+        ),
+        BusySpan(
+          span(at(monday, 15), at(monday, 15, 30)),
+          BusyKind.event,
+          sourceId: 1,
+        ),
+        BusySpan(span(at(monday, 16), at(monday, 16, 30)), BusyKind.blackout),
+        BusySpan(
+          span(at(monday, 17), at(monday, 17, 30)),
+          BusyKind.planBlock,
+          sourceId: PlanBlockStatus.confirmed.index + 1,
+        ),
+      ]);
+      final expectedFree = [
+        span(at(monday, 9), at(monday, 9, 30)),
+        span(at(monday, 11, 30), at(monday, 12, 45)),
+        span(at(monday, 14, 15), at(monday, 15)),
+        span(at(monday, 15, 30), at(monday, 16)),
+        span(at(monday, 16, 30), at(monday, 17)),
+        span(at(monday, 17, 30), at(monday, 18)),
+      ];
+      expect(result.free, expectedFree);
+      expect(free(schedule, rules: rules), expectedFree);
+    });
+
+    test('이동 시간이 수업 앞뒤 여유보다 짧아도 이동은 실제 분만큼 담고, 빈 시간은 큰 값으로 뺀다', () {
+      final result = availability(
+        Schedule(classSlots: [classSlot(startMin: 600, endMin: 660)]),
+        rules: [travel(5, TravelPosition.everyClass)],
+      );
+      expect(result.travel, [
+        span(at(monday, 9, 55), at(monday, 10)),
+        span(at(monday, 11), at(monday, 11, 5)),
+      ]);
+      expect(result.free, [
+        span(at(monday, 9), at(monday, 9, 50)),
+        span(at(monday, 11, 10), at(monday, 18)),
+      ]);
+    });
+
+    test('식사로 비운 구간을 바쁜 구간과 meals에 담는다', () {
+      final lunch = rule(
+        RuleKind.meal,
+        const RuleParams(startMin: 720, endMin: 840, minutes: 30),
+        id: 103,
+      );
+      final result = availability(
+        const Schedule(),
+        rules: [lunch],
+        meals: true,
+      );
+      final meal = span(at(monday, 12), at(monday, 12, 30));
+      expect(result.meals, [meal]);
+      expect(result.busy, [BusySpan(meal, BusyKind.meal)]);
+      expect(result.free, [
+        span(at(monday, 9), at(monday, 12)),
+        span(at(monday, 12, 30), at(monday, 18)),
+      ]);
+    });
+
+    test('하루 창 밖의 바쁜 구간도 담고, 논리적 하루에 걸친 것은 그 안으로 잘라 담는다', () {
+      final result = availability(
+        Schedule(
+          classSlots: [classSlot(startMin: 420, endMin: 480, online: true)],
+          events: [
+            event(at(monday, 2), at(monday, 5)),
+            event(at(monday + 1, 10), at(monday + 1, 11)),
+          ],
+        ),
+      );
+      expect(result.busy, [
+        BusySpan(
+          span(at(monday, 4), at(monday, 5)),
+          BusyKind.event,
+          sourceId: 1,
+        ),
+        BusySpan(
+          span(at(monday, 7), at(monday, 8)),
+          BusyKind.classTime,
+          sourceId: 1,
+        ),
+      ]);
+      expect(result.free, [span(at(monday, 9), at(monday, 18))]);
+    });
+
+    test('결과의 목록은 바꿀 수 없다', () {
+      final result = availability(const Schedule());
+      expect(() => result.free.clear(), throwsUnsupportedError);
+      expect(() => result.windows.clear(), throwsUnsupportedError);
+      expect(() => result.busy.clear(), throwsUnsupportedError);
+    });
+  });
+
+  group('밤 시간 쓰기', () {
+    // docs/architecture.md '도메인 기본값과 배치 엔진' 6단계. 하루 창 끝을 다음 날 01:00(임시)까지 늘린다.
+    final nightEnd = at(monday + 1, 1);
+
+    test('그날만 하루 창 끝을 다음 날 01:00까지 늘린다', () {
+      final night = availability(const Schedule(), nightWindow: true);
+      expect(night.windows, [span(at(monday, 9), nightEnd)]);
+      expect(night.free, [span(at(monday, 9), nightEnd)]);
+      expect(availability(const Schedule()).windows, [
+        span(at(monday, 9), at(monday, 18)),
+      ]);
+      expect(Defaults.nightWindowEndMin, 1500);
+    });
+
+    test('하루 창이 01:00보다 늦게 끝나면 줄이지 않는다', () {
+      final late = [window(600, 1560)];
+      expect(
+        availability(const Schedule(), rules: late, nightWindow: true).windows,
+        [span(at(monday, 10), at(monday + 1, 2))],
+      );
+    });
+
+    test('하루 경계 03:00에서도 01:00까지 열고, 늘린 밤에도 새벽 피할 시간이 걸린다', () {
+      expect(
+        availability(
+          const Schedule(),
+          boundary: 180,
+          nightWindow: true,
+        ).windows,
+        [span(at(monday, 9), nightEnd)],
+      );
+      expect(
+        availability(
+          const Schedule(),
+          rules: [blackout(0, 30)],
+          nightWindow: true,
+        ).free,
+        [
+          span(at(monday, 9), at(monday + 1, 0)),
+          span(at(monday + 1, 0, 30), nightEnd),
+        ],
+      );
+    });
+  });
+
+  group('보강 시각', () {
+    // docs/architecture.md '도메인 기본값과 배치 엔진' 1단계: 보강은 저장된 보강 시각(없으면 평소 시각).
+    const wednesday = monday + 2;
+
+    ClassException exception(
+      int day,
+      ClassExceptionKind kind, {
+      int id = 1,
+      int? startMin,
+      int? endMin,
+    }) => ClassException(
+      id: id,
+      date: '2026-10-$day',
+      classSlotId: 1,
+      kind: kind,
+      source: EntrySource.manual,
+      startMin: startMin,
+      endMin: endMin,
+    );
+
+    final usual = classSlot(startMin: 600, endMin: 660);
+
+    test('저장된 보강 시각에 막는다', () {
+      final result = availability(
+        Schedule(
+          classSlots: [usual],
+          classExceptions: [
+            exception(
+              wednesday,
+              ClassExceptionKind.makeup,
+              startMin: 840,
+              endMin: 900,
+            ),
+          ],
+        ),
+        day: wednesday,
+      );
+      expect(result.free, [
+        span(at(wednesday, 9), at(wednesday, 13, 50)),
+        span(at(wednesday, 15, 10), at(wednesday, 18)),
+      ]);
+      expect(result.busy.where((b) => b.kind == BusyKind.classTime), [
+        BusySpan(
+          span(at(wednesday, 14), at(wednesday, 15)),
+          BusyKind.classTime,
+          sourceId: 1,
+        ),
+      ]);
+    });
+
+    test('같은 날 휴강과 다른 시각 보강이 함께 있으면 보강 시각만 막는다', () {
+      final schedule = Schedule(
+        classSlots: [usual],
+        classExceptions: [
+          exception(monday, ClassExceptionKind.cancelled),
+          exception(
+            monday,
+            ClassExceptionKind.makeup,
+            id: 2,
+            startMin: 960,
+            endMin: 1020,
+          ),
+        ],
+      );
+      expect(free(schedule), [
+        span(at(monday, 9), at(monday, 15, 50)),
+        span(at(monday, 17, 10), at(monday, 18)),
+      ]);
+    });
+
+    test('보강 날의 하루 첫 수업·마지막 수업 이동 시간은 보강 시각에 건다', () {
+      final schedule = Schedule(
+        classSlots: [usual],
+        classExceptions: [
+          exception(
+            wednesday,
+            ClassExceptionKind.makeup,
+            startMin: 840,
+            endMin: 900,
+          ),
+        ],
+      );
+      final travelRule = rule(
+        RuleKind.travel,
+        const RuleParams(minutes: 30, position: TravelPosition.dayEdges),
+        id: 102,
+      );
+      expect(free(schedule, rules: [travelRule], day: wednesday), [
+        span(at(wednesday, 9), at(wednesday, 13, 30)),
+        span(at(wednesday, 15, 30), at(wednesday, 18)),
+      ]);
+    });
+
+    test('평소 요일에 시각 없는 보강을 또 적어도 평소 시각에 한 번만 막는다', () {
+      final result = availability(
+        Schedule(
+          classSlots: [usual],
+          classExceptions: [exception(monday, ClassExceptionKind.makeup)],
+        ),
+      );
+      expect(
+        result.busy.where((b) => b.kind == BusyKind.classTime),
+        hasLength(1),
+      );
+      expect(result.free, [
+        span(at(monday, 9), at(monday, 9, 50)),
+        span(at(monday, 11, 10), at(monday, 18)),
       ]);
     });
   });
