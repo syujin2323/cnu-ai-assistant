@@ -3,9 +3,10 @@
 // 여기의 값도 임시 결정이다. 정해진 디자인이 아니라 최종 프로토타입에서 뽑은 값이고, 디자인이 확정되면
 // 바꾼다. 화면 코드는 곡선·시간 값을 직접 쓰지 않는다.
 //
-// 이 파일에는 상수와 등급만 둔다. 프리셋 위젯(`Press`, `Rise`, `Pop`, `NavDrop`(navIconPop 포함),
-// `Sheet`, `Pulse`, R1의 `WordIn`)은 R0 모션 PR에서 `design/motion/`에 `AnimationController`와
-// `CurvedAnimation`으로 만들고, 시간은 [MotionLevel.duration]을 거쳐 쓴다.
+// 이 파일에는 상수와 등급, 등급을 내려 주는 [MotionScope]를 둔다. 프리셋 위젯(`Press`, `Rise`, `Pop`,
+// `Pulse`, `ToastTransition`, `LayerRoute`, 하단 탭의 navDrop·navIconPop, R1의 `WordIn`)은 `design/motion/`에
+// `AnimationController`와 `CurvedAnimation`으로 만들고, 시간은 [MotionLevel.duration]을 거쳐 쓴다. sheet는
+// `design/widgets/app_sheet.dart`의 `showAppSheet`가 쓴다. 값과 키프레임은 최종 프로토타입의 CSS와 같다.
 // 모션은 모든 사람에게 같다(docs/decisions.md 2026-11-13 '모션은 모든 사람에게 같게 보인다'). 앱 안의
 // 모션 선택은 없고, OS의 동작 줄이기·애니메이션 삭제와 기기를 보지 않는다. Android '애니메이션 삭제'에
 // Flutter가 `AnimationController`의 시간을 5%로 줄이는 것은 앱 바인딩이 막는다(`app/app_binding.dart`,
@@ -27,6 +28,22 @@ enum MotionLevel {
   Duration duration(Duration value) => this == off ? Duration.zero : value;
 }
 
+/// 위젯 트리에 모션 등급을 내려 준다. `RootApp`이 `motionLevelProvider`의 값으로 앱 전체를 감싸고, 프리셋
+/// 위젯은 [MotionScope.of]로 읽는다. 감싸지 않은 곳(따로 띄운 위젯 테스트 등)은 [MotionLevel.full]이다.
+class MotionScope extends InheritedWidget {
+  const MotionScope({super.key, required this.level, required super.child});
+
+  final MotionLevel level;
+
+  /// 가장 가까운 [MotionScope]의 등급. 없으면 [MotionLevel.full]이다.
+  static MotionLevel of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<MotionScope>()?.level ??
+      MotionLevel.full;
+
+  @override
+  bool updateShouldNotify(MotionScope oldWidget) => level != oldWidget.level;
+}
+
 /// 곡선(임시값).
 abstract final class AppEase {
   /// rise, 시트, 누름 복귀.
@@ -41,6 +58,21 @@ abstract final class AppEase {
 
   /// 탭 활성 표시.
   static const Cubic morph = Cubic(0.5, 0.15, 0, 1);
+
+  /// 하단 탭 활성 표시의 navDrop(눌림과 튐).
+  static const Cubic navDrop = Cubic(0.3, 0.7, 0.4, 1);
+
+  /// 하단 탭 아이콘의 navIconPop. 1을 넘는다.
+  static const Cubic navIconPop = Cubic(0.34, 1.5, 0.64, 1);
+
+  /// 토스트가 올라오는 움직임. 1을 넘는다.
+  static const Cubic toast = Cubic(0.34, 1.3, 0.64, 1);
+
+  /// pulse(CSS `ease-out`).
+  static const Cubic pulse = Cubic(0, 0, 0.58, 1);
+
+  /// 투명도 바꾸기(CSS `ease`). fade, 토스트의 투명도.
+  static const Cubic fade = Cubic(0.25, 0.1, 0.25, 1);
 }
 
 /// 프리셋의 시간과 크기(임시값).
@@ -55,11 +87,11 @@ abstract final class AppMotion {
   /// fade: 배경 어둡게, 띠 글자.
   static const Duration fade = Duration(milliseconds: 500);
 
-  /// pop: 체크, 칩. scale [popScaleFrom] → 1.
+  /// pop: 체크, 칩. 투명 + scale [popScaleFrom] → 원래대로.
   static const Duration pop = Duration(milliseconds: 550);
   static const double popScaleFrom = 0.6;
 
-  /// rise: 카드·제목 등장. 아래 [riseOffset] + scale [riseScaleFrom] + blur [riseBlur] → 원래대로.
+  /// rise: 카드·제목 등장. 투명 + 아래 [riseOffset] + scale [riseScaleFrom] + blur [riseBlur] → 원래대로.
   static const Duration rise = Duration(milliseconds: 800);
   static const double riseOffset = 18;
   static const double riseScaleFrom = 0.985;
@@ -86,14 +118,22 @@ abstract final class AppMotion {
     (1, 1),
   ];
 
+  /// [navDropScales]의 각 배율에 닿는 때(전체 시간에 대한 비율). 처음(0)은 (1, 1)이다.
+  static const List<double> navDropStops = [0.3, 0.62, 0.84, 1];
+
   /// navIconPop: 하단 탭 아이콘. 배율이 [navIconPopScales]의 순서로 바뀐다.
   static const Duration navIconPop = Duration(milliseconds: 500);
   static const List<double> navIconPopScales = [0.78, 1.14, 1];
 
-  /// pulse: 02 홈 지금 할 일 카드의 점. 반복, scale [pulseScaleFrom] → [pulseScaleTo], 투명해짐.
+  /// [navIconPopScales]의 가운데 값(1.14)에 닿는 때(전체 시간에 대한 비율).
+  static const double navIconPopPeakAt = 0.55;
+
+  /// pulse: 02 홈 지금 할 일 카드의 점. 반복, scale [pulseScaleFrom] → [pulseScaleTo], 투명도
+  /// [pulseOpacityFrom] → 0.
   static const Duration pulse = Duration(milliseconds: 1800);
   static const double pulseScaleFrom = 0.6;
   static const double pulseScaleTo = 1.9;
+  static const double pulseOpacityFrom = 0.9;
 
   /// stagger.list: 항목당 간격.
   static const Duration staggerList = Duration(milliseconds: 60);
@@ -107,11 +147,14 @@ abstract final class AppMotion {
   /// stagger.word(R1): 단어당 blur-in 시간.
   static const Duration wordBlurIn = Duration(milliseconds: 700);
 
-  /// layer: 전체 화면 덮개. 곡선은 [AppEase.emphasized].
+  /// layer: 전체 화면 덮개. 오른쪽에서 들어온다. 곡선은 [AppEase.emphasized].
   static const Duration layer = Duration(milliseconds: 550);
 
-  /// toast: 등장 시간.
+  /// toast: 등장 시간. 아래 [toastOffset]에서 올라오고([AppEase.toast]), 투명도는 [toastFade] 동안
+  /// 바뀐다([AppEase.fade]). 사라질 때는 거꾸로다.
   static const Duration toastIn = Duration(milliseconds: 450);
+  static const double toastOffset = 16;
+  static const Duration toastFade = Duration(milliseconds: 300);
 
   /// 되돌리기가 없는 토스트가 보이는 시간.
   static const Duration toast = Duration(milliseconds: 3400);
