@@ -68,6 +68,10 @@ void main() {
     );
   });
 
+  test('LMS 항목은 연속 3번 보이지 않으면 사라진 일로 본다', () {
+    expect(Defaults.lmsGoneMissCount, 3);
+  });
+
   test('자동 배치 블록 사이 간격 15분, 마감 여유 12시간', () {
     expect(Defaults.blockGapMin, 15);
     expect(Defaults.deadlineSlackMin, 12 * 60);
