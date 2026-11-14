@@ -150,9 +150,17 @@ void main() {
       expect(PlatformDispatcher.instance.onError, handleUncaughtError);
     });
 
-    test('잡히지 않은 오류는 처리했다고 알린다(엔진이 원문과 스택을 찍지 않게)', () {
-      expect(handleUncaughtError(StateError('원문'), StackTrace.current), isTrue);
-    });
+    test(
+      '잡히지 않은 오류는 release에서만 처리했다고 알리고(원문·스택을 찍지 않게) debug에서는 엔진이 찍게 둔다',
+      () {
+        // 테스트는 debug로 돈다. release에서 true인 것은 kReleaseMode 그대로다.
+        expect(
+          handleUncaughtError(StateError('원문'), StackTrace.current),
+          kReleaseMode,
+        );
+        expect(kReleaseMode, isFalse);
+      },
+    );
 
     test('프레임워크 오류는 debug에서 개발자가 보도록 기본 표시도 한다', () {
       final presentError = FlutterError.presentError;
