@@ -96,6 +96,18 @@ export class ClaudeProvider implements AiProvider {
     return new ClaudeProvider((params) => client.beta.messages.create(params));
   }
 
+  /**
+   * SDK의 기본 자격 증명(ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, ant auth login 프로필 순)으로 만든다. 평가
+   * 스크립트가 쓰고, 배포된 함수는 [withApiKey]로 Secret Manager의 키를 쓴다.
+   */
+  static fromEnvironment(): ClaudeProvider {
+    const client = new Anthropic({
+      timeout: PROVIDER_TIMEOUT_MS,
+      maxRetries: 0,
+    });
+    return new ClaudeProvider((params) => client.beta.messages.create(params));
+  }
+
   async parse(input: ParseInput): Promise<ParseOutcome> {
     let message: BetaMessage;
     try {
