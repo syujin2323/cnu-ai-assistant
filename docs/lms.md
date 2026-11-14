@@ -97,11 +97,11 @@ stateDiagram-v2
 
 로그인 주소로 넘어가지 않았고 로그인 페이지·점검 표식도 없으며 5xx·429도 아닌 HTML은 '재로그인 필요'가 아니라 '해석 실패'입니다.
 
-판별기 입력은 `LmsRawResponse {int? statusCode, Uri? finalUrl, String? contentType, String body}` 하나이고, dio 응답을 이 형태로 바꿔 넣습니다. 네이티브 요청은 리다이렉트를 최대 5회 따라가고, `validateStatus`는 모든 상태 코드를 통과시켜 판별기가 봅니다. 분류 순서는 ① 예외(연결 실패·시간 초과) → 네트워크 실패, ② 5xx·429 또는 본문에 점검 표식 → 서버 오류·점검, ③ 최종 URL이 로그인 주소로 시작하거나 본문에 로그인 페이지 표식 → 재로그인 필요, ④ JSON이고 인증 오류 표식 → 복원 필요, ⑤ JSON이고 스키마 통과 → 정상 또는 빈 목록, ⑥ 나머지(그 밖의 4xx, 표식 없는 HTML, 스키마 실패) → 해석 실패입니다.
+판별기는 `app/lib/lms/response_classifier.dart`의 `LmsResponseClassifier`이고, 입력은 `LmsRawResponse {int? statusCode, Uri? finalUrl, String? contentType, String body}` 하나입니다(응답을 받지 못했으면 `statusCode`가 null). dio 응답을 이 형태로 바꿔 넣습니다. 네이티브 요청은 리다이렉트를 최대 5회 따라가고, `validateStatus`는 모든 상태 코드를 통과시켜 판별기가 봅니다. 분류 순서는 ① 예외(연결 실패·시간 초과) → 네트워크 실패, ② 5xx·429 또는 본문에 점검 표식 → 서버 오류·점검, ③ 최종 URL이 로그인 주소로 넘어갔거나 본문에 로그인 페이지 표식 → 재로그인 필요, ④ JSON이고 인증 오류 표식 → 복원 필요, ⑤ 2xx JSON이고 스키마 통과 → 정상 또는 빈 목록, ⑥ 나머지(2xx가 아닌 그 밖의 상태 코드, 표식 없는 HTML, 스키마 실패) → 해석 실패입니다. 본문은 `{`·`[`로 시작하거나 `Content-Type`이 JSON일 때만 JSON으로 풀어 봅니다(앞뒤 공백·BOM은 무시).
 
-판별에 쓰는 표식 문자열(로그인 페이지, JSON 인증 오류, 점검 페이지)과 로그인 주소·홈 주소는 `lms_request_params`에서 받고, 코드와 테스트에는 실제 표식을 적지 않습니다. 판별기는 표식을 생성자 인자로 받고, 테스트는 합성 샘플에 맞춘 테스트 전용 표식을 넣습니다. '로그인 주소로 넘어감'은 최종 URL이 `lms_request_params`의 로그인 주소와 같은 호스트이고 같은 경로로 시작하는지로 판단합니다.
+판별에 쓰는 표식 문자열(로그인 페이지, JSON 인증 오류, 점검 페이지)과 로그인 주소·홈 주소는 `lms_request_params`에서 받고, 코드와 테스트에는 실제 표식을 적지 않습니다. 판별기는 표식을 생성자 인자로 받고, 테스트는 합성 샘플에 맞춘 테스트 전용 표식을 넣습니다. 로그인 페이지·점검 표식은 본문에 들어 있는지 보는 부분 문자열이고, JSON 인증 오류 표식은 JSON의 정해진 자리(점으로 이은 키) 값이 정해진 값 가운데 하나인지입니다. '로그인 주소로 넘어감'은 최종 URL이 `lms_request_params`의 로그인 주소와 같은 호스트이고, 경로가 로그인 주소의 경로와 같거나 그 아래(마디 단위. `/login`은 `/login/x`를 포함하지만 `/loginx`는 포함하지 않음)인지로 판단합니다. 쿼리는 보지 않습니다.
 
-여기서 '스키마'는 `app/lib/lms/`의 Dart 파서가 요구하는 필드 집합입니다. LMS 응답의 JSON Schema 파일은 만들지 않고 `schema/`에도 두지 않습니다. 파서는 필요한 필드만 읽고 모르는 필드는 무시하며, 필요한 필드가 없거나 형이 다를 때만 '해석 실패'로 봅니다.
+여기서 '스키마'는 `app/lib/lms/`의 Dart 파서가 요구하는 필드 집합입니다(판별기의 `LmsSchema`: 파서가 읽은 값과 항목 수, 또는 맞지 않은 필드 이름을 돌려줌). LMS 응답의 JSON Schema 파일은 만들지 않고 `schema/`에도 두지 않습니다. 파서는 필요한 필드만 읽고 모르는 필드는 무시하며, 필요한 필드가 없거나 형이 다를 때만 '해석 실패'로 봅니다. 필드 이름이 이름 꼴(`^[A-Za-z0-9_.]{1,64}$`)이 아니면 `unexpected`로 남깁니다.
 
 '해석 실패'의 오류 보고는 R0에서는 `sync_runs`에 결과 종류와 빠진 필드 이름만 남기고, R1부터는 같은 내용만 Crashlytics 비치명 오류로 보냅니다. 응답 본문은 어디에도 남기지 않습니다.
 
@@ -180,13 +180,13 @@ LMS에는 수업 요일·교시가 없어서 시간표는 학교 통합정보시
 - 호출 예산의 하루는 한국 시간 00:00에 시작합니다.
 - 학번을 주는 사용자 정보 API는 부르지 않습니다.
 
-`lms_sync_budget`은 JSON 문자열이고 키 이름과 기본값은 [architecture.md](architecture.md) '환경 변수'에 있습니다. `lms_request_params`도 JSON 문자열이고 `version`, 홈 주소, 로그인 주소, 쿠키 도메인 목록, 판별 표식, 조회별 요청 상수, 시간표 조회 상수를 담으며 키 이름은 `app/lib/lms/lms_config.dart`의 설정 파서가 정의합니다. `lms_login_success_pattern`을 앱 화면 로그인에서 어떻게 쓸지는 LMS 연동 때 확인합니다. `lms_sync_budget`을 해석하지 못하면 이 문서의 기본값을 쓰고, 그 계기의 `sync_runs` 행 `detail`에 `budget_parse_failed`를 남깁니다.
+`lms_sync_budget`은 JSON 문자열이고 키 이름과 기본값은 [architecture.md](architecture.md) '환경 변수'에 있습니다. 파서는 `app/lib/lms/sync_budget.dart`입니다. 조용한 시간의 끝이 시작보다 이르면 자정을 넘고, 시작과 끝이 같으면 조용한 시간이 없습니다. `lms_request_params`도 JSON 문자열이고 `version`, 홈 주소, 로그인 주소, 쿠키 도메인 목록, 판별 표식, 조회별 요청 상수, 시간표 조회 상수를 담으며 키 이름은 `app/lib/lms/request_params.dart`의 설정 파서가 정의합니다(조회별 요청 상수와 시간표 조회 상수의 키는 그 기능을 붙이는 PR이 더합니다. 모르는 키는 무시하므로 키를 더할 때는 `version`을 올리지 않습니다). `lms_login_success_pattern`을 앱 화면 로그인에서 어떻게 쓸지는 LMS 연동 때 확인합니다. `lms_sync_budget`을 해석하지 못하면(키가 하나라도 빠졌거나 형·범위가 맞지 않으면 값 전체) 이 문서의 기본값을 쓰고, 그 계기의 `sync_runs` 행 `detail`에 `budget_parse_failed`를 남깁니다. 키마다 기본값을 섞으면 콘솔에 넣은 뜻과 다른 조합이 생기므로 섞지 않습니다.
 
 ## 원격 스위치
 
 `lms_enabled`는 앱이 화면에 있을 때 Remote Config 실시간 업데이트(`onConfigUpdated` → `activate()` 뒤 다시 읽음)로 받습니다. 앱 시작 때는 `runApp` 뒤에 `fetchAndActivate()`를 부르고(화면은 기다리지 않음), 앱 열기 계기의 동기화는 그 결과(시간 초과 5초 포함)를 기다린 뒤 시작합니다. 백그라운드 동기화도 먼저 `fetchAndActivate()`를 부릅니다. `minimumFetchInterval`은 15분, `fetchTimeout`은 5초이고, 가져오기가 실패하면 마지막으로 활성화된 값을 씁니다. `false`가 되면(앱이 켜져 있으면 바로, 아니면 다음 실행 때) 새 조회를 시작하지 않고, 진행 중인 동기화는 지금 과목까지만 끝내 `sync_runs`에 `cancelled`로 남기며, 폰 DB의 기존 데이터와 나머지 기능은 그대로 둡니다. 학교가 요청하면 그날 끕니다. 꺼져 있으면 로그인도 LMS 접속이라 온보딩 1단계 로그인과 다시 로그인을 막고 'LMS 연동을 잠시 멈췄어요'를 보입니다. 그동안 로그인하지 않은 사람(처음 쓰는 사람과 로그아웃한 사람)은 '로그인 없이 둘러보기'(데모)만 쓸 수 있습니다.
 
-LMS 관련 Remote Config 값(`lms_*`)은 `app/lib/lms/lms_config.dart` 한 곳에서 읽고(백그라운드 isolate도 `Firebase.initializeApp()` 뒤 같은 파일로), 앱 기본값(`setDefaults`)은 `app/lib/data/remote_config.dart`가 넣습니다. 앱 안 기본값은 `lms_enabled=true`, `lms_request_params=""`, `lms_login_success_pattern=""`, `lms_sync_budget`은 이 문서의 기본값입니다. `lms_request_params`가 비어 있거나 JSON 파싱·`version` 검사에 실패하거나 학교 도메인 밖 호스트를 가리키면 '설정 없음'으로 봅니다. 이때는 스위치가 켜져 있어도 조회하지 않고, 로그인 버튼을 비활성으로 두고 "설정을 받는 중이에요"를 보여 주며, `sync_runs`에 `skipped`로 남깁니다.
+LMS 관련 Remote Config 값(`lms_*`)은 `app/lib/lms/lms_config.dart` 한 곳에서 읽고(백그라운드 isolate도 `Firebase.initializeApp()` 뒤 같은 파일로), 앱 기본값(`setDefaults`)은 `app/lib/data/remote_config.dart`가 넣습니다. 앱 안 기본값은 `lms_enabled=true`, `lms_request_params=""`, `lms_login_success_pattern=""`, `lms_sync_budget`은 이 문서의 기본값입니다. `lms_request_params`가 비어 있거나, JSON 파싱·`version` 검사에 실패하거나, 필요한 키가 없거나 형이 다르거나, 주소가 https가 아니거나 학교 도메인 밖 호스트를 가리키면 '설정 없음'으로 봅니다. 학교 도메인은 코드의 상수(`lms_config.dart`의 `lmsSchoolDomain`)이고, 주소와 쿠키 도메인은 그 도메인이나 하위 도메인이어야 합니다(사용자 정보가 붙은 주소와 443 밖의 포트도 받지 않음). 이때는 스위치가 켜져 있어도 조회하지 않고, 로그인 버튼을 비활성으로 두고 "설정을 받는 중이에요"를 보여 주며, `sync_runs`에 `skipped`로 남깁니다.
 
 앱 버전이 Remote Config `min_app_version`보다 낮으면(R1) LMS 조회를 멈추고 업데이트 화면을 보여 줍니다. 학번·비밀번호와 폰 데이터는 그대로 둡니다. 화면은 [screens.md](screens.md) '20 시스템'에 있습니다.
 
