@@ -17,6 +17,7 @@
 
 import 'package:cnu_ai_assistant/data/db/enum_converter.dart';
 import 'package:cnu_ai_assistant/data/db/json_converters.dart';
+import 'package:cnu_ai_assistant/data/db/kst_date_time_converter.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:drift/drift.dart';
 
@@ -27,7 +28,8 @@ class Courses extends Table {
   TextColumn get semester => text().nullable()();
   TextColumn get name => text()();
   IntColumn get color => integer().nullable()();
-  DateTimeColumn get lastSeenAt => dateTime().nullable()();
+  DateTimeColumn get lastSeenAt =>
+      dateTime().nullable().map(const KstDateTimeConverter())();
 
   /// LMS 과목은 학기마다 하나다. 직접 만든 과목은 `remoteId`가 null이라 걸리지 않는다.
   @override
@@ -131,8 +133,8 @@ class FixedBlocks extends Table {
 class Events extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get title => text()();
-  DateTimeColumn get startAt => dateTime()();
-  DateTimeColumn get endAt => dateTime()();
+  DateTimeColumn get startAt => dateTime().map(const KstDateTimeConverter())();
+  DateTimeColumn get endAt => dateTime().map(const KstDateTimeConverter())();
   BoolColumn get allDay => boolean()();
   TextColumn get place => text().nullable()();
   TextColumn get prep => text().nullable()();
@@ -152,7 +154,8 @@ class Tasks extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get title => text()();
   TextColumn get kind => text().map(const EnumConverter(TaskKind.values))();
-  DateTimeColumn get dueAt => dateTime().nullable()();
+  DateTimeColumn get dueAt =>
+      dateTime().nullable().map(const KstDateTimeConverter())();
   BoolColumn get dueTimeUnknown => boolean()();
   IntColumn get estimateMin => integer().nullable()();
   IntColumn get spentMin => integer().nullable()();
@@ -174,8 +177,8 @@ class Tasks extends Table {
 class PlanBlocks extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get taskId => integer().references(Tasks, #id)();
-  DateTimeColumn get startAt => dateTime()();
-  DateTimeColumn get endAt => dateTime()();
+  DateTimeColumn get startAt => dateTime().map(const KstDateTimeConverter())();
+  DateTimeColumn get endAt => dateTime().map(const KstDateTimeConverter())();
   TextColumn get status => text().map(
     const EnumConverter(
       PlanBlockStatus.values,
@@ -205,8 +208,10 @@ class Rules extends Table {
     const EnumConverter(EntrySource.values, fallback: EntrySource.manual),
   )();
   TextColumn get sentence => text().nullable()();
-  DateTimeColumn get createdAt => dateTime()();
-  DateTimeColumn get updatedAt => dateTime()();
+  DateTimeColumn get createdAt =>
+      dateTime().map(const KstDateTimeConverter())();
+  DateTimeColumn get updatedAt =>
+      dateTime().map(const KstDateTimeConverter())();
 }
 
 @UseRowClass(LmsItem)
@@ -219,19 +224,24 @@ class LmsItems extends Table {
   TextColumn get kind => text().map(
     const EnumConverter(LmsItemKind.values, fallback: LmsItemKind.material),
   )();
-  DateTimeColumn get dueAt => dateTime().nullable()();
+  DateTimeColumn get dueAt =>
+      dateTime().nullable().map(const KstDateTimeConverter())();
   BoolColumn get dueTimeUnknown => boolean()();
-  DateTimeColumn get openAt => dateTime().nullable()();
+  DateTimeColumn get openAt =>
+      dateTime().nullable().map(const KstDateTimeConverter())();
   IntColumn get videoMin => integer().nullable()();
   IntColumn get requiredMin => integer().nullable()();
   IntColumn get watchedMin => integer().nullable()();
   BoolColumn get officiallyDone => boolean().nullable()();
   BoolColumn get submitted => boolean().nullable()();
   TextColumn get link => text().nullable()();
-  DateTimeColumn get firstSeenAt => dateTime()();
-  DateTimeColumn get lastSeenAt => dateTime()();
+  DateTimeColumn get firstSeenAt =>
+      dateTime().map(const KstDateTimeConverter())();
+  DateTimeColumn get lastSeenAt =>
+      dateTime().map(const KstDateTimeConverter())();
   IntColumn get missCount => integer()();
-  DateTimeColumn get goneAt => dateTime().nullable()();
+  DateTimeColumn get goneAt =>
+      dateTime().nullable().map(const KstDateTimeConverter())();
   TextColumn get contentHash => text()();
 
   @override
@@ -245,22 +255,27 @@ class LmsItemChanges extends Table {
   TextColumn get field => text()();
   TextColumn get oldValue => text().nullable()();
   TextColumn get newValue => text().nullable()();
-  DateTimeColumn get changedAt => dateTime()();
+  DateTimeColumn get changedAt =>
+      dateTime().map(const KstDateTimeConverter())();
 }
 
 @UseRowClass(Briefing)
 class Briefings extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get date => text().unique()();
-  DateTimeColumn get createdAt => dateTime()();
-  DateTimeColumn get openedAt => dateTime().nullable()();
-  DateTimeColumn get confirmedAt => dateTime().nullable()();
+  DateTimeColumn get createdAt =>
+      dateTime().map(const KstDateTimeConverter())();
+  DateTimeColumn get openedAt =>
+      dateTime().nullable().map(const KstDateTimeConverter())();
+  DateTimeColumn get confirmedAt =>
+      dateTime().nullable().map(const KstDateTimeConverter())();
 }
 
 @UseRowClass(SyncRun)
 class SyncRuns extends Table {
   IntColumn get id => integer().autoIncrement()();
-  DateTimeColumn get startedAt => dateTime()();
+  DateTimeColumn get startedAt =>
+      dateTime().map(const KstDateTimeConverter())();
   TextColumn get trigger =>
       text().map(const EnumConverter(SyncTrigger.values))();
   TextColumn get scope => text().map(const EnumConverter(SyncScope.values))();
@@ -298,7 +313,8 @@ class SyncLeases extends Table {
   TextColumn get holder =>
       text().map(const EnumConverter(LeaseHolder.values))();
   TextColumn get token => text()();
-  DateTimeColumn get expiresAt => dateTime()();
+  DateTimeColumn get expiresAt =>
+      dateTime().map(const KstDateTimeConverter())();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -331,7 +347,8 @@ class UndoLog extends Table {
   TextColumn get action => text().map(const EnumConverter(UndoAction.values))();
   IntColumn get rowId => integer().nullable()();
   TextColumn get beforeJson => text().nullable()();
-  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get createdAt =>
+      dateTime().map(const KstDateTimeConverter())();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
