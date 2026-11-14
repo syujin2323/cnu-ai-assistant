@@ -48,7 +48,9 @@ class ClassSlots extends Table {
   TextColumn get campus => text().map(const EnumConverter(Campus.values))();
   BoolColumn get online => boolean()();
   TextColumn get repeatRule => text().nullable()();
-  TextColumn get source => text().map(const EnumConverter(SlotSource.values))();
+  TextColumn get source => text().map(
+    const EnumConverter(SlotSource.values, fallback: SlotSource.manual),
+  )();
   IntColumn get importedWeekday => integer().nullable()();
   IntColumn get importedStartMin => integer().nullable()();
   IntColumn get importedEndMin => integer().nullable()();
@@ -85,8 +87,9 @@ class ClassExceptions extends Table {
   TextColumn get kind =>
       text().map(const EnumConverter(ClassExceptionKind.values))();
   TextColumn get place => text().nullable()();
-  TextColumn get source =>
-      text().map(const EnumConverter(EntrySource.values))();
+  TextColumn get source => text().map(
+    const EnumConverter(EntrySource.values, fallback: EntrySource.manual),
+  )();
 }
 
 @UseRowClass(FixedBlock)
@@ -97,11 +100,13 @@ class FixedBlocks extends Table {
   IntColumn get startMin => integer()();
   IntColumn get endMin => integer()();
   IntColumn get bufferMin => integer()();
-  TextColumn get kind =>
-      text().map(const EnumConverter(FixedBlockKind.values))();
+  TextColumn get kind => text().map(
+    const EnumConverter(FixedBlockKind.values, fallback: FixedBlockKind.other),
+  )();
   TextColumn get prep => text().nullable()();
-  TextColumn get source =>
-      text().map(const EnumConverter(EntrySource.values))();
+  TextColumn get source => text().map(
+    const EnumConverter(EntrySource.values, fallback: EntrySource.manual),
+  )();
 
   /// 요일 목록의 값(1–7)과 앞뒤 여유의 위 끝(0–60분)은 `domain/timetable_checks.dart`가 본다.
   @override
@@ -123,8 +128,9 @@ class Events extends Table {
   TextColumn get place => text().nullable()();
   TextColumn get prep => text().nullable()();
   IntColumn get reminderMinutes => integer().nullable()();
-  TextColumn get source =>
-      text().map(const EnumConverter(EventSource.values))();
+  TextColumn get source => text().map(
+    const EnumConverter(EventSource.values, fallback: EventSource.manual),
+  )();
 
   @override
   List<String> get customConstraints => const [
@@ -157,10 +163,15 @@ class PlanBlocks extends Table {
   IntColumn get taskId => integer().references(Tasks, #id)();
   DateTimeColumn get startAt => dateTime()();
   DateTimeColumn get endAt => dateTime()();
-  TextColumn get status =>
-      text().map(const EnumConverter(PlanBlockStatus.values))();
-  TextColumn get source =>
-      text().map(const EnumConverter(BlockSource.values))();
+  TextColumn get status => text().map(
+    const EnumConverter(
+      PlanBlockStatus.values,
+      fallback: PlanBlockStatus.dismissed,
+    ),
+  )();
+  TextColumn get source => text().map(
+    const EnumConverter(BlockSource.values, fallback: BlockSource.manual),
+  )();
   TextColumn get reason =>
       text().nullable().map(const BlockReasonConverter())();
 
@@ -177,8 +188,9 @@ class Rules extends Table {
   TextColumn get params => text().map(const RuleParamsConverter())();
   TextColumn get weekdays => text().nullable().map(const IntListConverter())();
   BoolColumn get active => boolean()();
-  TextColumn get source =>
-      text().map(const EnumConverter(EntrySource.values))();
+  TextColumn get source => text().map(
+    const EnumConverter(EntrySource.values, fallback: EntrySource.manual),
+  )();
   TextColumn get sentence => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
@@ -191,7 +203,9 @@ class LmsItems extends Table {
   IntColumn get courseId => integer().references(Courses, #id)();
   TextColumn get courseName => text()();
   TextColumn get title => text()();
-  TextColumn get kind => text().map(const EnumConverter(LmsItemKind.values))();
+  TextColumn get kind => text().map(
+    const EnumConverter(LmsItemKind.values, fallback: LmsItemKind.material),
+  )();
   DateTimeColumn get dueAt => dateTime().nullable()();
   BoolColumn get dueTimeUnknown => boolean()();
   DateTimeColumn get openAt => dateTime().nullable()();
@@ -237,8 +251,12 @@ class SyncRuns extends Table {
   TextColumn get trigger =>
       text().map(const EnumConverter(SyncTrigger.values))();
   TextColumn get scope => text().map(const EnumConverter(SyncScope.values))();
-  TextColumn get result =>
-      text().map(const EnumConverter(SyncResultKind.values))();
+  TextColumn get result => text().map(
+    const EnumConverter(
+      SyncResultKind.values,
+      fallback: SyncResultKind.parseFailure,
+    ),
+  )();
   IntColumn get changedCount => integer()();
   TextColumn get failedCourseIds =>
       text().nullable().map(const IntListConverter())();
