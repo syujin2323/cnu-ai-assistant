@@ -1,0 +1,36 @@
+{
+  "intent": "create_task",
+  "needsClarification": false,
+  "clarification": null,
+  "queryType": null,
+  "queryFrom": null,
+  "queryTo": null,
+  "queryCourse": null,
+  "unsupportedRule": null,
+  "items": [
+    {
+      "title": "토익 단어장 외우기",
+      "kind": "task",
+      "category": "personal",
+      "course": null,
+      "date": null,
+      "weekday": "일",
+      "dateExpression": "이번 주 일요일",
+      "timeExpression": "밤 10시",
+      "start": null,
+      "end": null,
+      "repeat": null,
+      "fixedBlockKind": null,
+      "due": "2026-10-18",
+      "dueTime": "22:00",
+      "estimatedMinutes": null,
+      "reminderMinutes": null,
+      "place": null,
+      "prep": null,
+      "shiftMinutes": null,
+      "target": null,
+      "exceptionType": null
+    }
+  ],
+  "rules": []
+}

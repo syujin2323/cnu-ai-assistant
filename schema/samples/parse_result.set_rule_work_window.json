@@ -1,0 +1,29 @@
+{
+  "intent": "set_rule",
+  "needsClarification": false,
+  "clarification": null,
+  "queryType": null,
+  "queryFrom": null,
+  "queryTo": null,
+  "queryCourse": null,
+  "unsupportedRule": null,
+  "items": [],
+  "rules": [
+    {
+      "kind": "work_window",
+      "action": "set",
+      "minutes": null,
+      "position": null,
+      "start": null,
+      "end": "23:00",
+      "timeExpression": "밤 11시",
+      "weekdays": null,
+      "course": null,
+      "taskKind": null,
+      "briefingTime": null,
+      "notifyCap": null,
+      "quietStart": null,
+      "quietEnd": null
+    }
+  ]
+}

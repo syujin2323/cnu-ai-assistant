@@ -1,0 +1,36 @@
+{
+  "intent": "update",
+  "needsClarification": false,
+  "clarification": null,
+  "queryType": null,
+  "queryFrom": null,
+  "queryTo": null,
+  "queryCourse": null,
+  "unsupportedRule": null,
+  "items": [
+    {
+      "title": null,
+      "kind": "event",
+      "category": null,
+      "course": null,
+      "date": "2026-10-13",
+      "weekday": "화",
+      "dateExpression": "내일",
+      "timeExpression": null,
+      "start": null,
+      "end": null,
+      "repeat": null,
+      "fixedBlockKind": null,
+      "due": null,
+      "dueTime": null,
+      "estimatedMinutes": null,
+      "reminderMinutes": null,
+      "place": null,
+      "prep": null,
+      "shiftMinutes": 60,
+      "target": "내일 스터디",
+      "exceptionType": null
+    }
+  ],
+  "rules": []
+}
