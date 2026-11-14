@@ -1,12 +1,19 @@
 // 빈 시간 계산. docs/architecture.md '도메인 기본값과 배치 엔진' 1단계.
 //
-// 논리적 하루 하나의 하루 창(`work_window`)에서 바쁜 시간을 빼 빈 구간을 만든다.
-// - 수업과 앞뒤 여유(`class_buffer`, 실시간 비대면은 0), 대면 수업의 이동 시간(`travel`).
-//   같은 수업 앞뒤에 둘이 함께 걸리면 더하지 않고 큰 값을 쓴다.
-// - 휴강(`cancelled`)한 날의 수업은 바쁜 시간으로 보지 않고, 보강(`makeup`)은 그 수업 칸의
-//   평소 시각에 그 날짜로 넣는다.
-// - 피할 시간(`blackout`), 고정 일정과 앞뒤 여유, 일정(종일 일정은 시간을 막지 않는다),
-//   확정·완료 블록. 제안 블록은 재계산 때 다시 만들므로 빼지 않는다.
+// 논리적 하루 하나(하루 경계부터 다음 날 경계 전까지)의 하루 창(`work_window`)에서 바쁜 시간을 빼 빈 구간을
+// 만든다.
+// - 규칙의 시각 구간(하루 창, 피할 시간, 식사)은 날마다 반복되는 실제 시각이다. 그래서 전날·그날·다음 날의
+//   달력 날짜에 놓고 그 논리적 하루에 드는 조각을 쓰며, 요일을 고른 규칙은 구간이 시작하는 달력일의 요일로
+//   고른다(docs/decisions.md 2026-11-14 '규칙의 시각 구간은 실제 시각으로 놓는다'). 각 시각은 한 논리적
+//   하루에만 들어간다.
+// - 수업과 앞뒤 여유(`class_buffer`, 실시간 비대면은 0), 대면 수업의 이동 시간(`travel`). 같은 수업 앞뒤에
+//   둘이 함께 걸리면 더하지 않고 큰 값을 쓴다. 이동 시간은 그 논리적 하루의 요일 규칙이고 그 논리적 하루의
+//   대면 수업에만 건다.
+// - 휴강(`cancelled`)한 날의 수업은 바쁜 시간으로 보지 않고, 보강(`makeup`)은 그 수업 칸의 평소 시각에
+//   그 날짜로 넣는다. R0는 수업 칸의 반복 규칙(`repeatRule`, R1)을 읽지 않고 매주 열리는 수업으로 본다.
+//   R1의 격주·특정 주 반복은 [_meets] 한 곳에서 거른다.
+// - 피할 시간(`blackout`), 고정 일정과 앞뒤 여유, 일정(종일 일정은 시간을 막지 않는다), 확정·완료 블록.
+//   제안·놓침·지운 블록은 시간을 막지 않는다(제안 블록은 재계산 때 다시 만든다).
 // - 마지막으로 식사 시간을 비운다([_protectMeals]).
 
 import 'dart:math' show max, min;
@@ -23,39 +30,44 @@ import 'package:cnu_ai_assistant/domain/rules.dart';
 
 /// 논리적 하루 [day]의 빈 구간을 시작 순서로 돌려준다. [day]는 시각을 보지 않는다.
 ///
-/// 하루 창은 [day] 0시 기준이고, 논리적 하루(하루 경계 [dayBoundaryMin]부터 다음 날 경계 전까지)
-/// 밖으로 나간 부분은 자른다. 그래서 한 빈 시간이 두 날에 함께 잡히지 않는다.
-/// 자정을 넘는 수업·고정 일정을 위해 전날과 다음 날의 것도 함께 본다.
+/// 하루 창은 [ruleSpansInLogicalDay]로 놓으므로 조각이 둘일 수 있다(예: 02:00–10:00 하루 창이면 그날
+/// 04:00–10:00과 다음 날 02:00–04:00). 자정을 넘는 수업·고정 일정을 위해 전날과 다음 날의 것도 함께 본다.
+/// 돌려주는 목록은 부르는 쪽이 고쳐도 된다. [dayBoundaryMin]이 0–1439 밖이면 [RangeError]다.
 List<TimeSpan> freeSlots(
   DateTime day, {
   required Schedule schedule,
   required PlannerConfig config,
   required int dayBoundaryMin,
 }) {
-  final date = DateTime(day.year, day.month, day.day);
-  final rules = config.forWeekday(date.weekday);
-  final window = _intersect(
-    _onDate(date, rules.workWindow),
-    TimeSpan(
-      _at(date, dayBoundaryMin),
-      _at(date, dayBoundaryMin + _minutesPerDay),
-    ),
+  RangeError.checkValueInInterval(
+    dayBoundaryMin,
+    0,
+    _minutesPerDay - 1,
+    'dayBoundaryMin',
   );
-  if (window == null) return const [];
+  final date = DateTime(day.year, day.month, day.day);
+  final windows = ruleSpansInLogicalDay(
+    date,
+    dayBoundaryMin: dayBoundaryMin,
+    rangesFor: (weekday) => [config.forWeekday(weekday).workWindow],
+  );
+  if (windows.isEmpty) return <TimeSpan>[];
 
-  final nearbyDates = [
-    for (var offset = -1; offset <= 1; offset++) _addDays(date, offset),
-  ];
+  final nearbyDates = _nearbyDates(date);
   final busy = <TimeSpan>[
     ..._classSpans(
       nearbyDates,
       date,
       schedule,
       config.classBufferMin,
-      rules.travel,
+      config.forWeekday(date.weekday).travel,
       dayBoundaryMin,
     ),
-    for (final range in rules.blackouts) _onDate(date, range),
+    ...ruleSpansInLogicalDay(
+      date,
+      dayBoundaryMin: dayBoundaryMin,
+      rangesFor: (weekday) => config.forWeekday(weekday).blackouts,
+    ),
     for (final nearby in nearbyDates)
       for (final block in schedule.fixedBlocks)
         if (block.weekdays.contains(nearby.weekday))
@@ -71,40 +83,72 @@ List<TimeSpan> freeSlots(
         TimeSpan(block.startAt, block.endAt),
   ];
   return _protectMeals(
-    date,
-    _subtract(window, busy),
+    nearbyDates,
+    _logicalDay(date, dayBoundaryMin),
+    [for (final window in windows) ..._subtract(window, busy)],
     config.meals,
     schedule.fixedBlocks,
   );
 }
 
+/// 날마다 반복되는 규칙 구간을 논리적 하루 [day]에 놓은 조각을 시작 순서로 돌려준다.
+///
+/// 전날·그날·다음 날의 달력 날짜마다 그 날짜 요일의 구간([rangesFor])을 그 날짜 0시 기준으로 놓고, [day]의
+/// 논리적 하루(하루 경계 [dayBoundaryMin]부터 다음 날 경계 전까지) 안에 드는 부분만 남긴다. 그래서 요일은
+/// 구간이 시작하는 달력일의 요일이고(화요일 01:00–03:00은 실제 화요일 새벽, 곧 월요일 논리적 하루의 끝),
+/// 각 시각은 한 논리적 하루에만 들어간다. 겹치거나 맞닿은 조각은 합친다. 배치 엔진은 선호 시간대도 이것으로
+/// 놓는다.
+List<TimeSpan> ruleSpansInLogicalDay(
+  DateTime day, {
+  required int dayBoundaryMin,
+  required Iterable<MinuteRange> Function(int weekday) rangesFor,
+}) {
+  RangeError.checkValueInInterval(
+    dayBoundaryMin,
+    0,
+    _minutesPerDay - 1,
+    'dayBoundaryMin',
+  );
+  final date = DateTime(day.year, day.month, day.day);
+  final logicalDay = _logicalDay(date, dayBoundaryMin);
+  return _merge([
+    for (final nearby in _nearbyDates(date))
+      for (final range in rangesFor(nearby.weekday))
+        ?_intersect(_onDate(nearby, range), logicalDay),
+  ]);
+}
+
 /// 식사 규칙마다 [free]에서 식사 시간을 비운다.
 ///
-/// 그날 그 시간대와 겹치는 식사 고정 일정이 있으면 고정 일정이 대신하므로 비우지 않는다.
-/// 그 밖에는 시간대 안의 빈 조각 가운데 식사 시간이 들어가는 가장 이른 조각을, 없으면 가장 긴
-/// 조각을 고르고, 그 조각에서 식사 시간(조각이 짧으면 조각 전체)을 비운다. 시간대 안에 빈
+/// 식사 시간대도 날마다 반복되는 실제 시각이라 [dates](전날·그날·다음 날)에 놓고, 시간대가 시작하는 시각이
+/// [logicalDay] 안에 있는 것 하나만 비운다(한 끼를 두 논리적 하루에서 비우지 않게). 그래서 00:00–01:00
+/// 야식은 그날 밤(다음 날 0시)에 비운다. 그 날짜에 그 시간대와 겹치는 식사 고정 일정이 있으면 고정 일정이
+/// 대신하므로 비우지 않는다. 그 밖에는 시간대 안의 빈 조각 가운데 식사 시간이 들어가는 가장 이른 조각을,
+/// 없으면 가장 긴 조각을 고르고, 그 조각에서 식사 시간(조각이 짧으면 조각 전체)을 비운다. 시간대 안에 빈
 /// 조각이 없으면 비울 것이 없다.
 List<TimeSpan> _protectMeals(
-  DateTime date,
+  List<DateTime> dates,
+  TimeSpan logicalDay,
   List<TimeSpan> free,
   List<MealGuard> meals,
   List<FixedBlock> fixedBlocks,
 ) {
   var result = free;
   for (final meal in meals) {
-    final coveredByFixedMeal = fixedBlocks.any(
-      (block) =>
-          block.kind == FixedBlockKind.meal &&
-          block.weekdays.contains(date.weekday) &&
-          MinuteRange(block.startMin, block.endMin).overlaps(meal.window),
-    );
-    if (meal.minutes == 0 || coveredByFixedMeal) continue;
-    final reserved = _mealSpan(
-      _onDate(date, meal.window),
-      meal.minutes,
-      result,
-    );
-    if (reserved != null) result = _cut(result, reserved);
+    if (meal.minutes == 0) continue;
+    for (final date in dates) {
+      final window = _onDate(date, meal.window);
+      if (!_contains(logicalDay, window.start)) continue;
+      final coveredByFixedMeal = fixedBlocks.any(
+        (block) =>
+            block.kind == FixedBlockKind.meal &&
+            block.weekdays.contains(date.weekday) &&
+            MinuteRange(block.startMin, block.endMin).overlaps(meal.window),
+      );
+      if (coveredByFixedMeal) continue;
+      final reserved = _mealSpan(window, meal.minutes, result);
+      if (reserved != null) result = _cut(result, reserved);
+    }
   }
   return result;
 }
@@ -197,6 +241,9 @@ Iterable<TimeSpan> _classSpans(
 }
 
 /// [slot]이 [date]에 열리는지. 휴강이면 열리지 않고, 보강이면 요일이 달라도 열린다.
+///
+/// R0는 [ClassSlot.repeatRule](R1)을 읽지 않고 요일이 같으면 매주 열린다고 본다. R1의 격주·특정 주
+/// 반복은 여기서 거른다.
 bool _meets(ClassSlot slot, DateTime date, Set<ClassExceptionKind>? kinds) {
   if (kinds != null && kinds.contains(ClassExceptionKind.cancelled)) {
     return false;
@@ -221,11 +268,40 @@ List<TimeSpan> _subtract(TimeSpan window, List<TimeSpan> busy) {
   return free;
 }
 
+/// 시작 순서로 늘어놓고 겹치거나 맞닿은 구간을 하나로 합친다.
+List<TimeSpan> _merge(List<TimeSpan> spans) {
+  final sorted = [...spans]..sort((a, b) => a.start.compareTo(b.start));
+  final merged = <TimeSpan>[];
+  for (final span in sorted) {
+    final last = merged.lastOrNull;
+    if (last == null || span.start.isAfter(last.end)) {
+      merged.add(span);
+    } else if (span.end.isAfter(last.end)) {
+      merged[merged.length - 1] = TimeSpan(last.start, span.end);
+    }
+  }
+  return merged;
+}
+
 TimeSpan? _intersect(TimeSpan a, TimeSpan b) {
   final start = a.start.isAfter(b.start) ? a.start : b.start;
   final end = a.end.isBefore(b.end) ? a.end : b.end;
   return end.isAfter(start) ? TimeSpan(start, end) : null;
 }
+
+bool _contains(TimeSpan span, DateTime at) =>
+    !at.isBefore(span.start) && at.isBefore(span.end);
+
+/// [date]의 논리적 하루: 하루 경계부터 다음 날 하루 경계 전까지.
+TimeSpan _logicalDay(DateTime date, int dayBoundaryMin) => TimeSpan(
+  _at(date, dayBoundaryMin),
+  _at(date, dayBoundaryMin + _minutesPerDay),
+);
+
+/// 전날·그날·다음 날.
+List<DateTime> _nearbyDates(DateTime date) => [
+  for (var offset = -1; offset <= 1; offset++) _addDays(date, offset),
+];
 
 TimeSpan _onDate(DateTime date, MinuteRange range) =>
     TimeSpan(_at(date, range.startMin), _at(date, range.endMin));
