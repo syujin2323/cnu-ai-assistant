@@ -4,6 +4,7 @@ import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/guard_storage.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
+import 'package:cnu_ai_assistant/domain/models/value_codec.dart';
 
 /// `settings` 표(key, value JSON)를 읽고 쓰는 저장소.
 ///
@@ -63,6 +64,38 @@ class SettingsRepository {
         }
       }),
     );
+  }
+
+  /// LMS 마지막 확인 시각(`lmsLastSuccessAt`)을 [startedAt](`normal`·`empty`·`partial`로 끝난 동기화의 시작 시각)으로
+  /// 올리고, 올렸으면 true다. 지금 값이 없거나 읽을 수 없거나 [startedAt]보다 이를 때만 쓴다. 늦게 끝난 옛 동기화가
+  /// 더 늦게 시작한 동기화의 결과를 되돌리지 않게, 동기화는 이 키를 [write]가 아니라 이것으로 쓴다(docs/architecture.md
+  /// '폰 DB'의 settings 키). 한 트랜잭션에서 읽고 견주어 쓰므로 다른 연결(백그라운드 isolate)의 쓰기가 사이에 끼지
+  /// 않는다(drift 트랜잭션은 `BEGIN IMMEDIATE`로 시작부터 쓰기 잠금을 잡는다).
+  Future<Result<bool>> advanceLmsLastSuccessAt(DateTime startedAt) {
+    final row = _row(SettingKeys.lmsLastSuccessAt, startedAt);
+    return guardStorage(
+      'settings.advanceLmsLastSuccessAt',
+      () => _db.transaction(() async {
+        final current =
+            await (_db.select(_db.settings)..where(
+                  (setting) => setting.key.equals(SettingKeys.lmsLastSuccessAt),
+                ))
+                .getSingleOrNull();
+        final currentAt = current == null ? null : _dateTimeOf(current.value);
+        if (currentAt != null && !startedAt.isAfter(currentAt)) return false;
+        await _db.into(_db.settings).insertOnConflictUpdate(row);
+        return true;
+      }),
+    );
+  }
+
+  /// 저장된 JSON 값의 시각. 깨졌거나 시각이 아니면 null이다.
+  static DateTime? _dateTimeOf(String json) {
+    try {
+      return tryDecodeDateTime(jsonDecode(json));
+    } on FormatException {
+      return null;
+    }
   }
 
   /// 표에 쓸 행. 값은 [AppSettings.encodeValue]로 검사하고 JSON으로 적는다.

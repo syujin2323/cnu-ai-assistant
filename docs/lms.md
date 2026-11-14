@@ -157,7 +157,7 @@ LMS에는 수업 요일·교시가 없어서 시간표는 학교 통합정보시
 
 조회 전에 세션 상태를 봅니다. `restoring`이면 먼저 세션 복원(저장된 비밀번호 재로그인 포함)을 하고, 그래도 `active`가 아니면 그 계기의 조회를 건너뛰고 복원에서 받은 판별 종류로 남깁니다. 이 행은 LMS를 불렀으므로 자동 계기면 하루 횟수와 실패 뒤 10분 간격에 셉니다.
 
-동기화 범위는 `SyncScope { full, list, detail }` 셋입니다. '전체 동기화'인 `full`은 과목 목록 → 할 일 목록 → 과목별 상세(직렬)이고, '갱신'인 `list`는 할 일 목록을 받고 할 일이 바뀐 과목만 상세를 이어서 합니다. `detail`은 과목별 상세 조회이고, `list`가 이어서 한 상세도 `detail` 행으로 따로 남기며 `detailMaxPerDay`는 그날 자동 계기(`open`/`periodic`/`background`)로 LMS를 부른 `detail` 행(`skipped` 제외) 수로 셉니다. 할 일 개수만 받는 별도 조회는 없습니다. 결과는 `SyncResult { kind, changedCount, failedCourseIds, duration }`이고, `kind`는 판별 일곱 가지(`normal`, `empty`, `reloginRequired`, `restoreRequired`, `serverError`, `networkFailure`, `parseFailure`)에 `partial`(일부 과목 실패), `skipped`(예산·임대·스위치·조용한 시간·설정 없음처럼 LMS를 부르지 않고 끝난 때), `cancelled`(WebView 열림·스위치 꺼짐·데모 모드 진입으로 중단)를 더한 열 가지입니다. 결과는 범위마다 `sync_runs`에 한 줄로 남기고 `partial`·`failedCourseIds`는 `detail` 행에 적습니다. 화면의 '마지막 확인 시각'은 `settings`의 `lmsLastSuccessAt`이고, `normal`·`empty`·`partial`로 끝난 동기화의 시작 시각입니다.
+동기화 범위는 `SyncScope { full, list, detail }` 셋입니다. '전체 동기화'인 `full`은 과목 목록 → 할 일 목록 → 과목별 상세(직렬)이고, '갱신'인 `list`는 할 일 목록을 받고 할 일이 바뀐 과목만 상세를 이어서 합니다. `detail`은 과목별 상세 조회이고, `list`가 이어서 한 상세도 `detail` 행으로 따로 남기며 `detailMaxPerDay`는 그날 자동 계기(`open`/`periodic`/`background`)로 LMS를 부른 `detail` 행(`skipped` 제외) 수로 셉니다. 할 일 개수만 받는 별도 조회는 없습니다. 결과는 `SyncResult { kind, changedCount, failedCourseIds, duration }`이고, `kind`는 판별 일곱 가지(`normal`, `empty`, `reloginRequired`, `restoreRequired`, `serverError`, `networkFailure`, `parseFailure`)에 `partial`(일부 과목 실패), `skipped`(예산·임대·스위치·조용한 시간·설정 없음처럼 LMS를 부르지 않고 끝난 때), `cancelled`(WebView 열림·스위치 꺼짐·데모 모드 진입으로 중단)를 더한 열 가지입니다. `skipped`·`cancelled`의 이유는 `sync_runs.detail`에 정해진 코드(`SyncRunDetail`: `budget`, `lease`, `switch_off`, `quiet_hours`, `config_missing`, `webview_open`, `demo_mode`)로 남깁니다. 결과는 범위마다 `sync_runs`에 한 줄로 남기고 `partial`·`failedCourseIds`는 `detail` 행에 적습니다. 화면의 '마지막 확인 시각'은 `settings`의 `lmsLastSuccessAt`이고, `normal`·`empty`·`partial`로 끝난 동기화의 시작 시각입니다. 늦게 끝난 옛 동기화가 되돌리지 않도록 `SettingsRepository.advanceLmsLastSuccessAt`으로 지금 값보다 늦을 때만 올립니다.
 
 - 동기화는 한 번에 하나만 돌아갑니다. 잠금은 메모리가 아니라 폰 DB의 `sync_lease` 한 행(`holder`: `foreground`·`background`, `token`, `expiresAt`)으로 걸고, `SyncLeaseRepository`(`data/repositories/sync_lease_repository.dart`)로 잡고 늘리고 풉니다. 행이 없거나 `expiresAt`이 지났으면 한 트랜잭션 안에서 새 토큰(난수)으로 바꿔 넣고, 임대는 5분이며 과목 하나를 끝낼 때마다 다시 5분으로 늘리고, 끝나면 행을 지웁니다. 늘리기와 풀기는 자기 토큰일 때만 합니다(`id = 1 AND token = ?`). 그래서 만료된 뒤 다른 쪽이 넘겨받은 잠금을 늦게 끝난 쪽이 늘리거나 지우지 못하고, R1에서 백그라운드 작업과 서버 신호 푸시가 둘 다 `background`여도 가립니다. 백그라운드 작업은 다른 Flutter 엔진·isolate에서 돌므로 폰 DB 연결을 따로 열고 닫습니다. 잠금을 잡지 못한 요청은 `skipped`로 끝냅니다. 같은 isolate의 두 번째 요청은 진행 중인 `Future`를 받고, 다른 isolate의 결과는 폰 DB로만 전해지므로 앱이 화면으로 돌아올 때 화면 데이터를 다시 읽습니다.
 - 과목 전환은 서버 쪽 상태라 과목별 조회는 직렬로 합니다. 도중에 앱이 꺼지면 다음 실행 때 처음부터 다시 돌립니다.
@@ -180,7 +180,7 @@ LMS에는 수업 요일·교시가 없어서 시간표는 학교 통합정보시
 - 호출 예산의 하루는 한국 시간 00:00에 시작합니다.
 - 학번을 주는 사용자 정보 API는 부르지 않습니다.
 
-`lms_sync_budget`은 JSON 문자열이고 키 이름과 기본값은 [architecture.md](architecture.md) '환경 변수'에 있습니다. `lms_request_params`도 JSON 문자열이고 `version`, 홈 주소, 로그인 주소, 쿠키 도메인 목록, 판별 표식, 조회별 요청 상수, 시간표 조회 상수를 담으며 키 이름은 `app/lib/lms/lms_config.dart`의 설정 파서가 정의합니다. `lms_login_success_pattern`을 앱 화면 로그인에서 어떻게 쓸지는 LMS 연동 때 확인합니다. `lms_sync_budget`을 해석하지 못하면 이 문서의 기본값을 쓰고 `sync_runs`에 남깁니다.
+`lms_sync_budget`은 JSON 문자열이고 키 이름과 기본값은 [architecture.md](architecture.md) '환경 변수'에 있습니다. `lms_request_params`도 JSON 문자열이고 `version`, 홈 주소, 로그인 주소, 쿠키 도메인 목록, 판별 표식, 조회별 요청 상수, 시간표 조회 상수를 담으며 키 이름은 `app/lib/lms/lms_config.dart`의 설정 파서가 정의합니다. `lms_login_success_pattern`을 앱 화면 로그인에서 어떻게 쓸지는 LMS 연동 때 확인합니다. `lms_sync_budget`을 해석하지 못하면 이 문서의 기본값을 쓰고, 그 계기의 `sync_runs` 행 `detail`에 `budget_parse_failed`를 남깁니다.
 
 ## 원격 스위치
 
@@ -192,8 +192,8 @@ LMS 관련 Remote Config 값(`lms_*`)은 `app/lib/lms/lms_config.dart` 한 곳�
 
 ## 로그아웃, 데이터 삭제, 내보내기
 
-- 10 나 › LMS 계정의 '로그아웃'은 이 폰에서 학번·비밀번호, 쿠키 금고, WebView 저장소와 함께 불러온 시간표(`class_slots`의 `source` `auto`)와 거기에 붙은 수업 예외, LMS 할 일(LMS 원본, 그 할 일의 블록과 걸린 시간 기록)을 지웁니다. 직접 넣은 일정·고정 일정·수업·할 일과 내 규칙은 남깁니다. LMS 과목(`courses`)과 `lms_item_changes`·`sync_runs`는 지우지 않습니다. 그 뒤 상태를 `disconnected`로 두고 14 온보딩 1단계로 갑니다. 거기서 로그인하면 시간표와 할 일을 새로 불러오고, 2–5단계는 다시 거치지 않습니다. 로그인하기 전에 앱을 다시 켜도 1단계가 열립니다.
-- 10 나 › 데이터의 '데이터 삭제'는 폰 DB 전부, 보안 저장소(학번·비밀번호, 쿠키 금고, 설치 토큰), WebView 저장소, `shared_preferences`의 앱 값(온보딩 완료·앱 모드 등)을 지웁니다. 재설계 예정 기능의 데이터(예약된 알림·위젯)도 지웁니다. 되돌릴 수 없습니다. 그 뒤 첫 실행처럼 설치 표식과 설치 토큰을 새로 만들고 14 온보딩 1단계로 갑니다.
+- 10 나 › LMS 계정의 '로그아웃'은 이 폰에서 학번·비밀번호, 쿠키 금고, WebView 저장소와 함께 불러온 시간표(`class_slots`의 `source` `auto`)와 거기에 붙은 수업 예외, LMS 할 일(LMS 원본, 그 할 일의 블록과 걸린 시간 기록)을 지웁니다. 직접 넣은 일정·고정 일정·수업·할 일과 내 규칙은 남깁니다. LMS 과목(`courses`)과 `lms_item_changes`·`sync_runs`는 지우지 않습니다. 폰 DB는 `LocalDataRepository.deleteLmsData`가 한 트랜잭션에서 자식부터 지우고(LMS 할 일의 블록 → LMS 할 일 → LMS 원본, 불러온 수업의 수업 예외 → 불러온 수업. 외래 키가 NO ACTION이라 부모를 먼저 지울 수 없음), 지운 행을 되살리지 않도록 되돌리기 기록도 버립니다. 그 뒤 상태를 `disconnected`로 두고 14 온보딩 1단계로 갑니다. 거기서 로그인하면 시간표와 할 일을 새로 불러오고, 2–5단계는 다시 거치지 않습니다. 로그인하기 전에 앱을 다시 켜도 1단계가 열립니다.
+- 10 나 › 데이터의 '데이터 삭제'는 폰 DB 전부(`LocalDataRepository.deleteAll`), 보안 저장소(학번·비밀번호, 쿠키 금고, 설치 토큰), WebView 저장소, `shared_preferences`의 앱 값(온보딩 완료·앱 모드 등)을 지웁니다. 재설계 예정 기능의 데이터(예약된 알림·위젯)도 지웁니다. 되돌릴 수 없습니다. 그 뒤 첫 실행처럼 설치 표식과 설치 토큰을 새로 만들고 14 온보딩 1단계로 갑니다.
 - 데이터 내보내기·가져오기(R1)의 파일에는 학번·비밀번호, 쿠키 금고, 설치 토큰, LMS 연동 상태를 넣지 않습니다. 가져온 뒤에는 다시 로그인해야 하고, 14 온보딩 1단계와 다시 로그인 화면 가운데 어디서 할지는 아직 정하지 않았습니다.
 
 ## 테스트

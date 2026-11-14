@@ -332,6 +332,37 @@ void main() {
     });
   });
 
+  group('advanceLmsLastSuccessAt', () {
+    // docs/architecture.md '폰 DB'의 settings 키: 지금 값보다 늦을 때만 바꾼다.
+    final ten = DateTime(2026, 10, 29, 10);
+    final tenFive = DateTime(2026, 10, 29, 10, 5);
+    final eleven = DateTime(2026, 10, 29, 11);
+
+    Future<bool> advance(DateTime startedAt) async =>
+        switch (await repo.advanceLmsLastSuccessAt(startedAt)) {
+          Ok(:final value) => value,
+          Err(:final error) => fail('저장소가 실패했다: $error'),
+        };
+
+    test('값이 없으면 쓰고, 더 늦게 시작한 동기화만 반영하며 늦게 끝난 옛 동기화는 무시한다', () async {
+      expect(await advance(tenFive), isTrue);
+      expect(await advance(ten), isFalse);
+      expect((await readOk()).lmsLastSuccessAt, tenFive);
+      expect(await advance(tenFive), isFalse);
+      expect(await advance(eleven), isTrue);
+      expect((await readOk()).lmsLastSuccessAt, eleven);
+    });
+
+    test('지금 값을 읽을 수 없으면 새 값으로 덮어쓴다', () async {
+      await putRaw(SettingKeys.lmsLastSuccessAt, '{깨진');
+      expect(await advance(ten), isTrue);
+      expect((await readOk()).lmsLastSuccessAt, ten);
+      await putRaw(SettingKeys.lmsLastSuccessAt, '"2026-10-29"');
+      expect(await advance(ten), isTrue);
+      expect((await readOk()).lmsLastSuccessAt, ten);
+    });
+  });
+
   group('settings 저장 실패', () {
     test('폰 DB를 읽거나 쓰지 못하면 예외 대신 StorageError를 담은 Err를 돌려준다', () async {
       // 표가 없는 DB로 실패를 만든다. 1은 SQLITE_ERROR(없는 표)다.
