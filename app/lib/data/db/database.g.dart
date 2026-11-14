@@ -1341,6 +1341,15 @@ class $FixedBlocksTable extends FixedBlocks
         type: DriftSqlType.string,
         requiredDuringInsert: true,
       ).withConverter<EntrySource>($FixedBlocksTable.$convertersource);
+  static const VerificationMeta _placeMeta = const VerificationMeta('place');
+  @override
+  late final GeneratedColumn<String> place = GeneratedColumn<String>(
+    'place',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1352,6 +1361,7 @@ class $FixedBlocksTable extends FixedBlocks
     kind,
     prep,
     source,
+    place,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1406,6 +1416,12 @@ class $FixedBlocksTable extends FixedBlocks
         prep.isAcceptableOrUnknown(data['prep']!, _prepMeta),
       );
     }
+    if (data.containsKey('place')) {
+      context.handle(
+        _placeMeta,
+        place.isAcceptableOrUnknown(data['place']!, _placeMeta),
+      );
+    }
     return context;
   }
 
@@ -1457,6 +1473,10 @@ class $FixedBlocksTable extends FixedBlocks
           data['${effectivePrefix}source'],
         )!,
       ),
+      place: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}place'],
+      ),
     );
   }
 
@@ -1486,6 +1506,7 @@ class FixedBlocksCompanion extends UpdateCompanion<FixedBlock> {
   final Value<FixedBlockKind> kind;
   final Value<String?> prep;
   final Value<EntrySource> source;
+  final Value<String?> place;
   const FixedBlocksCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
@@ -1496,6 +1517,7 @@ class FixedBlocksCompanion extends UpdateCompanion<FixedBlock> {
     this.kind = const Value.absent(),
     this.prep = const Value.absent(),
     this.source = const Value.absent(),
+    this.place = const Value.absent(),
   });
   FixedBlocksCompanion.insert({
     this.id = const Value.absent(),
@@ -1507,6 +1529,7 @@ class FixedBlocksCompanion extends UpdateCompanion<FixedBlock> {
     required FixedBlockKind kind,
     this.prep = const Value.absent(),
     required EntrySource source,
+    this.place = const Value.absent(),
   }) : name = Value(name),
        weekdays = Value(weekdays),
        startMin = Value(startMin),
@@ -1524,6 +1547,7 @@ class FixedBlocksCompanion extends UpdateCompanion<FixedBlock> {
     Expression<String>? kind,
     Expression<String>? prep,
     Expression<String>? source,
+    Expression<String>? place,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1535,6 +1559,7 @@ class FixedBlocksCompanion extends UpdateCompanion<FixedBlock> {
       if (kind != null) 'kind': kind,
       if (prep != null) 'prep': prep,
       if (source != null) 'source': source,
+      if (place != null) 'place': place,
     });
   }
 
@@ -1548,6 +1573,7 @@ class FixedBlocksCompanion extends UpdateCompanion<FixedBlock> {
     Value<FixedBlockKind>? kind,
     Value<String?>? prep,
     Value<EntrySource>? source,
+    Value<String?>? place,
   }) {
     return FixedBlocksCompanion(
       id: id ?? this.id,
@@ -1559,6 +1585,7 @@ class FixedBlocksCompanion extends UpdateCompanion<FixedBlock> {
       kind: kind ?? this.kind,
       prep: prep ?? this.prep,
       source: source ?? this.source,
+      place: place ?? this.place,
     );
   }
 
@@ -1598,6 +1625,9 @@ class FixedBlocksCompanion extends UpdateCompanion<FixedBlock> {
         $FixedBlocksTable.$convertersource.toSql(source.value),
       );
     }
+    if (place.present) {
+      map['place'] = Variable<String>(place.value);
+    }
     return map;
   }
 
@@ -1612,7 +1642,8 @@ class FixedBlocksCompanion extends UpdateCompanion<FixedBlock> {
           ..write('bufferMin: $bufferMin, ')
           ..write('kind: $kind, ')
           ..write('prep: $prep, ')
-          ..write('source: $source')
+          ..write('source: $source, ')
+          ..write('place: $place')
           ..write(')'))
         .toString();
   }
@@ -2868,6 +2899,68 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     ),
   );
   @override
+  late final GeneratedColumnWithTypeConverter<EntrySource?, String> source =
+      GeneratedColumn<String>(
+        'source',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      ).withConverter<EntrySource?>($TasksTable.$convertersourcen);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime?, DateTime> completedAt =
+      GeneratedColumn<DateTime>(
+        'completed_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>($TasksTable.$convertercompletedAtn);
+  static const VerificationMeta _actualMinMeta = const VerificationMeta(
+    'actualMin',
+  );
+  @override
+  late final GeneratedColumn<int> actualMin = GeneratedColumn<int>(
+    'actual_min',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _partialGoalMinMeta = const VerificationMeta(
+    'partialGoalMin',
+  );
+  @override
+  late final GeneratedColumn<int> partialGoalMin = GeneratedColumn<int>(
+    'partial_goal_min',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _nightWindowFromMeta = const VerificationMeta(
+    'nightWindowFrom',
+  );
+  @override
+  late final GeneratedColumn<String> nightWindowFrom = GeneratedColumn<String>(
+    'night_window_from',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _deferredUntilMeta = const VerificationMeta(
+    'deferredUntil',
+  );
+  @override
+  late final GeneratedColumn<String> deferredUntil = GeneratedColumn<String>(
+    'deferred_until',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
   List<GeneratedColumn> get $columns => [
     id,
     title,
@@ -2879,6 +2972,12 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     status,
     lmsKey,
     courseId,
+    source,
+    completedAt,
+    actualMin,
+    partialGoalMin,
+    nightWindowFrom,
+    deferredUntil,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2941,6 +3040,39 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         courseId.isAcceptableOrUnknown(data['course_id']!, _courseIdMeta),
       );
     }
+    if (data.containsKey('actual_min')) {
+      context.handle(
+        _actualMinMeta,
+        actualMin.isAcceptableOrUnknown(data['actual_min']!, _actualMinMeta),
+      );
+    }
+    if (data.containsKey('partial_goal_min')) {
+      context.handle(
+        _partialGoalMinMeta,
+        partialGoalMin.isAcceptableOrUnknown(
+          data['partial_goal_min']!,
+          _partialGoalMinMeta,
+        ),
+      );
+    }
+    if (data.containsKey('night_window_from')) {
+      context.handle(
+        _nightWindowFromMeta,
+        nightWindowFrom.isAcceptableOrUnknown(
+          data['night_window_from']!,
+          _nightWindowFromMeta,
+        ),
+      );
+    }
+    if (data.containsKey('deferred_until')) {
+      context.handle(
+        _deferredUntilMeta,
+        deferredUntil.isAcceptableOrUnknown(
+          data['deferred_until']!,
+          _deferredUntilMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2996,6 +3128,34 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         DriftSqlType.int,
         data['${effectivePrefix}course_id'],
       ),
+      source: $TasksTable.$convertersourcen.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}source'],
+        ),
+      ),
+      completedAt: $TasksTable.$convertercompletedAtn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}completed_at'],
+        ),
+      ),
+      actualMin: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}actual_min'],
+      ),
+      partialGoalMin: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}partial_goal_min'],
+      ),
+      nightWindowFrom: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}night_window_from'],
+      ),
+      deferredUntil: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}deferred_until'],
+      ),
     );
   }
 
@@ -3013,6 +3173,14 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
       NullAwareTypeConverter.wrap($converterdueAt);
   static TypeConverter<TaskStatus, String> $converterstatus =
       const EnumConverter(TaskStatus.values);
+  static TypeConverter<EntrySource, String> $convertersource =
+      const EnumConverter(EntrySource.values, fallback: EntrySource.manual);
+  static TypeConverter<EntrySource?, String?> $convertersourcen =
+      NullAwareTypeConverter.wrap($convertersource);
+  static TypeConverter<DateTime, DateTime> $convertercompletedAt =
+      const KstDateTimeConverter();
+  static TypeConverter<DateTime?, DateTime?> $convertercompletedAtn =
+      NullAwareTypeConverter.wrap($convertercompletedAt);
 }
 
 class TasksCompanion extends UpdateCompanion<Task> {
@@ -3026,6 +3194,12 @@ class TasksCompanion extends UpdateCompanion<Task> {
   final Value<TaskStatus> status;
   final Value<String?> lmsKey;
   final Value<int?> courseId;
+  final Value<EntrySource?> source;
+  final Value<DateTime?> completedAt;
+  final Value<int?> actualMin;
+  final Value<int?> partialGoalMin;
+  final Value<String?> nightWindowFrom;
+  final Value<String?> deferredUntil;
   const TasksCompanion({
     this.id = const Value.absent(),
     this.title = const Value.absent(),
@@ -3037,6 +3211,12 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.status = const Value.absent(),
     this.lmsKey = const Value.absent(),
     this.courseId = const Value.absent(),
+    this.source = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.actualMin = const Value.absent(),
+    this.partialGoalMin = const Value.absent(),
+    this.nightWindowFrom = const Value.absent(),
+    this.deferredUntil = const Value.absent(),
   });
   TasksCompanion.insert({
     this.id = const Value.absent(),
@@ -3049,6 +3229,12 @@ class TasksCompanion extends UpdateCompanion<Task> {
     required TaskStatus status,
     this.lmsKey = const Value.absent(),
     this.courseId = const Value.absent(),
+    this.source = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.actualMin = const Value.absent(),
+    this.partialGoalMin = const Value.absent(),
+    this.nightWindowFrom = const Value.absent(),
+    this.deferredUntil = const Value.absent(),
   }) : title = Value(title),
        kind = Value(kind),
        dueTimeUnknown = Value(dueTimeUnknown),
@@ -3064,6 +3250,12 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Expression<String>? status,
     Expression<String>? lmsKey,
     Expression<int>? courseId,
+    Expression<String>? source,
+    Expression<DateTime>? completedAt,
+    Expression<int>? actualMin,
+    Expression<int>? partialGoalMin,
+    Expression<String>? nightWindowFrom,
+    Expression<String>? deferredUntil,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3076,6 +3268,12 @@ class TasksCompanion extends UpdateCompanion<Task> {
       if (status != null) 'status': status,
       if (lmsKey != null) 'lms_key': lmsKey,
       if (courseId != null) 'course_id': courseId,
+      if (source != null) 'source': source,
+      if (completedAt != null) 'completed_at': completedAt,
+      if (actualMin != null) 'actual_min': actualMin,
+      if (partialGoalMin != null) 'partial_goal_min': partialGoalMin,
+      if (nightWindowFrom != null) 'night_window_from': nightWindowFrom,
+      if (deferredUntil != null) 'deferred_until': deferredUntil,
     });
   }
 
@@ -3090,6 +3288,12 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Value<TaskStatus>? status,
     Value<String?>? lmsKey,
     Value<int?>? courseId,
+    Value<EntrySource?>? source,
+    Value<DateTime?>? completedAt,
+    Value<int?>? actualMin,
+    Value<int?>? partialGoalMin,
+    Value<String?>? nightWindowFrom,
+    Value<String?>? deferredUntil,
   }) {
     return TasksCompanion(
       id: id ?? this.id,
@@ -3102,6 +3306,12 @@ class TasksCompanion extends UpdateCompanion<Task> {
       status: status ?? this.status,
       lmsKey: lmsKey ?? this.lmsKey,
       courseId: courseId ?? this.courseId,
+      source: source ?? this.source,
+      completedAt: completedAt ?? this.completedAt,
+      actualMin: actualMin ?? this.actualMin,
+      partialGoalMin: partialGoalMin ?? this.partialGoalMin,
+      nightWindowFrom: nightWindowFrom ?? this.nightWindowFrom,
+      deferredUntil: deferredUntil ?? this.deferredUntil,
     );
   }
 
@@ -3144,6 +3354,28 @@ class TasksCompanion extends UpdateCompanion<Task> {
     if (courseId.present) {
       map['course_id'] = Variable<int>(courseId.value);
     }
+    if (source.present) {
+      map['source'] = Variable<String>(
+        $TasksTable.$convertersourcen.toSql(source.value),
+      );
+    }
+    if (completedAt.present) {
+      map['completed_at'] = Variable<DateTime>(
+        $TasksTable.$convertercompletedAtn.toSql(completedAt.value),
+      );
+    }
+    if (actualMin.present) {
+      map['actual_min'] = Variable<int>(actualMin.value);
+    }
+    if (partialGoalMin.present) {
+      map['partial_goal_min'] = Variable<int>(partialGoalMin.value);
+    }
+    if (nightWindowFrom.present) {
+      map['night_window_from'] = Variable<String>(nightWindowFrom.value);
+    }
+    if (deferredUntil.present) {
+      map['deferred_until'] = Variable<String>(deferredUntil.value);
+    }
     return map;
   }
 
@@ -3159,7 +3391,13 @@ class TasksCompanion extends UpdateCompanion<Task> {
           ..write('spentMin: $spentMin, ')
           ..write('status: $status, ')
           ..write('lmsKey: $lmsKey, ')
-          ..write('courseId: $courseId')
+          ..write('courseId: $courseId, ')
+          ..write('source: $source, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('actualMin: $actualMin, ')
+          ..write('partialGoalMin: $partialGoalMin, ')
+          ..write('nightWindowFrom: $nightWindowFrom, ')
+          ..write('deferredUntil: $deferredUntil')
           ..write(')'))
         .toString();
   }
@@ -3242,6 +3480,30 @@ class $PlanBlocksTable extends PlanBlocks
         requiredDuringInsert: false,
       ).withConverter<BlockReason?>($PlanBlocksTable.$converterreason);
   @override
+  late final GeneratedColumnWithTypeConverter<DateTime?, DateTime> answeredAt =
+      GeneratedColumn<DateTime>(
+        'answered_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>($PlanBlocksTable.$converteransweredAtn);
+  static const VerificationMeta _fromBriefingMeta = const VerificationMeta(
+    'fromBriefing',
+  );
+  @override
+  late final GeneratedColumn<bool> fromBriefing = GeneratedColumn<bool>(
+    'from_briefing',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("from_briefing" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
   List<GeneratedColumn> get $columns => [
     id,
     taskId,
@@ -3250,6 +3512,8 @@ class $PlanBlocksTable extends PlanBlocks
     status,
     source,
     reason,
+    answeredAt,
+    fromBriefing,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3273,6 +3537,15 @@ class $PlanBlocksTable extends PlanBlocks
       );
     } else if (isInserting) {
       context.missing(_taskIdMeta);
+    }
+    if (data.containsKey('from_briefing')) {
+      context.handle(
+        _fromBriefingMeta,
+        fromBriefing.isAcceptableOrUnknown(
+          data['from_briefing']!,
+          _fromBriefingMeta,
+        ),
+      );
     }
     return context;
   }
@@ -3321,6 +3594,16 @@ class $PlanBlocksTable extends PlanBlocks
           data['${effectivePrefix}reason'],
         ),
       ),
+      answeredAt: $PlanBlocksTable.$converteransweredAtn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}answered_at'],
+        ),
+      ),
+      fromBriefing: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}from_briefing'],
+      )!,
     );
   }
 
@@ -3342,6 +3625,10 @@ class $PlanBlocksTable extends PlanBlocks
       const EnumConverter(BlockSource.values, fallback: BlockSource.manual);
   static TypeConverter<BlockReason?, String?> $converterreason =
       const BlockReasonConverter();
+  static TypeConverter<DateTime, DateTime> $converteransweredAt =
+      const KstDateTimeConverter();
+  static TypeConverter<DateTime?, DateTime?> $converteransweredAtn =
+      NullAwareTypeConverter.wrap($converteransweredAt);
 }
 
 class PlanBlocksCompanion extends UpdateCompanion<PlanBlock> {
@@ -3352,6 +3639,8 @@ class PlanBlocksCompanion extends UpdateCompanion<PlanBlock> {
   final Value<PlanBlockStatus> status;
   final Value<BlockSource> source;
   final Value<BlockReason?> reason;
+  final Value<DateTime?> answeredAt;
+  final Value<bool> fromBriefing;
   const PlanBlocksCompanion({
     this.id = const Value.absent(),
     this.taskId = const Value.absent(),
@@ -3360,6 +3649,8 @@ class PlanBlocksCompanion extends UpdateCompanion<PlanBlock> {
     this.status = const Value.absent(),
     this.source = const Value.absent(),
     this.reason = const Value.absent(),
+    this.answeredAt = const Value.absent(),
+    this.fromBriefing = const Value.absent(),
   });
   PlanBlocksCompanion.insert({
     this.id = const Value.absent(),
@@ -3369,6 +3660,8 @@ class PlanBlocksCompanion extends UpdateCompanion<PlanBlock> {
     required PlanBlockStatus status,
     required BlockSource source,
     this.reason = const Value.absent(),
+    this.answeredAt = const Value.absent(),
+    this.fromBriefing = const Value.absent(),
   }) : taskId = Value(taskId),
        startAt = Value(startAt),
        endAt = Value(endAt),
@@ -3382,6 +3675,8 @@ class PlanBlocksCompanion extends UpdateCompanion<PlanBlock> {
     Expression<String>? status,
     Expression<String>? source,
     Expression<String>? reason,
+    Expression<DateTime>? answeredAt,
+    Expression<bool>? fromBriefing,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3391,6 +3686,8 @@ class PlanBlocksCompanion extends UpdateCompanion<PlanBlock> {
       if (status != null) 'status': status,
       if (source != null) 'source': source,
       if (reason != null) 'reason': reason,
+      if (answeredAt != null) 'answered_at': answeredAt,
+      if (fromBriefing != null) 'from_briefing': fromBriefing,
     });
   }
 
@@ -3402,6 +3699,8 @@ class PlanBlocksCompanion extends UpdateCompanion<PlanBlock> {
     Value<PlanBlockStatus>? status,
     Value<BlockSource>? source,
     Value<BlockReason?>? reason,
+    Value<DateTime?>? answeredAt,
+    Value<bool>? fromBriefing,
   }) {
     return PlanBlocksCompanion(
       id: id ?? this.id,
@@ -3411,6 +3710,8 @@ class PlanBlocksCompanion extends UpdateCompanion<PlanBlock> {
       status: status ?? this.status,
       source: source ?? this.source,
       reason: reason ?? this.reason,
+      answeredAt: answeredAt ?? this.answeredAt,
+      fromBriefing: fromBriefing ?? this.fromBriefing,
     );
   }
 
@@ -3448,6 +3749,14 @@ class PlanBlocksCompanion extends UpdateCompanion<PlanBlock> {
         $PlanBlocksTable.$converterreason.toSql(reason.value),
       );
     }
+    if (answeredAt.present) {
+      map['answered_at'] = Variable<DateTime>(
+        $PlanBlocksTable.$converteransweredAtn.toSql(answeredAt.value),
+      );
+    }
+    if (fromBriefing.present) {
+      map['from_briefing'] = Variable<bool>(fromBriefing.value);
+    }
     return map;
   }
 
@@ -3460,7 +3769,9 @@ class PlanBlocksCompanion extends UpdateCompanion<PlanBlock> {
           ..write('endAt: $endAt, ')
           ..write('status: $status, ')
           ..write('source: $source, ')
-          ..write('reason: $reason')
+          ..write('reason: $reason, ')
+          ..write('answeredAt: $answeredAt, ')
+          ..write('fromBriefing: $fromBriefing')
           ..write(')'))
         .toString();
   }
@@ -4157,6 +4468,18 @@ class $BriefingsTable extends Briefings
         type: DriftSqlType.dateTime,
         requiredDuringInsert: false,
       ).withConverter<DateTime?>($BriefingsTable.$converterconfirmedAtn);
+  static const VerificationMeta _editCountMeta = const VerificationMeta(
+    'editCount',
+  );
+  @override
+  late final GeneratedColumn<int> editCount = GeneratedColumn<int>(
+    'edit_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -4164,6 +4487,7 @@ class $BriefingsTable extends Briefings
     createdAt,
     openedAt,
     confirmedAt,
+    editCount,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4187,6 +4511,12 @@ class $BriefingsTable extends Briefings
       );
     } else if (isInserting) {
       context.missing(_dateMeta);
+    }
+    if (data.containsKey('edit_count')) {
+      context.handle(
+        _editCountMeta,
+        editCount.isAcceptableOrUnknown(data['edit_count']!, _editCountMeta),
+      );
     }
     return context;
   }
@@ -4223,6 +4553,10 @@ class $BriefingsTable extends Briefings
           data['${effectivePrefix}confirmed_at'],
         ),
       ),
+      editCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}edit_count'],
+      )!,
     );
   }
 
@@ -4249,12 +4583,14 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
   final Value<DateTime> createdAt;
   final Value<DateTime?> openedAt;
   final Value<DateTime?> confirmedAt;
+  final Value<int> editCount;
   const BriefingsCompanion({
     this.id = const Value.absent(),
     this.date = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.openedAt = const Value.absent(),
     this.confirmedAt = const Value.absent(),
+    this.editCount = const Value.absent(),
   });
   BriefingsCompanion.insert({
     this.id = const Value.absent(),
@@ -4262,6 +4598,7 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
     required DateTime createdAt,
     this.openedAt = const Value.absent(),
     this.confirmedAt = const Value.absent(),
+    this.editCount = const Value.absent(),
   }) : date = Value(date),
        createdAt = Value(createdAt);
   static Insertable<Briefing> custom({
@@ -4270,6 +4607,7 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
     Expression<DateTime>? createdAt,
     Expression<DateTime>? openedAt,
     Expression<DateTime>? confirmedAt,
+    Expression<int>? editCount,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -4277,6 +4615,7 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
       if (createdAt != null) 'created_at': createdAt,
       if (openedAt != null) 'opened_at': openedAt,
       if (confirmedAt != null) 'confirmed_at': confirmedAt,
+      if (editCount != null) 'edit_count': editCount,
     });
   }
 
@@ -4286,6 +4625,7 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
     Value<DateTime>? createdAt,
     Value<DateTime?>? openedAt,
     Value<DateTime?>? confirmedAt,
+    Value<int>? editCount,
   }) {
     return BriefingsCompanion(
       id: id ?? this.id,
@@ -4293,6 +4633,7 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
       createdAt: createdAt ?? this.createdAt,
       openedAt: openedAt ?? this.openedAt,
       confirmedAt: confirmedAt ?? this.confirmedAt,
+      editCount: editCount ?? this.editCount,
     );
   }
 
@@ -4320,6 +4661,9 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
         $BriefingsTable.$converterconfirmedAtn.toSql(confirmedAt.value),
       );
     }
+    if (editCount.present) {
+      map['edit_count'] = Variable<int>(editCount.value);
+    }
     return map;
   }
 
@@ -4330,7 +4674,8 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
           ..write('date: $date, ')
           ..write('createdAt: $createdAt, ')
           ..write('openedAt: $openedAt, ')
-          ..write('confirmedAt: $confirmedAt')
+          ..write('confirmedAt: $confirmedAt, ')
+          ..write('editCount: $editCount')
           ..write(')'))
         .toString();
   }
@@ -6954,6 +7299,7 @@ typedef $$FixedBlocksTableCreateCompanionBuilder =
       required FixedBlockKind kind,
       Value<String?> prep,
       required EntrySource source,
+      Value<String?> place,
     });
 typedef $$FixedBlocksTableUpdateCompanionBuilder =
     FixedBlocksCompanion Function({
@@ -6966,6 +7312,7 @@ typedef $$FixedBlocksTableUpdateCompanionBuilder =
       Value<FixedBlockKind> kind,
       Value<String?> prep,
       Value<EntrySource> source,
+      Value<String?> place,
     });
 
 class $$FixedBlocksTableFilterComposer
@@ -7024,6 +7371,11 @@ class $$FixedBlocksTableFilterComposer
         column: $table.source,
         builder: (column) => ColumnWithTypeConverterFilters(column),
       );
+
+  ColumnFilters<String> get place => $composableBuilder(
+    column: $table.place,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$FixedBlocksTableOrderingComposer
@@ -7079,6 +7431,11 @@ class $$FixedBlocksTableOrderingComposer
     column: $table.source,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get place => $composableBuilder(
+    column: $table.place,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$FixedBlocksTableAnnotationComposer
@@ -7116,6 +7473,9 @@ class $$FixedBlocksTableAnnotationComposer
 
   GeneratedColumnWithTypeConverter<EntrySource, String> get source =>
       $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get place =>
+      $composableBuilder(column: $table.place, builder: (column) => column);
 }
 
 class $$FixedBlocksTableTableManager
@@ -7158,6 +7518,7 @@ class $$FixedBlocksTableTableManager
                 Value<FixedBlockKind> kind = const Value.absent(),
                 Value<String?> prep = const Value.absent(),
                 Value<EntrySource> source = const Value.absent(),
+                Value<String?> place = const Value.absent(),
               }) => FixedBlocksCompanion(
                 id: id,
                 name: name,
@@ -7168,6 +7529,7 @@ class $$FixedBlocksTableTableManager
                 kind: kind,
                 prep: prep,
                 source: source,
+                place: place,
               ),
           createCompanionCallback:
               ({
@@ -7180,6 +7542,7 @@ class $$FixedBlocksTableTableManager
                 required FixedBlockKind kind,
                 Value<String?> prep = const Value.absent(),
                 required EntrySource source,
+                Value<String?> place = const Value.absent(),
               }) => FixedBlocksCompanion.insert(
                 id: id,
                 name: name,
@@ -7190,6 +7553,7 @@ class $$FixedBlocksTableTableManager
                 kind: kind,
                 prep: prep,
                 source: source,
+                place: place,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -8213,6 +8577,12 @@ typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
   required TaskStatus status,
   Value<String?> lmsKey,
   Value<int?> courseId,
+  Value<EntrySource?> source,
+  Value<DateTime?> completedAt,
+  Value<int?> actualMin,
+  Value<int?> partialGoalMin,
+  Value<String?> nightWindowFrom,
+  Value<String?> deferredUntil,
 });
 typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
   Value<int> id,
@@ -8225,6 +8595,12 @@ typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
   Value<TaskStatus> status,
   Value<String?> lmsKey,
   Value<int?> courseId,
+  Value<EntrySource?> source,
+  Value<DateTime?> completedAt,
+  Value<int?> actualMin,
+  Value<int?> partialGoalMin,
+  Value<String?> nightWindowFrom,
+  Value<String?> deferredUntil,
 });
 
 final class $$TasksTableReferences
@@ -8334,6 +8710,38 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
         column: $table.status,
         builder: (column) => ColumnWithTypeConverterFilters(column),
       );
+
+  ColumnWithTypeConverterFilters<EntrySource?, EntrySource, String>
+  get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, DateTime>
+  get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnFilters<int> get actualMin => $composableBuilder(
+    column: $table.actualMin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get partialGoalMin => $composableBuilder(
+    column: $table.partialGoalMin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get nightWindowFrom => $composableBuilder(
+    column: $table.nightWindowFrom,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get deferredUntil => $composableBuilder(
+    column: $table.deferredUntil,
+    builder: (column) => ColumnFilters(column),
+  );
 
   $$LmsItemsTableFilterComposer get lmsKey {
     final $$LmsItemsTableFilterComposer composer = $composerBuilder(
@@ -8456,6 +8864,36 @@ class $$TasksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get actualMin => $composableBuilder(
+    column: $table.actualMin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get partialGoalMin => $composableBuilder(
+    column: $table.partialGoalMin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get nightWindowFrom => $composableBuilder(
+    column: $table.nightWindowFrom,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get deferredUntil => $composableBuilder(
+    column: $table.deferredUntil,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$LmsItemsTableOrderingComposer get lmsKey {
     final $$LmsItemsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -8539,6 +8977,33 @@ class $$TasksTableAnnotationComposer
 
   GeneratedColumnWithTypeConverter<TaskStatus, String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<EntrySource?, String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime?, DateTime> get completedAt =>
+      $composableBuilder(
+        column: $table.completedAt,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<int> get actualMin =>
+      $composableBuilder(column: $table.actualMin, builder: (column) => column);
+
+  GeneratedColumn<int> get partialGoalMin => $composableBuilder(
+    column: $table.partialGoalMin,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get nightWindowFrom => $composableBuilder(
+    column: $table.nightWindowFrom,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get deferredUntil => $composableBuilder(
+    column: $table.deferredUntil,
+    builder: (column) => column,
+  );
 
   $$LmsItemsTableAnnotationComposer get lmsKey {
     final $$LmsItemsTableAnnotationComposer composer = $composerBuilder(
@@ -8654,6 +9119,12 @@ class $$TasksTableTableManager
                 Value<TaskStatus> status = const Value.absent(),
                 Value<String?> lmsKey = const Value.absent(),
                 Value<int?> courseId = const Value.absent(),
+                Value<EntrySource?> source = const Value.absent(),
+                Value<DateTime?> completedAt = const Value.absent(),
+                Value<int?> actualMin = const Value.absent(),
+                Value<int?> partialGoalMin = const Value.absent(),
+                Value<String?> nightWindowFrom = const Value.absent(),
+                Value<String?> deferredUntil = const Value.absent(),
               }) => TasksCompanion(
                 id: id,
                 title: title,
@@ -8665,6 +9136,12 @@ class $$TasksTableTableManager
                 status: status,
                 lmsKey: lmsKey,
                 courseId: courseId,
+                source: source,
+                completedAt: completedAt,
+                actualMin: actualMin,
+                partialGoalMin: partialGoalMin,
+                nightWindowFrom: nightWindowFrom,
+                deferredUntil: deferredUntil,
               ),
           createCompanionCallback:
               ({
@@ -8678,6 +9155,12 @@ class $$TasksTableTableManager
                 required TaskStatus status,
                 Value<String?> lmsKey = const Value.absent(),
                 Value<int?> courseId = const Value.absent(),
+                Value<EntrySource?> source = const Value.absent(),
+                Value<DateTime?> completedAt = const Value.absent(),
+                Value<int?> actualMin = const Value.absent(),
+                Value<int?> partialGoalMin = const Value.absent(),
+                Value<String?> nightWindowFrom = const Value.absent(),
+                Value<String?> deferredUntil = const Value.absent(),
               }) => TasksCompanion.insert(
                 id: id,
                 title: title,
@@ -8689,6 +9172,12 @@ class $$TasksTableTableManager
                 status: status,
                 lmsKey: lmsKey,
                 courseId: courseId,
+                source: source,
+                completedAt: completedAt,
+                actualMin: actualMin,
+                partialGoalMin: partialGoalMin,
+                nightWindowFrom: nightWindowFrom,
+                deferredUntil: deferredUntil,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -8796,6 +9285,8 @@ typedef $$PlanBlocksTableCreateCompanionBuilder = PlanBlocksCompanion Function({
   required PlanBlockStatus status,
   required BlockSource source,
   Value<BlockReason?> reason,
+  Value<DateTime?> answeredAt,
+  Value<bool> fromBriefing,
 });
 typedef $$PlanBlocksTableUpdateCompanionBuilder = PlanBlocksCompanion Function({
   Value<int> id,
@@ -8805,6 +9296,8 @@ typedef $$PlanBlocksTableUpdateCompanionBuilder = PlanBlocksCompanion Function({
   Value<PlanBlockStatus> status,
   Value<BlockSource> source,
   Value<BlockReason?> reason,
+  Value<DateTime?> answeredAt,
+  Value<bool> fromBriefing,
 });
 
 final class $$PlanBlocksTableReferences
@@ -8873,6 +9366,17 @@ class $$PlanBlocksTableFilterComposer
     builder: (column) => ColumnWithTypeConverterFilters(column),
   );
 
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, DateTime>
+  get answeredAt => $composableBuilder(
+    column: $table.answeredAt,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnFilters<bool> get fromBriefing => $composableBuilder(
+    column: $table.fromBriefing,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$TasksTableFilterComposer get taskId {
     final $$TasksTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -8936,6 +9440,16 @@ class $$PlanBlocksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get answeredAt => $composableBuilder(
+    column: $table.answeredAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get fromBriefing => $composableBuilder(
+    column: $table.fromBriefing,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$TasksTableOrderingComposer get taskId {
     final $$TasksTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -8986,6 +9500,17 @@ class $$PlanBlocksTableAnnotationComposer
 
   GeneratedColumnWithTypeConverter<BlockReason?, String> get reason =>
       $composableBuilder(column: $table.reason, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime?, DateTime> get answeredAt =>
+      $composableBuilder(
+        column: $table.answeredAt,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<bool> get fromBriefing => $composableBuilder(
+    column: $table.fromBriefing,
+    builder: (column) => column,
+  );
 
   $$TasksTableAnnotationComposer get taskId {
     final $$TasksTableAnnotationComposer composer = $composerBuilder(
@@ -9046,6 +9571,8 @@ class $$PlanBlocksTableTableManager
                 Value<PlanBlockStatus> status = const Value.absent(),
                 Value<BlockSource> source = const Value.absent(),
                 Value<BlockReason?> reason = const Value.absent(),
+                Value<DateTime?> answeredAt = const Value.absent(),
+                Value<bool> fromBriefing = const Value.absent(),
               }) => PlanBlocksCompanion(
                 id: id,
                 taskId: taskId,
@@ -9054,6 +9581,8 @@ class $$PlanBlocksTableTableManager
                 status: status,
                 source: source,
                 reason: reason,
+                answeredAt: answeredAt,
+                fromBriefing: fromBriefing,
               ),
           createCompanionCallback:
               ({
@@ -9064,6 +9593,8 @@ class $$PlanBlocksTableTableManager
                 required PlanBlockStatus status,
                 required BlockSource source,
                 Value<BlockReason?> reason = const Value.absent(),
+                Value<DateTime?> answeredAt = const Value.absent(),
+                Value<bool> fromBriefing = const Value.absent(),
               }) => PlanBlocksCompanion.insert(
                 id: id,
                 taskId: taskId,
@@ -9072,6 +9603,8 @@ class $$PlanBlocksTableTableManager
                 status: status,
                 source: source,
                 reason: reason,
+                answeredAt: answeredAt,
+                fromBriefing: fromBriefing,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -9645,6 +10178,7 @@ typedef $$BriefingsTableCreateCompanionBuilder = BriefingsCompanion Function({
   required DateTime createdAt,
   Value<DateTime?> openedAt,
   Value<DateTime?> confirmedAt,
+  Value<int> editCount,
 });
 typedef $$BriefingsTableUpdateCompanionBuilder = BriefingsCompanion Function({
   Value<int> id,
@@ -9652,6 +10186,7 @@ typedef $$BriefingsTableUpdateCompanionBuilder = BriefingsCompanion Function({
   Value<DateTime> createdAt,
   Value<DateTime?> openedAt,
   Value<DateTime?> confirmedAt,
+  Value<int> editCount,
 });
 
 class $$BriefingsTableFilterComposer
@@ -9690,6 +10225,11 @@ class $$BriefingsTableFilterComposer
     column: $table.confirmedAt,
     builder: (column) => ColumnWithTypeConverterFilters(column),
   );
+
+  ColumnFilters<int> get editCount => $composableBuilder(
+    column: $table.editCount,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$BriefingsTableOrderingComposer
@@ -9725,6 +10265,11 @@ class $$BriefingsTableOrderingComposer
     column: $table.confirmedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get editCount => $composableBuilder(
+    column: $table.editCount,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$BriefingsTableAnnotationComposer
@@ -9753,6 +10298,9 @@ class $$BriefingsTableAnnotationComposer
         column: $table.confirmedAt,
         builder: (column) => column,
       );
+
+  GeneratedColumn<int> get editCount =>
+      $composableBuilder(column: $table.editCount, builder: (column) => column);
 }
 
 class $$BriefingsTableTableManager
@@ -9788,12 +10336,14 @@ class $$BriefingsTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime?> openedAt = const Value.absent(),
                 Value<DateTime?> confirmedAt = const Value.absent(),
+                Value<int> editCount = const Value.absent(),
               }) => BriefingsCompanion(
                 id: id,
                 date: date,
                 createdAt: createdAt,
                 openedAt: openedAt,
                 confirmedAt: confirmedAt,
+                editCount: editCount,
               ),
           createCompanionCallback:
               ({
@@ -9802,12 +10352,14 @@ class $$BriefingsTableTableManager
                 required DateTime createdAt,
                 Value<DateTime?> openedAt = const Value.absent(),
                 Value<DateTime?> confirmedAt = const Value.absent(),
+                Value<int> editCount = const Value.absent(),
               }) => BriefingsCompanion.insert(
                 id: id,
                 date: date,
                 createdAt: createdAt,
                 openedAt: openedAt,
                 confirmedAt: confirmedAt,
+                editCount: editCount,
               ),
           withReferenceMapper: (p0) => p0
               .map(
