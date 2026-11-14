@@ -48,20 +48,29 @@ void main() {
     expect(Defaults.estimateMinByKind, {
       TaskKind.assignment: 60,
       TaskKind.quiz: 30,
-      TaskKind.team: 90,
-      TaskKind.discussion: 30,
-      TaskKind.exam: 180,
-      TaskKind.personal: 30,
+      TaskKind.team: 120,
+      TaskKind.personal: 60,
     });
     expect(Defaults.unknownVideoMin, 30);
   });
 
-  test('영상과 LMS 자료는 종류별 예상 시간에 없다', () {
-    // 영상은 출석 인정 시간이나 영상 길이를 쓰고, 자료는 할 일로 만들지 않는다.
+  test('영상·LMS 자료·토론·시험은 종류별 예상 시간에 없다', () {
+    // 영상은 출석 인정 시간이나 영상 길이를 쓰고, 자료는 할 일로 만들지 않으며,
+    // 토론·시험은 사용자가 시간을 정할 때만 배치한다.
     expect(
       Defaults.estimateMinByKind.keys.toSet(),
-      TaskKind.values.toSet().difference({TaskKind.video, TaskKind.material}),
+      TaskKind.values.toSet().difference({
+        TaskKind.video,
+        TaskKind.material,
+        TaskKind.discussion,
+        TaskKind.exam,
+      }),
     );
+  });
+
+  test('자동 배치 블록 사이 간격 15분, 마감 여유 12시간', () {
+    expect(Defaults.blockGapMin, 15);
+    expect(Defaults.deadlineSlackMin, 12 * 60);
   });
 
   test("온보딩 3단계 '통학' 칩은 20·30·40·60분이고 기본 40분이다", () {
