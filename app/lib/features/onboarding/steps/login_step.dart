@@ -21,8 +21,7 @@ class LoginStep extends StatefulWidget {
     super.key,
     required this.onLoggedIn,
     required this.onBrowse,
-    required this.onSkipLoginForDev,
-    this.showDevSkip = true,
+    this.onSkipLoginForDev,
   });
 
   /// 로그인 흐름이 성공으로 끝났을 때([OnboardingController.loggedIn]).
@@ -31,12 +30,9 @@ class LoginStep extends StatefulWidget {
   /// '로그인 없이 둘러보기 · 샘플 학생의 하루': 데모 모드로 들어간다.
   final VoidCallback onBrowse;
 
-  /// 개발용 '로그인 없이 다음으로'를 눌렀을 때([OnboardingController.skipLoginForDev]).
-  final VoidCallback onSkipLoginForDev;
-
-  /// 개발용 버튼을 보일지. 이 값이 true여도 debug 빌드에서만 보인다. 테스트는 false로 두어
-  /// release·profile 빌드처럼 버튼이 없는 화면을 본다.
-  final bool showDevSkip;
+  /// 개발용 '로그인 없이 다음으로'를 눌렀을 때([OnboardingController.skipLoginForDev]). null이면 버튼이 없다
+  /// (debug 빌드가 아니면 [OnboardingScreen]이 넘기지 않음, `devLoginSkipAllowedProvider`).
+  final VoidCallback? onSkipLoginForDev;
 
   @override
   State<LoginStep> createState() => _LoginStepState();
@@ -69,7 +65,6 @@ class _LoginStepState extends State<LoginStep> {
           onSucceeded: widget.onLoggedIn,
           onRunningChanged: (running) => setState(() => _loggingIn = running),
           onSkipForDev: widget.onSkipLoginForDev,
-          showDevSkip: widget.showDevSkip,
         ),
       ],
       actions: [

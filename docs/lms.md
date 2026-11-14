@@ -71,7 +71,7 @@ stateDiagram-v2
 
 상태 이름은 Dart enum `LmsSessionState { disconnected, connecting, active, restoring, reconnectRequired }`(도식의 미연결·연결중·활성·복원중·다시 로그인 필요)이고, 값은 폰 DB `settings`에 저장해 백그라운드 isolate도 같은 값을 읽습니다. 전이는 다음뿐입니다.
 
-1. 사용자 행동: '로그인'·'다시 로그인'을 누르면 `connecting`입니다. 로그인이 실패하면 로그인 화면에 머물고 `connecting`에 둡니다. 로그인 화면에서 뒤로 가거나 그 화면에서 앱이 꺼지면(다음 시작 때) 시작 전 상태로 돌아갑니다. 학번·비밀번호가 저장돼 있으면 `reconnectRequired`, 없으면 `disconnected`입니다. 로그아웃은 어느 상태에서든 `disconnected`입니다.
+1. 사용자 행동: '로그인'·'다시 로그인'을 누르면 `connecting`입니다. 로그인이 실패하면 로그인 화면에 머물고 `connecting`에 둡니다. 시작 위치 규칙과 온보딩은 `connecting`을 `disconnected`처럼 로그인 전으로 봅니다(그 사이 '로그인 없이 둘러보기' → '끝내기'로 돌아와도 1단계. decisions.md 2026-11-14 '로그인하는 중은 로그인 전으로 본다'). 로그인 화면에서 뒤로 가거나 그 화면에서 앱이 꺼지면(다음 시작 때) 시작 전 상태로 돌아갑니다. 학번·비밀번호가 저장돼 있으면 `reconnectRequired`, 없으면 `disconnected`입니다. 로그아웃은 어느 상태에서든 `disconnected`입니다.
 2. 로그인 성공: `connecting` → `active`.
 3. 판별 결과 '재로그인 필요'·'복원 필요': `active` → `restoring`. `reconnectRequired`도 저장된 비밀번호가 있고 거절되지 않았으면 다음 동기화 계기에 `restoring`으로 갑니다.
 4. 복원(저장된 비밀번호 재로그인 포함) 뒤 재조회가 '정상'·'빈 목록'이면 `restoring` → `active`. 저장된 학번·비밀번호가 없거나 거절되거나, 재로그인 응답이 '해석 실패'이면 `restoring` → `reconnectRequired`. 복원 중 '네트워크 실패'·'서버 오류·점검'이면 `restoring`에 머물고 다음 동기화 계기에 복원을 다시 시도합니다.

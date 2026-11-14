@@ -11,5 +11,11 @@ enum LmsSessionState {
   connecting,
   active,
   restoring,
-  reconnectRequired,
+  reconnectRequired;
+
+  /// 아직 로그인하지 않았는지(로그인 정보가 없거나 로그인하는 중). 시작 위치 규칙과 온보딩은 이 상태를
+  /// 로그인하지 않은 것으로 본다. `connecting`은 로그인에 실패해도 로그인 화면에 있는 동안 그대로 남으므로
+  /// (docs/lms.md '세션 상태' 1번) 로그인한 것으로 보면, 실패한 뒤 '로그인 없이 둘러보기' → '끝내기'로 로그인
+  /// 없이 실제 모드에 들어가게 된다(docs/decisions.md 2026-11-14 '로그인하는 중은 로그인 전으로 본다').
+  bool get beforeLogin => this == disconnected || this == connecting;
 }
