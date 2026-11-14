@@ -48,7 +48,7 @@ cnu-ai-assistant/
 ├── app/                      Flutter 앱 (iOS·Android)
 │   ├── lib/
 │   │   ├── main.dart
-│   │   ├── app/              app.dart(루트 위젯 RootApp), router.dart, theme.dart, providers.dart(앱 전역 provider), config.dart(서버 주소 등 비밀 아닌 설정 상수), bootstrap.dart(Firebase·DB·설정 초기화), startup_failure.dart(시작하지 못한 이유), logging.dart(앱 로그와 잡히지 않은 오류의 처리)
+│   │   ├── app/              app.dart(루트 위젯 RootApp), app_binding.dart(OS의 애니메이션 끄기 신호를 무시하는 앱 바인딩), router.dart, theme.dart, providers.dart(앱 전역 provider), config.dart(서버 주소 등 비밀 아닌 설정 상수), bootstrap.dart(Firebase·DB·설정 초기화), startup_failure.dart(시작하지 못한 이유), logging.dart(앱 로그와 잡히지 않은 오류의 처리)
 │   │   ├── design/           tokens.dart(색·글꼴·간격·모서리), motion.dart(모션 프리셋), icons.dart, strings.dart(두 화면 이상이 쓰는 문구), widgets/(공통 위젯)
 │   │   ├── features/         화면 단위 (onboarding, briefing, today, calendar, tasks, assistant, me, lms_connect, system; R1에 suggest). 대응표는 아래 '화면과 기능 폴더'
 │   │   ├── domain/           순수 Dart: 모델, 빈 시간 계산, 배치 엔진, 내 규칙(rules.dart), 시계와 논리적 하루(clock.dart), 날짜·시각 표기와 조사(text/)
@@ -227,7 +227,7 @@ cnu-ai-assistant/
 | `toast` | 450ms 등장. 되돌리기가 있으면 10초, 없으면 3.4초 보임 |
 
 - 프리셋 위젯은 `design/motion/`의 `Press`, `Rise`, `Pop`, `NavDrop`(`navIconPop` 포함), `Sheet`, `Pulse`(R0), `WordIn`(R1)이고 `AnimationController`와 `CurvedAnimation`으로 만듭니다. 시간은 `MotionLevel.duration`을 거쳐 씁니다. 되돌리기가 있는 토스트가 보이는 10초는 `Defaults.undoWindow` 하나를 토스트(`AppMotion.toastWithUndo`)와 저장소(`UndoRepository.undoLast`)가 함께 씁니다.
-- 모션은 모든 사람에게 같습니다(decisions.md 2026-11-13 '모션은 모든 사람에게 같게 보인다'). 앱 안의 모션 선택은 없고, OS의 동작 줄이기(iOS)·애니메이션 삭제(Android)와 기기(오래된 Android)를 보지 않으며, 화면 전환과 온보딩 PageView도 늘 움직입니다. 모션 등급 `MotionLevel`은 앱이 늘 쓰는 `full`과 화면 테스트가 덮어쓰는 `off`(모든 시간 0) 둘이고 `motionLevelProvider`로 읽습니다(앱에서는 늘 `full`). 하단 탭바와 AI 비서 버튼은 늘 유리로 그리고, (R1) OS가 투명도를 줄이라고 하면 흰 배경으로 그립니다.
+- 모션은 모든 사람에게 같습니다(decisions.md 2026-11-13 '모션은 모든 사람에게 같게 보인다'). 앱 안의 모션 선택은 없고, OS의 동작 줄이기(iOS)·애니메이션 삭제(Android)와 기기(오래된 Android)를 보지 않으며, 화면 전환과 온보딩 PageView도 늘 움직입니다. Android '애니메이션 삭제'를 켜면 Flutter가 OS의 애니메이션 끄기 신호를 보고 기본 `AnimationController`의 시간을 5%로 줄이므로(시트·화면 전환·프리셋), 앱 바인딩(`app/app_binding.dart`의 `AppBinding`, `main`이 맨 처음 만듦)이 이 신호를 늘 false로 보고 `RootApp`이 위젯이 보는 `MediaQuery`의 값도 false로 덮어씁니다(decisions.md 2026-11-14 'OS의 애니메이션 끄기 신호는 앱 전체에서 무시한다'). 모션 등급 `MotionLevel`은 앱이 늘 쓰는 `full`과 화면 테스트가 덮어쓰는 `off`(모든 시간 0) 둘이고 `motionLevelProvider`로 읽습니다(앱에서는 늘 `full`). 하단 탭바와 AI 비서 버튼은 늘 유리로 그리고, (R1) OS가 투명도를 줄이라고 하면 흰 배경으로 그립니다.
 - 첫 의미 있는 내용은 300ms 안에 보이고, 등장 중에도 누를 수 있어야 하며, 한 화면 전체 등장은 1.6초를 넘지 않습니다.
 
 ## 폰 DB (drift)

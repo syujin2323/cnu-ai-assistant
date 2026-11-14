@@ -384,3 +384,11 @@
 - 이유: lms.md '세션 상태' 1번대로 로그인에 실패해도 로그인 화면에 있는 동안은 `connecting`에 둔다. 이것을 로그인한 것으로 보면, 실패한 뒤 '로그인 없이 둘러보기' → '끝내기'로 돌아올 때 처음 사용자는 로그인 없이 2단계로 가고 로그아웃했던 사용자는 바로 `/briefing`·`/today`로 가서, 실제 모드를 로그인 없이 시작하게 된다(2026-11-04 '온보딩은 다섯 단계다'와 어긋남). 앱을 껐다 켜면 `connecting`은 시작 전 상태로 돌아가므로 2단계부터 여는 경우는 그대로다.
 - 다른 후보: 둘러보기로 1단계를 떠날 때 LMS 상태를 시작 전으로 되돌리기(LMS 로그인 흐름이 생긴 뒤에야 만들 수 있음).
 - 영향: architecture.md '화면 이동'·'온보딩', lms.md '세션 상태' 1번, `app/lib/domain/models/lms_session_state.dart`(`beforeLogin`), `app/lib/app/router.dart`, `app/lib/features/onboarding/onboarding_controller.dart`.
+
+## 2026-11-14 OS의 애니메이션 끄기 신호는 앱 전체에서 무시한다 (2026-11-13 '모션은 모든 사람에게 같게 보인다' 보완)
+
+- 결정: 앱 바인딩(`app/lib/app/app_binding.dart`의 `AppBinding`)이 OS의 애니메이션 끄기 신호(`SemanticsBinding.disableAnimations`)를 늘 false로 보고, `RootApp`이 위젯이 보는 `MediaQueryData.disableAnimations`도 false로 덮어쓴다. 그래서 Android '애니메이션 삭제'를 켠 기기에서도 시트·화면 전환·모션 프리셋이 표의 시간대로 움직인다.
+- 이유: Android '애니메이션 삭제'를 켜면 Flutter는 이 신호를 보고 기본 동작(`AnimationBehavior.normal`)인 `AnimationController`를 원래 시간의 5%로 돌린다(시트 750ms → 약 38ms). 스크롤로 움직이는 온보딩 PageView와 iOS '동작 줄이기'를 켠 iPhone은 줄지 않으므로, 화면과 OS에 따라 움직임이 달라져 2026-11-13 결정과 어긋난다.
+- 받아들인 점: 애니메이션 삭제를 켠 사람에게도 앱 안에서는 움직임이 보인다(2026-11-13과 같음). 키보드·권한 창처럼 시스템이 그리는 화면은 OS 설정대로다.
+- 다른 후보: Flutter가 줄이는 것을 받아들이고 2026-11-13 결정에 Android 예외를 적기.
+- 영향: architecture.md '폴더 구조'·'모션 프리셋', screens.md '다크 모드·모션·글자 크기', `app/lib/app/app_binding.dart`, `app/lib/main.dart`, `app/lib/app/app.dart`, `app/lib/design/motion.dart`·`app/lib/app/providers.dart`(주석).
