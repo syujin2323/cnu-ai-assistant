@@ -862,6 +862,64 @@ void main() {
       await expectLater(slot(weekday: 1, startMin: 540), checkFailed);
     });
 
+    test(
+      '수업 예외의 보강 시각은 수업 칸의 시각과 같은 규칙이고 둘은 함께 있거나 함께 없으며, Dart 검사와 같다',
+      () async {
+        final courseId = await addCourse();
+        final slotId = await db
+            .into(db.classSlots)
+            .insert(
+              ClassSlotsCompanion.insert(
+                courseId: courseId,
+                weekday: 1,
+                startMin: 540,
+                endMin: 600,
+                campus: Campus.boun,
+                online: false,
+                source: SlotSource.auto,
+              ),
+            );
+        // (시작, 끝). 22:00–02:00은 1320–1560으로 적는다.
+        const samples = <(int?, int?)>[
+          (null, null),
+          (840, 900),
+          (1320, 1560),
+          (0, 1),
+          (-1, 60),
+          (1440, 1500),
+          (840, 840),
+          (840, 2280),
+          (840, null),
+          (null, 900),
+        ];
+        for (final (startMin, endMin) in samples) {
+          final dart = checkMakeupTime(
+            startMin: startMin,
+            endMin: endMin,
+          ).isEmpty;
+          final db0 = await accepted(
+            () => db
+                .into(db.classExceptions)
+                .insert(
+                  ClassExceptionsCompanion.insert(
+                    date: '2026-10-28',
+                    classSlotId: slotId,
+                    kind: ClassExceptionKind.makeup,
+                    source: EntrySource.ai,
+                    startMin: Value(startMin),
+                    endMin: Value(endMin),
+                  ),
+                ),
+          );
+          expect(db0, dart, reason: '($startMin, $endMin)');
+        }
+        final saved = await (db.select(
+          db.classExceptions,
+        )..where((row) => row.startMin.equals(1320))).getSingle();
+        expect((saved.startMin, saved.endMin), (1320, 1560));
+      },
+    );
+
     test('고정 일정은 시작 0–1439, 끝이 시작보다 늦고 하루보다 짧고, 앞뒤 여유가 0 이상이어야 하고 Dart 검사가 이를 먼저 본다', () async {
       // (요일들, 시작, 끝, 앞뒤 여유, DB가 받는지). 앞뒤 여유의 위 끝(60)과 요일 값은 DB에 걸지 않고
       // Dart 검사만 본다.
