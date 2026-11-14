@@ -1,4 +1,4 @@
-// 앱 전역 provider 테스트. docs/architecture.md '모션 프리셋', '데모 모드'.
+// 앱 전역 provider 테스트. docs/architecture.md '데모 모드'. 모션 등급은 test/app/app_binding_test.dart가 본다.
 
 import 'dart:async';
 import 'dart:io';
@@ -6,7 +6,6 @@ import 'dart:io';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
-import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
@@ -19,21 +18,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-
-  group('motionLevelProvider', () {
-    testWidgets('OS가 애니메이션을 끄라고 해도 늘 full이다(앱 안의 모션 선택도 없다)', (tester) async {
-      // docs/decisions.md 2026-11-13 '모션은 모든 사람에게 같게 보인다'.
-      tester.platformDispatcher.accessibilityFeaturesTestValue =
-          const FakeAccessibilityFeatures(disableAnimations: true);
-      addTearDown(
-        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
-      );
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
-      expect(container.read(motionLevelProvider), MotionLevel.full);
-    });
-  });
 
   group('appModeProvider', () {
     Future<AppMode> modeFor(Map<String, Object> preferences) async {
