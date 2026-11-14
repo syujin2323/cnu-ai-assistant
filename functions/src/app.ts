@@ -12,7 +12,6 @@ import {
   writeRequestLog,
   type RequestLogWriter,
 } from "./http/request-log.js";
-import { apiRoutes } from "./routes.js";
 
 /** 요청 본문 상한(바이트). 경로별 입력 상한(/v1/parse의 text 300자 등)은 각 경로가 따로 본다. */
 export const MAX_BODY_BYTES = 16 * 1024;
@@ -20,18 +19,18 @@ export const MAX_BODY_BYTES = 16 * 1024;
 export interface AppOptions {
   /** 요청 로그 한 줄을 쓰는 곳. 테스트가 바꾼다. */
   log?: RequestLogWriter;
-  /** 앱에 붙일 경로. 테스트가 바꾼다. 기본은 API 경로 전부다. */
-  routes?: Router;
+  /** 앱에 붙일 경로. 배포되는 함수는 API 경로 전부(routes.ts의 apiRoutes)이고, 테스트는 바꾼다. */
+  routes: Router;
 }
 
 /** 요청 로그 → 본문 읽기 → 본문 크기 확인 → 경로 → 없는 경로(404) → 오류 응답 순서로 붙인 앱. */
-export function createApp(options: AppOptions = {}): Express {
+export function createApp(options: AppOptions): Express {
   const app = express();
   app.disable("x-powered-by");
   app.use(requestLog(options.log ?? writeRequestLog));
   app.use(express.json({ limit: MAX_BODY_BYTES, verify: keepRawBody }));
   app.use(rejectLargeBody);
-  app.use(options.routes ?? apiRoutes());
+  app.use(options.routes);
   app.use(notFound);
   app.use(errorHandler);
   return app;
