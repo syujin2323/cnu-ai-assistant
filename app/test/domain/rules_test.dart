@@ -179,6 +179,42 @@ void main() {
       );
     });
 
+    test('estimate는 영상·자료에 두지 않고, 개인이면 과목을 두지 않는다', () {
+      // docs/decisions.md 2026-11-14 '예상 시간 규칙은 10–720분이고 영상·자료·개인 과목 할 일에 두지 않는다'.
+      for (final kind in [TaskKind.video, TaskKind.material]) {
+        expect(
+          issues(RuleKind.estimate, RuleParams(taskKind: kind, minutes: 60)),
+          [issue('taskKind', RuleIssueKind.notAllowed)],
+          reason: kind.name,
+        );
+      }
+      expect(
+        issues(
+          RuleKind.estimate,
+          const RuleParams(
+            courseId: 3,
+            taskKind: TaskKind.personal,
+            minutes: 60,
+          ),
+        ),
+        [issue('courseId', RuleIssueKind.notAllowed)],
+      );
+      expect(
+        issues(
+          RuleKind.estimate,
+          const RuleParams(taskKind: TaskKind.personal, minutes: 60),
+        ),
+        isEmpty,
+      );
+      expect(
+        issues(
+          RuleKind.estimate,
+          const RuleParams(courseId: 3, taskKind: TaskKind.exam, minutes: 300),
+        ),
+        isEmpty,
+      );
+    });
+
     test('notify는 값이 하나는 있어야 하고 조용한 시간은 시작과 끝을 함께 둔다', () {
       expect(issues(RuleKind.notify, const RuleParams()), [
         issue(
@@ -250,7 +286,7 @@ void main() {
       expectLimit(RuleKind.classBuffer, RuleLimits.minutes);
       expectLimit(RuleKind.travel, RuleLimits.minutes);
       expectLimit(RuleKind.meal, RuleLimits.minutes);
-      expectLimit(RuleKind.estimate, RuleLimits.minutes);
+      expectLimit(RuleKind.estimate, RuleLimits.estimate);
       expectLimit(RuleKind.dailyCap, RuleLimits.dailyCap);
       expectLimit(RuleKind.maxBlock, RuleLimits.maxBlock);
     });
@@ -262,6 +298,7 @@ void main() {
     test('범위 상수는 docs/architecture.md \'내 규칙\'의 값 범위와 같다(임시값)', () {
       expect(RuleLimits.minutes, (low: 0, high: 240));
       expect(RuleLimits.dailyCap, (low: 30, high: 720));
+      expect(RuleLimits.estimate, (low: 10, high: 720));
       expect(RuleLimits.maxBlock.high, 240);
       expect(RuleLimits.notifyCap, (low: 0, high: 20));
       expect(RuleLimits.briefing, (low: 360, high: 720));
@@ -875,6 +912,14 @@ void main() {
       expect(config.meals, const [
         MealGuard(window: MinuteRange(960, 1080), minutes: 40),
       ]);
+    });
+
+    test('영상은 과목 규칙이 있어도 예상 시간 규칙을 쓰지 않는다', () {
+      final config = PlannerConfig.from([
+        rule(RuleKind.estimate, const RuleParams(courseId: 7, minutes: 90)),
+      ]);
+      expect(config.estimateMin(courseId: 7, kind: TaskKind.video), isNull);
+      expect(config.estimateMin(courseId: 7, kind: TaskKind.quiz), 90);
     });
 
     test('예상 시간은 과목·종류, 과목, 종류 순서로 찾는다', () {
