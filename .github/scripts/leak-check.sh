@@ -9,7 +9,8 @@
 #   - app/test/**/fixtures/의 example.invalid 밖 호스트와 학번 꼴 숫자(docs/lms.md '테스트')
 # 보는 곳
 #   - PR의 모든 커밋에서 추가된 줄. 중간 커밋에 넣었다 지운 값도 PR 기록에 남으므로 커밋마다 본다.
-#     병합 커밋은 결합 diff(--cc)로 봐서 충돌을 풀며 새로 넣은 줄도 본다.
+#     병합 커밋은 결합 diff(--cc)로 봐서 충돌을 풀며 새로 넣은 줄도 본다. 이 스크립트 파일도 예외 없이
+#     본다(자체 시험의 쿠키 꼴 샘플은 파일에 그대로 두지 않고 실행할 때 만든다).
 #   - PR 제목·본문(squash 병합 때 develop 기록에 남는다)과 커밋 메시지
 #   - 바이너리 파일은 내용을 볼 수 없어 경고만 낸다.
 # 일치한 값은 로그에 남지 않도록 출력하지 않고 파일 이름만 알린다.
@@ -124,7 +125,7 @@ scan_pr() {
   local lines="$work/lines" text="$work/text"
 
   # 1. 커밋마다 추가된 줄
-  git log --format= --name-only -z --cc --diff-filter=d "$range" -- . ":(exclude)$SELF_PATH" \
+  git log --format= --name-only -z --cc --diff-filter=d "$range" -- . \
     | sort -zu > "$work/files"
   while IFS= read -r -d '' file; do
     [[ -n "$file" ]] || continue
@@ -175,10 +176,13 @@ scan_pr() {
 
 self_test() {
   local failed=0 n_hit=0 n_miss=0 line v rc sample="$work/sample"
-  local seg jwt
-  # 토큰 모양 샘플은 파일에 그대로 두지 않고 실행할 때 만든다.
+  local seg jwt ck CK
+  # 토큰 모양과 쿠키 꼴 샘플은 이 파일에 그대로 두지 않고 실행할 때 만든다. 이 파일도 PR 검사 대상이라
+  # 그대로 두면 이 파일을 고치는 PR마다 걸린다.
   seg="$(printf 'x%.0s' 1 2 3 4 5 6 7 8 9 10 11 12)"
   jwt="eyJ${seg}.eyJ${seg}.${seg}"
+  ck='coo''kie'
+  CK='Coo''kie'
 
   # 잡아야 하는 줄. 값은 모두 지어낸 것이다.
   names_file=""
@@ -192,17 +196,17 @@ self_test() {
       failed=1
     fi
   done <<SAMPLES
-Cookie: SAMPLEID=abc123
-"cookie": "SAMPLEID=abc123"
-set-cookie: SAMPLEID=abc; Path=/
-headers: {'Cookie': 'SAMPLEID=abc123'}
-'set-cookie': ['SAMPLEID=abc123; Path=/']
-"set-cookie": ["SAMPLEID=abc123; Path=/"]
-{"name": "Cookie", "value": "SAMPLEID=abc123"}
-cookieManager.setCookie(url, "SAMPLEID=abc123; Path=/; Secure; HttpOnly")
-request.headers.set(HttpHeaders.cookieHeader, 'SAMPLEID=abc123')
-final cookie = 'SAMPLEID=abc123'
-options.headers['cookie'] = 'SAMPLEID=abc123';
+${CK}: SAMPLEID=abc123
+"${ck}": "SAMPLEID=abc123"
+set-${ck}: SAMPLEID=abc; Path=/
+headers: {'${CK}': 'SAMPLEID=abc123'}
+'set-${ck}': ['SAMPLEID=abc123; Path=/']
+"set-${ck}": ["SAMPLEID=abc123; Path=/"]
+{"name": "${CK}", "value": "SAMPLEID=abc123"}
+${ck}Manager.set${CK}(url, "SAMPLEID=abc123; Path=/; Secure; HttpOnly")
+request.headers.set(HttpHeaders.${ck}Header, 'SAMPLEID=abc123')
+final ${ck} = 'SAMPLEID=abc123'
+options.headers['${ck}'] = 'SAMPLEID=abc123';
 Authorization: Bearer ${jwt}
 SAMPLES
 
