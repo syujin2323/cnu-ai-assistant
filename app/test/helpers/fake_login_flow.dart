@@ -2,23 +2,33 @@
 // 결과(성공, 틀림, 점검, 네트워크 실패, 해석 실패)와 진행 줄을 어떻게 다루는지만 본다.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' show min;
 
 import 'package:cnu_ai_assistant/app/providers.dart';
+import 'package:cnu_ai_assistant/data/remote_config.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/lms/lms_config.dart';
 import 'package:cnu_ai_assistant/lms/login_flow.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
-/// `fetchAndActivate()`를 마친 것으로 두고 LMS 원격 값을 [enabled]·[requestParams]로 둔다.
-/// 요청 상수는 비어 있지 않으면 받은 것으로 본다(합성 값).
+import 'lms_samples.dart';
+
+/// `fetchAndActivate()`를 마친 것으로 두고 LMS 원격 값을 [enabled]·[requestParams]로 둔다. 요청 상수를 주지
+/// 않으면 합성 요청 상수(받은 상태)이고, 빈 문자열이면 '설정 없음'이다. 학교 도메인은 합성 샘플의 호스트로 바꾸고,
+/// 호출 예산은 앱 기본값이다.
 List<Override> lmsConfigOverrides({
   bool enabled = true,
-  String requestParams = '{}',
+  String? requestParams,
 }) => [
   remoteConfigFetchProvider.overrideWithValue(RemoteConfigFetch()..markDone()),
+  lmsSchoolDomainProvider.overrideWithValue(syntheticSchoolDomain),
   lmsRemoteValuesProvider.overrideWithValue(
-    () => (enabled: enabled, requestParams: requestParams),
+    () => (
+      enabled: enabled,
+      requestParams: requestParams ?? syntheticRequestParamsJson,
+      syncBudget: jsonEncode(lmsSyncBudgetDefaults),
+    ),
   ),
 ];
 
