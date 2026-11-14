@@ -69,10 +69,10 @@ void main() {
       expect(result.isUtc, isFalse);
     });
 
-    test('UTC로 받은 시각은 로컬 시각으로 바꿔 계산한다', () {
+    test('UTC로 받은 시각은 한국 시각으로 바꿔 계산한다', () {
       final noon = DateTime(2026, 10, 29, 12);
       expect(
-        logicalDate(noon.toUtc(), dayBoundaryMin: boundary),
+        logicalDate(kstToUtc(noon), dayBoundaryMin: boundary),
         DateTime(2026, 10, 29),
       );
     });
@@ -165,9 +165,10 @@ void main() {
       );
     });
 
-    test('UTC로 받은 값도 로컬 시각으로 바꿔 센다', () {
-      expect(offset(DateTime(2026, 10, 12, 23, 59), from: now.toUtc()), 0);
-      expect(offset(DateTime(2026, 10, 13, 23, 59).toUtc()), 1);
+    test('UTC로 받은 값도 한국 시각으로 바꿔 센다', () {
+      // 앱의 로컬 값은 한국 시각이므로 그 순간의 UTC 값은 toUtc(기기 시간대)가 아니라 kstToUtc로 만든다.
+      expect(offset(DateTime(2026, 10, 12, 23, 59), from: kstToUtc(now)), 0);
+      expect(offset(kstToUtc(DateTime(2026, 10, 13, 23, 59))), 1);
     });
 
     test('하루 경계가 하루 밖(0–1439 밖)이면 RangeError다', () {
@@ -226,8 +227,114 @@ void main() {
       expect(clock.today(dayBoundaryMin: boundary), DateTime(2026, 10, 28));
     });
 
-    test('기본 Clock은 로컬 시각을 준다', () {
-      expect(const Clock().now().isUtc, isFalse);
+    test('기본 Clock은 기기 시간대와 관계없이 지금의 한국 시각을 로컬 값으로 준다', () {
+      // docs/decisions.md 2026-11-14 '기기 시간대와 관계없이 한국 시각을 쓴다'. CI(UTC)와 개발 기기(KST)에서 함께 돈다.
+      final before = DateTime.now().toUtc().add(const Duration(hours: 9));
+      final now = const Clock().now();
+      final after = DateTime.now().toUtc().add(const Duration(hours: 9));
+      expect(now.isUtc, isFalse);
+      DateTime asUtc(DateTime d) => DateTime.utc(
+        d.year,
+        d.month,
+        d.day,
+        d.hour,
+        d.minute,
+        d.second,
+        d.millisecond,
+        d.microsecond,
+      );
+      expect(asUtc(now).isBefore(asUtc(before)), isFalse);
+      expect(asUtc(now).isAfter(asUtc(after)), isFalse);
+    });
+  });
+
+  group('seoulWallClock·kstToUtc', () {
+    test('실제 순간을 한국 시각의 로컬 값으로 바꾸고, 한국 시각을 그 순간의 UTC 값으로 되돌린다', () {
+      final instant = DateTime.utc(2026, 10, 28, 23, 30, 15, 250, 7);
+      final wall = seoulWallClock(instant);
+      expect(wall.isUtc, isFalse);
+      expect(wall, DateTime(2026, 10, 29, 8, 30, 15, 250, 7));
+      expect(kstToUtc(wall), instant);
+      expect(kstToUtc(wall).isUtc, isTrue);
+      // UTC 값은 이미 순간이라 그대로 둔다.
+      expect(kstToUtc(instant), same(instant));
+    });
+
+    test('날과 해를 넘는 시각도 바꾼다', () {
+      expect(
+        seoulWallClock(DateTime.utc(2026, 12, 31, 15)),
+        DateTime(2027, 1, 1, 0),
+      );
+      expect(kstToUtc(DateTime(2027, 1, 1, 8)), DateTime.utc(2026, 12, 31, 23));
+    });
+  });
+
+  group('UTC 값', () {
+    // 오프셋을 붙여 읽은 값처럼 UTC로 들어온 순간도 한국 시각으로 본다. 08:00 KST = 전날 23:00 UTC.
+    final eightKst = DateTime.utc(2026, 10, 28, 23);
+
+    test('isoDate는 한국 시각의 날짜를 적는다', () {
+      expect(isoDate(eightKst), '2026-10-29');
+    });
+
+    test('logicalDate·logicalWeekStart·dayOffset은 한국 시각으로 센다', () {
+      expect(
+        logicalDate(eightKst, dayBoundaryMin: boundary),
+        DateTime(2026, 10, 29),
+      );
+      // 03:30 KST(= 18:30 UTC 전날)는 하루 경계 전이라 전날이다.
+      expect(
+        logicalDate(
+          DateTime.utc(2026, 10, 28, 18, 30),
+          dayBoundaryMin: boundary,
+        ),
+        DateTime(2026, 10, 28),
+      );
+      expect(
+        logicalWeekStart(eightKst, dayBoundaryMin: boundary),
+        DateTime(2026, 10, 26),
+      );
+      expect(
+        dayOffset(
+          eightKst,
+          now: DateTime(2026, 10, 28, 12),
+          dayBoundaryMin: boundary,
+        ),
+        1,
+      );
+    });
+  });
+
+  group('logicalDayStart·logicalDayEnd', () {
+    test('그 날짜의 하루 경계부터 다음 날 하루 경계까지이고, 날짜의 시각은 보지 않는다', () {
+      expect(
+        logicalDayStart(DateTime(2026, 10, 31, 15), dayBoundaryMin: boundary),
+        DateTime(2026, 10, 31, 4),
+      );
+      expect(
+        logicalDayEnd(DateTime(2026, 10, 31, 15), dayBoundaryMin: boundary),
+        DateTime(2026, 11, 1, 4),
+      );
+      expect(
+        logicalDayEnd(DateTime(2026, 12, 31), dayBoundaryMin: 180),
+        DateTime(2027, 1, 1, 3),
+      );
+      // 끝 시각은 다음 논리적 하루다.
+      expect(
+        logicalDate(
+          logicalDayEnd(DateTime(2026, 10, 31), dayBoundaryMin: boundary),
+          dayBoundaryMin: boundary,
+        ),
+        DateTime(2026, 11, 1),
+      );
+      expect(
+        () => logicalDayStart(DateTime(2026, 10, 31), dayBoundaryMin: 1440),
+        throwsRangeError,
+      );
+      expect(
+        () => logicalDayEnd(DateTime(2026, 10, 31), dayBoundaryMin: -1),
+        throwsRangeError,
+      );
     });
   });
 }

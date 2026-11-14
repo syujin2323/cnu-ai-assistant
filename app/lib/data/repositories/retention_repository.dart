@@ -1,5 +1,6 @@
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/guard_storage.dart';
+import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:drift/drift.dart';
@@ -17,7 +18,10 @@ class RetentionRepository {
   /// `sync_runs.startedAt`, `lms_item_changes.changedAt`, `briefings.createdAt`이다. 세 표는 한
   /// 트랜잭션에서 지우고, 폰 DB를 쓰지 못하면(닫힌 DB 포함) [StorageError]를 담은 [Err]다.
   Future<Result<int>> deleteExpired({required DateTime now}) {
-    final cutoff = now.subtract(const Duration(days: Defaults.retentionDays));
+    // SQL에서 시각 열과 견주는 값은 변환기를 거치지 않으므로 그 순간의 UTC 값으로 바꿔 넘긴다.
+    final cutoff = kstToUtc(
+      now.subtract(const Duration(days: Defaults.retentionDays)),
+    );
     return guardStorage(
       'retention.deleteExpired',
       () => _db.transaction(() async {

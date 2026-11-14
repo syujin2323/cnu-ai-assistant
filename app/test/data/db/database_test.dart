@@ -4,10 +4,12 @@ import 'dart:io';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/demo_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/guard_storage.dart';
+import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/domain/timetable_checks.dart';
-import 'package:drift/drift.dart' show OrderingTerm, Value, driftRuntimeOptions;
+import 'package:drift/drift.dart'
+    show ComparableExpr, OrderingTerm, Value, driftRuntimeOptions;
 import 'package:drift/native.dart' show NativeDatabase, SqliteException;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -21,7 +23,8 @@ void main() {
   tearDown(() => db.close());
 
   final at = DateTime(2026, 10, 29, 9, 30);
-  final offsetText = RegExp(r'^2026-10-29T09:30:00\.000 [+-]\d\d:\d\d$');
+  // 표의 시각 열은 그 순간의 UTC 문자열로 저장한다(한국 시각 09:30 = UTC 00:30). docs/architecture.md '폰 DB'.
+  const utcText = '2026-10-29T00:30:00.000Z';
 
   Future<String?> rawText(String sql) async =>
       (await db.customSelect(sql).getSingle()).data.values.single as String?;
@@ -216,7 +219,7 @@ void main() {
     final task = await db.select(db.tasks).getSingle();
     expect(task.dueAt, at);
     expect(task.lmsKey, '1:1:assignment:1');
-    expect(await rawText('SELECT due_at FROM tasks'), matches(offsetText));
+    expect(await rawText('SELECT due_at FROM tasks'), utcText);
 
     final block = await db.select(db.planBlocks).getSingle();
     expect(block.reason!.slackMin, 600);
@@ -226,6 +229,8 @@ void main() {
       (await rawText('SELECT reason FROM plan_blocks'))!,
     ) as Map<String, Object?>;
     expect(reasonJson['factor'], 'near_class');
+    // JSON 안의 시각은 한국 시각에 '+09:00'을 붙여 적는다(기기 시간대와 관계없이).
+    expect(reasonJson['dueAt'], '2026-10-29T09:30:00.000 +09:00');
 
     final rule = await db.select(db.rules).getSingle();
     expect(rule.params.minutes, 60);
@@ -240,10 +245,7 @@ void main() {
     final briefing = await db.select(db.briefings).getSingle();
     expect(briefing.openedAt, at);
     expect(briefing.confirmedAt, isNull);
-    expect(
-      await rawText('SELECT opened_at FROM briefings'),
-      matches(offsetText),
-    );
+    expect(await rawText('SELECT opened_at FROM briefings'), utcText);
 
     final run = await db.select(db.syncRuns).getSingle();
     expect(run.result, SyncResultKind.reloginRequired);
@@ -254,6 +256,51 @@ void main() {
     expect(undo.targetTable, 'plan_blocks');
     expect(await rawText('SELECT table_name FROM undo_log'), 'plan_blocks');
   });
+
+  test(
+    'UTC로 들어온 시각도 그 순간의 UTC 문자열로 저장하고 한국 시각으로 읽으며, 마감순 정렬과 범위 비교가 맞다',
+    () async {
+      // docs/decisions.md 2026-11-14 '기기 시간대와 관계없이 한국 시각을 쓴다'. 10:30 KST = 01:30 UTC.
+      Future<int> addTask(String title, DateTime dueAt) => db
+          .into(db.tasks)
+          .insert(
+            TasksCompanion.insert(
+              title: title,
+              kind: TaskKind.assignment,
+              dueAt: Value(dueAt),
+              dueTimeUnknown: false,
+              status: TaskStatus.todo,
+            ),
+          );
+      final late = await addTask('늦은 마감', DateTime.utc(2026, 10, 29, 1, 30));
+      final early = await addTask('이른 마감', DateTime(2026, 10, 29, 9));
+      expect(
+        await rawText('SELECT due_at FROM tasks WHERE id = $late'),
+        '2026-10-29T01:30:00.000Z',
+      );
+      expect(
+        await rawText('SELECT due_at FROM tasks WHERE id = $early'),
+        '2026-10-29T00:00:00.000Z',
+      );
+
+      final ordered = await (db.select(
+        db.tasks,
+      )..orderBy([(t) => OrderingTerm(expression: t.dueAt)])).get();
+      expect(ordered.map((task) => task.id), [early, late]);
+      expect(ordered.last.dueAt, DateTime(2026, 10, 29, 10, 30));
+      expect(ordered.last.dueAt!.isUtc, isFalse);
+
+      // SQL에서 견주는 값은 변환기를 거치지 않으므로 kstToUtc로 바꿔 넘긴다.
+      final beforeTen =
+          await (db.select(db.tasks)..where(
+                (t) => t.dueAt.isSmallerThanValue(
+                  kstToUtc(DateTime(2026, 10, 29, 10)),
+                ),
+              ))
+              .get();
+      expect(beforeTen.map((task) => task.id), [early]);
+    },
+  );
 
   test('null을 받는 JSON 열은 null 그대로 둔다', () async {
     final taskId = await db

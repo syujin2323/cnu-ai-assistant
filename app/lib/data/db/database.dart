@@ -1,6 +1,7 @@
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/data/db/enum_converter.dart';
 import 'package:cnu_ai_assistant/data/db/json_converters.dart';
+import 'package:cnu_ai_assistant/data/db/kst_date_time_converter.dart';
 import 'package:cnu_ai_assistant/data/db/tables.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
@@ -47,17 +48,22 @@ class AppDatabase extends _$AppDatabase {
 
   /// 앱 모드의 DB 파일을 연다. real은 `app.sqlite`, demo는 `app_demo.sqlite`이고
   /// 둘 다 앱 문서 폴더에 있다. iOS는 `AppDelegate.swift`가 이 폴더를 백업에서
-  /// 빼므로, 폴더를 바꾸면(`DriftNativeOptions`) 그 코드도 함께 바꾼다. 데모 DB는
-  /// [demoSeeder]로 샘플을 넣는다(`databaseProvider`가 넘긴다).
+  /// 빼므로, 앱에서 폴더를 바꾸면 그 코드도 함께 바꾼다. 데모 DB는
+  /// [demoSeeder]로 샘플을 넣는다(`databaseProvider`가 넘긴다). [native]는 테스트가 임시 폴더의 파일 DB를
+  /// 백그라운드 연결로 열 때만 넘긴다.
   static AppDatabase open(
     AppMode mode, {
     DemoSeeder? demoSeeder,
     Clock clock = const Clock(),
+    DriftNativeOptions? native,
   }) => AppDatabase(
-    driftDatabase(name: fileName(mode)),
+    driftDatabase(name: fileName(mode), native: native),
     demoSeeder: demoSeeder,
     clock: clock,
   );
+
+  /// 다른 연결이 쓰는 동안 쓰기가 기다리는 시간(밀리초, `PRAGMA busy_timeout`).
+  static const int busyTimeoutMs = 5000;
 
   /// 앱 모드의 DB 파일 이름(확장자 `.sqlite` 앞). 열지 못한 데모 DB를 지울 때도 쓴다
   /// (`data/db/demo_database_files.dart`).
@@ -85,8 +91,10 @@ class AppDatabase extends _$AppDatabase {
     beforeOpen: (details) async {
       // SQLite는 외래 키 검사를 연결마다 켜야 한다.
       await customStatement('PRAGMA foreign_keys = ON');
-      // 백그라운드 isolate(R1)와 같은 파일을 함께 쓰므로 WAL 모드로 둔다
-      // (docs/architecture.md '앱 코드 규약'의 백그라운드 작업). 메모리 DB에서는 효과가 없다.
+      // 백그라운드 isolate(R1)와 같은 파일을 함께 쓰므로 WAL 모드로 두고, 다른 연결이 쓰는 동안에는 곧바로
+      // 'database is locked'로 실패하지 않고 5초까지 기다린다(docs/architecture.md '앱 코드 규약'의 백그라운드
+      // 작업). 메모리 DB에서는 효과가 없다.
+      await customStatement('PRAGMA busy_timeout = $busyTimeoutMs');
       await customStatement('PRAGMA journal_mode = WAL');
       if (_demoSeeder case final seed?) await _seedIfEmpty(seed);
     },

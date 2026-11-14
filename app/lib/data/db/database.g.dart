@@ -61,17 +61,15 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _lastSeenAtMeta = const VerificationMeta(
-    'lastSeenAt',
-  );
   @override
-  late final GeneratedColumn<DateTime> lastSeenAt = GeneratedColumn<DateTime>(
-    'last_seen_at',
-    aliasedName,
-    true,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime?, DateTime> lastSeenAt =
+      GeneratedColumn<DateTime>(
+        'last_seen_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>($CoursesTable.$converterlastSeenAtn);
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -122,15 +120,6 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
         color.isAcceptableOrUnknown(data['color']!, _colorMeta),
       );
     }
-    if (data.containsKey('last_seen_at')) {
-      context.handle(
-        _lastSeenAtMeta,
-        lastSeenAt.isAcceptableOrUnknown(
-          data['last_seen_at']!,
-          _lastSeenAtMeta,
-        ),
-      );
-    }
     return context;
   }
 
@@ -164,9 +153,11 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
         DriftSqlType.int,
         data['${effectivePrefix}color'],
       ),
-      lastSeenAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}last_seen_at'],
+      lastSeenAt: $CoursesTable.$converterlastSeenAtn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}last_seen_at'],
+        ),
       ),
     );
   }
@@ -175,6 +166,11 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
   $CoursesTable createAlias(String alias) {
     return $CoursesTable(attachedDatabase, alias);
   }
+
+  static TypeConverter<DateTime, DateTime> $converterlastSeenAt =
+      const KstDateTimeConverter();
+  static TypeConverter<DateTime?, DateTime?> $converterlastSeenAtn =
+      NullAwareTypeConverter.wrap($converterlastSeenAt);
 }
 
 class CoursesCompanion extends UpdateCompanion<Course> {
@@ -255,7 +251,9 @@ class CoursesCompanion extends UpdateCompanion<Course> {
       map['color'] = Variable<int>(color.value);
     }
     if (lastSeenAt.present) {
-      map['last_seen_at'] = Variable<DateTime>(lastSeenAt.value);
+      map['last_seen_at'] = Variable<DateTime>(
+        $CoursesTable.$converterlastSeenAtn.toSql(lastSeenAt.value),
+      );
     }
     return map;
   }
@@ -1647,26 +1645,24 @@ class $EventsTable extends Events with TableInfo<$EventsTable, Event> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _startAtMeta = const VerificationMeta(
-    'startAt',
-  );
   @override
-  late final GeneratedColumn<DateTime> startAt = GeneratedColumn<DateTime>(
-    'start_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _endAtMeta = const VerificationMeta('endAt');
+  late final GeneratedColumnWithTypeConverter<DateTime, DateTime> startAt =
+      GeneratedColumn<DateTime>(
+        'start_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($EventsTable.$converterstartAt);
   @override
-  late final GeneratedColumn<DateTime> endAt = GeneratedColumn<DateTime>(
-    'end_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime, DateTime> endAt =
+      GeneratedColumn<DateTime>(
+        'end_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($EventsTable.$converterendAt);
   static const VerificationMeta _allDayMeta = const VerificationMeta('allDay');
   @override
   late final GeneratedColumn<bool> allDay = GeneratedColumn<bool>(
@@ -1752,22 +1748,6 @@ class $EventsTable extends Events with TableInfo<$EventsTable, Event> {
     } else if (isInserting) {
       context.missing(_titleMeta);
     }
-    if (data.containsKey('start_at')) {
-      context.handle(
-        _startAtMeta,
-        startAt.isAcceptableOrUnknown(data['start_at']!, _startAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_startAtMeta);
-    }
-    if (data.containsKey('end_at')) {
-      context.handle(
-        _endAtMeta,
-        endAt.isAcceptableOrUnknown(data['end_at']!, _endAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_endAtMeta);
-    }
     if (data.containsKey('all_day')) {
       context.handle(
         _allDayMeta,
@@ -1814,14 +1794,18 @@ class $EventsTable extends Events with TableInfo<$EventsTable, Event> {
         DriftSqlType.string,
         data['${effectivePrefix}title'],
       )!,
-      startAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}start_at'],
-      )!,
-      endAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}end_at'],
-      )!,
+      startAt: $EventsTable.$converterstartAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}start_at'],
+        )!,
+      ),
+      endAt: $EventsTable.$converterendAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}end_at'],
+        )!,
+      ),
       allDay: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}all_day'],
@@ -1852,6 +1836,10 @@ class $EventsTable extends Events with TableInfo<$EventsTable, Event> {
     return $EventsTable(attachedDatabase, alias);
   }
 
+  static TypeConverter<DateTime, DateTime> $converterstartAt =
+      const KstDateTimeConverter();
+  static TypeConverter<DateTime, DateTime> $converterendAt =
+      const KstDateTimeConverter();
   static TypeConverter<EventSource, String> $convertersource =
       const EnumConverter(EventSource.values, fallback: EventSource.manual);
 }
@@ -1950,10 +1938,14 @@ class EventsCompanion extends UpdateCompanion<Event> {
       map['title'] = Variable<String>(title.value);
     }
     if (startAt.present) {
-      map['start_at'] = Variable<DateTime>(startAt.value);
+      map['start_at'] = Variable<DateTime>(
+        $EventsTable.$converterstartAt.toSql(startAt.value),
+      );
     }
     if (endAt.present) {
-      map['end_at'] = Variable<DateTime>(endAt.value);
+      map['end_at'] = Variable<DateTime>(
+        $EventsTable.$converterendAt.toSql(endAt.value),
+      );
     }
     if (allDay.present) {
       map['all_day'] = Variable<bool>(allDay.value);
@@ -2065,15 +2057,15 @@ class $LmsItemsTable extends LmsItems with TableInfo<$LmsItemsTable, LmsItem> {
         type: DriftSqlType.string,
         requiredDuringInsert: true,
       ).withConverter<LmsItemKind>($LmsItemsTable.$converterkind);
-  static const VerificationMeta _dueAtMeta = const VerificationMeta('dueAt');
   @override
-  late final GeneratedColumn<DateTime> dueAt = GeneratedColumn<DateTime>(
-    'due_at',
-    aliasedName,
-    true,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime?, DateTime> dueAt =
+      GeneratedColumn<DateTime>(
+        'due_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>($LmsItemsTable.$converterdueAtn);
   static const VerificationMeta _dueTimeUnknownMeta = const VerificationMeta(
     'dueTimeUnknown',
   );
@@ -2088,15 +2080,15 @@ class $LmsItemsTable extends LmsItems with TableInfo<$LmsItemsTable, LmsItem> {
       'CHECK ("due_time_unknown" IN (0, 1))',
     ),
   );
-  static const VerificationMeta _openAtMeta = const VerificationMeta('openAt');
   @override
-  late final GeneratedColumn<DateTime> openAt = GeneratedColumn<DateTime>(
-    'open_at',
-    aliasedName,
-    true,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime?, DateTime> openAt =
+      GeneratedColumn<DateTime>(
+        'open_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>($LmsItemsTable.$converteropenAtn);
   static const VerificationMeta _videoMinMeta = const VerificationMeta(
     'videoMin',
   );
@@ -2167,28 +2159,24 @@ class $LmsItemsTable extends LmsItems with TableInfo<$LmsItemsTable, LmsItem> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _firstSeenAtMeta = const VerificationMeta(
-    'firstSeenAt',
-  );
   @override
-  late final GeneratedColumn<DateTime> firstSeenAt = GeneratedColumn<DateTime>(
-    'first_seen_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _lastSeenAtMeta = const VerificationMeta(
-    'lastSeenAt',
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime, DateTime> firstSeenAt =
+      GeneratedColumn<DateTime>(
+        'first_seen_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($LmsItemsTable.$converterfirstSeenAt);
   @override
-  late final GeneratedColumn<DateTime> lastSeenAt = GeneratedColumn<DateTime>(
-    'last_seen_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime, DateTime> lastSeenAt =
+      GeneratedColumn<DateTime>(
+        'last_seen_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($LmsItemsTable.$converterlastSeenAt);
   static const VerificationMeta _missCountMeta = const VerificationMeta(
     'missCount',
   );
@@ -2200,15 +2188,15 @@ class $LmsItemsTable extends LmsItems with TableInfo<$LmsItemsTable, LmsItem> {
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _goneAtMeta = const VerificationMeta('goneAt');
   @override
-  late final GeneratedColumn<DateTime> goneAt = GeneratedColumn<DateTime>(
-    'gone_at',
-    aliasedName,
-    true,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime?, DateTime> goneAt =
+      GeneratedColumn<DateTime>(
+        'gone_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>($LmsItemsTable.$convertergoneAtn);
   static const VerificationMeta _contentHashMeta = const VerificationMeta(
     'contentHash',
   );
@@ -2290,12 +2278,6 @@ class $LmsItemsTable extends LmsItems with TableInfo<$LmsItemsTable, LmsItem> {
     } else if (isInserting) {
       context.missing(_titleMeta);
     }
-    if (data.containsKey('due_at')) {
-      context.handle(
-        _dueAtMeta,
-        dueAt.isAcceptableOrUnknown(data['due_at']!, _dueAtMeta),
-      );
-    }
     if (data.containsKey('due_time_unknown')) {
       context.handle(
         _dueTimeUnknownMeta,
@@ -2306,12 +2288,6 @@ class $LmsItemsTable extends LmsItems with TableInfo<$LmsItemsTable, LmsItem> {
       );
     } else if (isInserting) {
       context.missing(_dueTimeUnknownMeta);
-    }
-    if (data.containsKey('open_at')) {
-      context.handle(
-        _openAtMeta,
-        openAt.isAcceptableOrUnknown(data['open_at']!, _openAtMeta),
-      );
     }
     if (data.containsKey('video_min')) {
       context.handle(
@@ -2355,28 +2331,6 @@ class $LmsItemsTable extends LmsItems with TableInfo<$LmsItemsTable, LmsItem> {
         link.isAcceptableOrUnknown(data['link']!, _linkMeta),
       );
     }
-    if (data.containsKey('first_seen_at')) {
-      context.handle(
-        _firstSeenAtMeta,
-        firstSeenAt.isAcceptableOrUnknown(
-          data['first_seen_at']!,
-          _firstSeenAtMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_firstSeenAtMeta);
-    }
-    if (data.containsKey('last_seen_at')) {
-      context.handle(
-        _lastSeenAtMeta,
-        lastSeenAt.isAcceptableOrUnknown(
-          data['last_seen_at']!,
-          _lastSeenAtMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_lastSeenAtMeta);
-    }
     if (data.containsKey('miss_count')) {
       context.handle(
         _missCountMeta,
@@ -2384,12 +2338,6 @@ class $LmsItemsTable extends LmsItems with TableInfo<$LmsItemsTable, LmsItem> {
       );
     } else if (isInserting) {
       context.missing(_missCountMeta);
-    }
-    if (data.containsKey('gone_at')) {
-      context.handle(
-        _goneAtMeta,
-        goneAt.isAcceptableOrUnknown(data['gone_at']!, _goneAtMeta),
-      );
     }
     if (data.containsKey('content_hash')) {
       context.handle(
@@ -2437,17 +2385,21 @@ class $LmsItemsTable extends LmsItems with TableInfo<$LmsItemsTable, LmsItem> {
           data['${effectivePrefix}kind'],
         )!,
       ),
-      dueAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}due_at'],
+      dueAt: $LmsItemsTable.$converterdueAtn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}due_at'],
+        ),
       ),
       dueTimeUnknown: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}due_time_unknown'],
       )!,
-      openAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}open_at'],
+      openAt: $LmsItemsTable.$converteropenAtn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}open_at'],
+        ),
       ),
       videoMin: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
@@ -2473,21 +2425,27 @@ class $LmsItemsTable extends LmsItems with TableInfo<$LmsItemsTable, LmsItem> {
         DriftSqlType.string,
         data['${effectivePrefix}link'],
       ),
-      firstSeenAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}first_seen_at'],
-      )!,
-      lastSeenAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}last_seen_at'],
-      )!,
+      firstSeenAt: $LmsItemsTable.$converterfirstSeenAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}first_seen_at'],
+        )!,
+      ),
+      lastSeenAt: $LmsItemsTable.$converterlastSeenAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}last_seen_at'],
+        )!,
+      ),
       missCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}miss_count'],
       )!,
-      goneAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}gone_at'],
+      goneAt: $LmsItemsTable.$convertergoneAtn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}gone_at'],
+        ),
       ),
       contentHash: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -2503,6 +2461,22 @@ class $LmsItemsTable extends LmsItems with TableInfo<$LmsItemsTable, LmsItem> {
 
   static TypeConverter<LmsItemKind, String> $converterkind =
       const EnumConverter(LmsItemKind.values, fallback: LmsItemKind.material);
+  static TypeConverter<DateTime, DateTime> $converterdueAt =
+      const KstDateTimeConverter();
+  static TypeConverter<DateTime?, DateTime?> $converterdueAtn =
+      NullAwareTypeConverter.wrap($converterdueAt);
+  static TypeConverter<DateTime, DateTime> $converteropenAt =
+      const KstDateTimeConverter();
+  static TypeConverter<DateTime?, DateTime?> $converteropenAtn =
+      NullAwareTypeConverter.wrap($converteropenAt);
+  static TypeConverter<DateTime, DateTime> $converterfirstSeenAt =
+      const KstDateTimeConverter();
+  static TypeConverter<DateTime, DateTime> $converterlastSeenAt =
+      const KstDateTimeConverter();
+  static TypeConverter<DateTime, DateTime> $convertergoneAt =
+      const KstDateTimeConverter();
+  static TypeConverter<DateTime?, DateTime?> $convertergoneAtn =
+      NullAwareTypeConverter.wrap($convertergoneAt);
 }
 
 class LmsItemsCompanion extends UpdateCompanion<LmsItem> {
@@ -2695,13 +2669,17 @@ class LmsItemsCompanion extends UpdateCompanion<LmsItem> {
       );
     }
     if (dueAt.present) {
-      map['due_at'] = Variable<DateTime>(dueAt.value);
+      map['due_at'] = Variable<DateTime>(
+        $LmsItemsTable.$converterdueAtn.toSql(dueAt.value),
+      );
     }
     if (dueTimeUnknown.present) {
       map['due_time_unknown'] = Variable<bool>(dueTimeUnknown.value);
     }
     if (openAt.present) {
-      map['open_at'] = Variable<DateTime>(openAt.value);
+      map['open_at'] = Variable<DateTime>(
+        $LmsItemsTable.$converteropenAtn.toSql(openAt.value),
+      );
     }
     if (videoMin.present) {
       map['video_min'] = Variable<int>(videoMin.value);
@@ -2722,16 +2700,22 @@ class LmsItemsCompanion extends UpdateCompanion<LmsItem> {
       map['link'] = Variable<String>(link.value);
     }
     if (firstSeenAt.present) {
-      map['first_seen_at'] = Variable<DateTime>(firstSeenAt.value);
+      map['first_seen_at'] = Variable<DateTime>(
+        $LmsItemsTable.$converterfirstSeenAt.toSql(firstSeenAt.value),
+      );
     }
     if (lastSeenAt.present) {
-      map['last_seen_at'] = Variable<DateTime>(lastSeenAt.value);
+      map['last_seen_at'] = Variable<DateTime>(
+        $LmsItemsTable.$converterlastSeenAt.toSql(lastSeenAt.value),
+      );
     }
     if (missCount.present) {
       map['miss_count'] = Variable<int>(missCount.value);
     }
     if (goneAt.present) {
-      map['gone_at'] = Variable<DateTime>(goneAt.value);
+      map['gone_at'] = Variable<DateTime>(
+        $LmsItemsTable.$convertergoneAtn.toSql(goneAt.value),
+      );
     }
     if (contentHash.present) {
       map['content_hash'] = Variable<String>(contentHash.value);
@@ -2803,15 +2787,15 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         type: DriftSqlType.string,
         requiredDuringInsert: true,
       ).withConverter<TaskKind>($TasksTable.$converterkind);
-  static const VerificationMeta _dueAtMeta = const VerificationMeta('dueAt');
   @override
-  late final GeneratedColumn<DateTime> dueAt = GeneratedColumn<DateTime>(
-    'due_at',
-    aliasedName,
-    true,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime?, DateTime> dueAt =
+      GeneratedColumn<DateTime>(
+        'due_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>($TasksTable.$converterdueAtn);
   static const VerificationMeta _dueTimeUnknownMeta = const VerificationMeta(
     'dueTimeUnknown',
   );
@@ -2919,12 +2903,6 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     } else if (isInserting) {
       context.missing(_titleMeta);
     }
-    if (data.containsKey('due_at')) {
-      context.handle(
-        _dueAtMeta,
-        dueAt.isAcceptableOrUnknown(data['due_at']!, _dueAtMeta),
-      );
-    }
     if (data.containsKey('due_time_unknown')) {
       context.handle(
         _dueTimeUnknownMeta,
@@ -2986,9 +2964,11 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
           data['${effectivePrefix}kind'],
         )!,
       ),
-      dueAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}due_at'],
+      dueAt: $TasksTable.$converterdueAtn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}due_at'],
+        ),
       ),
       dueTimeUnknown: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
@@ -3027,6 +3007,10 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
   static TypeConverter<TaskKind, String> $converterkind = const EnumConverter(
     TaskKind.values,
   );
+  static TypeConverter<DateTime, DateTime> $converterdueAt =
+      const KstDateTimeConverter();
+  static TypeConverter<DateTime?, DateTime?> $converterdueAtn =
+      NullAwareTypeConverter.wrap($converterdueAt);
   static TypeConverter<TaskStatus, String> $converterstatus =
       const EnumConverter(TaskStatus.values);
 }
@@ -3136,7 +3120,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
       );
     }
     if (dueAt.present) {
-      map['due_at'] = Variable<DateTime>(dueAt.value);
+      map['due_at'] = Variable<DateTime>(
+        $TasksTable.$converterdueAtn.toSql(dueAt.value),
+      );
     }
     if (dueTimeUnknown.present) {
       map['due_time_unknown'] = Variable<bool>(dueTimeUnknown.value);
@@ -3210,26 +3196,24 @@ class $PlanBlocksTable extends PlanBlocks
       'REFERENCES tasks (id)',
     ),
   );
-  static const VerificationMeta _startAtMeta = const VerificationMeta(
-    'startAt',
-  );
   @override
-  late final GeneratedColumn<DateTime> startAt = GeneratedColumn<DateTime>(
-    'start_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _endAtMeta = const VerificationMeta('endAt');
+  late final GeneratedColumnWithTypeConverter<DateTime, DateTime> startAt =
+      GeneratedColumn<DateTime>(
+        'start_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($PlanBlocksTable.$converterstartAt);
   @override
-  late final GeneratedColumn<DateTime> endAt = GeneratedColumn<DateTime>(
-    'end_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime, DateTime> endAt =
+      GeneratedColumn<DateTime>(
+        'end_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($PlanBlocksTable.$converterendAt);
   @override
   late final GeneratedColumnWithTypeConverter<PlanBlockStatus, String> status =
       GeneratedColumn<String>(
@@ -3290,22 +3274,6 @@ class $PlanBlocksTable extends PlanBlocks
     } else if (isInserting) {
       context.missing(_taskIdMeta);
     }
-    if (data.containsKey('start_at')) {
-      context.handle(
-        _startAtMeta,
-        startAt.isAcceptableOrUnknown(data['start_at']!, _startAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_startAtMeta);
-    }
-    if (data.containsKey('end_at')) {
-      context.handle(
-        _endAtMeta,
-        endAt.isAcceptableOrUnknown(data['end_at']!, _endAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_endAtMeta);
-    }
     return context;
   }
 
@@ -3323,14 +3291,18 @@ class $PlanBlocksTable extends PlanBlocks
         DriftSqlType.int,
         data['${effectivePrefix}task_id'],
       )!,
-      startAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}start_at'],
-      )!,
-      endAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}end_at'],
-      )!,
+      startAt: $PlanBlocksTable.$converterstartAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}start_at'],
+        )!,
+      ),
+      endAt: $PlanBlocksTable.$converterendAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}end_at'],
+        )!,
+      ),
       status: $PlanBlocksTable.$converterstatus.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.string,
@@ -3357,6 +3329,10 @@ class $PlanBlocksTable extends PlanBlocks
     return $PlanBlocksTable(attachedDatabase, alias);
   }
 
+  static TypeConverter<DateTime, DateTime> $converterstartAt =
+      const KstDateTimeConverter();
+  static TypeConverter<DateTime, DateTime> $converterendAt =
+      const KstDateTimeConverter();
   static TypeConverter<PlanBlockStatus, String> $converterstatus =
       const EnumConverter(
         PlanBlockStatus.values,
@@ -3448,10 +3424,14 @@ class PlanBlocksCompanion extends UpdateCompanion<PlanBlock> {
       map['task_id'] = Variable<int>(taskId.value);
     }
     if (startAt.present) {
-      map['start_at'] = Variable<DateTime>(startAt.value);
+      map['start_at'] = Variable<DateTime>(
+        $PlanBlocksTable.$converterstartAt.toSql(startAt.value),
+      );
     }
     if (endAt.present) {
-      map['end_at'] = Variable<DateTime>(endAt.value);
+      map['end_at'] = Variable<DateTime>(
+        $PlanBlocksTable.$converterendAt.toSql(endAt.value),
+      );
     }
     if (status.present) {
       map['status'] = Variable<String>(
@@ -3563,28 +3543,24 @@ class $RulesTable extends Rules with TableInfo<$RulesTable, Rule> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _createdAtMeta = const VerificationMeta(
-    'createdAt',
-  );
   @override
-  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
-    'created_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
-    'updatedAt',
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime, DateTime> createdAt =
+      GeneratedColumn<DateTime>(
+        'created_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($RulesTable.$convertercreatedAt);
   @override
-  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
-    'updated_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime, DateTime> updatedAt =
+      GeneratedColumn<DateTime>(
+        'updated_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($RulesTable.$converterupdatedAt);
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3625,22 +3601,6 @@ class $RulesTable extends Rules with TableInfo<$RulesTable, Rule> {
         _sentenceMeta,
         sentence.isAcceptableOrUnknown(data['sentence']!, _sentenceMeta),
       );
-    }
-    if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_createdAtMeta);
-    }
-    if (data.containsKey('updated_at')) {
-      context.handle(
-        _updatedAtMeta,
-        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_updatedAtMeta);
     }
     return context;
   }
@@ -3687,14 +3647,18 @@ class $RulesTable extends Rules with TableInfo<$RulesTable, Rule> {
         DriftSqlType.string,
         data['${effectivePrefix}sentence'],
       ),
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}created_at'],
-      )!,
-      updatedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}updated_at'],
-      )!,
+      createdAt: $RulesTable.$convertercreatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}created_at'],
+        )!,
+      ),
+      updatedAt: $RulesTable.$converterupdatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}updated_at'],
+        )!,
+      ),
     );
   }
 
@@ -3714,6 +3678,10 @@ class $RulesTable extends Rules with TableInfo<$RulesTable, Rule> {
       NullAwareTypeConverter.wrap($converterweekdays);
   static TypeConverter<EntrySource, String> $convertersource =
       const EnumConverter(EntrySource.values, fallback: EntrySource.manual);
+  static TypeConverter<DateTime, DateTime> $convertercreatedAt =
+      const KstDateTimeConverter();
+  static TypeConverter<DateTime, DateTime> $converterupdatedAt =
+      const KstDateTimeConverter();
 }
 
 class RulesCompanion extends UpdateCompanion<Rule> {
@@ -3834,10 +3802,14 @@ class RulesCompanion extends UpdateCompanion<Rule> {
       map['sentence'] = Variable<String>(sentence.value);
     }
     if (createdAt.present) {
-      map['created_at'] = Variable<DateTime>(createdAt.value);
+      map['created_at'] = Variable<DateTime>(
+        $RulesTable.$convertercreatedAt.toSql(createdAt.value),
+      );
     }
     if (updatedAt.present) {
-      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+      map['updated_at'] = Variable<DateTime>(
+        $RulesTable.$converterupdatedAt.toSql(updatedAt.value),
+      );
     }
     return map;
   }
@@ -3920,17 +3892,15 @@ class $LmsItemChangesTable extends LmsItemChanges
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _changedAtMeta = const VerificationMeta(
-    'changedAt',
-  );
   @override
-  late final GeneratedColumn<DateTime> changedAt = GeneratedColumn<DateTime>(
-    'changed_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime, DateTime> changedAt =
+      GeneratedColumn<DateTime>(
+        'changed_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($LmsItemChangesTable.$converterchangedAt);
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3983,14 +3953,6 @@ class $LmsItemChangesTable extends LmsItemChanges
         newValue.isAcceptableOrUnknown(data['new_value']!, _newValueMeta),
       );
     }
-    if (data.containsKey('changed_at')) {
-      context.handle(
-        _changedAtMeta,
-        changedAt.isAcceptableOrUnknown(data['changed_at']!, _changedAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_changedAtMeta);
-    }
     return context;
   }
 
@@ -4020,10 +3982,12 @@ class $LmsItemChangesTable extends LmsItemChanges
         DriftSqlType.string,
         data['${effectivePrefix}new_value'],
       ),
-      changedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}changed_at'],
-      )!,
+      changedAt: $LmsItemChangesTable.$converterchangedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}changed_at'],
+        )!,
+      ),
     );
   }
 
@@ -4031,6 +3995,9 @@ class $LmsItemChangesTable extends LmsItemChanges
   $LmsItemChangesTable createAlias(String alias) {
     return $LmsItemChangesTable(attachedDatabase, alias);
   }
+
+  static TypeConverter<DateTime, DateTime> $converterchangedAt =
+      const KstDateTimeConverter();
 }
 
 class LmsItemChangesCompanion extends UpdateCompanion<LmsItemChange> {
@@ -4113,7 +4080,9 @@ class LmsItemChangesCompanion extends UpdateCompanion<LmsItemChange> {
       map['new_value'] = Variable<String>(newValue.value);
     }
     if (changedAt.present) {
-      map['changed_at'] = Variable<DateTime>(changedAt.value);
+      map['changed_at'] = Variable<DateTime>(
+        $LmsItemChangesTable.$converterchangedAt.toSql(changedAt.value),
+      );
     }
     return map;
   }
@@ -4161,39 +4130,33 @@ class $BriefingsTable extends Briefings
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
   );
-  static const VerificationMeta _createdAtMeta = const VerificationMeta(
-    'createdAt',
-  );
   @override
-  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
-    'created_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _openedAtMeta = const VerificationMeta(
-    'openedAt',
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime, DateTime> createdAt =
+      GeneratedColumn<DateTime>(
+        'created_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($BriefingsTable.$convertercreatedAt);
   @override
-  late final GeneratedColumn<DateTime> openedAt = GeneratedColumn<DateTime>(
-    'opened_at',
-    aliasedName,
-    true,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _confirmedAtMeta = const VerificationMeta(
-    'confirmedAt',
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime?, DateTime> openedAt =
+      GeneratedColumn<DateTime>(
+        'opened_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>($BriefingsTable.$converteropenedAtn);
   @override
-  late final GeneratedColumn<DateTime> confirmedAt = GeneratedColumn<DateTime>(
-    'confirmed_at',
-    aliasedName,
-    true,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime?, DateTime> confirmedAt =
+      GeneratedColumn<DateTime>(
+        'confirmed_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>($BriefingsTable.$converterconfirmedAtn);
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -4225,29 +4188,6 @@ class $BriefingsTable extends Briefings
     } else if (isInserting) {
       context.missing(_dateMeta);
     }
-    if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_createdAtMeta);
-    }
-    if (data.containsKey('opened_at')) {
-      context.handle(
-        _openedAtMeta,
-        openedAt.isAcceptableOrUnknown(data['opened_at']!, _openedAtMeta),
-      );
-    }
-    if (data.containsKey('confirmed_at')) {
-      context.handle(
-        _confirmedAtMeta,
-        confirmedAt.isAcceptableOrUnknown(
-          data['confirmed_at']!,
-          _confirmedAtMeta,
-        ),
-      );
-    }
     return context;
   }
 
@@ -4265,17 +4205,23 @@ class $BriefingsTable extends Briefings
         DriftSqlType.string,
         data['${effectivePrefix}date'],
       )!,
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}created_at'],
-      )!,
-      openedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}opened_at'],
+      createdAt: $BriefingsTable.$convertercreatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}created_at'],
+        )!,
       ),
-      confirmedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}confirmed_at'],
+      openedAt: $BriefingsTable.$converteropenedAtn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}opened_at'],
+        ),
+      ),
+      confirmedAt: $BriefingsTable.$converterconfirmedAtn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}confirmed_at'],
+        ),
       ),
     );
   }
@@ -4284,6 +4230,17 @@ class $BriefingsTable extends Briefings
   $BriefingsTable createAlias(String alias) {
     return $BriefingsTable(attachedDatabase, alias);
   }
+
+  static TypeConverter<DateTime, DateTime> $convertercreatedAt =
+      const KstDateTimeConverter();
+  static TypeConverter<DateTime, DateTime> $converteropenedAt =
+      const KstDateTimeConverter();
+  static TypeConverter<DateTime?, DateTime?> $converteropenedAtn =
+      NullAwareTypeConverter.wrap($converteropenedAt);
+  static TypeConverter<DateTime, DateTime> $converterconfirmedAt =
+      const KstDateTimeConverter();
+  static TypeConverter<DateTime?, DateTime?> $converterconfirmedAtn =
+      NullAwareTypeConverter.wrap($converterconfirmedAt);
 }
 
 class BriefingsCompanion extends UpdateCompanion<Briefing> {
@@ -4349,13 +4306,19 @@ class BriefingsCompanion extends UpdateCompanion<Briefing> {
       map['date'] = Variable<String>(date.value);
     }
     if (createdAt.present) {
-      map['created_at'] = Variable<DateTime>(createdAt.value);
+      map['created_at'] = Variable<DateTime>(
+        $BriefingsTable.$convertercreatedAt.toSql(createdAt.value),
+      );
     }
     if (openedAt.present) {
-      map['opened_at'] = Variable<DateTime>(openedAt.value);
+      map['opened_at'] = Variable<DateTime>(
+        $BriefingsTable.$converteropenedAtn.toSql(openedAt.value),
+      );
     }
     if (confirmedAt.present) {
-      map['confirmed_at'] = Variable<DateTime>(confirmedAt.value);
+      map['confirmed_at'] = Variable<DateTime>(
+        $BriefingsTable.$converterconfirmedAtn.toSql(confirmedAt.value),
+      );
     }
     return map;
   }
@@ -4391,17 +4354,15 @@ class $SyncRunsTable extends SyncRuns with TableInfo<$SyncRunsTable, SyncRun> {
       'PRIMARY KEY AUTOINCREMENT',
     ),
   );
-  static const VerificationMeta _startedAtMeta = const VerificationMeta(
-    'startedAt',
-  );
   @override
-  late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
-    'started_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime, DateTime> startedAt =
+      GeneratedColumn<DateTime>(
+        'started_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($SyncRunsTable.$converterstartedAt);
   @override
   late final GeneratedColumnWithTypeConverter<SyncTrigger, String> trigger =
       GeneratedColumn<String>(
@@ -4496,14 +4457,6 @@ class $SyncRunsTable extends SyncRuns with TableInfo<$SyncRunsTable, SyncRun> {
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     }
-    if (data.containsKey('started_at')) {
-      context.handle(
-        _startedAtMeta,
-        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_startedAtMeta);
-    }
     if (data.containsKey('changed_count')) {
       context.handle(
         _changedCountMeta,
@@ -4542,10 +4495,12 @@ class $SyncRunsTable extends SyncRuns with TableInfo<$SyncRunsTable, SyncRun> {
         DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
-      startedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}started_at'],
-      )!,
+      startedAt: $SyncRunsTable.$converterstartedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}started_at'],
+        )!,
+      ),
       trigger: $SyncRunsTable.$convertertrigger.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.string,
@@ -4590,6 +4545,8 @@ class $SyncRunsTable extends SyncRuns with TableInfo<$SyncRunsTable, SyncRun> {
     return $SyncRunsTable(attachedDatabase, alias);
   }
 
+  static TypeConverter<DateTime, DateTime> $converterstartedAt =
+      const KstDateTimeConverter();
   static TypeConverter<SyncTrigger, String> $convertertrigger =
       const EnumConverter(SyncTrigger.values);
   static TypeConverter<SyncScope, String> $converterscope = const EnumConverter(
@@ -4698,7 +4655,9 @@ class SyncRunsCompanion extends UpdateCompanion<SyncRun> {
       map['id'] = Variable<int>(id.value);
     }
     if (startedAt.present) {
-      map['started_at'] = Variable<DateTime>(startedAt.value);
+      map['started_at'] = Variable<DateTime>(
+        $SyncRunsTable.$converterstartedAt.toSql(startedAt.value),
+      );
     }
     if (trigger.present) {
       map['trigger'] = Variable<String>(
@@ -4783,17 +4742,15 @@ class $SyncLeasesTable extends SyncLeases
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _expiresAtMeta = const VerificationMeta(
-    'expiresAt',
-  );
   @override
-  late final GeneratedColumn<DateTime> expiresAt = GeneratedColumn<DateTime>(
-    'expires_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime, DateTime> expiresAt =
+      GeneratedColumn<DateTime>(
+        'expires_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($SyncLeasesTable.$converterexpiresAt);
   @override
   List<GeneratedColumn> get $columns => [id, holder, token, expiresAt];
   @override
@@ -4819,14 +4776,6 @@ class $SyncLeasesTable extends SyncLeases
     } else if (isInserting) {
       context.missing(_tokenMeta);
     }
-    if (data.containsKey('expires_at')) {
-      context.handle(
-        _expiresAtMeta,
-        expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_expiresAtMeta);
-    }
     return context;
   }
 
@@ -4850,10 +4799,12 @@ class $SyncLeasesTable extends SyncLeases
         DriftSqlType.string,
         data['${effectivePrefix}token'],
       )!,
-      expiresAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}expires_at'],
-      )!,
+      expiresAt: $SyncLeasesTable.$converterexpiresAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}expires_at'],
+        )!,
+      ),
     );
   }
 
@@ -4864,6 +4815,8 @@ class $SyncLeasesTable extends SyncLeases
 
   static TypeConverter<LeaseHolder, String> $converterholder =
       const EnumConverter(LeaseHolder.values);
+  static TypeConverter<DateTime, DateTime> $converterexpiresAt =
+      const KstDateTimeConverter();
   @override
   bool get withoutRowId => true;
 }
@@ -4930,7 +4883,9 @@ class SyncLeasesCompanion extends UpdateCompanion<SyncLease> {
       map['token'] = Variable<String>(token.value);
     }
     if (expiresAt.present) {
-      map['expires_at'] = Variable<DateTime>(expiresAt.value);
+      map['expires_at'] = Variable<DateTime>(
+        $SyncLeasesTable.$converterexpiresAt.toSql(expiresAt.value),
+      );
     }
     return map;
   }
@@ -5211,17 +5166,15 @@ class $UndoLogTable extends UndoLog
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _createdAtMeta = const VerificationMeta(
-    'createdAt',
-  );
   @override
-  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
-    'created_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime, DateTime> createdAt =
+      GeneratedColumn<DateTime>(
+        'created_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($UndoLogTable.$convertercreatedAt);
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -5269,14 +5222,6 @@ class $UndoLogTable extends UndoLog
         beforeJson.isAcceptableOrUnknown(data['before_json']!, _beforeJsonMeta),
       );
     }
-    if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_createdAtMeta);
-    }
     return context;
   }
 
@@ -5308,10 +5253,12 @@ class $UndoLogTable extends UndoLog
         DriftSqlType.string,
         data['${effectivePrefix}before_json'],
       ),
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}created_at'],
-      )!,
+      createdAt: $UndoLogTable.$convertercreatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime,
+          data['${effectivePrefix}created_at'],
+        )!,
+      ),
     );
   }
 
@@ -5322,6 +5269,8 @@ class $UndoLogTable extends UndoLog
 
   static TypeConverter<UndoAction, String> $converteraction =
       const EnumConverter(UndoAction.values);
+  static TypeConverter<DateTime, DateTime> $convertercreatedAt =
+      const KstDateTimeConverter();
   @override
   bool get withoutRowId => true;
 }
@@ -5408,7 +5357,9 @@ class UndoLogCompanion extends UpdateCompanion<UndoLogEntry> {
       map['before_json'] = Variable<String>(beforeJson.value);
     }
     if (createdAt.present) {
-      map['created_at'] = Variable<DateTime>(createdAt.value);
+      map['created_at'] = Variable<DateTime>(
+        $UndoLogTable.$convertercreatedAt.toSql(createdAt.value),
+      );
     }
     return map;
   }
@@ -5595,9 +5546,10 @@ class $$CoursesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get lastSeenAt => $composableBuilder(
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, DateTime>
+  get lastSeenAt => $composableBuilder(
     column: $table.lastSeenAt,
-    builder: (column) => ColumnFilters(column),
+    builder: (column) => ColumnWithTypeConverterFilters(column),
   );
 
   Expression<bool> classSlotsRefs(
@@ -5740,10 +5692,11 @@ class $$CoursesTableAnnotationComposer
   GeneratedColumn<int> get color =>
       $composableBuilder(column: $table.color, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get lastSeenAt => $composableBuilder(
-    column: $table.lastSeenAt,
-    builder: (column) => column,
-  );
+  GeneratedColumnWithTypeConverter<DateTime?, DateTime> get lastSeenAt =>
+      $composableBuilder(
+        column: $table.lastSeenAt,
+        builder: (column) => column,
+      );
 
   Expression<T> classSlotsRefs<T extends Object>(
     Expression<T> Function($$ClassSlotsTableAnnotationComposer a) f,
@@ -7314,15 +7267,17 @@ class $$EventsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get startAt => $composableBuilder(
-    column: $table.startAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime, DateTime, DateTime> get startAt =>
+      $composableBuilder(
+        column: $table.startAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
-  ColumnFilters<DateTime> get endAt => $composableBuilder(
-    column: $table.endAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime, DateTime, DateTime> get endAt =>
+      $composableBuilder(
+        column: $table.endAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
   ColumnFilters<bool> get allDay => $composableBuilder(
     column: $table.allDay,
@@ -7421,10 +7376,10 @@ class $$EventsTableAnnotationComposer
   GeneratedColumn<String> get title =>
       $composableBuilder(column: $table.title, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get startAt =>
+  GeneratedColumnWithTypeConverter<DateTime, DateTime> get startAt =>
       $composableBuilder(column: $table.startAt, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get endAt =>
+  GeneratedColumnWithTypeConverter<DateTime, DateTime> get endAt =>
       $composableBuilder(column: $table.endAt, builder: (column) => column);
 
   GeneratedColumn<bool> get allDay =>
@@ -7666,20 +7621,22 @@ class $$LmsItemsTableFilterComposer
         builder: (column) => ColumnWithTypeConverterFilters(column),
       );
 
-  ColumnFilters<DateTime> get dueAt => $composableBuilder(
-    column: $table.dueAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, DateTime> get dueAt =>
+      $composableBuilder(
+        column: $table.dueAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
   ColumnFilters<bool> get dueTimeUnknown => $composableBuilder(
     column: $table.dueTimeUnknown,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get openAt => $composableBuilder(
-    column: $table.openAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, DateTime> get openAt =>
+      $composableBuilder(
+        column: $table.openAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
   ColumnFilters<int> get videoMin => $composableBuilder(
     column: $table.videoMin,
@@ -7711,25 +7668,28 @@ class $$LmsItemsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get firstSeenAt => $composableBuilder(
+  ColumnWithTypeConverterFilters<DateTime, DateTime, DateTime>
+  get firstSeenAt => $composableBuilder(
     column: $table.firstSeenAt,
-    builder: (column) => ColumnFilters(column),
+    builder: (column) => ColumnWithTypeConverterFilters(column),
   );
 
-  ColumnFilters<DateTime> get lastSeenAt => $composableBuilder(
-    column: $table.lastSeenAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime, DateTime, DateTime> get lastSeenAt =>
+      $composableBuilder(
+        column: $table.lastSeenAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
   ColumnFilters<int> get missCount => $composableBuilder(
     column: $table.missCount,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get goneAt => $composableBuilder(
-    column: $table.goneAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, DateTime> get goneAt =>
+      $composableBuilder(
+        column: $table.goneAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
   ColumnFilters<String> get contentHash => $composableBuilder(
     column: $table.contentHash,
@@ -7939,7 +7899,7 @@ class $$LmsItemsTableAnnotationComposer
   GeneratedColumnWithTypeConverter<LmsItemKind, String> get kind =>
       $composableBuilder(column: $table.kind, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get dueAt =>
+  GeneratedColumnWithTypeConverter<DateTime?, DateTime> get dueAt =>
       $composableBuilder(column: $table.dueAt, builder: (column) => column);
 
   GeneratedColumn<bool> get dueTimeUnknown => $composableBuilder(
@@ -7947,7 +7907,7 @@ class $$LmsItemsTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<DateTime> get openAt =>
+  GeneratedColumnWithTypeConverter<DateTime?, DateTime> get openAt =>
       $composableBuilder(column: $table.openAt, builder: (column) => column);
 
   GeneratedColumn<int> get videoMin =>
@@ -7974,20 +7934,22 @@ class $$LmsItemsTableAnnotationComposer
   GeneratedColumn<String> get link =>
       $composableBuilder(column: $table.link, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get firstSeenAt => $composableBuilder(
-    column: $table.firstSeenAt,
-    builder: (column) => column,
-  );
+  GeneratedColumnWithTypeConverter<DateTime, DateTime> get firstSeenAt =>
+      $composableBuilder(
+        column: $table.firstSeenAt,
+        builder: (column) => column,
+      );
 
-  GeneratedColumn<DateTime> get lastSeenAt => $composableBuilder(
-    column: $table.lastSeenAt,
-    builder: (column) => column,
-  );
+  GeneratedColumnWithTypeConverter<DateTime, DateTime> get lastSeenAt =>
+      $composableBuilder(
+        column: $table.lastSeenAt,
+        builder: (column) => column,
+      );
 
   GeneratedColumn<int> get missCount =>
       $composableBuilder(column: $table.missCount, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get goneAt =>
+  GeneratedColumnWithTypeConverter<DateTime?, DateTime> get goneAt =>
       $composableBuilder(column: $table.goneAt, builder: (column) => column);
 
   GeneratedColumn<String> get contentHash => $composableBuilder(
@@ -8346,10 +8308,11 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
         builder: (column) => ColumnWithTypeConverterFilters(column),
       );
 
-  ColumnFilters<DateTime> get dueAt => $composableBuilder(
-    column: $table.dueAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, DateTime> get dueAt =>
+      $composableBuilder(
+        column: $table.dueAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
   ColumnFilters<bool> get dueTimeUnknown => $composableBuilder(
     column: $table.dueTimeUnknown,
@@ -8558,7 +8521,7 @@ class $$TasksTableAnnotationComposer
   GeneratedColumnWithTypeConverter<TaskKind, String> get kind =>
       $composableBuilder(column: $table.kind, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get dueAt =>
+  GeneratedColumnWithTypeConverter<DateTime?, DateTime> get dueAt =>
       $composableBuilder(column: $table.dueAt, builder: (column) => column);
 
   GeneratedColumn<bool> get dueTimeUnknown => $composableBuilder(
@@ -8880,15 +8843,17 @@ class $$PlanBlocksTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get startAt => $composableBuilder(
-    column: $table.startAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime, DateTime, DateTime> get startAt =>
+      $composableBuilder(
+        column: $table.startAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
-  ColumnFilters<DateTime> get endAt => $composableBuilder(
-    column: $table.endAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime, DateTime, DateTime> get endAt =>
+      $composableBuilder(
+        column: $table.endAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
   ColumnWithTypeConverterFilters<PlanBlockStatus, PlanBlockStatus, String>
   get status => $composableBuilder(
@@ -9007,10 +8972,10 @@ class $$PlanBlocksTableAnnotationComposer
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get startAt =>
+  GeneratedColumnWithTypeConverter<DateTime, DateTime> get startAt =>
       $composableBuilder(column: $table.startAt, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get endAt =>
+  GeneratedColumnWithTypeConverter<DateTime, DateTime> get endAt =>
       $composableBuilder(column: $table.endAt, builder: (column) => column);
 
   GeneratedColumnWithTypeConverter<PlanBlockStatus, String> get status =>
@@ -9243,15 +9208,17 @@ class $$RulesTableFilterComposer extends Composer<_$AppDatabase, $RulesTable> {
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime, DateTime, DateTime> get createdAt =>
+      $composableBuilder(
+        column: $table.createdAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
-  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
-    column: $table.updatedAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime, DateTime, DateTime> get updatedAt =>
+      $composableBuilder(
+        column: $table.updatedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 }
 
 class $$RulesTableOrderingComposer
@@ -9339,10 +9306,10 @@ class $$RulesTableAnnotationComposer
   GeneratedColumn<String> get sentence =>
       $composableBuilder(column: $table.sentence, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get createdAt =>
+  GeneratedColumnWithTypeConverter<DateTime, DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get updatedAt =>
+  GeneratedColumnWithTypeConverter<DateTime, DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
 
@@ -9500,10 +9467,11 @@ class $$LmsItemChangesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get changedAt => $composableBuilder(
-    column: $table.changedAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime, DateTime, DateTime> get changedAt =>
+      $composableBuilder(
+        column: $table.changedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 }
 
 class $$LmsItemChangesTableOrderingComposer
@@ -9570,7 +9538,7 @@ class $$LmsItemChangesTableAnnotationComposer
   GeneratedColumn<String> get newValue =>
       $composableBuilder(column: $table.newValue, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get changedAt =>
+  GeneratedColumnWithTypeConverter<DateTime, DateTime> get changedAt =>
       $composableBuilder(column: $table.changedAt, builder: (column) => column);
 }
 
@@ -9705,19 +9673,22 @@ class $$BriefingsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime, DateTime, DateTime> get createdAt =>
+      $composableBuilder(
+        column: $table.createdAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
-  ColumnFilters<DateTime> get openedAt => $composableBuilder(
-    column: $table.openedAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, DateTime> get openedAt =>
+      $composableBuilder(
+        column: $table.openedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
-  ColumnFilters<DateTime> get confirmedAt => $composableBuilder(
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, DateTime>
+  get confirmedAt => $composableBuilder(
     column: $table.confirmedAt,
-    builder: (column) => ColumnFilters(column),
+    builder: (column) => ColumnWithTypeConverterFilters(column),
   );
 }
 
@@ -9771,16 +9742,17 @@ class $$BriefingsTableAnnotationComposer
   GeneratedColumn<String> get date =>
       $composableBuilder(column: $table.date, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get createdAt =>
+  GeneratedColumnWithTypeConverter<DateTime, DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get openedAt =>
+  GeneratedColumnWithTypeConverter<DateTime?, DateTime> get openedAt =>
       $composableBuilder(column: $table.openedAt, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get confirmedAt => $composableBuilder(
-    column: $table.confirmedAt,
-    builder: (column) => column,
-  );
+  GeneratedColumnWithTypeConverter<DateTime?, DateTime> get confirmedAt =>
+      $composableBuilder(
+        column: $table.confirmedAt,
+        builder: (column) => column,
+      );
 }
 
 class $$BriefingsTableTableManager
@@ -9905,10 +9877,11 @@ class $$SyncRunsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get startedAt => $composableBuilder(
-    column: $table.startedAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime, DateTime, DateTime> get startedAt =>
+      $composableBuilder(
+        column: $table.startedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
   ColumnWithTypeConverterFilters<SyncTrigger, SyncTrigger, String>
   get trigger => $composableBuilder(
@@ -10017,7 +9990,7 @@ class $$SyncRunsTableAnnotationComposer
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get startedAt =>
+  GeneratedColumnWithTypeConverter<DateTime, DateTime> get startedAt =>
       $composableBuilder(column: $table.startedAt, builder: (column) => column);
 
   GeneratedColumnWithTypeConverter<SyncTrigger, String> get trigger =>
@@ -10186,10 +10159,11 @@ class $$SyncLeasesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get expiresAt => $composableBuilder(
-    column: $table.expiresAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime, DateTime, DateTime> get expiresAt =>
+      $composableBuilder(
+        column: $table.expiresAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 }
 
 class $$SyncLeasesTableOrderingComposer
@@ -10240,7 +10214,7 @@ class $$SyncLeasesTableAnnotationComposer
   GeneratedColumn<String> get token =>
       $composableBuilder(column: $table.token, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get expiresAt =>
+  GeneratedColumnWithTypeConverter<DateTime, DateTime> get expiresAt =>
       $composableBuilder(column: $table.expiresAt, builder: (column) => column);
 }
 
@@ -10517,10 +10491,11 @@ class $$UndoLogTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime, DateTime, DateTime> get createdAt =>
+      $composableBuilder(
+        column: $table.createdAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 }
 
 class $$UndoLogTableOrderingComposer
@@ -10591,7 +10566,7 @@ class $$UndoLogTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<DateTime> get createdAt =>
+  GeneratedColumnWithTypeConverter<DateTime, DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 }
 

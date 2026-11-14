@@ -325,15 +325,10 @@ void main() {
       expect(settings.installedAt, isNull);
       expect(settings.aiConsentAt, isNull);
       expect(settings.privacyConsentAt, isNull);
-      expect(
-        settings.lmsLastSuccessAt,
-        DateTime.utc(2026, 10, 29, 0, 30).toLocal(),
-      );
+      // 기기 시간대와 관계없이 한국 시각(00:30 UTC = 09:30 KST)으로 읽는다.
+      expect(settings.lmsLastSuccessAt, DateTime(2026, 10, 29, 9, 30));
       expect(settings.lmsLastSuccessAt!.isUtc, isFalse);
-      expect(
-        settings.lmsLastConnectedAt,
-        DateTime.utc(2026, 10, 29, 0, 30).toLocal(),
-      );
+      expect(settings.lmsLastConnectedAt, DateTime(2026, 10, 29, 9, 30));
     });
   });
 
