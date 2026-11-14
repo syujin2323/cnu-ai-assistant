@@ -66,6 +66,9 @@ abstract final class Defaults {
   /// 배치 최소 조각(분). 이보다 짧은 빈 구간에는 가벼운 일만 넣는다.
   static const int minChunkMin = 25;
 
+  /// 가벼운 일(영상·퀴즈)의 최소 조각(분). 짧은 빈 시간에도 영상 일부나 퀴즈 복습을 넣는다.
+  static const int minLightChunkMin = 10;
+
   /// 한 번에 할 최대 시간(분, `max_block` 규칙).
   static const int maxBlockMin = 120;
 
@@ -79,6 +82,17 @@ abstract final class Defaults {
 
   /// 배치 지평(일). 마감이 이 기간 안에 있는 할 일을 제안 블록으로 배치한다.
   static const int planHorizonDays = 14;
+
+  /// 고르게 펼치기: 날마다 빈 시간 가운데 앞으로 들어올 일정을 위해 남기는 비율. 마감을 지키려면 몰아
+  /// 놓아야 할 때만 이 몫에도 놓는다(docs/decisions.md 2026-11-15 '배치 기본값과 간격(E1–E7)', 모의 실험으로 정함).
+  static const double planReserveRatio = 0.2;
+
+  /// 고르게 펼치기: 하루 목표를 넘길 수 있는 비율. 하루는 놓은 양이 목표 × (1 + 이 값)에 닿을 때까지 조각을
+  /// 받는다(모의 실험으로 정함).
+  static const double planTargetOverRatio = 0.25;
+
+  /// 블록이 그 과목 수업의 끝(또는 시작)에서 이 분 안이면 '관련 수업과 가까움'으로 본다.
+  static const int nearClassMin = 30;
 
   /// 옮기기 시트('어디로 옮길까요?', `suggestSlots`)가 보이는 다른 시간 수.
   static const int alternativeSlotCount = 3;
