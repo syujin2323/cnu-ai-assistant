@@ -585,7 +585,8 @@ final class PlannerConfig {
   /// `estimate` 규칙의 예상 시간(분). 과목·종류가 모두 맞는 것, 과목만 맞는 것, 종류만 맞는 것
   /// 순서로 찾고, 없으면 null이다(부르는 쪽이 종류별 기본값을 쓴다). 영상은 이 규칙을 쓰지 않아 늘 null이다
   /// (출석 인정 시간 → 영상 길이 → 기본값). 할 일마다 사용자가 넣은 값은 이것보다 우선하므로 부르는 쪽이
-  /// 먼저 본다.
+  /// 먼저 본다. [courseId]는 할 일의 과목이다(`Task.courseIdWith`: LMS 할 일은 `lms_items.courseId`, 그 밖에는
+  /// `tasks.courseId`이고 과목이 없으면 null이라 종류만 정한 규칙만 맞는다).
   int? estimateMin({required int? courseId, required TaskKind kind}) {
     if (kind == TaskKind.video) return null;
     bool courseMatches(Rule rule) =>
