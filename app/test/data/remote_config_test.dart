@@ -14,14 +14,12 @@ void main() {
       unorderedEquals([
         'lms_enabled',
         'lms_request_params',
-        'lms_login_success_pattern',
         'lms_sync_budget',
         'min_app_version',
       ]),
     );
     expect(remoteConfigDefaults['lms_enabled'], isTrue);
     expect(remoteConfigDefaults['lms_request_params'], '');
-    expect(remoteConfigDefaults['lms_login_success_pattern'], '');
     expect(remoteConfigDefaults['min_app_version'], '0.0.0');
     const documented = {
       'listMinIntervalMin': 10,
