@@ -11,8 +11,11 @@ void main() {
       expect(clockText(1439), '오후 11시 59분');
     });
 
-    test('자정은 오전 12시, 정오는 오후 12시다', () {
-      expect(clockText(0), '오전 12시');
+    test('정확히 자정은 밤 12시, 정오는 오후 12시다', () {
+      // docs/decisions.md 2026-11-14 '자정 마감은 전날 24:00, 새벽 마감은 달력 날짜로 쓴다'.
+      expect(clockText(0), '밤 12시');
+      expect(clockText(1440), '밤 12시');
+      expect(clockText(30), '오전 12시 30분');
       expect(clockText(720), '오후 12시');
     });
 
@@ -36,8 +39,9 @@ void main() {
       expect(hhmmText(1439), '23:59');
     });
 
-    test('자정을 넘는 끝 시각(1440부터)과 음수는 아직 받지 않는다', () {
-      expect(() => hhmmText(1440), throwsRangeError);
+    test("정확히 자정에 끝나는 1440은 '24:00'이고, 그보다 큰 값과 음수는 받지 않는다", () {
+      expect(hhmmText(1440), '24:00');
+      expect(() => hhmmText(1441), throwsRangeError);
       expect(() => hhmmText(-1), throwsRangeError);
     });
   });
@@ -85,11 +89,52 @@ void main() {
       expect(due(DateTime(2026, 10, 11, 23, 59)), '어제 23:59 마감');
     });
 
-    test('자정·새벽 표기를 정하기 전에는 00:00과 하루 경계 전 새벽 시각을 실제 시각 그대로 쓴다', () {
-      // 금요일 01:00과 수요일 00:00은 하루 경계(04:00) 전이라 논리적으로는 목요일·화요일(내일)이다. 표기를
-      // 정하는 PR이 함께 고친다.
-      expect(due(DateTime(2026, 10, 16, 1)), '목요일 01:00 마감');
-      expect(due(DateTime(2026, 10, 14)), '내일 00:00 마감');
+    test('정확히 00:00인 마감은 전날 24:00 마감이고, 하루 경계 전 새벽 마감은 달력 날짜에 실제 시각이다', () {
+      // docs/decisions.md 2026-11-14 '자정 마감은 전날 24:00, 새벽 마감은 달력 날짜로 쓴다'.
+      expect(due(DateTime(2026, 10, 13)), '오늘 24:00 마감');
+      expect(due(DateTime(2026, 10, 14)), '내일 24:00 마감');
+      expect(due(DateTime(2026, 10, 16, 1)), '금요일 01:00 마감');
+      expect(due(DateTime(2026, 10, 16, 0, 1)), '금요일 00:01 마감');
+      // 목요일 밤과, 하루 경계 전인 금요일 00:30(논리적으로는 아직 목요일)에 보면 금요일 01:30 마감은 '내일'이다.
+      String dueSeenAt(DateTime seenAt, DateTime at) => dueText(
+        at,
+        dueTimeUnknown: false,
+        now: seenAt,
+        dayBoundaryMin: Defaults.dayBoundaryMin,
+      );
+      final friday0130 = DateTime(2026, 10, 16, 1, 30);
+      expect(dueSeenAt(DateTime(2026, 10, 15, 22), friday0130), '내일 01:30 마감');
+      expect(
+        dueSeenAt(DateTime(2026, 10, 16, 0, 30), friday0130),
+        '내일 01:30 마감',
+      );
+      // 하루 경계를 바꿔도 같은 규칙이다.
+      expect(
+        dueText(
+          DateTime(2026, 10, 16, 5),
+          dueTimeUnknown: false,
+          now: now,
+          dayBoundaryMin: 360,
+        ),
+        '금요일 05:00 마감',
+      );
+    });
+
+    test('dueDayOffset은 마감 문구의 날짜 말과 같은 날을 센다', () {
+      int offset(DateTime at, {DateTime? seenAt}) => dueDayOffset(
+        at,
+        now: seenAt ?? now,
+        dayBoundaryMin: Defaults.dayBoundaryMin,
+      );
+      expect(offset(DateTime(2026, 10, 13)), 0);
+      expect(offset(DateTime(2026, 10, 13, 0, 1)), 1);
+      expect(offset(DateTime(2026, 10, 12, 23, 59)), 0);
+      expect(offset(DateTime(2026, 10, 11, 23, 59)), -1);
+      // 목요일 밤에 본 토요일 01:30 마감은 '모레'라 붉게 쓰지 않는다.
+      final saturday0130 = DateTime(2026, 10, 17, 1, 30);
+      final thursdayNight = DateTime(2026, 10, 15, 22);
+      expect(offset(saturday0130, seenAt: thursdayNight), 2);
+      expect(isDueSoon(offset(saturday0130, seenAt: thursdayNight)), isFalse);
     });
 
     test('시각을 모르면 시각 미상, 마감이 없으면 마감 없음이다', () {
@@ -118,6 +163,9 @@ void main() {
         '10월 10일 (토) 마감 · 시각 미상',
       );
       expect(far(DateTime(2026, 10, 11, 23, 59)), '어제 23:59 마감');
+      // 24:00 마감(다음 날 00:00)도 전날 날짜로 센다.
+      expect(far(DateTime(2026, 10, 20)), '10월 19일 (월) 24:00 마감');
+      expect(far(DateTime(2026, 10, 19)), '일요일 24:00 마감');
       // 기본(farAsDate false)은 같은 날도 날짜 말로 쓴다(01 아침 브리핑·02 홈·09 일간).
       expect(due(DateTime(2026, 10, 19, 18)), '7일 뒤 18:00 마감');
       expect(
@@ -472,9 +520,19 @@ void main() {
   });
 
   group('timeRangeText', () {
-    test("근거 시트의 'HH:MM–HH:MM'이고 자정을 넘는 끝은 아직 받지 않는다", () {
+    test("'HH:MM–HH:MM'이고 자정에 끝나면 24:00, 자정을 넘으면 끝은 실제 시각이다", () {
       expect(timeRangeText(540, 630), '09:00–10:30');
-      expect(() => timeRangeText(1380, 1440), throwsRangeError);
+      expect(timeRangeText(1380, 1440), '23:00–24:00');
+      expect(timeRangeText(1320, 1560), '22:00–02:00');
+      expect(timeRangeText(0, 180), '00:00–03:00');
+      expect(timeRangeText(1439, 2878), '23:59–23:58');
+    });
+
+    test('시작은 하루 안, 끝은 시작보다 늦고 하루 안이어야 한다', () {
+      expect(() => timeRangeText(600, 600), throwsRangeError);
+      expect(() => timeRangeText(600, 2040), throwsRangeError);
+      expect(() => timeRangeText(1440, 1500), throwsRangeError);
+      expect(() => timeRangeText(-1, 60), throwsRangeError);
     });
   });
 

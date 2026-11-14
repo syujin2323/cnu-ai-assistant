@@ -1464,4 +1464,234 @@ void main() {
       }
     });
   });
+
+  group('completeRule', () {
+    // docs/architecture.md '내 규칙'의 채우기 표, docs/decisions.md 2026-11-14 '말로 정한 규칙의 빈 값은 가장
+    // 그럴듯한 값을 제안해 확인받는다'. 입력은 /v1/parse의 HH:mm을 minutesFromHhmm으로 바꾼 값이다.
+    final current = PlannerConfig.from(const []);
+
+    test("'밤 11시 이후엔 공부 안 할래'는 시작을 지금 하루 창으로 제안한다", () {
+      final result = completeRule(
+        RuleKind.workWindow,
+        RuleParams(endMin: minutesFromHhmm('23:00')),
+        current: current,
+      );
+      expect(
+        result.params,
+        const RuleParams(startMin: Defaults.dayWindowStartMin, endMin: 1380),
+      );
+      expect(result.proposed, {RuleField.startMin});
+      expect(issues(RuleKind.workWindow, result.params), isEmpty);
+    });
+
+    test("'점심은 12시부터 1시 사이에 먹어'는 시간대 전부를 식사 시간으로 제안한다", () {
+      final result = completeRule(
+        RuleKind.meal,
+        RuleParams(
+          startMin: minutesFromHhmm('12:00'),
+          endMin: minutesFromHhmm('13:00'),
+        ),
+        current: current,
+      );
+      expect(
+        result.params,
+        const RuleParams(startMin: 720, endMin: 780, minutes: 60),
+      );
+      expect(result.proposed, {RuleField.minutes});
+      expect(issues(RuleKind.meal, result.params), isEmpty);
+    });
+
+    test("'학교에서 집까지 40분 걸려'는 자리를 채우지 않고 되묻는다", () {
+      final result = completeRule(
+        RuleKind.travel,
+        const RuleParams(minutes: 40),
+        current: current,
+      );
+      expect(result.params, const RuleParams(minutes: 40));
+      expect(result.proposed, isEmpty);
+      expect(issues(RuleKind.travel, result.params), [
+        issue('position', RuleIssueKind.missing),
+      ]);
+    });
+
+    test('끝이 시작보다 이르면 자정을 넘는 구간으로 보아 끝에 1440을 더한다', () {
+      final result = completeRule(
+        RuleKind.blackout,
+        RuleParams(
+          startMin: minutesFromHhmm('22:00'),
+          endMin: minutesFromHhmm('02:00'),
+        ),
+        current: current,
+      );
+      expect(result.params, const RuleParams(startMin: 1320, endMin: 1560));
+      expect(result.proposed, isEmpty);
+      expect(issues(RuleKind.blackout, result.params), isEmpty);
+    });
+
+    test("하루 창이 20:00에 시작하면 '새벽 1시 이후엔 공부 안 할래'는 1200–1500이다", () {
+      final lateWindow = PlannerConfig.from([
+        rule(
+          RuleKind.workWindow,
+          const RuleParams(startMin: 1200, endMin: 1560),
+        ),
+      ]);
+      final result = completeRule(
+        RuleKind.workWindow,
+        RuleParams(endMin: minutesFromHhmm('01:00')),
+        current: lateWindow,
+      );
+      expect(result.params, const RuleParams(startMin: 1200, endMin: 1500));
+      expect(result.proposed, {RuleField.startMin});
+      expect(issues(RuleKind.workWindow, result.params), isEmpty);
+    });
+
+    test('시작만 있으면 끝을 지금 하루 창으로 제안한다', () {
+      final result = completeRule(
+        RuleKind.workWindow,
+        const RuleParams(startMin: 540),
+        current: current,
+      );
+      expect(
+        result.params,
+        const RuleParams(startMin: 540, endMin: Defaults.dayWindowEndMin),
+      );
+      expect(result.proposed, {RuleField.endMin});
+    });
+
+    test('고른 요일들의 하루 창이 다르면 채우지 않고, 같으면 그 창으로 채운다', () {
+      final mondayOnly = PlannerConfig.from([
+        rule(
+          RuleKind.workWindow,
+          const RuleParams(startMin: 600, endMin: 1200),
+          weekdays: [DateTime.monday],
+        ),
+      ]);
+      final mixed = completeRule(
+        RuleKind.workWindow,
+        const RuleParams(endMin: 1380),
+        current: mondayOnly,
+        weekdays: [DateTime.monday, DateTime.tuesday],
+      );
+      expect(mixed.params, const RuleParams(endMin: 1380));
+      expect(mixed.proposed, isEmpty);
+      expect(issues(RuleKind.workWindow, mixed.params), [
+        issue('startMin', RuleIssueKind.missing),
+      ]);
+      expect(
+        completeRule(
+          RuleKind.workWindow,
+          const RuleParams(endMin: 1380),
+          current: mondayOnly,
+          weekdays: [DateTime.tuesday, DateTime.wednesday],
+        ).params,
+        const RuleParams(startMin: Defaults.dayWindowStartMin, endMin: 1380),
+      );
+      // 매일이면 월요일까지 보므로 다르다.
+      expect(
+        completeRule(
+          RuleKind.workWindow,
+          const RuleParams(endMin: 1380),
+          current: mondayOnly,
+        ).proposed,
+        isEmpty,
+      );
+    });
+
+    test('1–7 밖의 요일은 하루 창을 찾을 때 건너뛰고, 그 값은 값 검사가 알린다', () {
+      final result = completeRule(
+        RuleKind.workWindow,
+        const RuleParams(endMin: 1380),
+        current: current,
+        weekdays: [0, DateTime.monday],
+      );
+      expect(result.proposed, {RuleField.startMin});
+      expect(issues(RuleKind.workWindow, result.params, weekdays: [0, 1]), [
+        issue('weekdays', RuleIssueKind.outOfRange),
+      ]);
+    });
+
+    test('시작과 끝이 같으면 그대로 두어 값 검사가 되묻게 한다', () {
+      final result = completeRule(
+        RuleKind.blackout,
+        const RuleParams(startMin: 600, endMin: 600),
+        current: current,
+      );
+      expect(result.params, const RuleParams(startMin: 600, endMin: 600));
+      expect(issues(RuleKind.blackout, result.params), [
+        issue('endMin', RuleIssueKind.badOrder),
+      ]);
+    });
+
+    test('식사 분이 있으면 그대로 두고, 다른 종류의 시각은 채우지 않는다', () {
+      final meal = completeRule(
+        RuleKind.meal,
+        const RuleParams(startMin: 720, endMin: 840, minutes: 40),
+        current: current,
+      );
+      expect(
+        meal.params,
+        const RuleParams(startMin: 720, endMin: 840, minutes: 40),
+      );
+      expect(meal.proposed, isEmpty);
+      final blackout = completeRule(
+        RuleKind.blackout,
+        const RuleParams(endMin: 1380),
+        current: current,
+      );
+      expect(blackout.params, const RuleParams(endMin: 1380));
+      expect(blackout.proposed, isEmpty);
+    });
+
+    test('조용한 시간도 끝이 시작보다 이르면 1440을 더하고, 다른 값은 그대로 둔다', () {
+      final result = completeRule(
+        RuleKind.notify,
+        const RuleParams(quietStartMin: 1410, quietEndMin: 420, notifyCap: 3),
+        current: current,
+      );
+      expect(
+        result.params,
+        const RuleParams(quietStartMin: 1410, quietEndMin: 1860, notifyCap: 3),
+      );
+      expect(
+        completeRule(
+          RuleKind.estimate,
+          const RuleParams(courseId: 7, taskKind: TaskKind.quiz, minutes: 30),
+          current: current,
+        ).params,
+        const RuleParams(courseId: 7, taskKind: TaskKind.quiz, minutes: 30),
+      );
+    });
+
+    test('읽지 못한 값은 그대로 돌려준다', () {
+      const unreadable = UnreadableRuleParams('{"minutes":"60"}');
+      final result = completeRule(
+        RuleKind.workWindow,
+        unreadable,
+        current: current,
+      );
+      expect(result.params, same(unreadable));
+      expect(result.proposed, isEmpty);
+    });
+  });
+
+  group('ruleFormDefault', () {
+    test('12 내 규칙의 새 폼 값은 모두 값 검사를 통과하고 저장할 수 있다', () {
+      for (final kind in RuleKind.values) {
+        final params = ruleFormDefault(kind);
+        expect(issues(kind, params), isEmpty, reason: '$kind');
+        expect(unsavableFields(kind, params), isEmpty, reason: '$kind');
+      }
+    });
+  });
+
+  group('minutesFromHhmm', () {
+    test("'HH:mm'을 자정 기준 분으로 바꾸고, 꼴이 다르면 FormatException이다", () {
+      expect(minutesFromHhmm('00:00'), 0);
+      expect(minutesFromHhmm('09:30'), 570);
+      expect(minutesFromHhmm('23:59'), 1439);
+      for (final bad in ['24:00', '9:30', '09:60', '09:30:00', '', ' 09:30']) {
+        expect(() => minutesFromHhmm(bad), throwsFormatException, reason: bad);
+      }
+    });
+  });
 }
