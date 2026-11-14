@@ -473,3 +473,10 @@
 - 받아들인 점: 문자열 안의 `//` 뒤는 주석으로 보아 그 뒤의 금지 패턴을 놓칠 수 있다.
 - 다른 후보: 리뷰에만 맡기기, analyzer 플러그인(custom_lint)으로 만들기(설정과 의존성이 늘어남).
 - 영향: architecture.md '확인과 CI', `app/test/conventions_test.dart`. 규칙을 더하거나 예외 파일을 바꾸면 이 테스트와 architecture.md를 함께 고친다.
+
+## 2026-11-14 android·ios를 바꾼 PR은 CI가 네이티브 빌드를 해 본다
+
+- 결정: `app/android/**`나 `app/ios/**`(또는 그 워크플로)가 바뀐 PR에서만 CI가 바뀐 OS의 debug 빌드를 만들어 본다(`native-build.yml`). Android는 ubuntu·Java 17로 debug APK, iOS는 macOS 러너에서 서명 없는 시뮬레이터 debug 빌드다. 진짜 Firebase 설정 파일은 CI에 두지 않고 잡 안에서 앱 ID만 맞춘 가짜 파일을 만든다. 필수 검사로 두지 않는다.
+- 이유: `app-check`는 `flutter build`를 하지 않아 Kotlin·Swift·매니페스트·Gradle·Xcode 설정이 깨져도 초록이었다. 네이티브 변경은 Shorebird로 패치할 수 없어 잘못 나가면 새 release가 필요하고, 곧 들어올 쿠키 브리지(Kotlin·Swift)는 보안에 중요한 코드다. macOS 러너는 분 단가가 커서 iOS는 `app/ios/**`가 바뀐 때만 돌린다.
+- 다른 후보: 두지 않고 PR 템플릿의 두 OS 빌드·실행 항목에만 맡기기, 모든 PR에서 두 OS를 빌드하기(느리고 macOS 분이 많이 듦).
+- 영향: architecture.md '확인과 CI', `.github/workflows/native-build.yml`.
