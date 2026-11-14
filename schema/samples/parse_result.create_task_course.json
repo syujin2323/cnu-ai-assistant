@@ -1,0 +1,37 @@
+{
+  "intent": "create_task",
+  "needsClarification": false,
+  "clarification": null,
+  "queryType": null,
+  "queryFrom": null,
+  "queryTo": null,
+  "queryCourse": null,
+  "unsupportedRule": null,
+  "items": [
+    {
+      "title": "과제",
+      "kind": "task",
+      "category": "course",
+      "course": "데이터구조",
+      "date": null,
+      "weekday": "금",
+      "dateExpression": "금요일까지",
+      "timeExpression": null,
+      "start": null,
+      "end": null,
+      "repeat": null,
+      "fixedBlockKind": null,
+      "due": "2026-10-16",
+      "dueTime": null,
+      "estimatedMinutes": 120,
+      "reminderMinutes": null,
+      "place": null,
+      "prep": null,
+      "shiftMinutes": null,
+      "target": null,
+      "targetDate": null,
+      "exceptionType": null
+    }
+  ],
+  "rules": []
+}

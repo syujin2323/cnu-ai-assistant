@@ -158,6 +158,10 @@ abstract final class Defaults {
   /// `sync_runs`·`lms_item_changes`·`briefings`는 이 일수가 지난 행을 앱 시작 때 지운다.
   static const int retentionDays = 90;
 
+  /// LMS 항목의 연속 미발견 횟수가 이만큼이 되면 그 할 일을 LMS에서 사라진 일로 보고 03 할 일
+  /// 목록에서 뺀다(행은 지우지 않음, docs/lms.md '동기화').
+  static const int lmsGoneMissCount = 3;
+
   /// 고정 일정 종류가 운동(`exercise`)일 때 준비물의 기본값.
   static const String exercisePrep = '운동복';
 }

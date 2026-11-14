@@ -1,0 +1,37 @@
+{
+  "intent": "class_exception",
+  "needsClarification": false,
+  "clarification": null,
+  "queryType": null,
+  "queryFrom": null,
+  "queryTo": null,
+  "queryCourse": null,
+  "unsupportedRule": null,
+  "items": [
+    {
+      "title": null,
+      "kind": null,
+      "category": "course",
+      "course": "선형대수",
+      "date": "2026-10-16",
+      "weekday": "금",
+      "dateExpression": "금요일",
+      "timeExpression": "6시 반",
+      "start": "18:30",
+      "end": null,
+      "repeat": null,
+      "fixedBlockKind": null,
+      "due": null,
+      "dueTime": null,
+      "estimatedMinutes": null,
+      "reminderMinutes": null,
+      "place": "공대 5호관 301호",
+      "prep": null,
+      "shiftMinutes": null,
+      "target": null,
+      "targetDate": null,
+      "exceptionType": "makeup"
+    }
+  ],
+  "rules": []
+}

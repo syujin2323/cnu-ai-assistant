@@ -72,6 +72,7 @@ void main() {
 
   test('되돌릴 수 있는 표는 docs/architecture.md의 되돌리기 대상과 같다', () {
     expect(undoableTables, {
+      'courses',
       'events',
       'tasks',
       'fixed_blocks',
@@ -149,6 +150,45 @@ void main() {
     final rule = (await ruleById(id))!;
     expect(rule.active, isTrue);
     expect(rule.params, const RuleParams(minutes: 30));
+  });
+
+  test('beforeColumns는 그 열만 담아, 되돌리면 그 열만 직전 값이 되고 나머지는 지금 값을 둔다', () async {
+    final id = await insertRule(10);
+    await record((recorder) async {
+      await recorder.beforeColumns('rules', id, const {'active'});
+      await (db.update(db.rules)..where((rule) => rule.id.equals(id))).write(
+        const RulesCompanion(active: Value(false)),
+      );
+    });
+    // 그사이 다른 쪽(동기화 등)이 담지 않은 열을 바꾼다.
+    await (db.update(db.rules)..where((rule) => rule.id.equals(id))).write(
+      const RulesCompanion(params: Value(RuleParams(minutes: 40))),
+    );
+    final steps = decodeUndoSteps((await log())!.beforeJson!);
+    expect(steps.single, isA<UndoPatch>());
+
+    expect(_ok(await undo.undoLast(now: now)), isTrue);
+    final rule = (await ruleById(id))!;
+    expect(rule.active, isTrue);
+    expect(rule.params, const RuleParams(minutes: 40));
+  });
+
+  test('beforeColumns는 빈 열 목록·id 열이면 ArgumentError이고, 없는 행은 담지 않는다', () async {
+    final id = await insertRule(10);
+    final recorder = UndoRecorder(db);
+    expect(
+      () => recorder.beforeColumns('rules', id, const {}),
+      throwsArgumentError,
+    );
+    expect(
+      () => recorder.beforeColumns('rules', id, const {'id', 'active'}),
+      throwsArgumentError,
+    );
+    await record(
+      (recorder) async =>
+          recorder.beforeColumns('rules', 999, const {'active'}),
+    );
+    expect(await log(), isNull);
   });
 
   test('한 행을 여러 번 담아도 처음 값만 남고, 바뀐 행이 하나면 rowId에 적는다', () async {

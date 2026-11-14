@@ -1,0 +1,37 @@
+{
+  "intent": "delete",
+  "needsClarification": false,
+  "clarification": null,
+  "queryType": null,
+  "queryFrom": null,
+  "queryTo": null,
+  "queryCourse": null,
+  "unsupportedRule": null,
+  "items": [
+    {
+      "title": null,
+      "kind": "event",
+      "category": null,
+      "course": null,
+      "date": null,
+      "weekday": null,
+      "dateExpression": null,
+      "timeExpression": null,
+      "start": null,
+      "end": null,
+      "repeat": null,
+      "fixedBlockKind": null,
+      "due": null,
+      "dueTime": null,
+      "estimatedMinutes": null,
+      "reminderMinutes": null,
+      "place": null,
+      "prep": null,
+      "shiftMinutes": null,
+      "target": "토요일 알바",
+      "targetDate": "2026-10-17",
+      "exceptionType": null
+    }
+  ],
+  "rules": []
+}

@@ -568,6 +568,34 @@
 - 다른 후보: 503 `provider_error`로 묶기(제공사 장애와 서버 결함을 가를 수 없음), 새 code 없이 503만 쓰기.
 - 영향: architecture.md 오류 표, `functions/src/http/errors.ts`.
 
+## 2026-11-15 제공사에는 빈 값을 빈 문자열로 쓰는 응답 스키마를 따로 넣는다 (2026-10-11 'AI 사용 방식'의 출력 스키마 부분 보완)
+
+- 결정:
+  - `schema/parse_result.schema.json`은 앱과 서버의 API 응답 약속으로 둔다. 모든 키가 늘 있고 없는 값은 null이다.
+  - Claude 구조화 출력(`output_config.format`)에는 이 파일 대신 `functions/src/ai/`의 제공사용 응답 스키마를 넣는다. 키는 같고, 유니언 타입과 선택 필드 없이 빈 값을 빈 문자열(숫자도 숫자 문자열)·빈 배열로 나타낸다. 게이트웨이가 null로 바꾸고 `schema/`로 다시 검증해 앱에 보낸다.
+  - 06 AI 비서의 되묻기·카드에 쓸 값의 이름: `timeExpression`(시각의 원래 표현, 항목과 규칙), `place`, `prep`, `shiftMinutes`(상대 변경 분), `queryFrom`·`queryTo`·`queryCourse`(질문의 기간·과목), `unsupportedRule`(정할 수 없는 규칙 조건의 종류), `fixedBlockKind`(반복 일정의 종류, `fixed_blocks.kind`와 같은 값).
+- 이유:
+  - Claude 구조화 출력은 한 요청의 스키마 전체에서 유니언 타입(null을 허용하는 타입 배열·`anyOf`) 필드 16개, 선택 필드 24개까지만 받는다(구조화 출력 문서의 'Schema complexity limits'). parse 응답은 null을 허용하는 필드가 약 40개라 문서대로 넣으면 400이 난다.
+  - 앱 쪽 약속을 null로 두면 모델이나 제공사를 바꿀 때 제공사용 스키마만 고치면 되고, 앱과 API 경로는 그대로다.
+  - 오전·오후는 문장의 원래 표현을 받아 앱 코드가 판단한다. 날짜 표현을 `dateExpression`으로 받는 것과 같은 방식이고, 날짜·시각 계산은 코드가 한다는 원칙(2026-10-11)을 따른다.
+- 다른 후보: API 응답도 빈 문자열로 바꾸고 스키마 파일 하나를 함께 쓰기(제공사 제약이 앱 약속으로 새어 나옴), 구조화 출력 없이 프롬프트와 ajv 검증만 쓰기(형식이 틀린 응답이 늘어 503이 잦아짐), null을 허용하는 필드를 16개로 줄이기(06 카드에 필요한 값을 버림), 오전·오후를 말했는지만 참·거짓으로 받기(24시간 표기 '20시'를 어떻게 볼지 모델마다 갈림).
+- 영향: architecture.md 'schema/' 문단·'POST /v1/parse'·'제공사 호출 규칙', `schema/parse_result.schema.json`·`schema/samples/`, `/v1/parse` PR(제공사용 스키마와 변환), 앱의 ParseResult 모델과 되묻기 판단.
+
+## 2026-11-15 /v1/parse는 서버 쪽 fallbacks를 켠다 (2026-11-15 'AI 모델은 Claude Sonnet 5.5로 시작한다' 보완)
+
+- 결정: `/v1/parse`의 Claude 호출에 서버 쪽 fallbacks(`fallbacks: "default"`, 베타 `server-side-fallback-2026-07-01`)를 켠다. Sonnet 5.5가 `cyber`·`frontier_llm`으로 거부하면 같은 호출 안에서 Claude Sonnet 5(thinking 끔)가 한 번 다시 답한다. 그 밖의 거부(`general_harms`, `bio`, `reasoning_extraction`)와 다시 답한 모델의 거부는 지금처럼 503 `refusal`이고 앱은 직접 추가 폼을 연다. 다시 답해도 호출 한도는 요청당 1회다.
+- 이유: Anthropic의 Sonnet 5.5 안내는 fallbacks를 기본으로 켜라고 한다. 일정 문장은 이 두 분류에 걸릴 일이 드물지만, 걸렸을 때 학생에게 직접 추가 폼을 보이는 대신 답을 받을 수 있다. 목록을 관리하지 않는 `"default"` 꼴이라 코드가 작고, 거부 없이 끝나는 호출에는 영향이 없다.
+- 받아들인 점: 베타 기능이라 `client.beta.messages.create()`를 쓴다. 다시 답하는 시간도 4초 상한 안에 들어야 해서, 늦으면 503 `provider_error`다. 다시 답한 모델은 프롬프트 캐시를 따로 쓴다.
+- 다른 후보: fallbacks 없이 거부를 늘 503 `refusal`로 두기(일정 문장에서는 거의 차이가 없고 베타를 쓰지 않음).
+- 영향: architecture.md '제공사 호출 규칙', `functions/src/ai/claude.ts`.
+
+## 2026-11-15 바꾸기·지우기 대상의 날짜는 targetDate로 따로 받는다 (2026-11-15 '제공사에는 빈 값을 빈 문자열로 쓰는 응답 스키마를 따로 넣는다' 보완)
+
+- 결정: `/v1/parse` 응답 항목에 `targetDate`(null 허용)를 더한다. `update`·`delete`에서 대상을 가리키는 말이 날짜를 말했으면(예: '내일 스터디 1시간 늦춰'의 내일) 그 날짜를 담는다. 바꾸기의 `date`·`start`·`end` 같은 칸은 늘 새 값이다.
+- 이유: 날짜 칸이 하나뿐이면 '내일 스터디 금요일로 옮겨 줘'에서 대상의 날짜(내일)와 새 날짜(금요일)를 함께 담을 수 없고, '1시간 늦춰'의 날짜가 옮길 날짜인지 대상의 날짜인지 앱이 가릴 수 없다. 첫 배포 전이라 필드를 더하는 비용이 작다.
+- 다른 후보: `target` 글만 받고 그 안의 날짜 표현은 앱이 읽기(앱에 한국어 날짜 해석이 하나 더 생김), 날짜 칸을 대상의 날짜로 보고 새 날짜는 받지 않기(옮기기를 말로 할 수 없음).
+- 영향: architecture.md 'POST /v1/parse', `schema/parse_result.schema.json`·`schema/samples/`(바꾸기·지우기 예시), `functions/src/ai/`의 제공사용 스키마·변환·프롬프트, 앱의 ParseResult 모델.
+
 ## 2026-11-15 LMS 로그인은 요청 상수의 요청 틀로 보낸다
 
 - 결정:

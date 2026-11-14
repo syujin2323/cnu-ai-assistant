@@ -12,21 +12,33 @@ import 'dart:async';
 
 import 'package:cnu_ai_assistant/app/config.dart';
 import 'package:cnu_ai_assistant/app/logging.dart';
+import 'package:cnu_ai_assistant/data/api/install_token.dart';
 import 'package:cnu_ai_assistant/data/api/server_api.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/db/demo_database_files.dart';
 import 'package:cnu_ai_assistant/data/demo/demo_seed.dart';
 import 'package:cnu_ai_assistant/data/repositories/briefing_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/class_exception_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/class_slot_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/course_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/demo_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/event_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/fixed_block_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/lms_item_change_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/plan_block_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/rules_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/schedule_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/task_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/sync_run_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/undo_repository.dart';
+import 'package:cnu_ai_assistant/data/secure_storage.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -231,6 +243,51 @@ final scheduleRepositoryProvider = Provider<ScheduleRepository>(
   (ref) => ScheduleRepository(ref.watch(databaseProvider)),
 );
 
+/// 할 일 저장소(`tasks` 표, LMS 원본·과목과 함께 읽음). 지금 모드의 폰 DB를 본다.
+final taskRepositoryProvider = Provider<TaskRepository>(
+  (ref) => TaskRepository(ref.watch(databaseProvider)),
+);
+
+/// 할 일 블록 저장소(`plan_blocks` 표). 지금 모드의 폰 DB를 본다.
+final planBlockRepositoryProvider = Provider<PlanBlockRepository>(
+  (ref) => PlanBlockRepository(ref.watch(databaseProvider)),
+);
+
+/// 동기화 기록 저장소(`sync_runs` 표). 지금 모드의 폰 DB를 본다(데모 DB에는 기록이 없다).
+final syncRunRepositoryProvider = Provider<SyncRunRepository>(
+  (ref) => SyncRunRepository(ref.watch(databaseProvider)),
+);
+
+/// LMS 항목 변경 기록 저장소(`lms_item_changes` 표). 지금 모드의 폰 DB를 본다.
+final lmsItemChangeRepositoryProvider = Provider<LmsItemChangeRepository>(
+  (ref) => LmsItemChangeRepository(ref.watch(databaseProvider)),
+);
+
+/// 일정 저장소(`events` 표). 지금 모드의 폰 DB를 본다.
+final eventRepositoryProvider = Provider<EventRepository>(
+  (ref) => EventRepository(ref.watch(databaseProvider)),
+);
+
+/// 고정 일정 저장소(`fixed_blocks` 표). 지금 모드의 폰 DB를 본다.
+final fixedBlockRepositoryProvider = Provider<FixedBlockRepository>(
+  (ref) => FixedBlockRepository(ref.watch(databaseProvider)),
+);
+
+/// 과목 저장소(`courses` 표의 읽기). 지금 모드의 폰 DB를 본다.
+final courseRepositoryProvider = Provider<CourseRepository>(
+  (ref) => CourseRepository(ref.watch(databaseProvider)),
+);
+
+/// 수업 칸 저장소(`class_slots` 표). 지금 모드의 폰 DB를 본다.
+final classSlotRepositoryProvider = Provider<ClassSlotRepository>(
+  (ref) => ClassSlotRepository(ref.watch(databaseProvider)),
+);
+
+/// 수업 예외 저장소(`class_exceptions` 표). 지금 모드의 폰 DB를 본다.
+final classExceptionRepositoryProvider = Provider<ClassExceptionRepository>(
+  (ref) => ClassExceptionRepository(ref.watch(databaseProvider)),
+);
+
 /// 설정 값. 표에 없는 키는 기본값으로 채워진다.
 final settingsProvider = StreamProvider<AppSettings>(
   (ref) => ref.watch(settingsRepositoryProvider).watch(),
@@ -242,12 +299,22 @@ final settingsProvider = StreamProvider<AppSettings>(
 /// 막는다(`app/app_binding.dart`). 화면 테스트는 이 provider를 [MotionLevel.off]로 덮어쓴다.
 final motionLevelProvider = Provider<MotionLevel>((ref) => MotionLevel.full);
 
+/// 설치 토큰 저장소. 앱 수명 동안 하나를 써서 읽은 토큰을 기억한다(docs/architecture.md '앱과 서버 사이 약속
+/// (API)').
+final installTokenStoreProvider = Provider<InstallTokenStore>(
+  (ref) => InstallTokenStore(appSecureStorage),
+);
+
 /// 앱 서버 API 클라이언트. 주소는 `AppConfig.apiBase`(`--dart-define=API_BASE_URL`로 덮어씀).
-/// 데모 모드에서는 요청을 보내지 않고 오류를 돌려준다(`ServerApi.demo`).
+/// 모든 요청에 App Check 토큰과 설치 토큰을 붙인다(`/v1/metrics`에는 설치 토큰을 붙이지 않음). 데모
+/// 모드에서는 요청을 보내지 않고 오류를 돌려준다(`ServerApi.demo`).
 final apiProvider = Provider<ServerApi>((ref) {
+  final installTokens = ref.watch(installTokenStoreProvider);
   final api = ServerApi(
     baseUrl: AppConfig.apiBase,
     demo: ref.watch(appModeProvider) == AppMode.demo,
+    appCheckToken: () => FirebaseAppCheck.instance.getToken(),
+    installToken: installTokens.read,
   );
   ref.onDispose(api.close);
   return api;

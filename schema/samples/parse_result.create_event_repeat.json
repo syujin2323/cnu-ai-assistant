@@ -1,0 +1,43 @@
+{
+  "intent": "create_event",
+  "needsClarification": false,
+  "clarification": null,
+  "queryType": null,
+  "queryFrom": null,
+  "queryTo": null,
+  "queryCourse": null,
+  "unsupportedRule": null,
+  "items": [
+    {
+      "title": "알바",
+      "kind": "event",
+      "category": "personal",
+      "course": null,
+      "date": null,
+      "weekday": null,
+      "dateExpression": "주말마다",
+      "timeExpression": "2시부터 5시까지",
+      "start": "14:00",
+      "end": "17:00",
+      "repeat": {
+        "freq": "weekly",
+        "byDay": [
+          "SA",
+          "SU"
+        ]
+      },
+      "fixedBlockKind": "work",
+      "due": null,
+      "dueTime": null,
+      "estimatedMinutes": null,
+      "reminderMinutes": null,
+      "place": null,
+      "prep": null,
+      "shiftMinutes": null,
+      "target": null,
+      "targetDate": null,
+      "exceptionType": null
+    }
+  ],
+  "rules": []
+}

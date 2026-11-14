@@ -1,0 +1,332 @@
+{
+  "title": "ParseResult",
+  "description": "POST /v1/parse 응답. 앱과 서버의 약속이다(docs/architecture.md '앱과 서버 사이 약속 (API)'). 모든 키가 늘 있고, 문장에 없거나 쓰지 않는 값은 null이다. 날짜·시각은 Asia/Seoul이다.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "intent",
+    "needsClarification",
+    "clarification",
+    "queryType",
+    "queryFrom",
+    "queryTo",
+    "queryCourse",
+    "unsupportedRule",
+    "items",
+    "rules"
+  ],
+  "properties": {
+    "intent": {
+      "description": "문장의 의도. 둘 이상이 섞이면 needsClarification이 true다.",
+      "type": "string",
+      "enum": [
+        "create_event",
+        "create_task",
+        "update",
+        "delete",
+        "query",
+        "class_exception",
+        "set_rule",
+        "other"
+      ]
+    },
+    "needsClarification": {
+      "description": "되물어야 하면 true. 그때 clarification이 함께 온다.",
+      "type": "boolean"
+    },
+    "clarification": {
+      "description": "되물을 것. needsClarification이 false면 null이다.",
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["field", "question"],
+      "properties": {
+        "field": {
+          "description": "되묻는 값. 앱은 로그와 카드 고르기에만 쓴다.",
+          "type": "string",
+          "enum": [
+            "date",
+            "time",
+            "title",
+            "course",
+            "target",
+            "repeat",
+            "rule",
+            "intent",
+            "other"
+          ]
+        },
+        "question": {
+          "description": "되묻기 카드에 그대로 쓰는 질문(차분한 존댓말).",
+          "type": "string"
+        }
+      }
+    },
+    "queryType": {
+      "description": "intent가 query일 때 질문의 종류: 마감(기간을 말하지 않으면 이번 주), 하루 계획(날짜를 말하지 않으면 오늘), 빈 시간. 그 밖의 intent면 null이다.",
+      "type": ["string", "null"],
+      "enum": ["deadlines_this_week", "today_plan", "free_time", null]
+    },
+    "queryFrom": {
+      "description": "질문이 말한 기간의 첫날. 하루면 queryTo와 같다. 기간·날짜를 말하지 않았으면 null이다.",
+      "type": ["string", "null"],
+      "format": "date"
+    },
+    "queryTo": {
+      "description": "질문이 말한 기간의 마지막 날(그날 포함). 기간·날짜를 말하지 않았으면 null이다.",
+      "type": ["string", "null"],
+      "format": "date"
+    },
+    "queryCourse": {
+      "description": "질문이 말한 과목. 요청의 courses[].name 가운데 하나이고, 말하지 않았으면 null이다.",
+      "type": ["string", "null"]
+    },
+    "unsupportedRule": {
+      "description": "intent가 set_rule인데 정해 둔 규칙 종류로 나타낼 수 없는 조건의 종류: 알림 조건(notification), 특정 날짜 하루만(specific_date), 시험 기간·방학 같은 기간 모드(mode), 할 일·과목 사이의 우선순위(priority), 그 밖(other). 없으면 null이다.",
+      "type": ["string", "null"],
+      "enum": [
+        "notification",
+        "specific_date",
+        "mode",
+        "priority",
+        "other",
+        null
+      ]
+    },
+    "items": {
+      "description": "일정·할 일·수업 변경 항목. query·set_rule·other면 빈 배열이다.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/item" }
+    },
+    "rules": {
+      "description": "intent가 set_rule일 때의 규칙. 그 밖에는 빈 배열이다.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/rule" }
+    }
+  },
+  "definitions": {
+    "time": {
+      "description": "하루 안의 시각 HH:mm(24시간).",
+      "type": ["string", "null"],
+      "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+    },
+    "weekdayCode": {
+      "type": "string",
+      "enum": ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "kind",
+        "category",
+        "course",
+        "date",
+        "weekday",
+        "dateExpression",
+        "timeExpression",
+        "start",
+        "end",
+        "repeat",
+        "fixedBlockKind",
+        "due",
+        "dueTime",
+        "estimatedMinutes",
+        "reminderMinutes",
+        "place",
+        "prep",
+        "shiftMinutes",
+        "target",
+        "targetDate",
+        "exceptionType"
+      ],
+      "properties": {
+        "title": {
+          "description": "제목. 바꾸기·지우기에서 제목을 말하지 않았으면 null이다.",
+          "type": ["string", "null"]
+        },
+        "kind": {
+          "description": "event(시작·끝이 있는 일정)나 task(마감이 있는 할 일). 수업 변경 항목이나 알 수 없으면 null이다.",
+          "type": ["string", "null"],
+          "enum": ["event", "task", null]
+        },
+        "category": {
+          "description": "course(수업·과제)나 personal. 없으면 앱이 personal로 본다.",
+          "type": ["string", "null"],
+          "enum": ["course", "personal", null]
+        },
+        "course": {
+          "description": "요청의 courses[].name 가운데 하나. 없으면 null이다.",
+          "type": ["string", "null"]
+        },
+        "date": {
+          "description": "일정·수업 변경의 날짜. 반복 일정이면 null이다.",
+          "type": ["string", "null"],
+          "format": "date"
+        },
+        "weekday": {
+          "description": "문장에서 읽은 요일. 앱이 date와 맞는지 본다.",
+          "type": ["string", "null"],
+          "enum": ["월", "화", "수", "목", "금", "토", "일", null]
+        },
+        "dateExpression": {
+          "description": "문장 속 날짜의 원래 표현(예: 내일, 주말마다).",
+          "type": ["string", "null"]
+        },
+        "timeExpression": {
+          "description": "문장 속 시각의 원래 표현(예: 8시, 오후 3시부터 5시까지). 앱이 오전·오후를 말했는지 보고 되묻는다.",
+          "type": ["string", "null"]
+        },
+        "start": { "$ref": "#/definitions/time" },
+        "end": { "$ref": "#/definitions/time" },
+        "repeat": {
+          "description": "반복 일정. 한 번뿐이면 null이다. 앱은 weekly만 고정 일정으로 저장하고 그 밖에는 되묻는다.",
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["freq", "byDay"],
+          "properties": {
+            "freq": {
+              "type": "string",
+              "enum": ["weekly", "biweekly", "monthly", "other"]
+            },
+            "byDay": {
+              "description": "반복 요일.",
+              "type": "array",
+              "items": { "$ref": "#/definitions/weekdayCode" }
+            }
+          }
+        },
+        "fixedBlockKind": {
+          "description": "반복 일정의 종류. 폰 DB fixed_blocks.kind와 같은 값이고, 반복 일정이 아니면 null이다.",
+          "type": ["string", "null"],
+          "enum": ["meal", "work", "exercise", "commute", "other", null]
+        },
+        "due": {
+          "description": "할 일의 마감 날짜.",
+          "type": ["string", "null"],
+          "format": "date"
+        },
+        "dueTime": { "$ref": "#/definitions/time" },
+        "estimatedMinutes": {
+          "description": "문장이 말한 할 일의 예상 시간(분).",
+          "type": ["integer", "null"]
+        },
+        "reminderMinutes": {
+          "description": "문장이 말한 알림 시점(시작 몇 분 전).",
+          "type": ["integer", "null"]
+        },
+        "place": {
+          "description": "장소(예: 도서관, 공대 5호관 301호). 수업 변경이면 바뀐 장소다.",
+          "type": ["string", "null"]
+        },
+        "prep": {
+          "description": "준비물(예: 노트북, 운동복).",
+          "type": ["string", "null"]
+        },
+        "shiftMinutes": {
+          "description": "바꾸기에서 상대로 옮긴 분('1시간 늦춰'면 60, '30분 당겨'면 -30).",
+          "type": ["integer", "null"]
+        },
+        "target": {
+          "description": "바꾸기·지우기에서 대상을 가리키는 원래 표현(예: 내일 스터디).",
+          "type": ["string", "null"]
+        },
+        "targetDate": {
+          "description": "바꾸기·지우기에서 문장이 대상의 날짜를 말했으면 그 날짜(예: '내일 스터디'의 내일). date 같은 다른 날짜 칸은 새 값이다.",
+          "type": ["string", "null"],
+          "format": "date"
+        },
+        "exceptionType": {
+          "description": "수업 변경의 종류. 폰 DB class_exceptions.kind와 같은 값이다.",
+          "type": ["string", "null"],
+          "enum": ["cancelled", "makeup", "exam", "place_change", null]
+        }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "action",
+        "minutes",
+        "position",
+        "start",
+        "end",
+        "timeExpression",
+        "weekdays",
+        "course",
+        "taskKind",
+        "briefingTime",
+        "notifyCap",
+        "quietStart",
+        "quietEnd"
+      ],
+      "properties": {
+        "kind": {
+          "description": "규칙 종류. 폰 DB rules.kind와 같은 값이다.",
+          "type": "string",
+          "enum": [
+            "travel",
+            "class_buffer",
+            "work_window",
+            "blackout",
+            "preferred",
+            "max_block",
+            "daily_cap",
+            "meal",
+            "estimate",
+            "notify"
+          ]
+        },
+        "action": {
+          "type": "string",
+          "enum": ["set", "remove"]
+        },
+        "minutes": {
+          "type": ["integer", "null"]
+        },
+        "position": {
+          "type": ["string", "null"],
+          "enum": ["day_edges", "every_class", null]
+        },
+        "start": { "$ref": "#/definitions/time" },
+        "end": { "$ref": "#/definitions/time" },
+        "timeExpression": {
+          "description": "문장 속 시각의 원래 표현. 앱이 오전·오후를 말했는지 보고 되묻는다.",
+          "type": ["string", "null"]
+        },
+        "weekdays": {
+          "description": "규칙이 걸리는 요일. null이면 매일이다.",
+          "type": ["array", "null"],
+          "items": { "$ref": "#/definitions/weekdayCode" }
+        },
+        "course": {
+          "description": "요청의 courses[].name 가운데 하나. 없으면 null이다.",
+          "type": ["string", "null"]
+        },
+        "taskKind": {
+          "description": "할 일 종류. 폰 DB tasks.kind와 같은 값이다.",
+          "type": ["string", "null"],
+          "enum": [
+            "assignment",
+            "video",
+            "quiz",
+            "team",
+            "discussion",
+            "exam",
+            "material",
+            "personal",
+            null
+          ]
+        },
+        "briefingTime": { "$ref": "#/definitions/time" },
+        "notifyCap": {
+          "type": ["integer", "null"]
+        },
+        "quietStart": { "$ref": "#/definitions/time" },
+        "quietEnd": { "$ref": "#/definitions/time" }
+      }
+    }
+  }
+}

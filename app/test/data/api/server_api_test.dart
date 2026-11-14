@@ -1,8 +1,10 @@
 // 앱 서버 클라이언트 테스트. docs/architecture.md '앱과 서버 사이 약속 (API)'.
 //
 // 네트워크 없이 dio의 HttpClientAdapter를 가짜로 바꿔, 응답을 Result로 바꾸는지(성공은 본문, 실패는
-// 상태 코드와 오류 본문의 code)와 데모 모드에서 요청을 보내지 않는지 본다.
+// 상태 코드와 오류 본문의 code), 데모 모드에서 요청을 보내지 않는지, App Check·설치 토큰 헤더를 붙이는지,
+// 요청 전체 상한을 넘으면 취소하는지 본다. 토큰은 합성 값이다.
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show SocketException;
 import 'dart:typed_data';
@@ -10,6 +12,7 @@ import 'dart:typed_data';
 import 'package:cnu_ai_assistant/data/api/server_api.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -102,13 +105,153 @@ void main() {
     );
     expect(adapter.requests, isEmpty);
   });
+
+  group('토큰 헤더', () {
+    const appCheckHeader = ServerTokenInterceptor.appCheckHeader;
+    const installHeader = ServerTokenInterceptor.installTokenHeader;
+    final installToken = 'I' * 43;
+
+    ServerApi apiWithTokens(
+      _FakeAdapter adapter, {
+      TokenSource? appCheck,
+      TokenSource? install,
+    }) {
+      final api = ServerApi(
+        baseUrl: base,
+        appCheckToken: appCheck,
+        installToken: install,
+        adapter: adapter,
+      );
+      addTearDown(api.close);
+      return api;
+    }
+
+    test('App Check 토큰과 설치 토큰을 헤더에 붙인다', () async {
+      final adapter = _FakeAdapter((_) => _json(200, {'intent': 'other'}));
+
+      await apiWithTokens(
+        adapter,
+        appCheck: () async => 'app-check-synthetic',
+        install: () async => installToken,
+      ).postJson('/v1/parse', {'text': 'x'});
+
+      final headers = adapter.requests.single.headers;
+      expect(headers[appCheckHeader], 'app-check-synthetic');
+      expect(headers[installHeader], installToken);
+    });
+
+    test('/v1/metrics에는 설치 토큰을 붙이지 않고 구하지도 않는다', () async {
+      final adapter = _FakeAdapter((_) => _json(200, {}));
+      var installCalls = 0;
+
+      await apiWithTokens(
+        adapter,
+        appCheck: () async => 'app-check-synthetic',
+        install: () async {
+          installCalls++;
+          return installToken;
+        },
+      ).postJson('/v1/metrics', {'date': '2026-10-12'});
+
+      final headers = adapter.requests.single.headers;
+      expect(headers[appCheckHeader], 'app-check-synthetic');
+      expect(headers.containsKey(installHeader), isFalse);
+      expect(installCalls, 0);
+    });
+
+    test('토큰을 구하지 못하면 그 헤더 없이 보낸다', () async {
+      final sources = <TokenSource>[
+        () async => throw PlatformException(code: 'unavailable'),
+        () async => null,
+        () async => '',
+      ];
+      for (final (index, source) in sources.indexed) {
+        final adapter = _FakeAdapter((_) => _json(200, {}));
+
+        final result = await apiWithTokens(
+          adapter,
+          appCheck: source,
+          install: source,
+        ).postJson('/v1/parse', {});
+
+        expect(result, isA<Ok<Object?>>(), reason: '$index');
+        final headers = adapter.requests.single.headers;
+        expect(headers.containsKey(appCheckHeader), isFalse, reason: '$index');
+        expect(headers.containsKey(installHeader), isFalse, reason: '$index');
+      }
+    });
+  });
+
+  group('요청 전체 상한', () {
+    const limit = Duration(milliseconds: 50);
+
+    ServerApi apiWithLimit(_FakeAdapter adapter, {TokenSource? appCheck}) {
+      final api = ServerApi(
+        baseUrl: base,
+        appCheckToken: appCheck,
+        totalTimeout: limit,
+        adapter: adapter,
+      );
+      addTearDown(() => api.close(force: true));
+      return api;
+    }
+
+    test('응답이 상한 안에 오지 않으면 취소하고 ApiError(null, timeout)다', () async {
+      final adapter = _FakeAdapter((_) => Completer<ResponseBody>().future);
+      final watch = Stopwatch()..start();
+
+      final result = await apiWithLimit(adapter).postJson('/v1/parse', {});
+
+      expect(result, const Err<Object?>(ApiError(null, 'timeout')));
+      expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+    });
+
+    test('토큰을 구하다 멈춰도 상한에서 끝나고 요청을 보내지 않는다', () async {
+      final adapter = _FakeAdapter((_) => _json(200, {}));
+
+      final result = await apiWithLimit(
+        adapter,
+        appCheck: () => Completer<String?>().future,
+      ).postJson('/v1/parse', {});
+
+      expect(result, const Err<Object?>(ApiError(null, 'timeout')));
+      expect(adapter.requests, isEmpty);
+    });
+
+    test('dio의 연결·수신 시간 초과도 timeout이다', () async {
+      final adapter = _FakeAdapter(
+        (options) => throw DioException.receiveTimeout(
+          timeout: const Duration(seconds: 5),
+          requestOptions: options,
+        ),
+      );
+
+      expect(
+        await apiWithLimit(adapter).postJson('/v1/parse', {}),
+        const Err<Object?>(ApiError(null, 'timeout')),
+      );
+    });
+
+    test('상한 안에 온 응답은 그대로 받는다', () async {
+      final adapter = _FakeAdapter((_) => _json(200, {'intent': 'other'}));
+
+      final result = await apiWithLimit(adapter).postJson('/v1/parse', {});
+
+      expect(
+        result,
+        isA<Ok<Object?>>().having((ok) => ok.value, 'value', {
+          'intent': 'other',
+        }),
+      );
+    });
+  });
 }
 
 /// 요청을 기록하고 [_respond]가 만든 응답을 돌려주는 어댑터.
 class _FakeAdapter implements HttpClientAdapter {
   _FakeAdapter(this._respond);
 
-  final ResponseBody Function(RequestOptions options) _respond;
+  final FutureOr<ResponseBody> Function(RequestOptions options) _respond;
   final requests = <RequestOptions>[];
   final bodies = <String>[];
 

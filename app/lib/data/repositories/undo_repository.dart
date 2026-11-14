@@ -14,8 +14,10 @@ import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/undo_log_entry.dart';
 import 'package:drift/drift.dart';
 
-/// 되돌릴 수 있는 표. docs/architecture.md '폰 DB'의 되돌리기 대상과 같다.
+/// 되돌릴 수 있는 표. docs/architecture.md '폰 DB'의 되돌리기 대상과 같다. `courses`는 수업 시트의
+/// [직접 입력]으로 수업과 함께 만든 과목을 그 동작과 함께 지울 때만 쓴다(`ClassSlotRepository`).
 const Set<String> undoableTables = {
+  'courses',
   'events',
   'tasks',
   'fixed_blocks',
@@ -51,6 +53,29 @@ class UndoRecorder {
       return;
     }
     _steps.add(UndoRestore(table, row.data));
+  }
+
+  /// [table]의 [id] 행에서 [columns](SQL 열 이름)만 고치기 전에 부른다. 되돌리면 그 열만 직전 값으로
+  /// 돌리고 나머지 열은 지금 값을 둔다. 동기화가 다른 열을 바꾸는 표(`tasks`)의 사용자 열에 쓴다.
+  /// 행이 없으면 담지 않는다. [columns]가 비었거나 `id`를 담으면 [ArgumentError]다.
+  Future<void> beforeColumns(String table, int id, Set<String> columns) async {
+    _checkTable(table);
+    if (columns.isEmpty || columns.contains('id')) {
+      throw ArgumentError.value(columns, 'columns');
+    }
+    if (!_rows.add((table, id))) return;
+    final names = columns.map((column) => '"$column"').join(', ');
+    final row = await _db
+        .customSelect(
+          'SELECT $names FROM "$table" WHERE "id" = ?',
+          variables: [Variable.withInt(id)],
+        )
+        .getSingleOrNull();
+    if (row == null) {
+      _rows.remove((table, id));
+      return;
+    }
+    _steps.add(UndoPatch(table, id, Map.of(row.data)));
   }
 
   /// [table]에 새로 넣은 [id] 행을 담는다(되돌리면 지운다).
