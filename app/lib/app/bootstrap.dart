@@ -3,11 +3,17 @@
 // 서버 주소 확인(release는 https만, [isAllowedApiBase]) → `Firebase.initializeApp` → App Check
 // `activate` → Remote Config 설정·앱 기본값·지난 실행에서 받은 값 적용(세 단계를 따로) → 실제 모드의 폰 DB
 // 열기 → 시작 작업(설치 표식 확인, LMS 상태 정리, `app/startup.dart`) → 지금 모드의 폰 DB 열기까지만
-// 기다린 뒤 `runApp`을 부른다(`main.dart`). 데모 DB를 열지 못하면 데모를 버리고 실제 모드로 연다. 이 가운데
-// 하나라도 실패하면 [BootFailed]를 돌려주고, main은 앱 대신 20 시스템의 시작 실패 화면을 띄운다(OS 시작
-// 화면에서 멈추지 않게). 먼저 시작한 준비도 기다려, 그 오류가 잡히지 않은 채 남지 않게 한다. Remote Config
-// `fetchAndActivate()`([fetchRemoteConfigAfterLaunch])와 보관 기간이 지난 기록 정리는 runApp 뒤에 시작하고
-// 화면은 기다리지 않는다. 위젯 테스트는 Firebase 없이 `RootApp`만 띄우므로 이 파일을 부르지 않는다.
+// 기다린 뒤 `runApp`을 부른다(`main.dart`).
+//
+// 서버 주소, Firebase 초기화, 폰 DB 열기, shared_preferences·날짜 형식·화면 방향 준비가 실패하거나 예상하지
+// 못한 오류가 나면 [BootFailed]를 돌려주고, main은 앱 대신 20 시스템의 시작 실패 화면을 띄운다(OS 시작 화면에서
+// 멈추지 않게). App Check 활성화, Remote Config의 세 단계, 시작 작업 안의 DB 읽기·쓰기 실패는 기록만 남기고
+// 앱을 띄우며, 데모 DB를 열지 못하면 데모를 버리고 실제 모드로 연다. 함께 시작한 준비(화면 방향·
+// shared_preferences·날짜 형식)는 만들자마자 `ignore()`해, 앞 단계를 기다리는 사이 실패해도 잡히지 않은 오류로
+// 먼저 알리지 않는다(뒤의 await가 그 오류를 받아 시작 실패로 다룬다). 시작이 실패하면 [_settle]로 남은 준비가
+// 끝나기를 기다린 뒤 돌려준다. Remote Config `fetchAndActivate()`([fetchRemoteConfigAfterLaunch])와 보관 기간이
+// 지난 기록 정리는 runApp 뒤에 시작하고 화면은 기다리지 않는다. 위젯 테스트는 Firebase 없이 `RootApp`만
+// 띄우므로 이 파일을 부르지 않는다.
 
 import 'package:cnu_ai_assistant/app/config.dart';
 import 'package:cnu_ai_assistant/app/logging.dart';
@@ -64,11 +70,12 @@ Future<BootOutcome> bootstrap() async {
   // Firebase와 상관없는 준비는 함께 시작해 시작 시간을 늘리지 않는다.
   // 세로 폰만 지원한다(docs/decisions.md 2026-11-06 '화면은 세로 폰만 지원한다'). targetSdk 36의
   // Android 16은 큰 화면(태블릿·폴더블)에서 이 고정을 따르지 않으므로 화면은 넓은 폭에서도 넘치지 않아야 한다.
+  // 앞 단계를 기다리는 사이 실패해도 잡히지 않은 오류로 먼저 알리지 않게 ignore()한다(뒤의 await는 오류를 받음).
   final orientation = SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
-  ]);
-  final preferences = SharedPreferences.getInstance();
-  final dateFormatting = initializeDateFormatting('ko');
+  ])..ignore();
+  final preferences = SharedPreferences.getInstance()..ignore();
+  final dateFormatting = initializeDateFormatting('ko')..ignore();
 
   AppDatabase? realDb;
   ProviderContainer? container;
@@ -120,7 +127,7 @@ Future<BootOutcome> bootstrap() async {
   }
 }
 
-/// [futures]가 모두 끝나기를 기다리고 오류는 버린다(실패한 시작을 정리할 때).
+/// [futures]가 모두 끝나기를 기다리고 오류는 버린다(실패한 시작을 정리할 때. 오류는 이미 시작 실패로 다룸).
 Future<void> _settle(List<Future<Object?>?> futures) async {
   for (final future in futures) {
     if (future == null) continue;
