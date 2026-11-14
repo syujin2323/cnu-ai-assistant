@@ -69,6 +69,14 @@ abstract final class Defaults {
   /// 한 번에 할 최대 시간(분, `max_block` 규칙).
   static const int maxBlockMin = 120;
 
+  /// 자동으로 놓는 블록 사이의 최소 간격(분). 화면에 쉬는 시간으로 그리지 않고, 제안 배치·옮기기의 다른
+  /// 시간 제안·빈 시간 추천이 모두 지킨다(docs/decisions.md 2026-11-15 '배치 기본값과 간격(E1–E7)').
+  static const int blockGapMin = 15;
+
+  /// 마감 여유(분). 마지막 블록이 마감보다 이만큼 먼저 끝나게 놓고, 그 안에 다 들어가지 않을 때만 여유
+  /// 시간에도 놓는다(docs/decisions.md 2026-11-15 '배치 기본값과 간격(E1–E7)').
+  static const int deadlineSlackMin = 720;
+
   /// 배치 지평(일). 마감이 이 기간 안에 있는 할 일을 제안 블록으로 배치한다.
   static const int planHorizonDays = 14;
 
@@ -86,14 +94,14 @@ abstract final class Defaults {
 
   /// 종류별 기본 예상 시간(분). 사용자가 넣은 값과 `estimate` 규칙이 없을 때 쓴다.
   /// 영상은 출석 인정 시간이나 영상 길이를 쓰고(둘 다 모르면 [unknownVideoMin]),
-  /// LMS '자료'(`material`)는 할 일로 만들지 않으므로 넣지 않는다.
+  /// LMS '자료'(`material`)는 할 일로 만들지 않으므로 넣지 않는다. 토론·시험은 기본값을 두지 않아
+  /// 자동으로 배치하지 않고, 사용자가 그 할 일의 예상 시간을 넣거나 `estimate` 규칙을 두면 배치한다
+  /// (docs/decisions.md 2026-11-15 '배치 기본값과 간격(E1–E7)').
   static const Map<TaskKind, int> estimateMinByKind = {
     TaskKind.assignment: 60,
     TaskKind.quiz: 30,
-    TaskKind.team: 90,
-    TaskKind.discussion: 30,
-    TaskKind.exam: 180,
-    TaskKind.personal: 30,
+    TaskKind.team: 120,
+    TaskKind.personal: 60,
   };
 
   /// 출석 인정 시간도 영상 길이도 모르는 영상의 계획 시간(분).

@@ -88,6 +88,8 @@ class PlanBlock {
     required this.status,
     required this.source,
     this.reason,
+    this.answeredAt,
+    this.fromBriefing = false,
   });
 
   final int id;
@@ -105,4 +107,10 @@ class PlanBlock {
 
   /// 블록 근거. 사용자가 직접 놓거나 옮긴 블록은 null.
   final BlockReason? reason;
+
+  /// 02 홈 피드백 카드에서 '했어요'·'못 했어요'로 답한 시각. 답한 블록은 다시 묻지 않는다.
+  final DateTime? answeredAt;
+
+  /// 01 아침 브리핑에서 확정한 블록인지. 브리핑에서 다시 확정하면 이 블록을 새 선택으로 바꾼다.
+  final bool fromBriefing;
 }
