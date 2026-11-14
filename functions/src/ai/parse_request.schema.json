@@ -1,0 +1,40 @@
+{
+  "title": "ParseRequest",
+  "description": "POST /v1/parse 요청 본문. 서버만 쓴다(docs/architecture.md '앱과 서버 사이 약속 (API)'). 모르는 필드는 받되 무시하고 제공사로 넘기지 않는다.",
+  "type": "object",
+  "required": ["text", "today", "weekday", "now", "courses"],
+  "properties": {
+    "text": {
+      "description": "사용자 문장. 300자까지.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "today": {
+      "description": "Asia/Seoul 달력 날짜(하루 경계를 적용하지 않음).",
+      "type": "string",
+      "format": "date"
+    },
+    "weekday": {
+      "type": "string",
+      "enum": ["월", "화", "수", "목", "금", "토", "일"]
+    },
+    "now": {
+      "description": "Asia/Seoul 시각 HH:mm.",
+      "type": "string",
+      "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+    },
+    "courses": {
+      "description": "과목 이름. 20개까지, 이름은 40자까지.",
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 40 }
+        }
+      }
+    }
+  }
+}

@@ -15,4 +15,10 @@ describe("api", () => {
       httpsTrigger: {},
     });
   });
+
+  it("binds only the provider API key secret", () => {
+    expect(api.__endpoint.secretEnvironmentVariables).toEqual([
+      { key: "LLM_API_KEY" },
+    ]);
+  });
 });

@@ -9,7 +9,7 @@
   "unsupportedRule": null,
   "items": [
     {
-      "title": "데이터구조 과제",
+      "title": "과제",
       "kind": "task",
       "category": "course",
       "course": "데이터구조",
@@ -29,6 +29,7 @@
       "prep": null,
       "shiftMinutes": null,
       "target": null,
+      "targetDate": null,
       "exceptionType": null
     }
   ],

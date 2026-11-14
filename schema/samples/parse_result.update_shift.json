@@ -13,9 +13,9 @@
       "kind": "event",
       "category": null,
       "course": null,
-      "date": "2026-10-13",
-      "weekday": "화",
-      "dateExpression": "내일",
+      "date": null,
+      "weekday": null,
+      "dateExpression": null,
       "timeExpression": null,
       "start": null,
       "end": null,
@@ -29,6 +29,7 @@
       "prep": null,
       "shiftMinutes": 60,
       "target": "내일 스터디",
+      "targetDate": "2026-10-13",
       "exceptionType": null
     }
   ],

@@ -29,6 +29,7 @@
       "prep": "노트북",
       "shiftMinutes": null,
       "target": null,
+      "targetDate": null,
       "exceptionType": null
     }
   ],

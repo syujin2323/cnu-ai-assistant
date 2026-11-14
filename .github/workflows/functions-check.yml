@@ -1,17 +1,20 @@
 name: functions-check
 
-# functions/(Cloud Functions 서버)를 바꾼 PR과 develop push에서 서버 코드의 린트(타입 검사·ESLint·Prettier)와
-# 테스트를 돌린다. 필수 검사가 아니므로 경로 필터를 워크플로에 둔다(docs/architecture.md '확인과 CI').
+# functions/(Cloud Functions 서버)나 schema/(서버가 복사해 쓰는 응답 약속)를 바꾼 PR과 develop push에서 서버 코드의
+# 린트(타입 검사·ESLint·Prettier)와 테스트를 돌린다. 필수 검사가 아니므로 경로 필터를 워크플로에 둔다
+# (docs/architecture.md '확인과 CI').
 # 명령을 바꾸면 레포 루트 Makefile의 functions-check도 같은 PR에서 고친다.
 on:
   pull_request:
     paths:
       - "functions/**"
+      - "schema/**"
       - ".github/workflows/functions-check.yml"
   push:
     branches: [develop]
     paths:
       - "functions/**"
+      - "schema/**"
       - ".github/workflows/functions-check.yml"
 
 permissions: {}

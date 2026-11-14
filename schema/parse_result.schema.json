@@ -137,6 +137,7 @@
         "prep",
         "shiftMinutes",
         "target",
+        "targetDate",
         "exceptionType"
       ],
       "properties": {
@@ -227,8 +228,13 @@
           "type": ["integer", "null"]
         },
         "target": {
-          "description": "바꾸기·지우기에서 대상을 가리키는 원래 표현(예: 내일 회의).",
+          "description": "바꾸기·지우기에서 대상을 가리키는 원래 표현(예: 내일 스터디).",
           "type": ["string", "null"]
+        },
+        "targetDate": {
+          "description": "바꾸기·지우기에서 문장이 대상의 날짜를 말했으면 그 날짜(예: '내일 스터디'의 내일). date 같은 다른 날짜 칸은 새 값이다.",
+          "type": ["string", "null"],
+          "format": "date"
         },
         "exceptionType": {
           "description": "수업 변경의 종류. 폰 DB class_exceptions.kind와 같은 값이다.",

@@ -13,9 +13,9 @@
       "kind": "event",
       "category": null,
       "course": null,
-      "date": "2026-10-17",
-      "weekday": "토",
-      "dateExpression": "토요일",
+      "date": null,
+      "weekday": null,
+      "dateExpression": null,
       "timeExpression": null,
       "start": null,
       "end": null,
@@ -29,6 +29,7 @@
       "prep": null,
       "shiftMinutes": null,
       "target": "토요일 알바",
+      "targetDate": "2026-10-17",
       "exceptionType": null
     }
   ],

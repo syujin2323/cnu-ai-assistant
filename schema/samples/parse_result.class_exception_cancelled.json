@@ -29,6 +29,7 @@
       "prep": null,
       "shiftMinutes": null,
       "target": null,
+      "targetDate": null,
       "exceptionType": "cancelled"
     }
   ],
