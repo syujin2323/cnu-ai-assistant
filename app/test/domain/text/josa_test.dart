@@ -112,6 +112,33 @@ void main() {
       expect(withJosa('Project X', Josa.iGa), 'Project X가'); // 엑스
     });
 
+    test('ASCII 로마 숫자는 표의 모든 값을 을/를과 으로/로로 함께 가른다(ㄹ·다른 받침·받침 없음)', () {
+      // 으로/로만 보면 ㄹ(십일)과 받침 없음(엑스아이)이 같은 '로'라 읽기가 빠져도 모른다.
+      for (final (numeral, eulReul, euroRo) in [
+        ('I', '을', '로'), // 일
+        ('II', '를', '로'), // 이
+        ('III', '을', '으로'), // 삼
+        ('IV', '를', '로'), // 사
+        ('VI', '을', '으로'), // 육
+        ('VII', '을', '로'), // 칠
+        ('VIII', '을', '로'), // 팔
+        ('IX', '를', '로'), // 구
+        ('XI', '을', '로'), // 십일
+        ('XII', '를', '로'), // 십이
+      ]) {
+        expect(
+          withJosa('미적분학$numeral', Josa.eulReul),
+          '미적분학$numeral$eulReul',
+          reason: numeral,
+        );
+        expect(
+          withJosa('미적분학$numeral', Josa.euroRo),
+          '미적분학$numeral$euroRo',
+          reason: numeral,
+        );
+      }
+    });
+
     test('읽는 소리가 있는 기호는 그 소리로 판정한다', () {
       expect(withJosa('50%', Josa.eulReul), '50%를'); // 퍼센트
       expect(withJosa('30℃', Josa.eulReul), '30℃를'); // 도
