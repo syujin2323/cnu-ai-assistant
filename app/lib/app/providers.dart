@@ -13,6 +13,7 @@ import 'dart:async';
 import 'package:cnu_ai_assistant/app/config.dart';
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/data/api/install_token.dart';
+import 'package:cnu_ai_assistant/data/api/parse_client.dart';
 import 'package:cnu_ai_assistant/data/api/server_api.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/db/demo_database_files.dart';
@@ -319,6 +320,11 @@ final apiProvider = Provider<ServerApi>((ref) {
   ref.onDispose(api.close);
   return api;
 });
+
+/// /v1/parse 클라이언트. Remote Config `ai_open`이 꺼져 있으면 문장을 보내지 않는다.
+final parseClientProvider = Provider<ParseClient>(
+  (ref) => ParseClient(ref.watch(apiProvider), aiOpen: readAiOpen),
+);
 
 /// 지금 시각. 테스트는 `FixedClock`으로 덮어쓴다.
 final clockProvider = Provider<Clock>((ref) => const Clock());
