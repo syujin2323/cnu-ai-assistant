@@ -40,7 +40,7 @@ work="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/leak-check.XXXXXX")"
 names_file=""
 
 pattern_error() {
-  echo "::error::leak-check 검사 패턴 오류(grep 종료 코드 $1). $SELF_PATH와 LMS_COOKIE_NAMES 형식을 확인하세요."
+  echo "::error::leak-check 검사 패턴 오류(grep 종료 코드 $1). ${SELF_PATH}와 LMS_COOKIE_NAMES 형식을 확인하세요."
   exit 2
 }
 
