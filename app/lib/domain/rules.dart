@@ -45,6 +45,14 @@ abstract final class RuleLimits {
   /// 브리핑 시각의 단위(분).
   static const int briefingStepMin = 30;
 
+  /// [kind]의 분(`minutes`) 범위. 하루 최대 공부량·예상 시간·한 번에 할 최대 시간은 따로, 나머지는 [minutes]다.
+  static ({int low, int high}) minutesOf(RuleKind kind) => switch (kind) {
+    RuleKind.dailyCap => dailyCap,
+    RuleKind.maxBlock => maxBlock,
+    RuleKind.estimate => estimate,
+    _ => minutes,
+  };
+
   /// 고를 수 있는 브리핑 시각(06:00, 06:30, …, 12:00의 13개). 14 온보딩 5단계·10 나·12 내 규칙의
   /// 칩이 함께 쓴다.
   static final List<int> briefingChoices = List.unmodifiable(<int>[
@@ -181,7 +189,8 @@ List<RuleIssue> validateRule(
   int? used(RuleField field, int? value) => allowed(field) ? value : null;
 
   final minutes = used(RuleField.minutes, params.minutes);
-  final minutesOk = minutes != null && _within(minutes, _minutesLimit(kind));
+  final minutesOk =
+      minutes != null && _within(minutes, RuleLimits.minutesOf(kind));
   if (minutes != null && !minutesOk) {
     issues.add(const RuleIssue('minutes', RuleIssueKind.outOfRange));
   }
@@ -369,6 +378,131 @@ RuleParams paramsToStore(
   if (!kind.singleRow) return incoming;
   final current = rulesReplacedBy(kind, incoming, null, existing).firstOrNull;
   return current == null ? incoming : current.params.mergedWith(incoming);
+}
+
+/// 12 내 규칙에서 새 규칙을 만들 때 폼에 처음 넣는 값(임시, docs/screens.md '12 내 규칙'의 '새 폼 값'). 모두
+/// [validateRule]을 통과한다.
+RuleParams ruleFormDefault(RuleKind kind) => switch (kind) {
+  RuleKind.travel => const RuleParams(
+    minutes: 30,
+    position: TravelPosition.everyClass,
+  ),
+  RuleKind.classBuffer => const RuleParams(minutes: 15),
+  RuleKind.workWindow => const RuleParams(startMin: 540, endMin: 1380),
+  RuleKind.blackout => const RuleParams(startMin: 1260, endMin: 1380),
+  RuleKind.preferred => const RuleParams(startMin: 1200, endMin: 1320),
+  RuleKind.maxBlock => const RuleParams(minutes: 90),
+  RuleKind.dailyCap => const RuleParams(minutes: 240),
+  RuleKind.meal => const RuleParams(startMin: 1050, endMin: 1170, minutes: 40),
+  RuleKind.estimate => const RuleParams(
+    taskKind: TaskKind.assignment,
+    minutes: 90,
+  ),
+  RuleKind.notify => const RuleParams(briefingMin: Defaults.briefingMin),
+};
+
+/// `/v1/parse` 응답의 시각 'HH:mm'(`schema/`의 시각 꼴, 00:00–23:59)을 자정 기준 분으로 바꾼다. 꼴이 다르면
+/// [FormatException]이다. 자정을 넘는 구간의 끝은 [completeRule]이 1440을 더한다.
+int minutesFromHhmm(String text) {
+  final match = _hhmm.firstMatch(text);
+  if (match == null) throw const FormatException('Expected HH:mm');
+  return int.parse(match[1]!) * 60 + int.parse(match[2]!);
+}
+
+final RegExp _hhmm = RegExp(r'^([01][0-9]|2[0-3]):([0-5][0-9])$');
+
+/// 말로 정한 규칙의 빈 값을 채운 결과([completeRule]).
+final class RuleCompletion {
+  const RuleCompletion(this.params, {this.proposed = const {}});
+
+  /// 채운 값. 채우지 않은 빈 값은 [validateRule]이 `missing`으로 알리고 앱이 되묻는다.
+  final RuleParams params;
+
+  /// 사용자가 말하지 않아 앱이 제안한 값의 자리. 비어 있지 않으면 저장하기 전에 그 값이 맞는지 묻는다
+  /// (`domain/rule_text.dart`의 `ruleProposalQuestion`).
+  final Set<RuleField> proposed;
+}
+
+/// 말로 정한 규칙(`/v1/parse`의 `rules[]`를 분으로 바꾼 값)의 빈 값을 채운다. docs/architecture.md '내 규칙'의
+/// 채우기 표이고(docs/decisions.md 2026-11-14 '말로 정한 규칙의 빈 값은 가장 그럴듯한 값을 제안해 확인받는다'),
+/// 06 AI 비서는 채운 뒤 [validateRule]을 부르고 남은 빈 값만 되묻는다.
+///
+/// - 공부 가능한 시간대(`work_window`)에 시작이나 끝만 있으면 빈 쪽을 [weekdays](null이면 매일)의 지금 하루 창
+///   ([current])으로 제안한다. 요일마다 하루 창이 다르면 채우지 않는다.
+/// - 식사(`meal`)에 분이 없으면 그 시간대 전부로 제안한다.
+/// - 시작·끝이 다 있고 끝이 시작보다 이르면 자정을 넘는 구간으로 보아 끝에 1440을 더한다(22:00–02:00 →
+///   1320–1560). 같으면 그대로 두어 [validateRule]이 되묻게 한다. 조용한 시간도 같다.
+/// - 그 밖의 빈 값(이동 시간의 자리·분, 피할 시간·선호 시간대의 시각, 분 규칙의 분 등)은 채우지 않는다.
+///
+/// 하나만 두는 종류는 저장할 때 기존 행과 합치므로([paramsToStore]) 합친 값도 [validateRule]로 본다. 읽지
+/// 못한 값([UnreadableRuleParams])은 그대로 돌려준다.
+RuleCompletion completeRule(
+  RuleKind kind,
+  RuleParams partial, {
+  required PlannerConfig current,
+  List<int>? weekdays,
+}) {
+  if (partial is UnreadableRuleParams) return RuleCompletion(partial);
+  var startMin = partial.startMin;
+  var endMin = partial.endMin;
+  var minutes = partial.minutes;
+  final proposed = <RuleField>{};
+
+  if (kind == RuleKind.workWindow && (startMin == null) != (endMin == null)) {
+    final window = _sameWorkWindow(current, weekdays);
+    if (window != null) {
+      if (startMin == null) {
+        startMin = window.startMin;
+        proposed.add(RuleField.startMin);
+      } else {
+        endMin = window.endMin;
+        proposed.add(RuleField.endMin);
+      }
+    }
+  }
+  if (startMin != null && endMin != null && endMin < startMin) {
+    endMin += _minutesPerDay;
+  }
+  if (kind == RuleKind.meal &&
+      minutes == null &&
+      startMin != null &&
+      endMin != null &&
+      endMin > startMin) {
+    minutes = endMin - startMin;
+    proposed.add(RuleField.minutes);
+  }
+
+  var quietEndMin = partial.quietEndMin;
+  final quietStartMin = partial.quietStartMin;
+  if (quietStartMin != null &&
+      quietEndMin != null &&
+      quietEndMin < quietStartMin) {
+    quietEndMin += _minutesPerDay;
+  }
+
+  return RuleCompletion(
+    partial.copyWith(
+      startMin: startMin,
+      endMin: endMin,
+      minutes: minutes,
+      quietEndMin: quietEndMin,
+    ),
+    proposed: Set.unmodifiable(proposed),
+  );
+}
+
+/// [weekdays](null이면 매일)의 하루 창이 모두 같으면 그 창, 다르면 null. 1–7 밖의 요일은 건너뛴다(그 값은
+/// [validateRule]이 알린다).
+MinuteRange? _sameWorkWindow(PlannerConfig current, List<int>? weekdays) {
+  final days =
+      weekdays ??
+      [for (var day = DateTime.monday; day <= DateTime.sunday; day++) day];
+  final windows = {
+    for (final day in days)
+      if (day >= DateTime.monday && day <= DateTime.sunday)
+        current.forWeekday(day).workWindow,
+  };
+  return windows.length == 1 ? windows.single : null;
 }
 
 /// 날마다 반복되는 실제 시각 구간. 구간이 시작하는 달력일의 자정 기준 분이고, 자정을 넘으면 [endMin]에 1440을
@@ -684,14 +818,6 @@ _Shape _shapeOf(RuleKind kind) => switch (kind) {
       RuleField.quietEndMin,
     ],
   ),
-};
-
-/// 그 종류의 분 범위.
-({int low, int high}) _minutesLimit(RuleKind kind) => switch (kind) {
-  RuleKind.dailyCap => RuleLimits.dailyCap,
-  RuleKind.maxBlock => RuleLimits.maxBlock,
-  RuleKind.estimate => RuleLimits.estimate,
-  _ => RuleLimits.minutes,
 };
 
 /// 후보 이름을 `|`로 잇는다. [_shapeOf]의 `oneOf`는 [RuleField] 순서로 적는다(테스트가 본다).
