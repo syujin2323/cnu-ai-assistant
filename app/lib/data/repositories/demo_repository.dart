@@ -7,6 +7,7 @@
 
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/guard_storage.dart';
+import 'package:cnu_ai_assistant/data/repositories/local_data_repository.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 
 /// 데모 DB 저장소.
@@ -15,15 +16,7 @@ class DemoRepository {
 
   final AppDatabase _db;
 
-  /// 모든 표를 비운다. 하나라도 지우지 못하면 아무것도 지우지 않고 [Err]다.
-  Future<Result<void>> clearAll() => guardStorage(
-    'demo.clearAll',
-    () => _db.transaction(() async {
-      // 표 사이 외래 키가 지우는 순서에 걸리지 않게 검사를 트랜잭션 끝으로 미룬다.
-      await _db.customStatement('PRAGMA defer_foreign_keys = ON');
-      for (final table in _db.allTables) {
-        await _db.delete(table).go();
-      }
-    }),
-  );
+  /// 모든 표를 비운다([clearAllTables]). 하나라도 지우지 못하면 아무것도 지우지 않고 [Err]다.
+  Future<Result<void>> clearAll() =>
+      guardStorage('demo.clearAll', () => clearAllTables(_db));
 }
