@@ -45,10 +45,14 @@ class _RootAppState extends ConsumerState<RootApp> {
     // 먼저 부른다(docs/architecture.md '앱 코드 규약'의 백그라운드 작업).
     // 하루가 바뀌었고 그날 브리핑을 아직 보지 않았으면 시작 위치 규칙을 다시 돌린다.
     unawaited(ref.read(startRulesProvider).onResume());
+    // 자리를 비운 사이 지난 제안과 놓친 블록을 바로 고친다.
+    unawaited(ref.read(planControllerProvider.notifier).recalculate());
   }
 
   @override
   Widget build(BuildContext context) {
+    // 앱을 켠 동안 재계산 계기를 늘 듣는다(결과가 바뀌어도 이 위젯은 다시 그리지 않음).
+    ref.listen(planControllerProvider, (_, _) {});
     return MaterialApp.router(
       title: AppStrings.appName,
       routerConfig: ref.watch(routerProvider),
