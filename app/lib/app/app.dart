@@ -9,6 +9,7 @@ import 'dart:async';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/app/theme.dart';
+import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/widgets/demo_band.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
@@ -68,11 +69,15 @@ class _RootAppState extends ConsumerState<RootApp> {
         // import하므로 그 위젯들이 옛 Theme·MaterialLocalizations를 찾을 수 있게 감싼다. material_ui
         // 1.8.0의 폐기 안내는 '의존성이 material_ui로 옮겨 가는 동안만 쓰는 임시 도구'라는 뜻이다.
         // 의존성이 모두 옮겨 가면 이 줄을 지운다.
-        return MediaQuery(
-          data: media,
-          // ignore: deprecated_member_use
-          child: MaterialUiCompatibilityBridge(
-            child: _DemoFrame(child: child!),
+        // 모션 프리셋 위젯은 등급을 MotionScope에서 읽는다(화면 테스트는 off로 덮어씀).
+        return MotionScope(
+          level: ref.watch(motionLevelProvider),
+          child: MediaQuery(
+            data: media,
+            // ignore: deprecated_member_use
+            child: MaterialUiCompatibilityBridge(
+              child: _DemoFrame(child: child!),
+            ),
           ),
         );
       },
