@@ -16,7 +16,9 @@ import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/free_slots.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
+import 'package:cnu_ai_assistant/domain/planner/plan_range.dart';
 import 'package:cnu_ai_assistant/domain/planner/schedule.dart';
+import 'package:cnu_ai_assistant/domain/planner/time_span.dart';
 import 'package:cnu_ai_assistant/domain/rules.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
@@ -248,6 +250,82 @@ void main() {
           (sum, b) => sum + b.endAt.difference(b.startAt).inMinutes,
         );
         expect(minutes, lessThanOrEqualTo(240));
+      }
+    }
+  });
+
+  test('데모 시드로 2주를 계산하면 제안은 모두 빈 시간 안이고 블록 사이를 15분 띄우며 시간이 모자라지 않는다', () async {
+    for (final now in [friday, DateTime(2026, 11, 18, 14, 3)]) {
+      final db = await open(now);
+      final today = logicalDate(now, dayBoundaryMin: Defaults.dayBoundaryMin);
+      final end = logicalDayEnd(
+        DateTime(
+          today.year,
+          today.month,
+          today.day + Defaults.planHorizonDays - 1,
+        ),
+        dayBoundaryMin: Defaults.dayBoundaryMin,
+      );
+      final schedule = _ok(
+        await ScheduleRepository(db).read(
+          start: logicalDayStart(
+            today,
+            dayBoundaryMin: Defaults.dayBoundaryMin,
+          ),
+          end: end,
+        ),
+      );
+      final tasks = _ok(await TaskRepository(db).read());
+      final config = PlannerConfig.from(_ok(await RulesRepository(db).read()));
+      final result = planRange(
+        now: now,
+        from: today,
+        schedule: schedule,
+        tasks: tasks,
+        config: config,
+        dayBoundaryMin: Defaults.dayBoundaryMin,
+      );
+      expect(result.blocks, isNotEmpty);
+      expect(result.shortages, isEmpty);
+
+      final fixed = Schedule(
+        classSlots: schedule.classSlots,
+        classExceptions: schedule.classExceptions,
+        fixedBlocks: schedule.fixedBlocks,
+        events: schedule.events,
+        planBlocks: [
+          for (final b in schedule.planBlocks)
+            if (b.status == PlanBlockStatus.confirmed ||
+                b.status == PlanBlockStatus.done)
+              b,
+        ],
+      );
+      final taken = [
+        for (final b in fixed.planBlocks) TimeSpan(b.startAt, b.endAt),
+      ];
+      for (final b in result.blocks) {
+        final span = TimeSpan(b.startAt, b.endAt);
+        final free = dayAvailability(
+          logicalDate(b.startAt, dayBoundaryMin: Defaults.dayBoundaryMin),
+          schedule: fixed,
+          config: config,
+          dayBoundaryMin: Defaults.dayBoundaryMin,
+        ).free;
+        expect(
+          free.any(
+            (f) => !span.start.isBefore(f.start) && !span.end.isAfter(f.end),
+          ),
+          isTrue,
+          reason: '$now $span',
+        );
+        expect(span.start.isBefore(now), isFalse);
+        for (final other in taken) {
+          final apart = span.start.isAfter(other.start)
+              ? span.start.difference(other.end)
+              : other.start.difference(span.end);
+          expect(apart.inMinutes, greaterThanOrEqualTo(Defaults.blockGapMin));
+        }
+        taken.add(span);
       }
     }
   });
