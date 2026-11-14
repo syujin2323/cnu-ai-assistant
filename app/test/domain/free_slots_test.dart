@@ -211,9 +211,13 @@ void main() {
       ],
     );
 
-    Rule travel(TravelPosition position, {List<int>? weekdays}) => rule(
+    Rule travel(
+      TravelPosition position, {
+      int minutes = 60,
+      List<int>? weekdays,
+    }) => rule(
       RuleKind.travel,
-      RuleParams(minutes: 60, position: position),
+      RuleParams(minutes: minutes, position: position),
       weekdays: weekdays,
     );
 
@@ -250,6 +254,65 @@ void main() {
         span(at(monday, 11, 10), at(monday, 13, 50)),
         span(at(monday, 15, 10), at(monday, 18)),
       ]);
+    });
+
+    test('그 논리적 하루의 수업만 보므로 다음 날 첫 수업은 이날의 마지막 수업이 아니다', () {
+      // 월 10:00–11:00, 화 09:00–10:00.
+      final schedule = Schedule(
+        classSlots: [
+          classSlot(id: 1, startMin: 600, endMin: 660),
+          classSlot(
+            id: 2,
+            weekday: DateTime.tuesday,
+            startMin: 540,
+            endMin: 600,
+          ),
+        ],
+      );
+      expect(free(schedule, rules: [travel(TravelPosition.dayEdges)]), [
+        span(at(monday, 12), at(monday, 18)),
+      ]);
+    });
+
+    test('하루 경계 전 새벽 수업은 전날 논리적 하루의 마지막 수업이다', () {
+      // 하루 창 20:00–02:00. 월 21:00–22:00과 화 01:00–01:30은 월의 논리적 하루, 화 10:00–11:00은 화의
+      // 논리적 하루다.
+      final schedule = Schedule(
+        classSlots: [
+          classSlot(id: 1, startMin: 1260, endMin: 1320),
+          classSlot(id: 2, weekday: DateTime.tuesday, startMin: 60, endMin: 90),
+          classSlot(
+            id: 3,
+            weekday: DateTime.tuesday,
+            startMin: 600,
+            endMin: 660,
+          ),
+        ],
+      );
+      final rules = [
+        rule(
+          RuleKind.workWindow,
+          const RuleParams(startMin: 1200, endMin: 1560),
+        ),
+        travel(TravelPosition.dayEdges, minutes: 30),
+      ];
+      expect(free(schedule, rules: rules), [
+        span(at(monday, 20), at(monday, 20, 30)),
+        span(at(monday, 22, 10), at(monday + 1, 0, 50)),
+      ]);
+    });
+
+    test('이동 시간이 수업 앞뒤 여유보다 짧으면 여유를 쓴다', () {
+      final schedule = Schedule(
+        classSlots: [classSlot(startMin: 600, endMin: 660)],
+      );
+      expect(
+        free(schedule, rules: [travel(TravelPosition.dayEdges, minutes: 5)]),
+        [
+          span(at(monday, 9), at(monday, 9, 50)),
+          span(at(monday, 11, 10), at(monday, 18)),
+        ],
+      );
     });
   });
 
@@ -340,13 +403,14 @@ void main() {
     ];
 
     test('자정을 넘는 고정 일정과 일정을 뺀다', () {
+      // 일정 21:30–다음 날 00:10, 고정 일정 23:00–다음 날 01:00. 일정을 빼지 않거나 고정 일정을 24:00에서
+      // 자르면 결과가 달라진다.
       final schedule = Schedule(
-        fixedBlocks: [fixedBlock(startMin: 1320, endMin: 1410)],
-        events: [event(at(monday, 23, 50), at(monday + 1, 1))],
+        fixedBlocks: [fixedBlock(startMin: 1380, endMin: 1500)],
+        events: [event(at(monday, 21, 30), at(monday + 1, 0, 10))],
       );
       expect(free(schedule, rules: lateWindow), [
-        span(at(monday, 20), at(monday, 22)),
-        span(at(monday, 23, 30), at(monday, 23, 50)),
+        span(at(monday, 20), at(monday, 21, 30)),
         span(at(monday + 1, 1), at(monday + 1, 2)),
       ]);
     });
@@ -476,6 +540,71 @@ void main() {
       ]);
     });
 
+    test('식사 시간대와 겹치지 않는 식사 고정 일정은 점심을 대신하지 않는다', () {
+      final dinnerBlock = FixedBlock(
+        id: 1,
+        name: '저녁',
+        weekdays: const [DateTime.monday],
+        startMin: 1080,
+        endMin: 1140,
+        bufferMin: 0,
+        kind: FixedBlockKind.meal,
+        source: EntrySource.manual,
+      );
+      expect(withLunch(Schedule(fixedBlocks: [dinnerBlock])), [
+        span(at(monday, 9), at(monday, 11, 30)),
+        span(at(monday, 12, 10), at(monday, 18)),
+      ]);
+    });
+
+    test('식사 시간이 들어가는 조각이 여럿이면 가장 긴 조각이 아니라 가장 이른 조각에 둔다', () {
+      // 시간대 안의 빈 조각은 11:30–12:15(45분)와 12:35–13:30(55분)이다.
+      final schedule = Schedule(
+        events: [
+          event(at(monday, 11), at(monday, 11, 30)),
+          event(at(monday, 12, 15), at(monday, 12, 35)),
+          event(at(monday, 13, 30), at(monday, 14)),
+        ],
+      );
+      expect(withLunch(schedule), [
+        span(at(monday, 9), at(monday, 11)),
+        span(at(monday, 12, 10), at(monday, 12, 15)),
+        span(at(monday, 12, 35), at(monday, 13, 30)),
+        span(at(monday, 14), at(monday, 18)),
+      ]);
+    });
+
+    test('식사 시간이 들어가는 조각이 없으면 앞 조각이 아니라 가장 긴 조각을 통째로 비운다', () {
+      // 시간대 안의 빈 조각은 11:30–11:40(10분)과 12:30–13:00(30분)이다.
+      final schedule = Schedule(
+        events: [
+          event(at(monday, 11), at(monday, 11, 30)),
+          event(at(monday, 11, 40), at(monday, 12, 30)),
+          event(at(monday, 13), at(monday, 14)),
+        ],
+      );
+      expect(withLunch(schedule), [
+        span(at(monday, 9), at(monday, 11)),
+        span(at(monday, 11, 30), at(monday, 11, 40)),
+        span(at(monday, 14), at(monday, 18)),
+      ]);
+    });
+
+    test('양쪽이 바쁜 시간대 안의 빈 조각에서는 앞 수업 직후에 둔다', () {
+      // 10:00–11:30, 13:30–15:00 수업 사이 11:40–13:20이 빈다.
+      final schedule = Schedule(
+        classSlots: [
+          classSlot(id: 1, startMin: 600, endMin: 690),
+          classSlot(id: 2, startMin: 810, endMin: 900),
+        ],
+      );
+      expect(withLunch(schedule), [
+        span(at(monday, 9), at(monday, 9, 50)),
+        span(at(monday, 12, 20), at(monday, 13, 20)),
+        span(at(monday, 15, 10), at(monday, 18)),
+      ]);
+    });
+
     test('식사가 아닌 고정 일정은 식사를 대신하지 않는다', () {
       final schedule = Schedule(
         fixedBlocks: [fixedBlock(startMin: 720, endMin: 750)],
@@ -490,12 +619,13 @@ void main() {
     test('저녁 규칙은 점심에 더해 비우고, 하루 창 끝에 붙어 있으면 끝에 둔다', () {
       final dinner = rule(
         RuleKind.meal,
-        const RuleParams(startMin: 1020, endMin: 1140, minutes: 60),
+        const RuleParams(startMin: 1020, endMin: 1140, minutes: 40),
         id: 101,
       );
+      // 시간대 안의 빈 조각 17:00–18:00(60분)이 하루 창 끝에 붙어 있으므로 17:20–18:00을 비운다.
       expect(withLunch(const Schedule(), rules: [dinner]), [
         span(at(monday, 9), at(monday, 11, 30)),
-        span(at(monday, 12, 10), at(monday, 17)),
+        span(at(monday, 12, 10), at(monday, 17, 20)),
       ]);
     });
   });
