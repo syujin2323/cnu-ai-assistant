@@ -1,0 +1,376 @@
+{
+  "title": "ParseOutput",
+  "description": "제공사 구조화 출력용 /v1/parse 응답. 키는 schema/parse_result.schema.json과 같고, 없는 값은 빈 문자열(숫자도 숫자 문자열)·빈 배열로 나타낸다. 게이트웨이가 null로 바꾼다.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "intent",
+    "needsClarification",
+    "clarification",
+    "queryType",
+    "queryFrom",
+    "queryTo",
+    "queryCourse",
+    "unsupportedRule",
+    "items",
+    "rules"
+  ],
+  "properties": {
+    "intent": {
+      "type": "string",
+      "enum": [
+        "create_event",
+        "create_task",
+        "update",
+        "delete",
+        "query",
+        "class_exception",
+        "set_rule",
+        "other"
+      ],
+      "description": "문장의 의도."
+    },
+    "needsClarification": {
+      "type": "boolean",
+      "description": "되물어야 하면 true."
+    },
+    "clarification": {
+      "type": "object",
+      "description": "되물을 것.",
+      "additionalProperties": false,
+      "required": ["field", "question"],
+      "properties": {
+        "field": {
+          "type": "string",
+          "enum": [
+            "",
+            "date",
+            "time",
+            "title",
+            "course",
+            "target",
+            "repeat",
+            "rule",
+            "intent",
+            "other"
+          ],
+          "description": "되묻는 값. 되묻지 않으면 빈 문자열."
+        },
+        "question": {
+          "type": "string",
+          "description": "되물을 질문(차분한 존댓말 한 문장). 되묻지 않으면 빈 문자열."
+        }
+      }
+    },
+    "queryType": {
+      "type": "string",
+      "enum": ["", "deadlines_this_week", "today_plan", "free_time"],
+      "description": "질문의 종류. 질문이 아니면 빈 문자열."
+    },
+    "queryFrom": {
+      "type": "string",
+      "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2})?$",
+      "description": "질문이 말한 기간의 첫날 YYYY-MM-DD. 말하지 않았으면 빈 문자열."
+    },
+    "queryTo": {
+      "type": "string",
+      "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2})?$",
+      "description": "질문이 말한 기간의 마지막 날(포함) YYYY-MM-DD. 하루면 queryFrom과 같다. 말하지 않았으면 빈 문자열."
+    },
+    "queryCourse": {
+      "type": "string",
+      "description": "질문이 말한 과목. courses[].name 가운데 하나를 그대로. 없으면 빈 문자열."
+    },
+    "unsupportedRule": {
+      "type": "string",
+      "enum": [
+        "",
+        "notification",
+        "specific_date",
+        "mode",
+        "priority",
+        "other"
+      ],
+      "description": "정해 둔 규칙 종류로 나타낼 수 없는 조건의 종류. 없으면 빈 문자열."
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/item"
+      },
+      "description": "일정·할 일·수업 변경 항목."
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/rule"
+      },
+      "description": "규칙. set_rule이 아니면 빈 배열."
+    }
+  },
+  "definitions": {
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "kind",
+        "category",
+        "course",
+        "date",
+        "weekday",
+        "dateExpression",
+        "timeExpression",
+        "start",
+        "end",
+        "repeat",
+        "fixedBlockKind",
+        "due",
+        "dueTime",
+        "estimatedMinutes",
+        "reminderMinutes",
+        "place",
+        "prep",
+        "shiftMinutes",
+        "target",
+        "targetDate",
+        "exceptionType"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "제목. 바꾸기·지우기에서 말하지 않았으면 빈 문자열."
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["", "event", "task"],
+          "description": "event(시작·끝이 있는 일정)나 task(마감이 있는 할 일). 수업 변경이나 알 수 없으면 빈 문자열."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["", "course", "personal"],
+          "description": "course(courses의 과목에 관한 것)나 personal. 알 수 없으면 빈 문자열."
+        },
+        "course": {
+          "type": "string",
+          "description": "courses[].name 가운데 하나를 그대로. 없거나 확실하지 않으면 빈 문자열."
+        },
+        "date": {
+          "type": "string",
+          "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2})?$",
+          "description": "일정·수업 변경의 날짜 YYYY-MM-DD. 반복 일정이거나 없으면 빈 문자열."
+        },
+        "weekday": {
+          "type": "string",
+          "enum": ["", "월", "화", "수", "목", "금", "토", "일"],
+          "description": "date의 요일. date가 없으면 빈 문자열."
+        },
+        "dateExpression": {
+          "type": "string",
+          "description": "문장 속 날짜의 원래 표현 그대로(예: 내일, 주말마다). 없으면 빈 문자열."
+        },
+        "timeExpression": {
+          "type": "string",
+          "description": "문장 속 시각의 원래 표현 그대로(예: 8시, 오후 3시부터 5시까지). 없으면 빈 문자열."
+        },
+        "start": {
+          "type": "string",
+          "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9])?$",
+          "description": "시작 시각 HH:mm(24시간). 없으면 빈 문자열."
+        },
+        "end": {
+          "type": "string",
+          "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9])?$",
+          "description": "끝 시각 HH:mm(24시간). 말하지 않았으면 빈 문자열."
+        },
+        "repeat": {
+          "type": "object",
+          "description": "반복 일정.",
+          "additionalProperties": false,
+          "required": ["freq", "byDay"],
+          "properties": {
+            "freq": {
+              "type": "string",
+              "enum": ["", "weekly", "biweekly", "monthly", "other"],
+              "description": "반복 주기. 한 번뿐이면 빈 문자열."
+            },
+            "byDay": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
+              },
+              "description": "반복 요일. 반복이 아니면 빈 배열."
+            }
+          }
+        },
+        "fixedBlockKind": {
+          "type": "string",
+          "enum": ["", "meal", "work", "exercise", "commute", "other"],
+          "description": "반복 일정의 종류. 반복 일정이 아니면 빈 문자열."
+        },
+        "due": {
+          "type": "string",
+          "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2})?$",
+          "description": "할 일의 마감 날짜 YYYY-MM-DD. 없으면 빈 문자열."
+        },
+        "dueTime": {
+          "type": "string",
+          "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9])?$",
+          "description": "마감 시각 HH:mm. 말하지 않았으면 빈 문자열."
+        },
+        "estimatedMinutes": {
+          "type": "string",
+          "pattern": "^([0-9]{1,4})?$",
+          "description": "문장이 말한 할 일의 예상 시간(분, 숫자만). 없으면 빈 문자열."
+        },
+        "reminderMinutes": {
+          "type": "string",
+          "pattern": "^([0-9]{1,4})?$",
+          "description": "문장이 말한 알림 시점(시작 몇 분 전, 숫자만). 없으면 빈 문자열."
+        },
+        "place": {
+          "type": "string",
+          "description": "장소. 수업 변경이면 바뀐 장소. 없으면 빈 문자열."
+        },
+        "prep": {
+          "type": "string",
+          "description": "준비물. 없으면 빈 문자열."
+        },
+        "shiftMinutes": {
+          "type": "string",
+          "pattern": "^(-?[0-9]{1,4})?$",
+          "description": "바꾸기에서 상대로 옮긴 분(늦추면 양수, 당기면 음수, 숫자만). 없으면 빈 문자열."
+        },
+        "target": {
+          "type": "string",
+          "description": "바꾸기·지우기에서 대상을 가리키는 원래 표현. 없으면 빈 문자열."
+        },
+        "targetDate": {
+          "type": "string",
+          "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2})?$",
+          "description": "바꾸기·지우기에서 문장이 대상의 날짜를 말했으면 그 날짜 YYYY-MM-DD. 없으면 빈 문자열."
+        },
+        "exceptionType": {
+          "type": "string",
+          "enum": ["", "cancelled", "makeup", "exam", "place_change"],
+          "description": "수업 변경의 종류. 수업 변경이 아니면 빈 문자열."
+        }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "action",
+        "minutes",
+        "position",
+        "start",
+        "end",
+        "timeExpression",
+        "weekdays",
+        "course",
+        "taskKind",
+        "briefingTime",
+        "notifyCap",
+        "quietStart",
+        "quietEnd"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "travel",
+            "class_buffer",
+            "work_window",
+            "blackout",
+            "preferred",
+            "max_block",
+            "daily_cap",
+            "meal",
+            "estimate",
+            "notify"
+          ],
+          "description": "규칙 종류."
+        },
+        "action": {
+          "type": "string",
+          "enum": ["set", "remove"],
+          "description": "정하기(set)나 없애기(remove)."
+        },
+        "minutes": {
+          "type": "string",
+          "pattern": "^([0-9]{1,4})?$",
+          "description": "분(숫자만). 없으면 빈 문자열."
+        },
+        "position": {
+          "type": "string",
+          "enum": ["", "day_edges", "every_class"],
+          "description": "이동 시간의 자리. 말하지 않았거나 애매하면 빈 문자열."
+        },
+        "start": {
+          "type": "string",
+          "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9])?$",
+          "description": "시각 구간의 시작 HH:mm. 없으면 빈 문자열."
+        },
+        "end": {
+          "type": "string",
+          "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9])?$",
+          "description": "시각 구간의 끝 HH:mm. 없으면 빈 문자열."
+        },
+        "timeExpression": {
+          "type": "string",
+          "description": "문장 속 시각의 원래 표현 그대로. 없으면 빈 문자열."
+        },
+        "weekdays": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
+          },
+          "description": "규칙이 걸리는 요일. 매일이거나 말하지 않았으면 빈 배열."
+        },
+        "course": {
+          "type": "string",
+          "description": "courses[].name 가운데 하나를 그대로. 없으면 빈 문자열."
+        },
+        "taskKind": {
+          "type": "string",
+          "enum": [
+            "",
+            "assignment",
+            "video",
+            "quiz",
+            "team",
+            "discussion",
+            "exam",
+            "material",
+            "personal"
+          ],
+          "description": "할 일 종류. 없으면 빈 문자열."
+        },
+        "briefingTime": {
+          "type": "string",
+          "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9])?$",
+          "description": "아침 브리핑 시각 HH:mm. 없으면 빈 문자열."
+        },
+        "notifyCap": {
+          "type": "string",
+          "pattern": "^([0-9]{1,4})?$",
+          "description": "하루 알림 상한(숫자만). 없으면 빈 문자열."
+        },
+        "quietStart": {
+          "type": "string",
+          "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9])?$",
+          "description": "조용한 시간의 시작 HH:mm. 없으면 빈 문자열."
+        },
+        "quietEnd": {
+          "type": "string",
+          "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9])?$",
+          "description": "조용한 시간의 끝 HH:mm. 없으면 빈 문자열."
+        }
+      }
+    }
+  }
+}
