@@ -118,6 +118,9 @@ enum RuleIssueKind {
   /// 값이 허용 범위 밖이다. 브리핑 시각은 단위가 맞지 않을 때도 이것이다.
   outOfRange,
 
+  /// 폰 DB에 저장된 값을 읽지 못했다([UnreadableRuleParams]). [RuleIssue.field]는 `params`다.
+  unreadable,
+
   /// 끝이 시작보다 늦지 않거나, 시작에서 하루(1440분) 이상 떨어져 있다.
   badOrder,
 }
@@ -156,6 +159,10 @@ List<RuleIssue> validateRule(
   RuleParams params, {
   List<int>? weekdays,
 }) {
+  // 읽지 못한 값은 어느 종류로도 쓸 수 없다. 배치·알림 설정에서 빠진다.
+  if (params is UnreadableRuleParams) {
+    return const [RuleIssue('params', RuleIssueKind.unreadable)];
+  }
   final shape = _shapeOf(kind);
   bool allowed(RuleField field) =>
       shape.required.contains(field) || shape.oneOf.contains(field);

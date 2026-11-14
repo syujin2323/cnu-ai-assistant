@@ -7,6 +7,8 @@
 // 한 행)은 한 트랜잭션이다. 값 검사를 통과하지 못한 값이나 알림 재설계 전에 저장하지 않는 알림 값
 // ([unsavableFields])을 넣으면 [ArgumentError]다. 부르는 쪽은 [paramsToStore]로 합친 값을 [validateRule]과
 // [unsavableFields]로 먼저 보고 되묻는다. 폰 DB를 읽거나 쓰지 못하면 [StorageError]를 담은 [Err]다.
+// 저장된 값을 읽지 못한 규칙([Rule.isUnreadable])은 그 행만 그렇게 읽고 나머지 규칙은 그대로 읽는다. 이런
+// 규칙은 켤 수 없고([ArgumentError]) 끄기·지우기와 새 값으로 고치기만 된다.
 
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/guard_storage.dart';
@@ -107,6 +109,14 @@ class RulesRepository {
       () => _db.transaction(() async {
         final rule = await _byId(id);
         if (rule == null) return false;
+        // 읽지 못한 규칙을 켜면 쓰지도 못하면서 같은 자리의 다른 규칙만 끄게 된다.
+        if (active && rule.isUnreadable) {
+          throw ArgumentError.value(
+            id,
+            'id',
+            'unreadable rule cannot be enabled',
+          );
+        }
         final undo = UndoRecorder(_db);
         if (active) {
           await _turnOff(

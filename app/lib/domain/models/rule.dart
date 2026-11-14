@@ -171,6 +171,7 @@ class RuleParams {
   @override
   bool operator ==(Object other) =>
       other is RuleParams &&
+      other.runtimeType == runtimeType &&
       other.minutes == minutes &&
       other.position == position &&
       other.startMin == startMin &&
@@ -215,6 +216,34 @@ class RuleParams {
 }
 
 /// 사용자가 말이나 폼으로 정한 배치 조건과 아침 브리핑 시각. `rules` 표의 한 행.
+/// 폰 DB에 저장된 값을 이 앱이 읽지 못한 규칙 값(깨진 JSON, 형이 틀린 값, 모르는 열거값).
+///
+/// [source]는 저장된 JSON 문자열 그대로이고, 다시 쓸 때도 그대로 쓴다(`RuleParamsConverter`). 값은 모두
+/// 비어 있어 값 검사(`validateRule`)를 통과하지 못하므로 배치·알림 설정에 쓰지 않고, 12 내 규칙에는 '읽을 수
+/// 없는 규칙'으로 보여 지울 수 있게 한다(docs/decisions.md 2026-11-14 '모르는 값이 든 행은 안전한 열만
+/// 대체값으로 읽는다').
+final class UnreadableRuleParams extends RuleParams {
+  const UnreadableRuleParams(this.source);
+
+  /// 폰 DB에 저장된 JSON 문자열.
+  final String source;
+
+  /// 읽지 못한 값이라 JSON으로 다시 만들 수 없다. 폰 DB에는 [source]를 쓴다.
+  @override
+  Map<String, Object?> toJson() => const {};
+
+  @override
+  bool operator ==(Object other) =>
+      other is UnreadableRuleParams && other.source == source;
+
+  @override
+  int get hashCode => source.hashCode;
+
+  // 저장된 값은 로그에 남기지 않는다.
+  @override
+  String toString() => 'UnreadableRuleParams()';
+}
+
 class Rule {
   const Rule({
     required this.id,
@@ -233,6 +262,9 @@ class Rule {
   final RuleKind kind;
 
   final RuleParams params;
+
+  /// 저장된 값을 읽지 못한 규칙인지([UnreadableRuleParams]). 이런 규칙은 배치에 쓰지 않고 지우기만 한다.
+  bool get isUnreadable => params is UnreadableRuleParams;
 
   /// 적용하는 요일. 1(월)–7(일). null이면 매일이다. DB에는 JSON 배열로 둔다.
   final List<int>? weekdays;
