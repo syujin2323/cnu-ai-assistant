@@ -301,6 +301,32 @@ void main() {
         throwsArgumentError,
       );
       expect((await all()).single.params, travel40);
+
+      // 고치기도 재설계 전 알림 값(하루 상한·조용한 시간)은 받지 않고 아무것도 바꾸지 않는다.
+      final notify = await save(
+        RuleKind.notify,
+        const RuleParams(briefingMin: 480),
+      );
+      final before = (await all()).map(_snapshot).toList();
+      final logBefore = await log();
+      for (final params in const [
+        RuleParams(briefingMin: 480, notifyCap: 3),
+        RuleParams(quietStartMin: 1380, quietEndMin: 1860),
+      ]) {
+        await expectLater(
+          rules.edit(
+            notify.id,
+            params: params,
+            source: EntrySource.manual,
+            now: later,
+          ),
+          throwsArgumentError,
+          reason: '$params',
+        );
+      }
+      expect((await all()).map(_snapshot).toList(), before);
+      expect(_snapshotLog(await log()), _snapshotLog(logBefore));
+
       expect(
         _ok(
           await rules.edit(

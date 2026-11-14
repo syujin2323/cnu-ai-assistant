@@ -58,6 +58,16 @@ abstract final class RuleLimits {
 /// (docs/architecture.md '내 규칙'). 그 값의 검사와 [NotifyConfig]는 지우지 않고 재설계 때 다시 본다.
 const Set<RuleField> savableNotifyFields = {RuleField.briefingMin};
 
+/// 알림 재설계 전이라 저장하지 않는 값의 자리. `notify`에서 [savableNotifyFields] 밖에 값이 있으면 그
+/// 자리들이고, 다른 종류면 빈 목록이다. [validateRule]은 값의 범위만 보므로(그 검사는 재설계 때 쓰려고 남김)
+/// 저장하기 전에는 이것도 본다. 비어 있지 않으면 06 AI 비서와 12 내 규칙은 '아직 그런 조건은 정할 수
+/// 없어요'로 답하고, 저장소(`RulesRepository`)는 [ArgumentError]를 던진다.
+List<RuleField> unsavableFields(RuleKind kind, RuleParams params) => [
+  if (kind == RuleKind.notify)
+    for (final field in RuleField.values)
+      if (field.isSetIn(params) && !savableNotifyFields.contains(field)) field,
+];
+
 /// 규칙 값의 자리. 이름이 `rules.params`의 JSON 키와 같고, [weekdays]만 `rules` 표의 열이다.
 /// [RuleIssue.field]는 이 이름을 쓴다.
 enum RuleField {
@@ -129,7 +139,8 @@ final class RuleIssue {
   String toString() => 'RuleIssue($field, ${kind.name})';
 }
 
-/// 규칙 값을 검사한다. 빈 목록이면 저장할 수 있다.
+/// 규칙 값을 검사한다. 빈 목록이면 값이 범위 안이다. 저장할 수 있는지는 [unsavableFields]도 비어야 한다
+/// (알림 재설계 전에는 `notify`의 하루 상한·조용한 시간을 범위 안이어도 저장하지 않는다).
 ///
 /// 하나만 두는 종류(`class_buffer`, `max_block`, `notify`)는 기존 행과 합친 뒤의 값을 넣는다.
 /// 범위는 [RuleLimits](임시값)이고, 시각은 하루 안(0–1439)에서 시작해 끝이 시작보다 늦고
