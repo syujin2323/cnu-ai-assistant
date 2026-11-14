@@ -377,3 +377,10 @@
 - 이유: 데모를 끝내려면 데모 DB를 비워야 하는데 열리지 않으면 끝낼 수 없고, 앱을 다시 켜도 시작 실패 화면의 [다시 시도]가 듣지 않는다. 그러면 빠져나가는 길이 앱을 지우는 것뿐이고, 그때 백업되지 않는 실제 폰 DB(시간표·할 일·규칙)까지 사라진다. 2026-11-13 '폰 DB를 열지 못하면 다시 시도만 둔다'는 되살릴 수 없는 실제 데이터를 지키려는 결정인데, 이 경우에는 반대로 샘플 때문에 실제 데이터를 잃게 된다.
 - 다른 후보: 시작 실패 화면에 데모 모드일 때만 '데모 끝내기' 버튼을 두기.
 - 영향: architecture.md '데모 모드'·'실행 방법'·'폰 DB'(인덱스)·패키지 줄(`path_provider`), screens.md '20 시스템', `app/lib/app/startup.dart`(`openCurrentDatabase`), `app/lib/app/providers.dart`(`AppModeController.abandonDemo`), `app/lib/data/db/demo_database_files.dart`.
+
+## 2026-11-14 로그인하는 중은 로그인 전으로 본다 (2026-11-13 '로그인한 뒤 온보딩 도중 앱이 꺼지면 2단계부터 연다' 보완)
+
+- 결정: 시작 위치 규칙과 온보딩은 LMS 상태 `connecting`(로그인하는 중)을 `disconnected`처럼 로그인 전으로 본다. 그래서 '2단계부터 연다'는 LMS 상태가 로그인 전(`disconnected`·`connecting`)이 아닐 때이고, 실제 모드의 시작 위치는 로그인 전이면 `/onboarding`이다. 로그인한 적이 있는 상태(`active`·`restoring`·`reconnectRequired`)만 로그인한 것으로 본다.
+- 이유: lms.md '세션 상태' 1번대로 로그인에 실패해도 로그인 화면에 있는 동안은 `connecting`에 둔다. 이것을 로그인한 것으로 보면, 실패한 뒤 '로그인 없이 둘러보기' → '끝내기'로 돌아올 때 처음 사용자는 로그인 없이 2단계로 가고 로그아웃했던 사용자는 바로 `/briefing`·`/today`로 가서, 실제 모드를 로그인 없이 시작하게 된다(2026-11-04 '온보딩은 다섯 단계다'와 어긋남). 앱을 껐다 켜면 `connecting`은 시작 전 상태로 돌아가므로 2단계부터 여는 경우는 그대로다.
+- 다른 후보: 둘러보기로 1단계를 떠날 때 LMS 상태를 시작 전으로 되돌리기(LMS 로그인 흐름이 생긴 뒤에야 만들 수 있음).
+- 영향: architecture.md '화면 이동'·'온보딩', lms.md '세션 상태' 1번, `app/lib/domain/models/lms_session_state.dart`(`beforeLogin`), `app/lib/app/router.dart`, `app/lib/features/onboarding/onboarding_controller.dart`.
