@@ -100,7 +100,84 @@ void main() {
     });
   });
 
+  group('저장된 JSON 읽기', () {
+    // docs/decisions.md 2026-11-14 '모르는 값이 든 행은 안전한 열만 대체값으로 읽는다'. fromJson은 형이 틀리거나
+    // 모르는 열거값이면 FormatException을 내고, 변환기가 그 행을 UnreadableRuleParams로 읽는다.
+    test('모르는 키는 무시한다', () {
+      expect(
+        RuleParams.fromJson(const {'minutes': 5, 'unknownKey': true}),
+        const RuleParams(minutes: 5),
+      );
+    });
+
+    test('형이 틀리거나 모르는 열거값이면 FormatException이다', () {
+      for (final json in const <Map<String, Object?>>[
+        {'minutes': 60.0},
+        {'minutes': '60'},
+        {'position': 'both'},
+        {'taskKind': 'lecture'},
+      ]) {
+        expect(
+          () => RuleParams.fromJson(json),
+          throwsFormatException,
+          reason: '$json',
+        );
+      }
+    });
+  });
+
+  group('UnreadableRuleParams', () {
+    test('저장된 문자열이 같을 때만 같고, 값이 빈 규칙 값과도 다르다', () {
+      expect(
+        const UnreadableRuleParams('{"minutes":"60"}'),
+        const UnreadableRuleParams('{"minutes":"60"}'),
+      );
+      expect(
+        const UnreadableRuleParams('{"minutes":"60"}').hashCode,
+        const UnreadableRuleParams('{"minutes":"60"}').hashCode,
+      );
+      expect(
+        const UnreadableRuleParams('{"minutes":"60"}'),
+        isNot(const UnreadableRuleParams('{"minutes":"61"}')),
+      );
+      expect(const UnreadableRuleParams('{}'), isNot(const RuleParams()));
+      expect(const RuleParams(), isNot(const UnreadableRuleParams('{}')));
+    });
+
+    test('저장된 값은 문자열로 남기지 않는다', () {
+      const params = UnreadableRuleParams('{"minutes":"60"}');
+      expect(params.toString(), 'UnreadableRuleParams()');
+      expect(params.toJson(), isEmpty);
+    });
+
+    test('합치면 들어온 값만 남은 보통 규칙 값이 된다', () {
+      final merged = const UnreadableRuleParams('{"briefingMin":"x"}')
+          .mergedWith(const RuleParams(briefingMin: 450));
+      expect(merged, const RuleParams(briefingMin: 450));
+      expect(merged, isNot(isA<UnreadableRuleParams>()));
+    });
+  });
+
   group('Rule', () {
+    test('값을 읽지 못한 규칙인지 안다', () {
+      Rule ruleWith(RuleParams params) => Rule(
+        id: 1,
+        kind: RuleKind.travel,
+        params: params,
+        active: true,
+        source: EntrySource.manual,
+        createdAt: DateTime(2026, 11, 14),
+        updatedAt: DateTime(2026, 11, 14),
+      );
+      expect(ruleWith(const UnreadableRuleParams('x')).isUnreadable, isTrue);
+      expect(
+        ruleWith(
+          const RuleParams(minutes: 30, position: TravelPosition.dayEdges),
+        ).isUnreadable,
+        isFalse,
+      );
+    });
+
     final at = DateTime(2026, 11, 13, 9);
     final rule = Rule(
       id: 1,

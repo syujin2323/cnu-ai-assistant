@@ -414,3 +414,10 @@
 - 이유: 0분 규칙은 그 할 일을 끝내 제안하지 않게 만들고 사용자는 그것을 알기 어렵다. 시험 기본값이 180분인데 '시험 공부는 보통 5시간'은 범위 밖이라 정할 수 없었다. 자료는 할 일로 만들지 않고, 개인인데 과목이 붙은 할 일은 만들지 않으므로(06 AI 비서 카드의 과목 할 일 종류 칩에 '개인'을 두지 않음) 그런 규칙은 저장돼도 맞는 할 일이 없다.
 - 다른 후보: 0분만 막기(1–240분), 문서 그대로(0–240분, 영상만 막음).
 - 영향: architecture.md '내 규칙'(값 범위), screens.md '12 내 규칙', `app/lib/domain/rules.dart`(`RuleLimits.estimate`, `validateRule`, `PlannerConfig.estimateMin`은 영상이면 null).
+
+## 2026-11-14 모르는 값이 든 행은 안전한 열만 대체값으로 읽는다
+
+- 결정: 폰 DB의 열거값 열과 JSON 열에 이 앱이 모르는 값(새 버전이 쓴 값)이나 깨진 값이 있으면, 그 값으로 읽어도 해가 없는 열만 대체값으로 읽는다. 출처 열은 `manual`, `fixed_blocks.kind`는 `other`, `plan_blocks.status`는 `dismissed`, `lms_items.kind`는 `material`, `sync_runs.result`는 `parse_failure`이고, 깨진 블록 근거는 근거 없음(null)이다. 규칙 값(`rules.params`)을 읽지 못하면 그 행만 '읽을 수 없는 규칙'으로 읽는다. 이런 규칙은 배치·알림 설정에 넣지 않고 켤 수 없으며, 12 내 규칙에서 지울 수 있다. 그 밖의 열(할 일의 종류·상태, 규칙 종류, 수업 예외 종류, 캠퍼스 등)은 대체값을 두지 않고, 그 표 읽기는 `StorageError`(원인 `FormatException`)가 된다. 대체값으로 읽기만 해서는 저장된 값을 바꾸지 않는다. 첫 테스트 배포 뒤에는 열거값을 지우거나 이름을 바꾸지 않고 더하기만 하며, 폰 DB에 새 열거값을 쓰기 시작하는 변경은 Shorebird 패치로 내지 않고 새 release로 낸다.
+- 이유: 지금까지는 한 행에 모르는 값이 하나만 있어도 변환기가 `FormatException`을 던져 그 표 전체를 읽지 못했다. Shorebird 패치로 새 값을 쓴 뒤 패치를 되돌리거나 옛 빌드를 다시 설치하면 `plan_blocks`·`tasks`·`rules`를 아예 못 읽어 02 홈·09 일간이 비고 배치도 멈춘다. 대체값은 틀리게 읽어도 할 일·수업이 생기거나 사라지지 않고 사용자가 넣은 것을 덮어쓰지 않는 쪽으로 골랐다(지운 블록으로 보면 시간을 막지 않고 보이지 않으며, 직접 넣은 것으로 보면 다시 불러오거나 다시 계산할 때 덮어쓰지 않는다). 할 일의 상태나 수업 예외처럼 짐작하면 뜻이 바뀌는 열은 짐작하지 않는다. 규칙 값은 하나만 비워 읽으면 과목과 종류를 함께 정한 예상 시간 규칙이 그 과목 전체의 규칙이 되는 것처럼 뜻이 바뀌므로 행 전체를 읽지 않는다.
+- 다른 후보: 지금처럼 모든 열에서 `FormatException`(한 행이 표 전체를 막음), 모든 열에 대체값 두기(할 일 상태처럼 짐작하면 뜻이 바뀜), 저장소가 행마다 잡아 그 행을 건너뛰기(조회를 행마다 나눠야 하고 스트림도 따로 만들어야 함), 규칙 값의 틀린 값만 null로 읽기(규칙의 뜻이 바뀜).
+- 영향: architecture.md '앱 코드 규약'(오류 처리)·'폰 DB'·'내 규칙'·'테스트 배포', screens.md '12 내 규칙', CLAUDE.md '브랜치'의 Shorebird 예외, `app/lib/data/db/enum_converter.dart`·`json_converters.dart`·`tables.dart`, `app/lib/domain/models/rule.dart`(`UnreadableRuleParams`), `app/lib/domain/rules.dart`(`RuleIssueKind.unreadable`), `app/lib/data/repositories/rules_repository.dart`·`guard_storage.dart`(주석).

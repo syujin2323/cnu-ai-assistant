@@ -13,9 +13,11 @@ import 'package:drift/native.dart' show SqliteException;
 /// [body]를 부르고 그 값을 [Ok]로, 폰 DB 실패를 [StorageError]를 담은 [Err]로 돌려준다.
 ///
 /// [operation]은 실패한 동작의 이름이다(예: `settings.write`). [body]에는 폰 DB 실행기 호출만
-/// 넣는다. 닫힌 연결(데모를 끝내며 닫은 DB 등)은 [StateError]로 오므로 여기서 잡는데, 값 변환 같은
-/// 다른 코드를 넣으면 그 코드의 프로그래밍 오류까지 [Err]로 숨긴다. 같은 까닭으로 한 행 조회는
-/// `getSingle`(0행·여러 행이면 [StateError]) 대신 `getSingleOrNull`을 쓰고 '없음'은 null로 다룬다.
+/// 넣는다. 대체값이 없는 열의 모르는 값은 변환기가 [FormatException]으로 던지므로 그 조회도 [Err]가
+/// 된다(docs/architecture.md '폰 DB'의 '모르는 값'). 닫힌 연결(데모를 끝내며 닫은 DB 등)은
+/// [StateError]로 오므로 여기서 잡는데, 값 변환 같은 다른 코드를 넣으면 그 코드의 프로그래밍 오류까지
+/// [Err]로 숨긴다. 같은 까닭으로 한 행 조회는 `getSingle`(0행·여러 행이면 [StateError]) 대신
+/// `getSingleOrNull`을 쓰고 '없음'은 null로 다룬다.
 /// [ArgumentError]·[TypeError] 같은 다른 [Error]는 프로그래밍 오류라 그대로 던진다.
 Future<Result<T>> guardStorage<T>(
   String operation,

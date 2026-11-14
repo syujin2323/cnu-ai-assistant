@@ -162,6 +162,14 @@ void main() {
       }
     });
 
+    test('읽지 못한 규칙 값은 어느 종류로도 검사를 통과하지 못한다', () {
+      for (final kind in RuleKind.values) {
+        expect(issues(kind, const UnreadableRuleParams('{"minutes":"60"}')), [
+          issue('params', RuleIssueKind.unreadable),
+        ], reason: kind.name);
+      }
+    });
+
     test('estimate는 과목이나 종류가 하나는 있어야 한다(missingOneOf)', () {
       expect(issues(RuleKind.estimate, const RuleParams(minutes: 60)), [
         issue('courseId|taskKind', RuleIssueKind.missingOneOf),
@@ -920,6 +928,34 @@ void main() {
       ]);
       expect(config.estimateMin(courseId: 7, kind: TaskKind.video), isNull);
       expect(config.estimateMin(courseId: 7, kind: TaskKind.quiz), 90);
+    });
+
+    test('읽지 못한 규칙은 더 나중에 저장했어도 설정에 쓰지 않는다', () {
+      final config = PlannerConfig.from([
+        rule(
+          RuleKind.workWindow,
+          const RuleParams(startMin: 540, endMin: 1080),
+          id: 1,
+        ),
+        rule(
+          RuleKind.workWindow,
+          const UnreadableRuleParams('{"startMin":"x"}'),
+          id: 2,
+        ),
+      ]);
+      expect(
+        config.forWeekday(DateTime.monday).workWindow,
+        const MinuteRange(540, 1080),
+      );
+      final notify = NotifyConfig.from([
+        rule(RuleKind.notify, const RuleParams(briefingMin: 450), id: 1),
+        rule(
+          RuleKind.notify,
+          const UnreadableRuleParams('{"briefingMin":"x"}'),
+          id: 2,
+        ),
+      ]);
+      expect(notify.briefingMin, 450);
     });
 
     test('예상 시간은 과목·종류, 과목, 종류 순서로 찾는다', () {

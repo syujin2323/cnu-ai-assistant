@@ -493,6 +493,217 @@ void main() {
     expect(imported.onlineEdited, isTrue);
   });
 
+  group('모르는 값(새 버전이 쓴 값·깨진 JSON)', () {
+    // docs/decisions.md 2026-11-14 '모르는 값이 든 행은 안전한 열만 대체값으로 읽는다'.
+    Future<int> addTask() => db
+        .into(db.tasks)
+        .insert(
+          TasksCompanion.insert(
+            title: '과제1',
+            kind: TaskKind.assignment,
+            dueTimeUnknown: false,
+            status: TaskStatus.todo,
+          ),
+        );
+
+    Future<int> addRule({RuleParams params = const RuleParams(minutes: 30)}) =>
+        db
+            .into(db.rules)
+            .insert(
+              RulesCompanion.insert(
+                kind: RuleKind.classBuffer,
+                params: params,
+                active: true,
+                source: EntrySource.ai,
+                createdAt: at,
+                updatedAt: at,
+              ),
+            );
+
+    test('대체값이 있는 열은 그 값으로 읽고, 블록 근거가 깨지면 근거 없이 읽으며, 저장된 값은 바꾸지 않는다', () async {
+      final courseId = await addCourse();
+      final slotId = await db
+          .into(db.classSlots)
+          .insert(
+            ClassSlotsCompanion.insert(
+              courseId: courseId,
+              weekday: 1,
+              startMin: 540,
+              endMin: 600,
+              campus: Campus.daedeok,
+              online: false,
+              source: SlotSource.auto,
+            ),
+          );
+      await db
+          .into(db.classExceptions)
+          .insert(
+            ClassExceptionsCompanion.insert(
+              date: '2026-10-29',
+              classSlotId: slotId,
+              kind: ClassExceptionKind.cancelled,
+              source: EntrySource.ai,
+            ),
+          );
+      await db
+          .into(db.fixedBlocks)
+          .insert(
+            FixedBlocksCompanion.insert(
+              name: '점심',
+              weekdays: [1],
+              startMin: 720,
+              endMin: 780,
+              bufferMin: 0,
+              kind: FixedBlockKind.meal,
+              source: EntrySource.ai,
+            ),
+          );
+      await db
+          .into(db.events)
+          .insert(
+            EventsCompanion.insert(
+              title: '회의',
+              startAt: at,
+              endAt: at.add(const Duration(hours: 1)),
+              allDay: false,
+              source: EventSource.ai,
+            ),
+          );
+      await addLmsItem(courseId, '1:1:assignment:1');
+      final taskId = await addTask();
+      await db
+          .into(db.planBlocks)
+          .insert(
+            PlanBlocksCompanion.insert(
+              taskId: taskId,
+              startAt: at,
+              endAt: at.add(const Duration(minutes: 60)),
+              status: PlanBlockStatus.confirmed,
+              source: BlockSource.auto,
+              reason: Value(
+                BlockReason(
+                  slackMin: 60,
+                  dueAt: at,
+                  gapMin: 60,
+                  rank: 1,
+                  factor: BlockFactor.fit,
+                ),
+              ),
+            ),
+          );
+      await addRule();
+      await db
+          .into(db.syncRuns)
+          .insert(
+            SyncRunsCompanion.insert(
+              startedAt: at,
+              trigger: SyncTrigger.open,
+              scope: SyncScope.list,
+              result: SyncResultKind.normal,
+              changedCount: 0,
+              elapsedMs: 10,
+            ),
+          );
+      for (final sql in [
+        "UPDATE class_slots SET source = 'imported'",
+        "UPDATE class_exceptions SET source = 'synced'",
+        "UPDATE fixed_blocks SET kind = 'nap', source = 'synced'",
+        "UPDATE events SET source = 'calendar'",
+        "UPDATE lms_items SET kind = 'survey'",
+        "UPDATE plan_blocks SET status = 'snoozed', source = 'ai', "
+            "reason = '{\"slackMin\":\"x\"}'",
+        "UPDATE rules SET source = 'synced'",
+        "UPDATE sync_runs SET result = 'throttled'",
+      ]) {
+        await db.customStatement(sql);
+      }
+
+      expect(
+        (await db.select(db.classSlots).getSingle()).source,
+        SlotSource.manual,
+      );
+      expect(
+        (await db.select(db.classExceptions).getSingle()).source,
+        EntrySource.manual,
+      );
+      final block = await db.select(db.fixedBlocks).getSingle();
+      expect(block.kind, FixedBlockKind.other);
+      expect(block.source, EntrySource.manual);
+      expect(
+        (await db.select(db.events).getSingle()).source,
+        EventSource.manual,
+      );
+      expect(
+        (await db.select(db.lmsItems).getSingle()).kind,
+        LmsItemKind.material,
+      );
+      final planBlock = await db.select(db.planBlocks).getSingle();
+      expect(planBlock.status, PlanBlockStatus.dismissed);
+      expect(planBlock.source, BlockSource.manual);
+      expect(planBlock.reason, isNull);
+      expect(
+        (await db.select(db.rules).getSingle()).source,
+        EntrySource.manual,
+      );
+      expect(
+        (await db.select(db.syncRuns).getSingle()).result,
+        SyncResultKind.parseFailure,
+      );
+      // 읽기만 해서는 저장된 값이 바뀌지 않는다.
+      expect(await rawText('SELECT status FROM plan_blocks'), 'snoozed');
+      expect(await rawText('SELECT kind FROM lms_items'), 'survey');
+    });
+
+    test(
+      '대체값이 없는 열은 그 표 읽기가 FormatException이고, 저장소가 감싸면 Err(StorageError)다',
+      () async {
+        await addTask();
+        await db.customStatement("UPDATE tasks SET status = 'snoozed'");
+        expect(db.select(db.tasks).get(), throwsFormatException);
+        final result = await guardStorage(
+          'tasks.read',
+          () => db.select(db.tasks).get(),
+        );
+        expect(result, isA<Err<List<Task>>>());
+        final error = (result as Err<List<Task>>).error as StorageError;
+        expect(error.operation, 'tasks.read');
+        expect(error.causeType, 'FormatException');
+        expect(error.code, isNull);
+
+        await addRule();
+        await db.customStatement("UPDATE rules SET kind = 'nap'");
+        expect(db.select(db.rules).get(), throwsFormatException);
+      },
+    );
+
+    test('깨진 규칙 값은 그 행만 읽을 수 없는 규칙으로 읽고, 다시 쓸 때 원래 문자열을 그대로 쓴다', () async {
+      final good = await addRule();
+      final broken = await addRule(params: const RuleParams(minutes: 45));
+      await db.customStatement(
+        "UPDATE rules SET params = '{\"minutes\":\"60\"}' WHERE id = $broken",
+      );
+      final rules = {
+        for (final rule in await db.select(db.rules).get()) rule.id: rule,
+      };
+      expect(rules[good]!.params, const RuleParams(minutes: 30));
+      expect(rules[broken]!.isUnreadable, isTrue);
+      expect(
+        rules[broken]!.params,
+        const UnreadableRuleParams('{"minutes":"60"}'),
+      );
+
+      // 다른 열만 고쳐도, 읽은 값을 그대로 다시 써도 저장된 문자열은 그대로다.
+      await (db.update(db.rules)..where((rule) => rule.id.equals(broken)))
+          .write(const RulesCompanion(active: Value(false)));
+      await (db.update(db.rules)..where((rule) => rule.id.equals(broken)))
+          .write(RulesCompanion(params: Value(rules[broken]!.params)));
+      expect(
+        await rawText('SELECT params FROM rules WHERE id = $broken'),
+        '{"minutes":"60"}',
+      );
+    });
+  });
+
   group('CHECK', () {
     /// 확장 결과 코드 275: SQLITE_CONSTRAINT_CHECK.
     final checkFailed = throwsA(

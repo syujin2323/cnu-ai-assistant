@@ -722,7 +722,7 @@ class $ClassSlotsTable extends ClassSlots
     Campus.values,
   );
   static TypeConverter<SlotSource, String> $convertersource =
-      const EnumConverter(SlotSource.values);
+      const EnumConverter(SlotSource.values, fallback: SlotSource.manual);
 }
 
 class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
@@ -1108,7 +1108,7 @@ class $ClassExceptionsTable extends ClassExceptions
   static TypeConverter<ClassExceptionKind, String> $converterkind =
       const EnumConverter(ClassExceptionKind.values);
   static TypeConverter<EntrySource, String> $convertersource =
-      const EnumConverter(EntrySource.values);
+      const EnumConverter(EntrySource.values, fallback: EntrySource.manual);
 }
 
 class ClassExceptionsCompanion extends UpdateCompanion<ClassException> {
@@ -1437,9 +1437,12 @@ class $FixedBlocksTable extends FixedBlocks
   static TypeConverter<List<int>, String> $converterweekdays =
       const IntListConverter();
   static TypeConverter<FixedBlockKind, String> $converterkind =
-      const EnumConverter(FixedBlockKind.values);
+      const EnumConverter(
+        FixedBlockKind.values,
+        fallback: FixedBlockKind.other,
+      );
   static TypeConverter<EntrySource, String> $convertersource =
-      const EnumConverter(EntrySource.values);
+      const EnumConverter(EntrySource.values, fallback: EntrySource.manual);
 }
 
 class FixedBlocksCompanion extends UpdateCompanion<FixedBlock> {
@@ -1817,7 +1820,7 @@ class $EventsTable extends Events with TableInfo<$EventsTable, Event> {
   }
 
   static TypeConverter<EventSource, String> $convertersource =
-      const EnumConverter(EventSource.values);
+      const EnumConverter(EventSource.values, fallback: EventSource.manual);
 }
 
 class EventsCompanion extends UpdateCompanion<Event> {
@@ -2466,7 +2469,7 @@ class $LmsItemsTable extends LmsItems with TableInfo<$LmsItemsTable, LmsItem> {
   }
 
   static TypeConverter<LmsItemKind, String> $converterkind =
-      const EnumConverter(LmsItemKind.values);
+      const EnumConverter(LmsItemKind.values, fallback: LmsItemKind.material);
 }
 
 class LmsItemsCompanion extends UpdateCompanion<LmsItem> {
@@ -3184,7 +3187,7 @@ class $PlanBlocksTable extends PlanBlocks
         true,
         type: DriftSqlType.string,
         requiredDuringInsert: false,
-      ).withConverter<BlockReason?>($PlanBlocksTable.$converterreasonn);
+      ).withConverter<BlockReason?>($PlanBlocksTable.$converterreason);
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3271,7 +3274,7 @@ class $PlanBlocksTable extends PlanBlocks
           data['${effectivePrefix}source'],
         )!,
       ),
-      reason: $PlanBlocksTable.$converterreasonn.fromSql(
+      reason: $PlanBlocksTable.$converterreason.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.string,
           data['${effectivePrefix}reason'],
@@ -3286,13 +3289,14 @@ class $PlanBlocksTable extends PlanBlocks
   }
 
   static TypeConverter<PlanBlockStatus, String> $converterstatus =
-      const EnumConverter(PlanBlockStatus.values);
+      const EnumConverter(
+        PlanBlockStatus.values,
+        fallback: PlanBlockStatus.dismissed,
+      );
   static TypeConverter<BlockSource, String> $convertersource =
-      const EnumConverter(BlockSource.values);
-  static TypeConverter<BlockReason, String> $converterreason =
+      const EnumConverter(BlockSource.values, fallback: BlockSource.manual);
+  static TypeConverter<BlockReason?, String?> $converterreason =
       const BlockReasonConverter();
-  static TypeConverter<BlockReason?, String?> $converterreasonn =
-      NullAwareTypeConverter.wrap($converterreason);
 }
 
 class PlanBlocksCompanion extends UpdateCompanion<PlanBlock> {
@@ -3392,7 +3396,7 @@ class PlanBlocksCompanion extends UpdateCompanion<PlanBlock> {
     }
     if (reason.present) {
       map['reason'] = Variable<String>(
-        $PlanBlocksTable.$converterreasonn.toSql(reason.value),
+        $PlanBlocksTable.$converterreason.toSql(reason.value),
       );
     }
     return map;
@@ -3640,7 +3644,7 @@ class $RulesTable extends Rules with TableInfo<$RulesTable, Rule> {
   static TypeConverter<List<int>?, String?> $converterweekdaysn =
       NullAwareTypeConverter.wrap($converterweekdays);
   static TypeConverter<EntrySource, String> $convertersource =
-      const EnumConverter(EntrySource.values);
+      const EnumConverter(EntrySource.values, fallback: EntrySource.manual);
 }
 
 class RulesCompanion extends UpdateCompanion<Rule> {
@@ -4523,7 +4527,10 @@ class $SyncRunsTable extends SyncRuns with TableInfo<$SyncRunsTable, SyncRun> {
     SyncScope.values,
   );
   static TypeConverter<SyncResultKind, String> $converterresult =
-      const EnumConverter(SyncResultKind.values);
+      const EnumConverter(
+        SyncResultKind.values,
+        fallback: SyncResultKind.parseFailure,
+      );
   static TypeConverter<List<int>, String> $converterfailedCourseIds =
       const IntListConverter();
   static TypeConverter<List<int>?, String?> $converterfailedCourseIdsn =

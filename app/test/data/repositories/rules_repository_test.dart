@@ -1,7 +1,7 @@
 // 내 규칙 저장소 테스트. docs/architecture.md '내 규칙'·'폰 DB'의 되돌리기.
 //
 // 하나만 두는 종류의 합치기, 같은 요일·같은 과목·종류의 이전 규칙 끄기, 켜기·고치기·지우기, 값 검사,
-// 한 동작이 남기는 되돌리기 기록과 그 기록으로 한 번에 되돌리기를 메모리 DB로 본다.
+// 한 동작이 남기는 되돌리기 기록과 그 기록으로 한 번에 되돌리기, 저장된 값을 읽지 못한 규칙을 메모리 DB로 본다.
 
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/rules_repository.dart';
@@ -11,6 +11,8 @@ import 'package:cnu_ai_assistant/domain/models/entry_source.dart';
 import 'package:cnu_ai_assistant/domain/models/rule.dart';
 import 'package:cnu_ai_assistant/domain/models/task.dart';
 import 'package:cnu_ai_assistant/domain/models/undo_log_entry.dart';
+import 'package:cnu_ai_assistant/domain/rules.dart'
+    show PlannerConfig, TravelTime;
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -479,6 +481,120 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(_ok(await undo.undoLast(now: now)), isTrue);
       await expectation;
+    });
+  });
+
+  group('읽을 수 없는 규칙', () {
+    // docs/decisions.md 2026-11-14 '모르는 값이 든 행은 안전한 열만 대체값으로 읽는다'. 새 버전이 쓴 값이나
+    // 깨진 JSON이 든 행을 흉내 낸다.
+    const broken = '{"minutes":"60"}';
+
+    Future<void> corrupt(int id) => db.customStatement(
+      "UPDATE rules SET params = '$broken' WHERE id = $id",
+    );
+
+    Future<String> rawParams(int id) async =>
+        (await db
+                .customSelect('SELECT params FROM rules WHERE id = $id')
+                .getSingle())
+            .read<String>('params');
+
+    test('그 행만 읽을 수 없는 규칙으로 읽고 나머지는 그대로 읽으며, 배치 설정은 그 규칙을 빼고 만든다', () async {
+      final everyDay = await save(RuleKind.travel, travel40);
+      final monday = await save(
+        RuleKind.travel,
+        travel30,
+        weekdays: [DateTime.monday],
+        at: later,
+      );
+      await corrupt(monday.id);
+
+      final read = await all();
+      expect(read.map((rule) => rule.id), [everyDay.id, monday.id]);
+      expect(read.first.params, travel40);
+      expect(read.last.isUnreadable, isTrue);
+      expect(read.last.active, isTrue);
+      // 월요일에는 나중에 저장한 월요일 규칙이 걸렸겠지만, 읽지 못하므로 매일 규칙을 쓴다.
+      expect(
+        PlannerConfig.from(read).forWeekday(DateTime.monday).travel,
+        const TravelTime(minutes: 40, position: TravelPosition.dayEdges),
+      );
+    });
+
+    test('켜면 ArgumentError이고 아무것도 바꾸지 않으며, 끄기는 된다', () async {
+      final first = await save(RuleKind.travel, travel30);
+      final second = await save(RuleKind.travel, travel40, at: later);
+      await corrupt(first.id);
+      final before = (await all()).map(_snapshot).toList();
+      final logBefore = _snapshotLog(await log());
+
+      // 켜면 쓰지도 못하는 규칙이 같은 요일의 second만 끄게 된다.
+      await expectLater(
+        rules.setActive(first.id, active: true, now: later),
+        throwsArgumentError,
+      );
+      expect((await all()).map(_snapshot).toList(), before);
+      expect(_snapshotLog(await log()), logBefore);
+      expect(await rawParams(first.id), broken);
+
+      await corrupt(second.id);
+      expect(
+        _ok(await rules.setActive(second.id, active: false, now: later)),
+        isTrue,
+      );
+      final off = (await all()).singleWhere((rule) => rule.id == second.id);
+      expect(off.active, isFalse);
+      expect(off.isUnreadable, isTrue);
+      expect(await rawParams(second.id), broken);
+    });
+
+    test('지운 뒤 되돌리면 저장된 문자열 그대로 되살린다', () async {
+      final saved = await save(RuleKind.travel, travel40);
+      await corrupt(saved.id);
+      expect(_ok(await rules.delete(saved.id, now: later)), isTrue);
+      expect(await all(), isEmpty);
+
+      expect(_ok(await undo.undoLast(now: later)), isTrue);
+      expect((await all()).single.isUnreadable, isTrue);
+      expect(await rawParams(saved.id), broken);
+    });
+
+    test('새 값으로 고치면 읽을 수 있는 규칙이 되고, 되돌리면 저장된 문자열로 돌아간다', () async {
+      final saved = await save(RuleKind.travel, travel40);
+      await corrupt(saved.id);
+      expect(
+        _ok(
+          await rules.edit(
+            saved.id,
+            params: travel30,
+            source: EntrySource.manual,
+            now: later,
+          ),
+        ),
+        isTrue,
+      );
+      final fixed = (await all()).single;
+      expect(fixed.isUnreadable, isFalse);
+      expect(fixed.params, travel30);
+
+      expect(_ok(await undo.undoLast(now: later)), isTrue);
+      expect(await rawParams(saved.id), broken);
+    });
+
+    test('하나만 두는 종류를 새로 저장하면 읽지 못한 행에 새 값만 써서 고친다', () async {
+      final saved = await save(
+        RuleKind.classBuffer,
+        const RuleParams(minutes: 15),
+      );
+      await corrupt(saved.id);
+      final again = await save(
+        RuleKind.classBuffer,
+        const RuleParams(minutes: 20),
+        at: later,
+      );
+      expect(again.id, saved.id);
+      expect(again.params, const RuleParams(minutes: 20));
+      expect((await all()).single.isUnreadable, isFalse);
     });
   });
 
