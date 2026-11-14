@@ -145,7 +145,7 @@ void main() {
     }
   });
 
-  test('글자 무게와 자간은 문서와 같다(제목 600·본문 400, 제목만 음수 자간)', () {
+  test('글자 무게와 자간은 문서와 같다(제목 600·본문 400, 제목만 음수 자간이고 본문은 0)', () {
     for (final style in [
       AppText.caption,
       AppText.small,
@@ -167,8 +167,9 @@ void main() {
       expect(style.letterSpacing, -0.6);
     }
     expect(AppText.bodyLarge.letterSpacing, -0.3);
+    // 비워 두면 테마가 Material 글자 기하의 자간을 채우므로 0을 적어 둔다(theme_test가 그린 글자로 본다).
     for (final style in [AppText.caption, AppText.small, AppText.body]) {
-      expect(style.letterSpacing, isNull);
+      expect(style.letterSpacing, 0);
     }
   });
 

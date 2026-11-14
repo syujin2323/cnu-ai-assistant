@@ -8,6 +8,7 @@ import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/privacy_sheet.dart';
 import 'package:cnu_ai_assistant/features/today/today_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/pump_app.dart';
 
@@ -54,4 +55,30 @@ void main() {
       await app.dispose(tester);
     });
   }
+
+  testWidgets('글자 배율 2.0의 iPhone에서 시트가 화면을 덮어도 위 끌기 손잡이로 닫으면 동의하지 않은 것이다', (
+    tester,
+  ) async {
+    // docs/decisions.md 2026-11-14 '시트는 끌기 손잡이로도 닫는다'. 바깥을 누를 자리가 없고 iOS에는 뒤로
+    // 버튼이 없어, 손잡이가 없으면 '확인했어요'(동의) 말고는 닫을 길이 없다.
+    final app = await pumpTestApp(tester, textScale: 2.0);
+    final context = tester.element(find.byType(TodayScreen));
+
+    final result = showPrivacySheet(context, motion: MotionLevel.off);
+    await tester.pumpAndSettle();
+    final sheet = tester.getRect(find.byType(BottomSheet));
+    // 시트가 화면 위 끝까지 차서 바깥(막)을 누를 자리가 없다.
+    expect(sheet.top, 0);
+
+    // 손잡이(시트 맨 위)를 잡아 아래로 끌어 내린다.
+    await tester.dragFrom(
+      sheet.topCenter + const Offset(0, 24),
+      const Offset(0, 700),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('개인정보 처리 안내'), findsNothing);
+    expect(await result, isFalse);
+
+    await app.dispose(tester);
+  });
 }

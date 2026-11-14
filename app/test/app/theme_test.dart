@@ -89,6 +89,56 @@ void main() {
         );
       });
 
+      test('세그먼트 버튼(주 | 월)은 고른 쪽이 strong 배경에 onStrong 글자라 화면 배경과 구별된다', () {
+        final style = theme.segmentedButtonTheme.style!;
+        const selected = {WidgetState.selected};
+        expect(style.backgroundColor!.resolve(selected), colors.strong);
+        expect(style.foregroundColor!.resolve(selected), colors.onStrong);
+        // 안 고른 쪽은 배경을 칠하지 않는다(화면 배경 bg). 상태 표시는 3:1, 글자는 4.5:1 이상이다.
+        expect(style.backgroundColor!.resolve(const {}), isNull);
+        expect(_contrast(colors.strong, colors.bg), greaterThanOrEqualTo(3));
+        expect(
+          _contrast(colors.onStrong, colors.strong),
+          greaterThanOrEqualTo(4.5),
+        );
+      });
+
+      testWidgets('한국어 화면에서 본문·작은 글자의 자간은 0이다(Material 글자 기하가 채우지 않음)', (
+        tester,
+      ) async {
+        late TextTheme textTheme;
+        late TextStyle defaultStyle;
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            locale: const Locale('ko'),
+            supportedLocales: const [Locale('ko')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: Scaffold(
+              body: Builder(
+                builder: (context) {
+                  textTheme = Theme.of(context).textTheme;
+                  defaultStyle = DefaultTextStyle.of(context).style;
+                  return const SizedBox.shrink();
+                },
+              ),
+            ),
+          ),
+        );
+        expect(defaultStyle.letterSpacing, 0);
+        for (final style in [
+          textTheme.bodyMedium,
+          textTheme.bodySmall,
+          textTheme.titleSmall,
+          textTheme.labelLarge,
+          textTheme.labelMedium,
+          textTheme.labelSmall,
+        ]) {
+          expect(style!.letterSpacing, 0);
+        }
+        expect(textTheme.bodyLarge!.letterSpacing, -0.3);
+      });
+
       test('정하지 않은 칸이 strong으로 채워지지 않는다(FilterChip 선택 배경 등)', () {
         final scheme = theme.colorScheme;
         expect(scheme.secondaryContainer, colors.tint);
@@ -98,4 +148,12 @@ void main() {
       });
     });
   }
+}
+
+/// 두 색의 대비(WCAG 상대 휘도).
+double _contrast(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  final (hi, lo) = la > lb ? (la, lb) : (lb, la);
+  return (hi + 0.05) / (lo + 0.05);
 }

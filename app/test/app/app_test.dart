@@ -89,6 +89,26 @@ void main() {
         await app.dispose(tester);
       });
 
+      testWidgets('하단 탭바와 AI 비서 버튼은 모션을 끈 화면 테스트에서도 늘 유리로 그린다', (tester) async {
+        // docs/decisions.md 2026-11-13 '모션은 모든 사람에게 같게 보인다'. 유리는 모션 등급과 관계없고
+        // (R1) OS 투명도 줄이기만 끈다.
+        final app = await pumpTestApp(tester, textScale: textScale);
+        expect(tester.widget<AppTabBar>(find.byType(AppTabBar)).glass, isTrue);
+        final filters = tester
+            .widgetList<BackdropFilter>(
+              find.descendant(
+                of: find.byType(AppTabBar),
+                matching: find.byType(BackdropFilter),
+              ),
+            )
+            .map((widget) => widget.filter)
+            .toList();
+        expect(filters, hasLength(2));
+        expect(filters, everyElement(AppGlass.filter));
+
+        await app.dispose(tester);
+      });
+
       testWidgets('탭바 옆 AI 비서 버튼은 06 AI 비서를 열고, 뒤로 가면 그 탭으로 돌아온다', (
         tester,
       ) async {
@@ -876,11 +896,12 @@ void main() {
           expect(find.byType(WeekScreen), findsOneWidget);
           expect(app.router.state.uri.path, Routes.calendar);
 
-          // '월'은 08 월간으로 바꿔 끼운다. 쌓지 않으므로 뒤로 화살표가 없고 탭바는 그대로다.
+          // '월'은 08 월간으로 바꿔 끼운다. 쌓지 않으므로 아래에 11이 남지 않고 돌아갈 화면도 없으며(뒤로 가기·
+          // iOS 스와이프로 11에 가지 않음), 탭바는 그대로다.
           await tapText(tester, '월');
           expect(find.byType(MonthScreen), findsOneWidget);
-          expect(find.byType(WeekScreen), findsNothing);
-          expect(find.byType(BackButton), findsNothing);
+          expect(find.byType(WeekScreen, skipOffstage: false), findsNothing);
+          expect(app.router.canPop(), isFalse);
           expect(app.router.state.uri.path, Routes.calendarMonth);
           _expectTabs(tester, selected: '캘린더');
 
@@ -892,8 +913,8 @@ void main() {
           await tapText(tester, '월');
           await tapText(tester, '주');
           expect(find.byType(WeekScreen), findsOneWidget);
-          expect(find.byType(MonthScreen), findsNothing);
-          expect(find.byType(BackButton), findsNothing);
+          expect(find.byType(MonthScreen, skipOffstage: false), findsNothing);
+          expect(app.router.canPop(), isFalse);
 
           await app.dispose(tester);
         });

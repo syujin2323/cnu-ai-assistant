@@ -70,6 +70,9 @@ class DemoBand extends StatelessWidget {
                         onPressed: exiting ? null : onExit,
                         style: TextButton.styleFrom(
                           foregroundColor: onInk,
+                          // 끝내는 동안 막은 버튼의 글자. 정하지 않으면 Material 기본 비활성색(ink 38%)이 되어
+                          // 같은 ink인 띠 배경에 묻힌다.
+                          disabledForegroundColor: colors.faint,
                           minimumSize: const Size(
                             AppSize.minTouch,
                             AppSize.minTouch,

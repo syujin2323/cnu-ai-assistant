@@ -53,10 +53,11 @@ class PrivacySheet extends StatelessWidget {
         ],
       ),
     );
+    // 위 여백은 시트의 끌기 손잡이 자리가 대신한다(`showAppSheet`).
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(
         AppSpace.screen,
-        AppSpace.s24,
+        0,
         AppSpace.screen,
         AppSpace.s24,
       ),
