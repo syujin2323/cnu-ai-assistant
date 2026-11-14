@@ -526,6 +526,9 @@ void main() {
             textScale: textScale,
           );
           expect(find.text(OnboardingStep.login.title), findsOneWidget);
+          // 로그아웃 뒤 1단계에서 로그인해 진행 줄이 도는 중이라 LMS 상태가 이미 active다. 미루지 않으면
+          // 시작 위치 규칙이 온보딩을 끝낸 사람으로 보고 /briefing으로 보낸다.
+          await writeLmsSessionState(app, LmsSessionState.active);
 
           app.clock.current = nextMorning;
           app.briefingOpenedToday = false;
@@ -574,6 +577,80 @@ void main() {
             expect(find.byType(BriefingScreen), findsNothing);
             expect(find.byType(WeekScreen), findsOneWidget);
             _expectTabs(tester, selected: '캘린더');
+
+            await app.dispose(tester);
+          },
+        );
+
+        testWidgets(
+          '10 나에서 들어간 데모가 새 날의 데모 브리핑을 띄운 뒤 끝내면, 다음에 돌아올 때 그날 실제 브리핑을 띄운다',
+          (tester) async {
+            final app = await pumpTestApp(
+              tester,
+              now: evening,
+              settings: boundary,
+              textScale: textScale,
+              realBriefingCheck: true,
+            );
+            await tapText(tester, '오늘로 가기');
+            await tapTab(tester, '나');
+            await tapText(tester, '데모 모드 들어가기');
+            expect(find.byType(BriefingScreen), findsOneWidget);
+            await tapText(tester, '오늘로 가기');
+
+            // 데모 모드 그대로 다음 날 돌아오면 데모의 그날 브리핑이 뜬다(데모 DB에 적힘).
+            app.clock.current = nextMorning;
+            await sendAppToBackgroundAndBack(tester);
+            expect(find.byType(BriefingScreen), findsOneWidget);
+            await tapText(tester, '오늘로 가기');
+            await tapText(tester, '끝내기');
+            expect(find.byType(MeScreen), findsOneWidget);
+            final real = BriefingRepository(app.db);
+            expect(await real.isSeen(DateTime(2026, 11, 14)), const Ok(false));
+
+            // 데모에서 돌린 날은 실제 모드의 날로 치지 않는다.
+            app.clock.current = DateTime(2026, 11, 14, 9);
+            await sendAppToBackgroundAndBack(tester);
+            expect(find.byType(BriefingScreen), findsOneWidget);
+            expect(await real.isSeen(DateTime(2026, 11, 14)), const Ok(true));
+
+            await app.dispose(tester);
+          },
+        );
+
+        testWidgets(
+          '돌아와 시작 위치를 다시 정하는 사이 다른 탭으로 가 브리핑으로 가지 못했으면, 그날 다음에 돌아올 때 다시 본다',
+          (tester) async {
+            final app = await pumpTestApp(
+              tester,
+              now: evening,
+              settings: boundary,
+              textScale: textScale,
+            );
+
+            app.clock.current = nextMorning;
+            app.briefingOpenedToday = false;
+            // 돌아와서 한 번 확인한 뒤(1번째), `/`의 시작 위치 규칙이 하는 확인(2번째)을 붙잡아 둔다.
+            app.holdBriefingCheck(nth: 2);
+            await sendAppToBackgroundAndBack(tester);
+            for (var i = 0; i < 20 && !app.briefingCheckHeld; i++) {
+              await tester.pump();
+            }
+            expect(app.briefingCheckHeld, isTrue);
+
+            // 그사이 탭을 누르면 브리핑으로 가는 결과는 버려지고 누른 탭이 남는다.
+            await tapTab(tester, '캘린더');
+            app.releaseBriefingCheck();
+            await tester.pumpAndSettle();
+            expect(find.byType(WeekScreen), findsOneWidget);
+            expect(find.byType(BriefingScreen), findsNothing);
+            // 버려진 결과는 그 뒤 다른 곳에 도착해도 그날 돌린 것으로 적지 않는다.
+            await tapTab(tester, '오늘');
+
+            // 그날은 브리핑으로 가지 못했으므로 같은 날 다음에 돌아올 때 다시 본다.
+            await sendAppToBackgroundAndBack(tester);
+            expect(find.byType(BriefingScreen), findsOneWidget);
+            expect(app.router.state.uri.path, Routes.briefing);
 
             await app.dispose(tester);
           },
