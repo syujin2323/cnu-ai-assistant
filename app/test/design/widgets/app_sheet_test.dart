@@ -79,4 +79,70 @@ void main() {
       await app.dispose(tester);
     });
   }
+
+  testWidgets('Android 3버튼 내비게이션 바(아래 48pt)가 있어도 시트 내용은 그 위에 놓고 배경만 끝까지 그린다', (
+    tester,
+  ) async {
+    final app = await pumpTestApp(tester);
+    // 화면 끝까지 그리는 Android 15 이상에서 3버튼 내비게이션 바가 아래 48pt를 차지한다(물리 픽셀, 배율 3).
+    tester.view.padding = const FakeViewPadding(bottom: 48 * 3);
+    tester.view.viewPadding = const FakeViewPadding(bottom: 48 * 3);
+    addTearDown(tester.view.resetPadding);
+    addTearDown(tester.view.resetViewPadding);
+    await tester.pumpAndSettle();
+
+    unawaited(
+      showAppSheet<void>(
+        context: tester.element(find.byType(TodayScreen)),
+        motion: MotionLevel.off,
+        builder: (context) => Padding(
+          padding: const EdgeInsets.all(AppSpace.s24),
+          child: FilledButton(onPressed: () {}, child: const Text('아래 버튼')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final screenHeight = tester.view.physicalSize.height / 3;
+    final button = tester.getRect(find.byType(FilledButton));
+    expect(button.bottom, lessThanOrEqualTo(screenHeight - 48));
+    // 시트 배경은 내비게이션 바 밑까지 그린다.
+    expect(tester.getRect(find.byType(BottomSheet)).bottom, screenHeight);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('시트 위에는 끌기 손잡이가 있고, 화면 낭독기에는 닫기로 읽힌다', (tester) async {
+    final semantics = tester.ensureSemantics();
+    final app = await pumpTestApp(tester);
+    unawaited(
+      showAppSheet<void>(
+        context: tester.element(find.byType(TodayScreen)),
+        motion: MotionLevel.off,
+        builder: (context) => const Text('시트 내용'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<BottomSheet>(find.byType(BottomSheet)).showDragHandle,
+      isTrue,
+    );
+    // 손잡이는 내용 위(시트 맨 위 48pt)에 있다.
+    final sheet = tester.getRect(find.byType(BottomSheet));
+    expect(
+      tester.getRect(find.text('시트 내용')).top,
+      greaterThanOrEqualTo(sheet.top + 48),
+    );
+    expect(
+      find.bySemanticsLabel(
+        MaterialLocalizations.of(tester.element(find.text('시트 내용')))
+            .modalBarrierDismissLabel,
+      ),
+      findsWidgets,
+    );
+
+    await app.dispose(tester);
+    semantics.dispose();
+  });
 }
