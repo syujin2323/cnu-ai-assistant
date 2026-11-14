@@ -7,7 +7,9 @@
 // `Sheet`, `Pulse`, R1의 `WordIn`)은 R0 모션 PR에서 `design/motion/`에 `AnimationController`와
 // `CurvedAnimation`으로 만들고, 시간은 [MotionLevel.duration]을 거쳐 쓴다.
 // 모션은 모든 사람에게 같다(docs/decisions.md 2026-11-13 '모션은 모든 사람에게 같게 보인다'). 앱 안의
-// 모션 선택은 없고, OS의 동작 줄이기·애니메이션 삭제와 기기를 보지 않는다.
+// 모션 선택은 없고, OS의 동작 줄이기·애니메이션 삭제와 기기를 보지 않는다. Android '애니메이션 삭제'에
+// Flutter가 `AnimationController`의 시간을 5%로 줄이는 것은 앱 바인딩이 막는다(`app/app_binding.dart`,
+// docs/decisions.md 2026-11-14 'OS의 애니메이션 끄기 신호는 앱 전체에서 무시한다').
 
 import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:material_ui/material_ui.dart';

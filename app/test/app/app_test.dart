@@ -1445,6 +1445,24 @@ void main() {
     });
   }
 
+  group('OS의 애니메이션 끄기', () {
+    // docs/decisions.md 2026-11-14 'OS의 애니메이션 끄기 신호는 앱 전체에서 무시한다'. 애니메이션 시간은
+    // 앱 바인딩이 지키고(test/app/app_binding_test.dart), 여기서는 위젯이 보는 MediaQuery 값을 본다.
+    testWidgets('OS가 애니메이션을 끄라고 해도 화면이 보는 MediaQuery는 끄지 않는다', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      final app = await pumpTestApp(tester);
+
+      final today = tester.element(find.byType(TodayScreen));
+      expect(MediaQuery.disableAnimationsOf(today), isFalse);
+
+      await app.dispose(tester);
+    });
+  });
+
   group('앱 표시 이름', () {
     // docs/decisions.md 2026-11-04 '앱 이름 CNU PLANNER'. 세 곳의 표시 이름이 같아야 한다.
     test('Android android:label이 AppStrings.appName과 같다', () {

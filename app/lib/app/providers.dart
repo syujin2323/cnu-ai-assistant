@@ -232,7 +232,8 @@ final settingsProvider = StreamProvider<AppSettings>(
 
 /// 모션 등급(docs/architecture.md '모션 프리셋'). 앱은 늘 [MotionLevel.full]이다. 앱 안의 모션 선택은
 /// 없고 OS의 동작 줄이기·애니메이션 삭제와 기기를 보지 않는다(docs/decisions.md 2026-11-13 '모션은 모든
-/// 사람에게 같게 보인다'). 화면 테스트는 이 provider를 [MotionLevel.off]로 덮어쓴다.
+/// 사람에게 같게 보인다'). 이 값과 별개로 Flutter가 OS 신호를 보고 애니메이션을 줄이는 것은 앱 바인딩이
+/// 막는다(`app/app_binding.dart`). 화면 테스트는 이 provider를 [MotionLevel.off]로 덮어쓴다.
 final motionLevelProvider = Provider<MotionLevel>((ref) => MotionLevel.full);
 
 /// 앱 서버 API 클라이언트. 주소는 `AppConfig.apiBase`(`--dart-define=API_BASE_URL`로 덮어씀).

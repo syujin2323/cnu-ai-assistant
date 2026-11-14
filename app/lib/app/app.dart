@@ -60,12 +60,21 @@ class _RootAppState extends ConsumerState<RootApp> {
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
+        // OS의 애니메이션 끄기 신호는 앱 바인딩이 무시하고(`app/app_binding.dart`), 위젯이 보는 MediaQuery의
+        // 값도 같게 둔다(docs/decisions.md 2026-11-14 'OS의 애니메이션 끄기 신호는 앱 전체에서 무시한다').
+        // 글자 배율 등 그 밖의 값은 그대로 둔다.
+        final media = MediaQuery.of(context).copyWith(disableAnimations: false);
         // webview_flutter와 그 플랫폼 구현, flutter_riverpod가 아직 package:flutter/material.dart를
         // import하므로 그 위젯들이 옛 Theme·MaterialLocalizations를 찾을 수 있게 감싼다. material_ui
         // 1.8.0의 폐기 안내는 '의존성이 material_ui로 옮겨 가는 동안만 쓰는 임시 도구'라는 뜻이다.
         // 의존성이 모두 옮겨 가면 이 줄을 지운다.
-        // ignore: deprecated_member_use
-        return MaterialUiCompatibilityBridge(child: _DemoFrame(child: child!));
+        return MediaQuery(
+          data: media,
+          // ignore: deprecated_member_use
+          child: MaterialUiCompatibilityBridge(
+            child: _DemoFrame(child: child!),
+          ),
+        );
       },
     );
   }
