@@ -1,8 +1,9 @@
 # 개발 명령. 레포 루트에서 `make check`처럼 쓴다.
-# 확인 명령은 docs/architecture.md '확인과 CI'와 같다. 바꾸면 .github/workflows/app-check.yml도 같은 PR에서 고친다.
+# 확인 명령은 docs/architecture.md '확인과 CI'와 같다. 바꾸면 .github/workflows/app-check.yml(app/)이나
+# .github/workflows/functions-check.yml(functions/)도 같은 PR에서 고친다.
 
 .DEFAULT_GOAL := check
-.PHONY: check lint test format gen gen-check
+.PHONY: check lint test format gen gen-check functions-check functions-lint functions-test functions-format
 
 # PR 전에 돌리는 확인(lint + test). 처음 실패한 단계에서 멈춘다.
 check: lint test
@@ -32,3 +33,17 @@ gen-check:
 		echo "drift 생성 파일이 최신이 아니었습니다. 위에 나온 생성 파일을 함께 커밋하세요."; \
 		exit 1; \
 	fi
+
+# functions/(서버)를 바꿨으면 PR 전에 돌리는 확인(lint + test). CI의 functions-check와 같다.
+# 처음 한 번 functions/에서 npm ci로 패키지를 받아 둔다.
+functions-check: functions-lint functions-test
+
+# 타입 검사, ESLint, Prettier 확인
+functions-lint:
+	cd functions && npm run lint
+
+functions-test:
+	cd functions && npm test
+
+functions-format:
+	cd functions && npm run format
