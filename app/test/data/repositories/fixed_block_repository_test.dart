@@ -5,6 +5,7 @@ import 'package:cnu_ai_assistant/data/repositories/fixed_block_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/undo_repository.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
+import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter_test/flutter_test.dart';
 
 T _ok<T>(Result<T> result) => switch (result) {
@@ -16,6 +17,8 @@ void main() {
   late AppDatabase db;
   late FixedBlockRepository repository;
   late UndoRepository undo;
+
+  setUpAll(() => driftRuntimeOptions.dontWarnAboutMultipleDatabases = true);
 
   setUp(() {
     db = AppDatabase.memory();
