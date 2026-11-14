@@ -289,6 +289,28 @@ void main() {
         await app.dispose(tester);
       });
 
+      testWidgets(
+        '처음 열 때 로그인하는 중(connecting)이면 1단계, 로그인한 적이 있으면(restoring·reconnectRequired) 2단계다',
+        (tester) async {
+          // docs/decisions.md 2026-11-14 '로그인하는 중은 로그인 전으로 본다'. 로그인에 실패해 connecting으로
+          // 남은 채 둘러보기 → 끝내기로 돌아와도 로그인 없이 2단계로 가지 않는다.
+          for (final (state, step) in [
+            (LmsSessionState.connecting, OnboardingStep.login),
+            (LmsSessionState.restoring, OnboardingStep.timetable),
+            (LmsSessionState.reconnectRequired, OnboardingStep.timetable),
+          ]) {
+            final app = await pumpTestApp(
+              tester,
+              start: TestStart.fresh,
+              settings: {SettingKeys.lmsSessionState: state},
+              textScale: textScale,
+            );
+            _expectStep(step);
+            await app.dispose(tester);
+          }
+        },
+      );
+
       testWidgets('처음 열 때 settings를 읽지 못하면 1단계부터 연다', (tester) async {
         final app = await pumpTestApp(
           tester,

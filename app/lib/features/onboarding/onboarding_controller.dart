@@ -96,12 +96,13 @@ class OnboardingController extends AsyncNotifier<OnboardingState> {
     );
   }
 
-  /// 처음 온보딩에서 열 단계. 로그인한 뒤(LMS 상태가 `disconnected`가 아님) 끝내기 전에 앱이 꺼졌으면
-  /// 2단계, 아니면 1단계다. `settings`를 읽지 못하면 1단계다.
+  /// 처음 온보딩에서 열 단계. 로그인한 뒤(LMS 상태가 로그인 전(`disconnected`·`connecting`)이 아님) 끝내기 전에
+  /// 앱이 꺼졌으면 2단계, 아니면 1단계다. 로그인에 실패해 `connecting`으로 남은 채 둘러보기 → 끝내기로 돌아와도
+  /// 1단계다(docs/decisions.md 2026-11-14 '로그인하는 중은 로그인 전으로 본다'). `settings`를 읽지 못하면 1단계다.
   Future<OnboardingStep> _firstStep() async {
     switch (await ref.read(settingsRepositoryProvider).read()) {
       case Ok(:final value):
-        return value.lmsSessionState == LmsSessionState.disconnected
+        return value.lmsSessionState.beforeLogin
             ? OnboardingStep.login
             : OnboardingStep.timetable;
       case Err(:final error):

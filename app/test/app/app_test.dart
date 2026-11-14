@@ -1238,6 +1238,42 @@ void main() {
         await app.dispose(tester);
       });
 
+      testWidgets(
+        '로그인에 실패해 connecting으로 남은 채 둘러보기 → 끝내기를 해도 로그인 없이 실제 모드로 가지 않고 1단계다',
+        (tester) async {
+          // docs/decisions.md 2026-11-14 '로그인하는 중은 로그인 전으로 본다'. 처음 사용자는 2단계로, 로그아웃했던
+          // 사용자는 /briefing·/today로 가던 길이다.
+          for (final start in [TestStart.fresh, TestStart.loggedOut]) {
+            final app = await pumpTestApp(
+              tester,
+              start: start,
+              textScale: textScale,
+            );
+            // '로그인'을 눌러 connecting이 됐는데 실패해 로그인 화면에 머문 상태(docs/lms.md '세션 상태' 1번).
+            await writeLmsSessionState(app, LmsSessionState.connecting);
+
+            await tapText(tester, _browseDemo);
+            expect(find.byType(DemoBand), findsOneWidget, reason: start.name);
+            await tapText(tester, '끝내기');
+
+            expect(find.byType(DemoBand), findsNothing, reason: start.name);
+            expect(
+              find.byType(OnboardingScreen),
+              findsOneWidget,
+              reason: start.name,
+            );
+            expect(
+              find.text(OnboardingStep.login.title),
+              findsOneWidget,
+              reason: start.name,
+            );
+            expect(app.router.state.uri.path, Routes.onboarding);
+
+            await app.dispose(tester);
+          }
+        },
+      );
+
       testWidgets('데모 모드의 10 나에는 데모 모드 끝내기가 있고 누르면 /me로 돌아온다', (tester) async {
         final app = await pumpTestApp(tester, textScale: textScale);
         await tapTab(tester, '나');
