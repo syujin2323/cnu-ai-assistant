@@ -72,6 +72,7 @@ void main() {
 
   test('되돌릴 수 있는 표는 docs/architecture.md의 되돌리기 대상과 같다', () {
     expect(undoableTables, {
+      'courses',
       'events',
       'tasks',
       'fixed_blocks',

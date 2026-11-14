@@ -3,6 +3,7 @@ export 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 export 'package:cnu_ai_assistant/domain/models/briefing.dart';
 export 'package:cnu_ai_assistant/domain/models/class_exception.dart';
 export 'package:cnu_ai_assistant/domain/models/class_slot.dart';
+export 'package:cnu_ai_assistant/domain/models/class_slot_entry.dart';
 export 'package:cnu_ai_assistant/domain/models/course.dart';
 export 'package:cnu_ai_assistant/domain/models/entry_source.dart';
 export 'package:cnu_ai_assistant/domain/models/event.dart';

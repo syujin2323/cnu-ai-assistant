@@ -14,8 +14,10 @@ import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/undo_log_entry.dart';
 import 'package:drift/drift.dart';
 
-/// 되돌릴 수 있는 표. docs/architecture.md '폰 DB'의 되돌리기 대상과 같다.
+/// 되돌릴 수 있는 표. docs/architecture.md '폰 DB'의 되돌리기 대상과 같다. `courses`는 수업 시트의
+/// [직접 입력]으로 수업과 함께 만든 과목을 그 동작과 함께 지울 때만 쓴다(`ClassSlotRepository`).
 const Set<String> undoableTables = {
+  'courses',
   'events',
   'tasks',
   'fixed_blocks',
