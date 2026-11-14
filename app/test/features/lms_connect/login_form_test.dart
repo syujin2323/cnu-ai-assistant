@@ -351,6 +351,53 @@ void main() {
           await app.dispose(tester);
         });
 
+        testWidgets(
+          '로그인에 실패한 뒤 성공 없이 떠나면 abandon을 부르고, 성공하거나 시도하지 않으면 부르지 않는다',
+          (tester) async {
+            // 실패한 뒤 뒤로 간다.
+            final failed = FakeLoginFlow(
+              savedId: _id,
+              results: const [Err(LmsOutcome(LmsOutcomeKind.wrongCredentials))],
+            );
+            var app = await pumpRelogin(tester, flow: failed);
+            await _enter(tester, '비밀번호', _password);
+            await _tapLogin(tester);
+            await tester.pumpAndSettle();
+            expect(failed.abandoned, 0, reason: '화면에 머무는 동안은 그대로');
+            await tester.tap(find.byType(BackButton));
+            await tester.pumpAndSettle();
+            expect(find.byType(ReloginScreen), findsNothing);
+            expect(failed.abandoned, 1);
+            await app.dispose(tester);
+
+            // 실패한 뒤 다시 시도해 성공한다.
+            final retried = FakeLoginFlow(
+              savedId: _id,
+              results: const [
+                Err(LmsOutcome(LmsOutcomeKind.networkFailure)),
+                Ok(null),
+              ],
+            );
+            app = await pumpRelogin(tester, flow: retried);
+            await _enter(tester, '비밀번호', _password);
+            await _tapLogin(tester);
+            await tester.pumpAndSettle();
+            await _tap(tester, find.widgetWithText(FilledButton, '다시 시도'));
+            await tester.pumpAndSettle();
+            expect(find.byType(ReloginScreen), findsNothing);
+            expect(retried.abandoned, 0);
+            await app.dispose(tester);
+
+            // 시도하지 않고 뒤로 간다.
+            final untouched = FakeLoginFlow(savedId: _id);
+            app = await pumpRelogin(tester, flow: untouched);
+            await tester.tap(find.byType(BackButton));
+            await tester.pumpAndSettle();
+            expect(untouched.abandoned, 0);
+            await app.dispose(tester);
+          },
+        );
+
         testWidgets('저장된 학번이 없으면 학번 칸도 받는다', (tester) async {
           final flow = FakeLoginFlow();
           final app = await pumpRelogin(tester, flow: flow);
