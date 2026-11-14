@@ -15,7 +15,7 @@ main    ────────────────────────
 1. develop에서 내 작업 브랜치를 만듭니다.
 2. 브랜치에서 코드를 고치고 커밋합니다.
 3. GitHub에 올리고 develop으로 PR을 보냅니다.
-4. 검사(`pr-rules`, `leak-check`, 앱을 바꾼 PR이면 `app-check`)가 통과하고 리뷰어로 지정한 팀원 1명이 승인하면, 내가 직접 **Squash and merge**를 누릅니다.
+4. 검사(`pr-rules`, `leak-check`, `app-check`. 앱과 관계없는 PR이면 `app-check`는 건너뛰고 성공으로 끝남)가 통과하고 리뷰어로 지정한 팀원 1명이 승인하면, 내가 직접 **Squash and merge**를 누릅니다.
 5. 발표나 제출 때는 develop을 main으로 올립니다. 이때는 팀원 1명이 승인해야 합니다.
 
 main과 develop에 직접 push하면 GitHub가 거부하므로, 잘못 push해도 두 브랜치는 망가지지 않습니다.

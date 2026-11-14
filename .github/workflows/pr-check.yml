@@ -49,9 +49,11 @@ jobs:
     permissions:
       contents: read
     steps:
+      # 검사 스크립트는 로컬 git만 쓰므로 checkout 토큰을 .git에 남기지 않는다.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
       # 검사 패턴과 순서는 .github/scripts/leak-check.sh에 있다. 패턴을 고치면 그 파일의 자체 시험 샘플도 함께 고친다.
       - name: 검사 스크립트 자체 시험
         run: bash .github/scripts/leak-check.sh --self-test

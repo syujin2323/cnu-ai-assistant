@@ -458,3 +458,18 @@
 - 받아들인 점: 해외에서 쓰면 화면 시각이 그곳 시각과 다르다. 기기 시간대에 서머타임이 있으면 그 시간대에 없는 벽시계 시각(봄의 한 시간)은 한 시간 밀릴 수 있다.
 - 다른 후보: 호출 예산·조용한 시간·API 날짜만 한국 시간으로 두고 화면과 논리적 하루는 기기 시간대를 따르기(권장안이었다).
 - 영향: architecture.md '앱 코드 규약'(시각 규칙, 백그라운드 작업)·'폰 DB'(공통 규칙)·'확인과 CI', lms.md '응답 해석', `app/lib/domain/clock.dart`(`seoulWallClock`, `kstToUtc`, `logicalDayStart`·`logicalDayEnd`), `app/lib/data/db/kst_date_time_converter.dart`, `app/lib/data/db/tables.dart`, `app/lib/domain/models/value_codec.dart`, `app/lib/data/repositories/retention_repository.dart`. 같은 PR에서 `busy_timeout`(5000ms)을 WAL과 함께 걸었다.
+
+## 2026-11-14 app-check·pr-rules·leak-check를 develop 필수 검사로 둔다 (2026-10-03 '협업 규칙' 보완)
+
+- 결정: develop 규칙 세트에서 `app-check`·`pr-rules`·`leak-check`를 필수 검사로 지정한다. 하나라도 실패하면 GitHub가 병합을 막는다. 필수로 둘 수 있게 `app-check`의 경로 필터를 워크플로에서 잡 안으로 옮겨, 모든 PR과 develop push에서 돌되 앱과 관계없는 변경이면 뒤 단계를 건너뛰고 성공으로 끝낸다. 문서 가운데 `docs/architecture.md`는 테스트가 그 표(디자인 토큰·모션)를 읽으므로 바뀌면 검사를 돈다. CI 파일(`.github/`, `Makefile`)의 코드 소유자 리뷰는 두지 않고 약속으로만 둔다(검사를 약하게 바꾸는 변경은 리뷰어가 따로 확인한다). `leak-check`의 checkout도 `persist-credentials: false`로 둔다.
+- 이유: 지금까지는 `pr-rules`만 필수라 `app-check`가 빨개도 병합할 수 있었고, 경로 필터 때문에 `app-check`를 필수로 둘 수도 없었다. 문서만 바꾼 PR이 토큰·모션 표를 코드와 어긋나게 바꿔도 테스트가 돌지 않았다. 코드 소유자 리뷰는 팀원 넷의 작은 팀에 부담이라 약속으로 둔다.
+- 다른 후보: 지금처럼 `pr-rules`만 필수로 두기, CI 파일에 팀장 코드 소유자 리뷰를 강제하기.
+- 영향: architecture.md '확인과 CI', guide.md 흐름, CLAUDE.md 'PR', `.github/workflows/app-check.yml`, `.github/workflows/pr-check.yml`. 규칙 세트는 이 결정의 PR을 병합한 뒤 바꾼다.
+
+## 2026-11-14 문서의 코드 금지 규칙을 테스트로 확인한다
+
+- 결정: architecture.md가 정한 코드 금지 규칙 가운데 글자로 찾을 수 있는 것을 `app/test/conventions_test.dart`가 확인한다. `DateTime.now()`(`domain/clock.dart`만), `MethodChannel`(`platform/`·`lms/`만), `Icons.*`(쓰지 않음)·`SvgPicture.asset`(`design/icons.dart`만), `flutter/material.dart`·`flutter/cupertino.dart` import(쓰지 않음), `print`·`debugPrint`(`app/logging.dart`만), `showModalBottomSheet`(`design/widgets/app_sheet.dart`만), `domain/`의 Flutter·drift·Firebase·앱의 다른 층 import(쓰지 않음)다. 주석(`//` 뒤)은 보지 않는다. 이 테스트 파일은 `lib/`에 원본이 없어 '원본과 같은 경로' 규칙의 예외다.
+- 이유: 이 규칙들은 리뷰에만 맡겨져 있었고, AI로 코드를 쓰면 문서를 읽지 않은 코드가 들어오기 쉽다. 테스트가 어긴 파일과 줄을 알려 주면 리뷰 전에 고칠 수 있다.
+- 받아들인 점: 문자열 안의 `//` 뒤는 주석으로 보아 그 뒤의 금지 패턴을 놓칠 수 있다.
+- 다른 후보: 리뷰에만 맡기기, analyzer 플러그인(custom_lint)으로 만들기(설정과 의존성이 늘어남).
+- 영향: architecture.md '확인과 CI', `app/test/conventions_test.dart`. 규칙을 더하거나 예외 파일을 바꾸면 이 테스트와 architecture.md를 함께 고친다.
