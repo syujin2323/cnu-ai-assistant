@@ -2,11 +2,14 @@
 //
 // 실제 모드의 폰 DB는 메모리 DB, 보안 저장소와 shared_preferences는 모의 값으로 바꾼다.
 
+import 'dart:io';
+
 import 'package:cnu_ai_assistant/app/app.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/app/startup.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
+import 'package:cnu_ai_assistant/data/db/demo_database_files.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
 import 'package:cnu_ai_assistant/data/secure_storage.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
@@ -17,6 +20,8 @@ import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_controller.dart';
 import 'package:cnu_ai_assistant/features/onboarding/onboarding_screen.dart';
+import 'package:drift/drift.dart' show driftRuntimeOptions;
+import 'package:drift/native.dart' show NativeDatabase;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -69,6 +74,106 @@ void main() {
     PrefKeys.appMode: AppMode.demo.name,
     PrefKeys.demoEntry: DemoEntry.me.name,
   };
+
+  group('지금 모드의 폰 DB 열기', () {
+    // docs/decisions.md 2026-11-14 '앱을 켤 때 데모 DB를 열지 못하면 실제 모드로 돌아간다'.
+    setUp(() => driftRuntimeOptions.dontWarnAboutMultipleDatabases = true);
+    tearDown(() => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false);
+
+    /// 손상된 DB 파일(SQLite 파일이 아님). 열 때 실패한다.
+    Future<AppDatabase> corrupt() async {
+      final directory = await Directory.systemTemp.createTemp('corrupt_db');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File('${directory.path}/db.sqlite');
+      await file.writeAsString('SQLite 파일이 아니다. ' * 200);
+      final db = AppDatabase(NativeDatabase(file));
+      addTearDown(db.close);
+      return db;
+    }
+
+    Future<ProviderContainer> containerWith(
+      SharedPreferences preferences, {
+      required AppDatabase real,
+      required AppDatabase demo,
+      required _FakeDemoFiles files,
+    }) async {
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          realDatabaseProvider.overrideWithValue(real),
+          databaseProvider.overrideWith(
+            (ref) => switch (ref.watch(appModeProvider)) {
+              AppMode.real => ref.watch(realDatabaseProvider),
+              AppMode.demo => demo,
+            },
+          ),
+          demoDatabaseFilesProvider.overrideWithValue(files),
+        ],
+      );
+      addTearDown(container.dispose);
+      return container;
+    }
+
+    test('데모 모드인데 데모 DB를 열지 못하면 데모를 버리고(파일 지움) 실제 모드로 연다', () async {
+      final preferences = await preferencesWith({
+        'app_mode': 'demo',
+        'demo_entry': 'me',
+      });
+      final files = _FakeDemoFiles();
+      final container = await containerWith(
+        preferences,
+        real: realDb,
+        demo: await corrupt(),
+        files: files,
+      );
+
+      await openCurrentDatabase(container);
+
+      expect(container.read(appModeProvider), AppMode.real);
+      expect(container.read(databaseProvider), same(realDb));
+      expect(preferences.getString('app_mode'), 'real');
+      expect(preferences.containsKey('demo_entry'), isFalse);
+      expect(files.deletes, 1);
+    });
+
+    test('데모 DB가 열리면 아무것도 바꾸지 않는다', () async {
+      final preferences = await preferencesWith({
+        'app_mode': 'demo',
+        'demo_entry': 'me',
+      });
+      final files = _FakeDemoFiles();
+      final demo = AppDatabase.memory();
+      addTearDown(demo.close);
+      final container = await containerWith(
+        preferences,
+        real: realDb,
+        demo: demo,
+        files: files,
+      );
+
+      await openCurrentDatabase(container);
+
+      expect(container.read(appModeProvider), AppMode.demo);
+      expect(preferences.getString('demo_entry'), 'me');
+      expect(files.deletes, 0);
+    });
+
+    test('실제 DB를 열지 못하면 그대로 던져 시작 실패 화면으로 간다(실제 데이터는 지우지 않음)', () async {
+      final preferences = await preferencesWith({});
+      final files = _FakeDemoFiles();
+      final demo = AppDatabase.memory();
+      addTearDown(demo.close);
+      final container = await containerWith(
+        preferences,
+        real: await corrupt(),
+        demo: demo,
+        files: files,
+      );
+
+      await expectLater(openCurrentDatabase(container), throwsA(anything));
+      expect(files.deletes, 0);
+    });
+  });
 
   group('설치 표식', () {
     test('표식이 없으면 보안 저장소와 앱 값을 비우고 표식을 적는다', () async {
@@ -196,4 +301,15 @@ void main() {
       await tester.pump();
     },
   );
+}
+
+/// 데모 DB 파일 지우기를 센다(실제 파일은 건드리지 않음).
+class _FakeDemoFiles implements DemoDatabaseFiles {
+  int deletes = 0;
+
+  @override
+  Future<Result<void>> delete() async {
+    deletes++;
+    return const Ok(null);
+  }
 }

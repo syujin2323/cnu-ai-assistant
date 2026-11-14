@@ -14,6 +14,7 @@ import 'package:cnu_ai_assistant/app/config.dart';
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/data/api/server_api.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
+import 'package:cnu_ai_assistant/data/db/demo_database_files.dart';
 import 'package:cnu_ai_assistant/data/demo/demo_seed.dart';
 import 'package:cnu_ai_assistant/data/repositories/briefing_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/demo_repository.dart';
@@ -127,7 +128,47 @@ class AppModeController extends Notifier<AppMode> {
     if (ref.mounted) state = AppMode.real;
     return Ok(entry);
   }
+
+  /// 앱을 켤 때 데모 DB를 열지 못해(파일 손상 등) 데모를 버린다(docs/decisions.md 2026-11-14 '앱을 켤 때 데모
+  /// DB를 열지 못하면 실제 모드로 돌아간다'). [demoDatabase]를 닫고 실제 모드로 돌린 뒤 들어온 곳을 지우고,
+  /// 샘플만 든 데모 파일을 지운다(다음에 데모에 들어가면 새로 만듦). bootstrap이 runApp 전에 부른다.
+  Future<void> abandonDemo(AppDatabase demoDatabase) async {
+    if (state != AppMode.demo) return;
+    await _closeQuietly(demoDatabase);
+    final preferences = ref.read(sharedPreferencesProvider);
+    await preferences.setString(PrefKeys.appMode, AppMode.real.name);
+    await preferences.remove(PrefKeys.demoEntry);
+    if (!ref.mounted) return;
+    state = AppMode.real;
+    if (await ref.read(demoDatabaseFilesProvider).delete() case Err(
+      :final error,
+    )) {
+      appLog(
+        'demo_files_delete_failed',
+        area: 'app',
+        data: errorLogData(error),
+      );
+    }
+  }
+
+  /// 데모 DB 연결을 닫는다. 닫다가 실패해도(이미 망가진 연결 등) 기록만 남긴다.
+  Future<void> _closeQuietly(AppDatabase demoDatabase) async {
+    try {
+      await demoDatabase.close();
+    } catch (error) {
+      appLog(
+        'demo_close_failed',
+        area: 'app',
+        data: {'error': errorKind(error)},
+      );
+    }
+  }
 }
+
+/// 열지 못한 데모 DB 파일을 지우는 것([AppModeController.abandonDemo]). 테스트가 덮어쓴다.
+final demoDatabaseFilesProvider = Provider<DemoDatabaseFiles>(
+  (ref) => const DemoDatabaseFiles(),
+);
 
 /// 실제 모드의 폰 DB(`app.sqlite`). 앱 모드와 관계없이 앱 수명 동안 열어 둔다.
 ///
