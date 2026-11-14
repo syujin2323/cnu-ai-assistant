@@ -97,10 +97,19 @@ valid_names() {
   [[ "$1" =~ $NAMES_FORMAT_RE ]]
 }
 
+# 앞뒤 공백·줄바꿈만 지운다(비밀값 끝의 줄바꿈 등). 안쪽 공백·줄바꿈은 이름을 '|'로 잇지 않은 것이라 그대로 두어
+# 형식 검사에서 걸리게 한다. 모두 지우면 이름이 하나로 붙어 이름 검사가 조용히 꺼진다.
+trim_names() {
+  local names="$1"
+  names="${names#"${names%%[![:space:]]*}"}"
+  names="${names%"${names##*[![:space:]]}"}"
+  printf '%s' "$names"
+}
+
 # LMS_COOKIE_NAMES를 정리해 names_file에 한 줄에 하나씩 쓴다. 값은 출력하지 않는다.
 load_names() {
   local names
-  names="$(printf '%s' "${LMS_COOKIE_NAMES:-}" | tr -d '[:space:]')"
+  names="$(trim_names "${LMS_COOKIE_NAMES:-}")"
   if [[ -z "$names" ]]; then
     if [[ -n "${HEAD_REPO:-}" && "${HEAD_REPO:-}" == "${REPO:-}" ]]; then
       echo "::error::Actions 비밀값 LMS_COOKIE_NAMES가 비어 있어 LMS 쿠키 이름을 검사할 수 없습니다. 레포 관리자가 Settings → Secrets and variables → Actions → Secrets에 '이름1|이름2' 형식으로 넣은 뒤 검사를 다시 돌려 주세요."
@@ -110,7 +119,7 @@ load_names() {
     return 0
   fi
   if ! valid_names "$names"; then
-    echo "::error::Actions 비밀값 LMS_COOKIE_NAMES가 '이름1|이름2' 형식(영문, 숫자, _ . - 만)이 아닙니다. 값은 로그에 출력하지 않습니다."
+    echo "::error::Actions 비밀값 LMS_COOKIE_NAMES가 '이름1|이름2' 형식(영문, 숫자, _ . - 만. 이름 사이는 공백·줄바꿈이 아니라 '|')이 아닙니다. 값은 로그에 출력하지 않습니다."
     exit 2
   fi
   names_file="$work/names"
@@ -258,6 +267,13 @@ SAMPLES
   done
   for v in 'NAMEA|NAMEB(' 'NAMEA|' '|NAMEA' 'NAMEA||NAMEB' ''; do
     if valid_names "$v"; then echo "::error::자체 시험: 틀린 이름 형식을 받았습니다: '$v'"; failed=1; fi
+  done
+  # 앞뒤 공백·줄바꿈만 지우고, 이름 사이를 공백·줄바꿈으로 나눈 값은 형식 오류다(붙여 한 이름으로 만들지 않음).
+  for v in $'NAMEA|NAMEB\n' $' NAMEA|NAMEB \r\n'; do
+    valid_names "$(trim_names "$v")" || { echo "::error::자체 시험: 앞뒤 공백만 있는 이름을 거절했습니다."; failed=1; }
+  done
+  for v in $'NAMEA\nNAMEB' 'NAMEA NAMEB' $'NAMEA\r\nNAMEB\r\n'; do
+    if valid_names "$(trim_names "$v")"; then echo "::error::자체 시험: 공백·줄바꿈으로 나눈 이름을 받았습니다."; failed=1; fi
   done
 
   # 합성 샘플 규칙
