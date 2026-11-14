@@ -6,7 +6,8 @@
 #   - 토큰 모양(JWT)
 #   - LMS 쿠키 이름. Actions 비밀값 LMS_COOKIE_NAMES('이름1|이름2')로 받고 이 파일에는 적지 않는다.
 #     레코드 꼴({"name": …, "value": …})의 쿠키는 이름으로만 잡을 수 있어 이 검사가 마지막 장치다.
-#   - app/test/**/fixtures/의 example.invalid 밖 호스트와 학번 꼴 숫자(docs/lms.md '테스트')
+#   - app/test/**/fixtures/의 example.invalid 밖 호스트와 학번 꼴 숫자(docs/lms.md '테스트'). 주소는 JSON
+#     이스케이프(\/)·퍼센트 인코딩(%3A·%2F)·HTML 엔티티(&#x2F;)를 풀어 보고, 프로토콜 없는 //호스트도 본다.
 # 보는 곳
 #   - PR의 모든 커밋에서 추가된 줄. 중간 커밋에 넣었다 지운 값도 PR 기록에 남으므로 커밋마다 본다.
 #     병합 커밋은 결합 diff(--cc)로 봐서 충돌을 풀며 새로 넣은 줄도 본다. 이 스크립트 파일도 예외 없이
@@ -67,18 +68,25 @@ has_secret() {
   return 1
 }
 
-# 합성 샘플의 추가된 줄(파일 $1)에 example.invalid 밖 호스트나 학번 꼴 숫자가 있으면 0
+# 합성 샘플의 추가된 줄(파일 $1)에 example.invalid 밖 호스트나 학번 꼴 숫자가 있으면 0.
+# 실제 응답을 베껴 'https://호스트'만 바꾸면 JSON 이스케이프(https:\/\/호스트)·퍼센트 인코딩(로그인 페이지의
+# 돌아갈 주소)·HTML 엔티티로 숨은 주소가 남으므로 풀어서 본다. 프로토콜 없는 //호스트(점이 있는 것)도 본다.
 fixture_problem() {
-  local hosts rc=0 host
-  hosts="$(grep -Eio "https?://[^/\"'[:space:]<>)]+" -- "$1")" || rc=$?
+  local hosts rc=0 host decoded="$work/decoded"
+  sed -e 's#\\/#/#g' -e 's#%3[aA]#:#g' -e 's#%2[fF]#/#g' \
+    -e 's#&\#[xX]2[fF];#/#g' -e 's#&\#47;#/#g' -e 's#&\#58;#:#g' "$1" > "$decoded"
+  hosts="$(grep -Eio '(https?:)?//[A-Za-z0-9.-]+' -- "$decoded")" || rc=$?
   if (( rc >= 2 )); then
     pattern_error "$rc"
   fi
   while IFS= read -r host; do
     [[ -n "$host" ]] || continue
-    host="${host#*://}"
-    host="${host%%:*}"
     host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
+    case "$host" in
+      http*) ;;
+      *) [[ "$host" == *.* ]] || continue ;; # '//주석' 같은 줄은 주소가 아니다
+    esac
+    host="${host#*//}"
     [[ "$host" == "example.invalid" ]] || return 0
   done <<< "$hosts"
   grep_rc -Eq -e "$STUDENT_NO_RE" -- "$1" && return 0
@@ -253,11 +261,16 @@ SAMPLES
   done
 
   # 합성 샘플 규칙
-  for line in '"html_url": "https://other.example.com/courses/1"' '"student_no": "202312345"'; do
+  for line in '"html_url": "https://other.example.com/courses/1"' '"student_no": "202312345"' \
+    '"html_url": "https:\/\/other.example.com\/courses\/12"' 'href="/login?returnUrl=https%3A%2F%2Fother.example.com%2Fhome"' \
+    '<script src="//cdn.other.example.com/x.js"></script>' '<a href="https:&#x2F;&#x2F;other.example.com&#x2F;">' \
+    'HTTPS://OTHER.EXAMPLE.COM/'; do
     printf '%s\n' "$line" > "$sample"
     if fixture_problem "$sample"; then n_hit=$((n_hit + 1)); else echo "::error::자체 시험: 합성 샘플 규칙 위반을 놓쳤습니다: $line"; failed=1; fi
   done
-  for line in '"html_url": "https://example.invalid/courses/1/assignments/1"' '"id": 1, "due_at": "2026-11-13T09:00:00+09:00"'; do
+  for line in '"html_url": "https://example.invalid/courses/1/assignments/1"' '"id": 1, "due_at": "2026-11-13T09:00:00+09:00"' \
+    'href=\"https://example.invalid\"' '"next": "https://example.invalid?page=2"' \
+    '"url": "https:\/\/example.invalid\/courses\/1"' '// 합성 샘플이다' '<!--//TODO-->'; do
     printf '%s\n' "$line" > "$sample"
     if fixture_problem "$sample"; then echo "::error::자체 시험: 맞는 합성 샘플을 잡았습니다: $line"; failed=1; else n_miss=$((n_miss + 1)); fi
   done
