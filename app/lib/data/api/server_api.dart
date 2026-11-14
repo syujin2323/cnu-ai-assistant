@@ -1,16 +1,23 @@
+import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:dio/dio.dart';
 
-/// 앱 서버(Cloud Functions `api`) 클라이언트. docs/architecture.md '앱과 서버 사이 약속'.
+/// 토큰 하나를 구하는 함수. 구하지 못하면 null을 돌려준다.
+typedef TokenSource = Future<String?> Function();
+
+/// 앱 서버(Cloud Functions `api`) 클라이언트. docs/architecture.md '앱과 서버 사이 약속 (API)'.
 ///
 /// 서버 요청은 모두 이 클래스의 dio 하나로 보낸다. 엔드포인트는 그 경로를 쓰는 PR에서 [postJson] 위에
-/// 더하고, 응답이 성공이 아니면 예외 대신 `Result`의 `Err(ApiError(...))`를 돌려준다. App Check 토큰과
-/// 설치 토큰을 붙이는 인터셉터도 첫 엔드포인트와 함께 더한다. 요청 주소와 본문을 남기는
-/// `LogInterceptor`는 쓰지 않는다. 데모 모드에서는 요청을 보내지 않는다([demo]).
+/// 더하고, 응답이 성공이 아니면 예외 대신 `Result`의 `Err(ApiError(...))`를 돌려준다. 모든 요청에 App Check
+/// 토큰(`X-Firebase-AppCheck`)과 설치 토큰(`X-Install-Token`)을 붙이고, `/v1/metrics`에는 설치 토큰을 붙이지
+/// 않는다([ServerTokenInterceptor]). 요청 주소와 본문을 남기는 `LogInterceptor`는 쓰지 않는다. 데모
+/// 모드에서는 요청을 보내지 않는다([demo]).
 class ServerApi {
   ServerApi({
     required String baseUrl,
     this.demo = false,
+    TokenSource? appCheckToken,
+    TokenSource? installToken,
     HttpClientAdapter? adapter,
   }) : _dio = Dio(
          BaseOptions(
@@ -23,6 +30,12 @@ class ServerApi {
            responseType: ResponseType.json,
          ),
        ) {
+    _dio.interceptors.add(
+      ServerTokenInterceptor(
+        appCheckToken: appCheckToken,
+        installToken: installToken,
+      ),
+    );
     if (adapter != null) _dio.httpClientAdapter = adapter;
   }
 
@@ -61,4 +74,53 @@ class ServerApi {
     {'error': {'code': final String code}} => code,
     _ => null,
   };
+}
+
+/// 서버 요청에 App Check 토큰과 설치 토큰을 붙이는 인터셉터.
+///
+/// 토큰을 구하지 못하면(Firebase 오류, 보안 저장소 오류) 그 헤더 없이 보낸다. App Check를 강제하지 않는
+/// 동안 서버는 기록만 하고, 설치 토큰이 없으면 401로 답한다. 토큰 값은 어디에도 남기지 않는다.
+class ServerTokenInterceptor extends Interceptor {
+  ServerTokenInterceptor({this._appCheckToken, this._installToken});
+
+  /// App Check 토큰 헤더.
+  static const String appCheckHeader = 'X-Firebase-AppCheck';
+
+  /// 설치 토큰 헤더.
+  static const String installTokenHeader = 'X-Install-Token';
+
+  /// 설치 토큰을 붙이지 않는 경로(사용 지표, docs/architecture.md '앱과 서버 사이 약속 (API)'의 지표).
+  static const String metricsPath = '/v1/metrics';
+
+  final TokenSource? _appCheckToken;
+  final TokenSource? _installToken;
+
+  @override
+  Future<void> onRequest(
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) async {
+    final appCheck = await _tokenOrNull(_appCheckToken, 'app_check');
+    if (appCheck != null) options.headers[appCheckHeader] = appCheck;
+    if (Uri.parse(options.path).path != metricsPath) {
+      final install = await _tokenOrNull(_installToken, 'install');
+      if (install != null) options.headers[installTokenHeader] = install;
+    }
+    handler.next(options);
+  }
+
+  static Future<String?> _tokenOrNull(TokenSource? source, String name) async {
+    if (source == null) return null;
+    try {
+      final token = await source();
+      return token == null || token.isEmpty ? null : token;
+    } on Exception catch (error) {
+      appLog(
+        'server_token_failed',
+        area: 'api',
+        data: {'token': name, 'error': errorKind(error)},
+      );
+      return null;
+    }
+  }
 }

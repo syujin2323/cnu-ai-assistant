@@ -1,7 +1,8 @@
 // 앱 서버 클라이언트 테스트. docs/architecture.md '앱과 서버 사이 약속 (API)'.
 //
 // 네트워크 없이 dio의 HttpClientAdapter를 가짜로 바꿔, 응답을 Result로 바꾸는지(성공은 본문, 실패는
-// 상태 코드와 오류 본문의 code)와 데모 모드에서 요청을 보내지 않는지 본다.
+// 상태 코드와 오류 본문의 code), 데모 모드에서 요청을 보내지 않는지, App Check·설치 토큰 헤더를 붙이는지
+// 본다. 토큰은 합성 값이다.
 
 import 'dart:convert';
 import 'dart:io' show SocketException;
@@ -10,6 +11,7 @@ import 'dart:typed_data';
 import 'package:cnu_ai_assistant/data/api/server_api.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -101,6 +103,82 @@ void main() {
       const Err<Object?>(ApiError(null, 'demo')),
     );
     expect(adapter.requests, isEmpty);
+  });
+
+  group('토큰 헤더', () {
+    const appCheckHeader = ServerTokenInterceptor.appCheckHeader;
+    const installHeader = ServerTokenInterceptor.installTokenHeader;
+    final installToken = 'I' * 43;
+
+    ServerApi apiWithTokens(
+      _FakeAdapter adapter, {
+      TokenSource? appCheck,
+      TokenSource? install,
+    }) {
+      final api = ServerApi(
+        baseUrl: base,
+        appCheckToken: appCheck,
+        installToken: install,
+        adapter: adapter,
+      );
+      addTearDown(api.close);
+      return api;
+    }
+
+    test('App Check 토큰과 설치 토큰을 헤더에 붙인다', () async {
+      final adapter = _FakeAdapter((_) => _json(200, {'intent': 'other'}));
+
+      await apiWithTokens(
+        adapter,
+        appCheck: () async => 'app-check-synthetic',
+        install: () async => installToken,
+      ).postJson('/v1/parse', {'text': 'x'});
+
+      final headers = adapter.requests.single.headers;
+      expect(headers[appCheckHeader], 'app-check-synthetic');
+      expect(headers[installHeader], installToken);
+    });
+
+    test('/v1/metrics에는 설치 토큰을 붙이지 않고 구하지도 않는다', () async {
+      final adapter = _FakeAdapter((_) => _json(200, {}));
+      var installCalls = 0;
+
+      await apiWithTokens(
+        adapter,
+        appCheck: () async => 'app-check-synthetic',
+        install: () async {
+          installCalls++;
+          return installToken;
+        },
+      ).postJson('/v1/metrics', {'date': '2026-10-12'});
+
+      final headers = adapter.requests.single.headers;
+      expect(headers[appCheckHeader], 'app-check-synthetic');
+      expect(headers.containsKey(installHeader), isFalse);
+      expect(installCalls, 0);
+    });
+
+    test('토큰을 구하지 못하면 그 헤더 없이 보낸다', () async {
+      final sources = <TokenSource>[
+        () async => throw PlatformException(code: 'unavailable'),
+        () async => null,
+        () async => '',
+      ];
+      for (final (index, source) in sources.indexed) {
+        final adapter = _FakeAdapter((_) => _json(200, {}));
+
+        final result = await apiWithTokens(
+          adapter,
+          appCheck: source,
+          install: source,
+        ).postJson('/v1/parse', {});
+
+        expect(result, isA<Ok<Object?>>(), reason: '$index');
+        final headers = adapter.requests.single.headers;
+        expect(headers.containsKey(appCheckHeader), isFalse, reason: '$index');
+        expect(headers.containsKey(installHeader), isFalse, reason: '$index');
+      }
+    });
   });
 }
 
