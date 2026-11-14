@@ -131,7 +131,7 @@ class AppSettings {
   /// 고르는 값이 바뀌어도 이미 저장된 사용자의 값을 말없이 되돌리지 않기 위해서다.
   final int dayBoundaryMin;
 
-  /// AI 사용 여부(선택 동의). false면 AI 경로(`/v1/parse`, R1의 `/v1/extract`)를 부르지 않고
+  /// AI 사용 여부(선택 동의). false면 AI 경로(`/v1/parse`, 스토어 공개 뒤의 `/v1/extract`)를 부르지 않고
   /// 06 AI 비서는 직접 추가 폼으로 동작한다(docs/screens.md '06 AI 비서'·'AI 사용 동의').
   final bool aiEnabled;
 
@@ -157,7 +157,8 @@ class AppSettings {
   /// 마지막으로 `connecting`에서 `active`가 된 시각.
   final DateTime? lmsLastConnectedAt;
 
-  /// (R1) 저녁 체크인 시각(자정 기준 분). null이면 [Defaults.checkinMin].
+  /// 저녁 체크인 시각(자정 기준 분). null이면 [Defaults.checkinMin]. 저녁 체크인은 임시로 뺐고
+  /// (docs/decisions.md 2026-11-15) 이 키는 기능을 다시 정할 때 함께 본다.
   final int? checkinMin;
 
   /// (R1) 마감 당일 알림을 '시간 민감' 알림으로 보낼지.
