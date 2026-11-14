@@ -9,7 +9,6 @@ class Course {
     this.remoteId,
     this.semester,
     required this.name,
-    this.alias,
     this.color,
     this.lastSeenAt,
   });
@@ -23,9 +22,6 @@ class Course {
   final String? semester;
 
   final String name;
-
-  /// 사용자가 부르는 짧은 이름(예: 자구).
-  final String? alias;
 
   /// 과목 색(ARGB 32비트 정수). 쓰는 방식은 아직 정하지 않았다.
   final int? color;

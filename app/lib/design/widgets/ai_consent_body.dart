@@ -41,7 +41,7 @@ class AiConsentBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        section('보내는 것', const ['AI 비서에 쓴 문장, 과목 이름·별칭, 오늘 날짜·요일·지금 시각을 보내요.']),
+        section('보내는 것', const ['AI 비서에 쓴 문장, 과목 이름, 오늘 날짜·요일·지금 시각을 보내요.']),
         section('가는 곳', const [
           '앱 서버(서울 리전)를 거쳐 해외 AI 제공사로 가요. 앱은 이 내용을 일정·할 일·규칙으로 바꾸고 질문을 읽는 데 써요.',
           '앱 서버는 문장을 저장하거나 로그에 남기지 않아요.',

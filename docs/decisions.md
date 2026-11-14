@@ -421,3 +421,17 @@
 - 이유: 지금까지는 한 행에 모르는 값이 하나만 있어도 변환기가 `FormatException`을 던져 그 표 전체를 읽지 못했다. Shorebird 패치로 새 값을 쓴 뒤 패치를 되돌리거나 옛 빌드를 다시 설치하면 `plan_blocks`·`tasks`·`rules`를 아예 못 읽어 02 홈·09 일간이 비고 배치도 멈춘다. 대체값은 틀리게 읽어도 할 일·수업이 생기거나 사라지지 않고 사용자가 넣은 것을 덮어쓰지 않는 쪽으로 골랐다(지운 블록으로 보면 시간을 막지 않고 보이지 않으며, 직접 넣은 것으로 보면 다시 불러오거나 다시 계산할 때 덮어쓰지 않는다). 할 일의 상태나 수업 예외처럼 짐작하면 뜻이 바뀌는 열은 짐작하지 않는다. 규칙 값은 하나만 비워 읽으면 과목과 종류를 함께 정한 예상 시간 규칙이 그 과목 전체의 규칙이 되는 것처럼 뜻이 바뀌므로 행 전체를 읽지 않는다.
 - 다른 후보: 지금처럼 모든 열에서 `FormatException`(한 행이 표 전체를 막음), 모든 열에 대체값 두기(할 일 상태처럼 짐작하면 뜻이 바뀜), 저장소가 행마다 잡아 그 행을 건너뛰기(조회를 행마다 나눠야 하고 스트림도 따로 만들어야 함), 규칙 값의 틀린 값만 null로 읽기(규칙의 뜻이 바뀜).
 - 영향: architecture.md '앱 코드 규약'(오류 처리)·'폰 DB'·'내 규칙'·'테스트 배포', screens.md '12 내 규칙', CLAUDE.md '브랜치'의 Shorebird 예외, `app/lib/data/db/enum_converter.dart`·`json_converters.dart`·`tables.dart`, `app/lib/domain/models/rule.dart`(`UnreadableRuleParams`), `app/lib/domain/rules.dart`(`RuleIssueKind.unreadable`), `app/lib/data/repositories/rules_repository.dart`·`guard_storage.dart`(주석).
+
+## 2026-11-14 과목을 정해 만든 할 일은 과목을 저장하고 종류는 카드에서 고른다
+
+- 결정: `tasks`에 `courseId?`(→`courses`)를 더한다. 06 AI 비서(직접 추가 폼을 06 카드의 [고치기]로 연 경우 포함)에서 과목을 정해 만든 할 일만 채우고, 개인 할 일과 LMS 할 일은 null로 둔다. LMS 할 일의 과목은 `lmsKey`로 `lms_items.courseId`를 읽는다. 과목 할 일의 종류(`tasks.kind`)는 06 카드의 종류 칩에서 사용자가 고른다. 처음 값은 과목 할 일이면 과제, 개인 할 일이면 개인이고, 과목 할 일의 칩에는 '개인'을 두지 않는다. `/v1/parse`에는 할 일 종류 필드를 더하지 않는다. 03 할 일 줄은 이런 할 일을 번호 없이 '{과목} · {종류}'로 보인다.
+- 이유: `/v1/parse` 항목과 06 카드는 할 일의 과목을 주고 보이는데, 지금까지 `tasks`에는 과목을 둘 자리가 없어 과목 할 일이 개인 할 일로 저장되고 그 과목의 예상 시간 규칙도 걸리지 않았다. LMS 할 일까지 과목을 복사하면 동기화가 쓰는 열이 늘어나므로 LMS 할 일은 원본에서 읽는다. 첫 테스트 배포 전이라 열을 더하는 비용이 작다. 종류는 문장에 드러나지 않는 일이 많아 AI가 짐작하기보다 카드에서 고르게 했고, 칩에 '개인'이 없으므로 '개인+과목' 할 일이 생기지 않아 그런 예상 시간 규칙을 막은 것(2026-11-14 '예상 시간 규칙은 10–720분이고 영상·자료·개인 과목 할 일에 두지 않는다')과 맞는다.
+- 다른 후보: `/v1/parse` 항목에 null을 허용하는 할 일 종류 필드를 더하고 없으면 과제로 두기(권장안이었다), 과목 할 일도 늘 개인 할 일로 두고 과목만 채우기, 동기화가 LMS 할 일에도 과목을 복사하기.
+- 영향: architecture.md '폰 DB'(`tasks` 행, 동기화, 새로 필요한 저장 자리)·'도메인 기본값과 배치 엔진' 2단계·'POST /v1/parse', screens.md '03 할 일'·'06 AI 비서', `app/lib/data/db/tables.dart`, `app/lib/domain/models/task.dart`(`courseId`, `courseIdWith`), `app/lib/domain/rules.dart`(`estimateMin` 주석). 칩 목록과 카드 문구는 06 화면 PR에서 screens.md에 적고, AI가 문장에서 알아들은 종류를 칩의 처음 값으로 쓸지는 `/v1/parse` PR에서 정한다.
+
+## 2026-11-14 과목 별칭을 두지 않는다
+
+- 결정: 과목 별칭(줄임말)을 저장하지 않는다. `courses.alias` 열을 빼고, `/v1/parse` 요청의 `courses`는 과목 이름만 담은 객체 배열(`{name}`)로 둔다. AI 사용 동의 문구의 보내는 것에서 '별칭'을 뺀다.
+- 이유: 별칭을 넣는 화면이 문서에 없고, AI는 흔한 줄임말(자구·선대 등)을 과목 이름에서 알아들으며, 못 알아들으면 06 카드에서 과목을 고치면 된다. 표는 별칭 하나, API 예시는 별칭 여럿이라 어긋나 있었는데 쓰지 않는 자리를 맞추느니 뺀다. 요청의 과목은 나중에 선택 필드를 다시 더할 수 있게 객체로 둔다.
+- 다른 후보: 별칭을 JSON 배열 열로 두기(권장안이었다), 별칭을 하나로 두고 요청에는 한 개짜리 배열을 보내기.
+- 영향: architecture.md '폰 DB'(`courses` 행)·'POST /v1/parse', screens.md 'AI 사용 동의', `app/lib/data/db/tables.dart`, `app/lib/domain/models/course.dart`, `app/lib/design/widgets/ai_consent_body.dart`.

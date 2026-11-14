@@ -313,6 +313,20 @@ void main() {
           ),
       throwsA(isA<SqliteException>()),
     );
+    await expectLater(
+      db
+          .into(db.tasks)
+          .insert(
+            TasksCompanion.insert(
+              title: '퀴즈 복습',
+              kind: TaskKind.quiz,
+              dueTimeUnknown: false,
+              status: TaskStatus.todo,
+              courseId: const Value(999),
+            ),
+          ),
+      throwsA(isA<SqliteException>()),
+    );
   });
 
   test('lms_items.remoteKey와 briefings.date는 겹칠 수 없다', () async {
@@ -435,6 +449,43 @@ void main() {
       ]);
     },
   );
+
+  test('과목을 정해 만든 할 일은 과목을 두고, 개인 할 일과 LMS 할 일은 과목이 비어 있다', () async {
+    // docs/decisions.md 2026-11-14 '과목을 정해 만든 할 일은 과목을 저장하고 종류는 카드에서 고른다'.
+    final courseId = await addCourse();
+    const key = '1:1:assignment:1';
+    await addLmsItem(courseId, key);
+    Future<int> addTask(TaskKind kind, {int? course, String? lmsKey}) => db
+        .into(db.tasks)
+        .insert(
+          TasksCompanion.insert(
+            title: '할 일',
+            kind: kind,
+            dueTimeUnknown: false,
+            status: TaskStatus.todo,
+            courseId: Value(course),
+            lmsKey: Value(lmsKey),
+          ),
+        );
+    final quiz = await addTask(TaskKind.quiz, course: courseId);
+    final personal = await addTask(TaskKind.personal);
+    final fromLms = await addTask(TaskKind.assignment, lmsKey: key);
+
+    final tasks = {
+      for (final task in await db.select(db.tasks).get()) task.id: task,
+    };
+    expect(tasks[quiz]!.courseId, courseId);
+    expect(tasks[personal]!.courseId, isNull);
+    expect(tasks[fromLms]!.courseId, isNull);
+    final raw = await db
+        .customSelect('SELECT course_id FROM tasks WHERE id = $quiz')
+        .getSingle();
+    expect(raw.read<int>('course_id'), courseId);
+    final lmsItem = await db.select(db.lmsItems).getSingle();
+    expect(tasks[quiz]!.courseIdWith(null), courseId);
+    expect(tasks[personal]!.courseIdWith(null), isNull);
+    expect(tasks[fromLms]!.courseIdWith(lmsItem), courseId);
+  });
 
   test('수업 칸은 불러온 원래 요일·시각·강의실과 고친 표시를 두고, 직접 넣은 수업은 비어 있다', () async {
     final courseId = await addCourse();

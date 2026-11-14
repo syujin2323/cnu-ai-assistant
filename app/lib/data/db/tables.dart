@@ -26,7 +26,6 @@ class Courses extends Table {
   TextColumn get remoteId => text().nullable()();
   TextColumn get semester => text().nullable()();
   TextColumn get name => text()();
-  TextColumn get alias => text().nullable()();
   IntColumn get color => integer().nullable()();
   DateTimeColumn get lastSeenAt => dateTime().nullable()();
 
@@ -152,6 +151,10 @@ class Tasks extends Table {
   /// LMS 항목 하나에 할 일 하나다. 직접 만든 할 일은 null이고 여럿이어도 된다.
   TextColumn get lmsKey =>
       text().nullable().unique().references(LmsItems, #remoteKey)();
+
+  /// 과목을 정해 만든 할 일의 과목. LMS 할 일은 null이고 과목은 `lms_items.courseId`에서 읽는다
+  /// (동기화는 이 열을 쓰지 않는다).
+  IntColumn get courseId => integer().nullable().references(Courses, #id)();
 }
 
 @TableIndex.sql(
