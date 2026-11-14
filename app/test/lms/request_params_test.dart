@@ -7,6 +7,7 @@ import 'dart:convert';
 
 import 'package:cnu_ai_assistant/lms/lms_config.dart';
 import 'package:cnu_ai_assistant/lms/request_params.dart';
+import 'package:cnu_ai_assistant/lms/request_spec.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/lms_samples.dart';
@@ -18,17 +19,18 @@ void main() {
         schoolDomain: domain ?? syntheticSchoolDomain,
       );
 
-  /// 합성 요청 상수에서 [path]의 값을 [value]로 바꾼 것. [value]가 [_remove]면 그 키를 뺀다.
+  /// 합성 요청 상수에서 [path]의 값을 [value]로 바꾼 것. [value]가 [_remove]면 그 키를 뺀다. 목록은 번호로 지난다.
   Map<String, Object?> withValue(List<String> path, Object? value) {
-    final copy = jsonDecode(syntheticRequestParamsJson) as Map<String, Object?>;
-    var node = copy;
+    final copy = syntheticRequestParamsCopy();
+    Object node = copy;
     for (final key in path.take(path.length - 1)) {
-      node = node[key]! as Map<String, Object?>;
+      node = node is List ? node[int.parse(key)]! : (node as Map)[key]!;
     }
+    final map = node as Map<String, Object?>;
     if (identical(value, _remove)) {
-      node.remove(path.last);
+      map.remove(path.last);
     } else {
-      node[path.last] = value;
+      map[path.last] = value;
     }
     return copy;
   }
@@ -213,10 +215,22 @@ void main() {
       parse(syntheticRequestParamsJson, domain: lmsSchoolDomain),
       LmsConfigProblem.domain,
     );
-    final school = withValue(['homeUrl'], 'https://lms.$lmsSchoolDomain/')
-      ..['loginUrl'] = 'https://sso.$lmsSchoolDomain/login'
-      ..['cookieDomains'] = ['lms.$lmsSchoolDomain', '.sso.$lmsSchoolDomain'];
-    expect(parse(school, domain: lmsSchoolDomain).problem, isNull);
+    // 합성 요청 상수의 모든 호스트를 학교 도메인의 하위 도메인으로 바꾸면 받는다.
+    final school = syntheticRequestParamsJson.replaceAll(
+      'example.invalid',
+      'lms.$lmsSchoolDomain',
+    );
+    final params = parse(school, domain: lmsSchoolDomain).params!;
+    expect(params.homeUrl.host, 'lms.$lmsSchoolDomain');
+    expect(params.cookieDomains, ['lms.$lmsSchoolDomain']);
+    // 로그인 요청의 주소도 학교 도메인 밖이면 domain이다.
+    final outside = jsonDecode(school) as Map<String, Object?>;
+    ((outside['login']! as Map)['request']! as Map)['url'] =
+        'https://example.invalid/synthetic-login/submit';
+    expectProblem(
+      parse(outside, domain: lmsSchoolDomain),
+      LmsConfigProblem.domain,
+    );
   });
 
   group('isSchoolUrl·isSchoolHost', () {
@@ -443,7 +457,407 @@ void main() {
     ).params!;
     expect(a, isNot(otherDomains));
   });
+
+  group('userAgent·ciphers·login', () {
+    test('합성 로그인 요청 틀을 읽는다', () {
+      final params = parse(syntheticRequestParamsJson).params!;
+      expect(params.userAgent, 'SyntheticAgent/1.0');
+      expect(params.ciphers, {'body': const LmsCipherSpec(keyVar: 'bodyKey')});
+      final login = params.login;
+      expect(login.steps, hasLength(2));
+      expect(login.steps.first.method, LmsMethod.get);
+      expect(
+        login.steps.first.extract['formToken'],
+        LmsPatternExtract(
+          RegExp('name="synthetic-token" value="([^"]*)"'),
+          optional: true,
+        ),
+      );
+      expect(login.steps[1].url.isSingleVariable, isTrue);
+      expect(login.request.method, LmsMethod.post);
+      expect(login.request.headers.keys, ['X-Synthetic']);
+      final body = login.request.body! as LmsEncryptedBody;
+      expect(body.cipher, 'body');
+      expect(body.field, 'payload');
+      expect(body.names, {'studentId', 'password', 'formToken'});
+      expect(
+        login.request.extract['handoffUrl'],
+        const LmsJsonExtract(['result', 'next'], optional: true),
+      );
+      expect(login.results, const [
+        LmsLoginRule(
+          when: [
+            LmsJsonMarker(path: ['result', 'code'], anyOf: ['wrong']),
+          ],
+          result: LmsLoginResult.wrongCredentials,
+        ),
+        LmsLoginRule(
+          when: [
+            LmsJsonPresent(['result', 'next']),
+          ],
+          result: LmsLoginResult.success,
+        ),
+      ]);
+      expect(login.handoff!.url.source, '{handoffUrl}');
+    });
+
+    test('준비 요청·세션 넘기기·헤더·뽑기·암호는 없어도 된다', () {
+      final login = {
+        'request': {
+          'method': 'POST',
+          'url': 'https://example.invalid/login',
+          'body': {
+            'form': {'id': '{studentId}', 'pw': '{password}'},
+          },
+        },
+        'results': [
+          {
+            'when': [
+              {'contains': 'welcome'},
+            ],
+            'result': 'success',
+          },
+        ],
+      };
+      final params = parse(withValue(['login'], login)..remove('ciphers'))
+          .params!;
+      expect(params.ciphers, isEmpty);
+      expect(params.login.steps, isEmpty);
+      expect(params.login.handoff, isNull);
+      expect(params.login.request.extract, isEmpty);
+      expect(params.login.request.body, isA<LmsFormBody>());
+    });
+
+    test('JSON 본문과 parseFailure 규칙, 여러 조건의 규칙을 읽는다', () {
+      final login = {
+        'request': {
+          'method': 'POST',
+          'url': 'https://example.invalid/login',
+          'body': {
+            'json': {
+              'id': '{studentId}',
+              'nested': [
+                {'pw': '{password}'},
+              ],
+            },
+          },
+        },
+        'results': [
+          {
+            'when': [
+              {
+                'path': 'code',
+                'anyOf': ['-1', 0],
+              },
+              {'contains': 'x'},
+            ],
+            'result': 'parseFailure',
+          },
+          {
+            'when': [
+              {'path': 'ok', 'present': true},
+            ],
+            'result': 'success',
+          },
+        ],
+      };
+      final params = parse(withValue(['login'], login)).params!;
+      expect(params.login.request.body, isA<LmsJsonBody>());
+      expect(params.login.request.body!.names, {'studentId', 'password'});
+      expect(params.login.results.first.when, const [
+        LmsJsonMarker(path: ['code'], anyOf: ['-1', '0']),
+        LmsBodyContains('x'),
+      ]);
+    });
+
+    test('키가 빠졌거나 형이 다르면 field다', () {
+      for (final (path, value) in <(List<String>, Object?)>[
+        (['userAgent'], _remove),
+        (['userAgent'], ''),
+        (['userAgent'], '  '),
+        (['userAgent'], 'Agent\r\nX-Other: 1'),
+        (['userAgent'], 1),
+        (['ciphers'], 'body'),
+        (['ciphers', 'body'], _remove),
+        (['ciphers', 'body', 'key'], _remove),
+        (['ciphers', 'body', 'key'], {'var': '1key'}),
+        (['ciphers', 'body', 'iv'], 'random'),
+        (['ciphers', 'body', 'iv'], _remove),
+        (['ciphers', 'body', 'key'], {'var': 'bodyKey', 'takeBytes': 20}),
+        (['ciphers', 'body', 'key'], {'var': 'bodyKey', 'takeBytes': 16.0}),
+        (['ciphers', 'body', 'key'], {'var': 'bodyKey', 'removeChars': 1}),
+        (['login'], _remove),
+        (['login'], 'login'),
+        (['login', 'steps'], 'steps'),
+        (['login', 'request'], _remove),
+        (['login', 'request', 'method'], 'PUT'),
+        (['login', 'request', 'method'], 'post'),
+        (['login', 'request', 'url'], _remove),
+        (['login', 'request', 'url'], 'https://example.invalid/{studentId}/x'),
+        (['login', 'request', 'url'], '{studentId}x'),
+        (['login', 'request', 'headers'], 'X: 1'),
+        (['login', 'request', 'headers'], {'X Bad': 'yes'}),
+        (['login', 'request', 'headers'], {'Cookie': 'x'}),
+        (['login', 'request', 'headers'], {'user-agent': 'x'}),
+        (['login', 'request', 'headers'], {'Host': 'x'}),
+        (['login', 'request', 'headers'], {'Content-Length': '1'}),
+        (['login', 'request', 'headers'], {'X-Ok': 'a\nb'}),
+        (['login', 'request', 'headers'], {'X-Ok': 1}),
+        (
+          ['login', 'request', 'body'],
+          {'form': <String, Object>{}, 'json': <String, Object>{}},
+        ),
+        (['login', 'request', 'body'], {'xml': '<x/>'}),
+        (
+          ['login', 'request', 'body'],
+          {
+            'form': {'id': 1},
+          },
+        ),
+        (
+          ['login', 'request', 'body'],
+          {
+            'form': {'': 'x'},
+          },
+        ),
+        (['login', 'request', 'body', 'encrypted', 'cipher'], 'other'),
+        (['login', 'request', 'body', 'encrypted', 'json'], _remove),
+        (['login', 'request', 'body', 'encrypted', 'field'], ''),
+        (
+          ['login', 'request', 'extract'],
+          {
+            'a-b': {'path': 'x'},
+          },
+        ),
+        (['login', 'request', 'extract', 'password'], {'path': 'x'}),
+        (
+          ['login', 'steps', '0', 'extract', 'studentId'],
+          {'pattern': 'id=(.)'},
+        ),
+        (
+          ['login', 'request', 'extract', 'handoffUrl'],
+          {'path': 'x', 'pattern': 'x(.)'},
+        ),
+        (['login', 'request', 'extract', 'handoffUrl'], {'optional': true}),
+        (['login', 'request', 'extract', 'handoffUrl'], {'pattern': ''}),
+        (['login', 'request', 'extract', 'handoffUrl'], {'pattern': '('}),
+        (['login', 'request', 'extract', 'handoffUrl'], {'path': 'a..b'}),
+        (
+          ['login', 'request', 'extract', 'handoffUrl'],
+          {'path': 'a', 'optional': 'yes'},
+        ),
+        (['login', 'results'], _remove),
+        (['login', 'results'], <Object>[]),
+        (
+          ['login', 'results'],
+          [
+            {
+              'when': [
+                {'contains': 'x'},
+              ],
+              'result': 'wrongCredentials',
+            },
+          ],
+        ),
+        (['login', 'results', '1', 'when'], <Object>[]),
+        (['login', 'results', '1', 'result'], 'ok'),
+        (
+          ['login', 'results', '1', 'when'],
+          [
+            {'contains': 'x', 'path': 'a'},
+          ],
+        ),
+        (
+          ['login', 'results', '1', 'when'],
+          [
+            {'contains': ''},
+          ],
+        ),
+        (
+          ['login', 'results', '1', 'when'],
+          [
+            {'path': 'a', 'present': false},
+          ],
+        ),
+        (
+          ['login', 'results', '1', 'when'],
+          [
+            {
+              'path': 'a',
+              'present': true,
+              'anyOf': ['x'],
+            },
+          ],
+        ),
+        (
+          ['login', 'results', '1', 'when'],
+          [
+            {
+              'path': 'a',
+              'anyOf': ['x'],
+              'extra': 1,
+            },
+          ],
+        ),
+        (['login', 'handoff'], 'handoff'),
+      ]) {
+        expectProblem(parse(withValue(path, value)), LmsConfigProblem.field);
+      }
+    });
+
+    test('요청은 앞에서 뽑은 변수만 쓰고, 학번·비밀번호는 로그인 요청만 쓴다', () {
+      for (final (path, value) in <(List<String>, Object?)>[
+        // 준비 요청이 학번이나 뒤에서 뽑을 값을 쓴다.
+        (['login', 'steps', '0', 'url'], '{studentId}'),
+        (['login', 'steps', '0', 'url'], '{bodyKey}'),
+        (['login', 'steps', '1', 'headers'], {'X-Id': '{password}'}),
+        // 로그인 요청이 모르는 변수를 쓴다.
+        (['login', 'request', 'headers'], {'X-Synthetic': '{unknown}'}),
+        // 세션 넘기기가 비밀번호를 쓴다.
+        (['login', 'handoff', 'url'], '{password}'),
+        (['login', 'handoff', 'headers'], {'X-Id': '{studentId}'}),
+        // 암호 키는 앞 요청에서 뽑은 값이어야 한다.
+        (['ciphers', 'body', 'key'], {'var': 'studentId'}),
+        (['ciphers', 'body', 'key'], {'var': 'handoffUrl'}),
+      ]) {
+        expectProblem(parse(withValue(path, value)), LmsConfigProblem.field);
+      }
+    });
+
+    test('요청 주소가 학교 도메인 밖이거나 https가 아니면 domain이다', () {
+      for (final path in [
+        ['login', 'steps', '0', 'url'],
+        ['login', 'request', 'url'],
+        ['login', 'handoff', 'url'],
+      ]) {
+        for (final url in [
+          'https://example.com/x',
+          'http://example.invalid/x',
+        ]) {
+          expectProblem(parse(withValue(path, url)), LmsConfigProblem.domain);
+        }
+      }
+    });
+  });
+
+  group('조건과 결과 규칙', () {
+    test('LmsJsonPresent는 비어 있지 않은 글자·수·참거짓이 있을 때만 맞다', () {
+      const present = LmsJsonPresent(['a', 'b']);
+      for (final (json, expected) in <(Object?, bool)>[
+        (
+          {
+            'a': {'b': 'x'},
+          },
+          true,
+        ),
+        (
+          {
+            'a': {'b': 0},
+          },
+          true,
+        ),
+        (
+          {
+            'a': {'b': false},
+          },
+          true,
+        ),
+        (
+          {
+            'a': {'b': ''},
+          },
+          false,
+        ),
+        (
+          {
+            'a': {'b': null},
+          },
+          false,
+        ),
+        (
+          {
+            'a': {
+              'b': {'c': 1},
+            },
+          },
+          false,
+        ),
+        (
+          {
+            'a': {'c': 'x'},
+          },
+          false,
+        ),
+        (null, false),
+      ]) {
+        expect(present.matches(json), expected, reason: '$json');
+      }
+    });
+
+    test('LmsBodyContains는 본문 글자를 대소문자를 가려 본다', () {
+      const contains = LmsBodyContains('Welcome');
+      expect(contains.matches(null, '<p>Welcome</p>'), isTrue);
+      expect(contains.matches(null, '<p>welcome</p>'), isFalse);
+      expect(contains.matches({'Welcome': 1}), isFalse);
+    });
+
+    test('결과는 차례대로 처음 맞는 규칙이고, 한 규칙의 조건은 모두 맞아야 하며, 없으면 해석 실패다', () {
+      final spec = LmsLoginSpec(
+        request: LmsRequestSpec(method: LmsMethod.get, url: _dummyUrl),
+        results: const [
+          LmsLoginRule(
+            when: [
+              LmsJsonMarker(path: ['code'], anyOf: ['locked']),
+            ],
+            result: LmsLoginResult.parseFailure,
+          ),
+          LmsLoginRule(
+            when: [
+              LmsJsonPresent(['next']),
+              LmsBodyContains('ok'),
+            ],
+            result: LmsLoginResult.success,
+          ),
+          LmsLoginRule(
+            when: [
+              LmsJsonPresent(['next']),
+            ],
+            result: LmsLoginResult.wrongCredentials,
+          ),
+        ],
+      );
+      expect(
+        spec.resultOf({'code': 'locked', 'next': 'x'}, 'ok'),
+        LmsLoginResult.parseFailure,
+      );
+      expect(spec.resultOf({'next': 'x'}, 'ok'), LmsLoginResult.success);
+      expect(
+        spec.resultOf({'next': 'x'}, 'no'),
+        LmsLoginResult.wrongCredentials,
+      );
+      expect(spec.resultOf({'other': 1}, 'ok'), LmsLoginResult.parseFailure);
+    });
+  });
+
+  test('로그인 요청 틀이 다르면 요청 상수도 다르다', () {
+    final a = parse(syntheticRequestParamsJson).params!;
+    final b = parse(syntheticRequestParamsJson).params!;
+    expect(a, b);
+    expect(a.hashCode, b.hashCode);
+    for (final (path, value) in <(List<String>, Object?)>[
+      (['userAgent'], 'OtherAgent/1.0'),
+      (['ciphers', 'body', 'iv'], 'key'),
+      (['login', 'request', 'headers'], const <String, String>{}),
+      (['login', 'handoff'], _remove),
+      (['login', 'steps', '0', 'extract', 'formToken', 'optional'], false),
+    ]) {
+      expect(parse(withValue(path, value)).params, isNot(a), reason: '$path');
+    }
+  });
 }
+
+/// 결과 규칙 테스트에 쓰는 아무 주소.
+final _dummyUrl = LmsTemplate('https://example.invalid/');
 
 /// [withValue]에서 키를 빼라는 표시.
 const Object _remove = Object();
