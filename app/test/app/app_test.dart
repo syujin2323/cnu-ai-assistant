@@ -537,6 +537,47 @@ void main() {
 
           await app.dispose(tester);
         });
+
+        testWidgets(
+          '01을 띄운 채 하루가 바뀌어 돌아오면 01이 그날을 본 것으로 적고, 같은 날 다시 돌아와도 브리핑을 다시 띄우지 않는다',
+          (tester) async {
+            final app = await pumpTestApp(
+              tester,
+              now: evening,
+              settings: boundary,
+              textScale: textScale,
+              realBriefingCheck: true,
+            );
+            expect(find.byType(BriefingScreen), findsOneWidget);
+            final briefings = BriefingRepository(app.db);
+            expect(
+              await briefings.isSeen(DateTime(2026, 11, 13)),
+              const Ok(true),
+            );
+
+            // 01에서 아무것도 누르지 않고 떠났다가 다음 날 아침 돌아온다. 01은 미루는 화면이라 그대로 두되,
+            // 01이 새 날을 본 것으로 적는다.
+            app.clock.current = nextMorning;
+            await sendAppToBackgroundAndBack(tester);
+            expect(find.byType(BriefingScreen), findsOneWidget);
+            expect(app.router.state.uri.path, Routes.briefing);
+            expect(
+              await briefings.isSeen(DateTime(2026, 11, 14)),
+              const Ok(true),
+            );
+
+            await tapText(tester, '오늘로 가기');
+            await tapTab(tester, '캘린더');
+            app.clock.current = DateTime(2026, 11, 14, 12);
+            await sendAppToBackgroundAndBack(tester);
+
+            expect(find.byType(BriefingScreen), findsNothing);
+            expect(find.byType(WeekScreen), findsOneWidget);
+            _expectTabs(tester, selected: '캘린더');
+
+            await app.dispose(tester);
+          },
+        );
       });
 
       testWidgets('라우트 표의 경로마다 그 화면이 탭 안이나 셸 밖에 뜬다', (tester) async {

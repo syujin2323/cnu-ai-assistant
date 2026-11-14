@@ -106,7 +106,11 @@ void main() {
       final now = DateTime(2026, 10, 13, 3, 59);
       final container = await containerWith(TestClock(now));
 
-      await container.read(markBriefingSeenProvider)();
+      // 적은 논리적 하루를 돌려준다(01이 띄운 채 하루가 바뀌었는지 견줄 때 씀).
+      expect(
+        await container.read(markBriefingSeenProvider)(),
+        DateTime(2026, 10, 12),
+      );
 
       expect(
         await BriefingRepository(db).isSeen(DateTime(2026, 10, 12)),
@@ -135,7 +139,10 @@ void main() {
       );
       await db.customStatement('DROP TABLE briefings');
 
-      await expectLater(container.read(markBriefingSeenProvider)(), completes);
+      await expectLater(
+        container.read(markBriefingSeenProvider)(),
+        completion(isNull),
+      );
     });
 
     test('설정을 읽지 못하면 적지 않고 던지지 않는다', () async {
@@ -145,7 +152,10 @@ void main() {
       await db.customSelect('SELECT 1').get();
       await db.close();
 
-      await expectLater(container.read(markBriefingSeenProvider)(), completes);
+      await expectLater(
+        container.read(markBriefingSeenProvider)(),
+        completion(isNull),
+      );
     });
 
     test('데모를 끝내는 중이면 데모 DB에도 실제 DB에도 적지 않는다', () async {
@@ -182,7 +192,7 @@ void main() {
           .exitDemo(container.read(databaseProvider));
       final mark = container.read(markBriefingSeenProvider)();
       expect(await exit, const Ok(DemoEntry.onboarding));
-      await mark;
+      expect(await mark, isNull);
 
       expect(await seenDates(demoDb), isEmpty);
       expect(await seenDates(db), isEmpty);
@@ -226,7 +236,7 @@ void main() {
       );
       expect(container.read(appModeProvider), AppMode.real);
       settings.gate.complete();
-      await mark;
+      expect(await mark, isNull);
 
       expect(await seenDates(demoDb), isEmpty);
       expect(await seenDates(db), isEmpty);
