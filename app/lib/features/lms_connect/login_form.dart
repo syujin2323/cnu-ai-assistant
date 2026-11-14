@@ -13,6 +13,8 @@
 // 1단계가 debug 빌드에서만 넘김, docs/decisions.md 2026-11-06 '개발 중에는 debug 빌드에만 로그인 없이 넘어가는
 // 길을 둔다').
 
+import 'dart:async';
+
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
@@ -71,6 +73,14 @@ class _LoginFormState extends ConsumerState<LoginForm> {
   /// 마지막 실패.
   LmsOutcomeKind? _failure;
 
+  /// 이 폼의 로그인 흐름. 폼이 사라질 때도 쓰므로 처음에 받아 둔다.
+  late final LoginFlow _flow = ref.read(loginFlowProvider);
+
+  /// 로그인을 한 번이라도 시도했는지와 성공했는지. 시도했는데 성공 없이 폼이 사라지면(뒤로 가기, '로그인 없이
+  /// 둘러보기') LMS 상태를 시작 전으로 돌린다([LoginFlow.abandon]).
+  bool _attempted = false;
+  bool _succeeded = false;
+
   bool get _first => widget.mode == LoginMode.first;
 
   /// 학번 칸을 받는지. 처음 로그인이거나, 저장된 학번을 읽었는데 없는 다시 로그인이다.
@@ -88,7 +98,7 @@ class _LoginFormState extends ConsumerState<LoginForm> {
     if (_first) {
       _savedIdLoaded = true;
     } else {
-      ref.read(loginFlowProvider).savedStudentId().then((id) {
+      _flow.savedStudentId().then((id) {
         if (!mounted) return;
         setState(() {
           _savedStudentId = id;
@@ -100,6 +110,7 @@ class _LoginFormState extends ConsumerState<LoginForm> {
 
   @override
   void dispose() {
+    if (_attempted && !_succeeded) unawaited(_flow.abandon());
     _studentId.dispose();
     _password.dispose();
     super.dispose();
@@ -132,19 +143,19 @@ class _LoginFormState extends ConsumerState<LoginForm> {
     });
     if (_first) await _writeConsentTime();
     if (!mounted) return;
-    final result = await ref
-        .read(loginFlowProvider)
-        .run(
-          mode: widget.mode,
-          studentId: _id,
-          password: _password.text,
-          onStage: (stage) {
-            if (mounted) setState(() => _stage = stage);
-          },
-        );
+    _attempted = true;
+    final result = await _flow.run(
+      mode: widget.mode,
+      studentId: _id,
+      password: _password.text,
+      onStage: (stage) {
+        if (mounted) setState(() => _stage = stage);
+      },
+    );
     if (!mounted) return;
     switch (result) {
       case Ok():
+        _succeeded = true;
         setState(() => _finished = true);
         await widget.onSucceeded();
         if (mounted) setState(() => _setRunning(false));

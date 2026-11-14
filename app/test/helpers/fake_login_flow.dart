@@ -56,6 +56,9 @@ class FakeLoginFlow implements LoginFlow {
   /// 지금까지의 로그인.
   final List<LoginCall> calls = [];
 
+  /// [abandon]을 부른 횟수(로그인 화면을 성공 없이 떠남).
+  int abandoned = 0;
+
   Completer<void>? _hold;
 
   /// 붙잡아 둔 단계를 넘긴다.
@@ -67,6 +70,9 @@ class FakeLoginFlow implements LoginFlow {
 
   @override
   Future<String?> savedStudentId() async => savedId;
+
+  @override
+  Future<void> abandon() async => abandoned++;
 
   @override
   Future<Result<void>> run({

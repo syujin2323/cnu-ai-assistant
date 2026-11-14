@@ -41,4 +41,41 @@ void main() {
       }
     });
   });
+
+  group('sessionStateLeavingLogin', () {
+    test('로그인 화면을 성공 없이 떠나면 connecting만 시작 전 상태로 돌린다', () {
+      expect(
+        sessionStateLeavingLogin(
+          LmsSessionState.connecting,
+          hasSavedCredentials: true,
+        ),
+        LmsSessionState.reconnectRequired,
+      );
+      expect(
+        sessionStateLeavingLogin(
+          LmsSessionState.connecting,
+          hasSavedCredentials: false,
+        ),
+        LmsSessionState.disconnected,
+      );
+      for (final state in LmsSessionState.values) {
+        if (state == LmsSessionState.connecting) continue;
+        expect(
+          sessionStateLeavingLogin(state, hasSavedCredentials: true),
+          state,
+        );
+      }
+    });
+
+    test('앱을 시작할 때의 정리와 같다', () {
+      for (final state in LmsSessionState.values) {
+        for (final saved in [true, false]) {
+          expect(
+            sessionStateAtStartup(state, hasSavedCredentials: saved),
+            sessionStateLeavingLogin(state, hasSavedCredentials: saved),
+          );
+        }
+      }
+    });
+  });
 }
