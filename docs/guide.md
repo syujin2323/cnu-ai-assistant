@@ -110,6 +110,7 @@ Claude는 대화가 끝나면 내용을 잊습니다. 다른 팀원의 Claude는
 | `leak-check`가 `LMS_COOKIE_NAMES`가 비어 있다고 함 | 레포 Actions 비밀값이 설정되지 않음 | 팀장에게 알립니다. 팀장이 비밀값을 넣은 뒤 PR 페이지에서 검사를 다시 돌립니다 |
 | `leak-check`가 `LMS_COOKIE_NAMES`가 '이름1\|이름2' 형식이 아니라고 함 | 비밀값의 이름 사이를 `\|`가 아니라 공백·줄바꿈으로 나눴거나, 영문·숫자·`_` `.` `-` 밖의 글자가 있음 | 팀장에게 알립니다. 팀장이 이름을 `\|`로 이어 비밀값을 다시 넣은 뒤 PR 페이지에서 검사를 다시 돌립니다 |
 | PR에 `app-check` 빨간 X | 앱 코드의 포맷·분석 경고·테스트 실패, drift 생성 파일이 최신이 아님, 또는 Actions 비밀값 `FIREBASE_OPTIONS_DART`가 없거나 잘못 들어감 | 검사 로그 끝의 빨간 오류 문구를 읽고, 레포 루트에서 `make check`(생성 파일이면 `make gen-check`)로 재현해 고친 뒤 push합니다. 비밀값 문제면 팀장에게 알립니다. Claude에게 "app-check 실패한 거 고쳐줘"라고 해도 됨 |
+| PR에 `functions-check` 빨간 X | 서버(`functions/`) 코드의 타입·린트·포맷·테스트 실패, 또는 `package-lock.json`이 `package.json`과 맞지 않음 | 레포 루트에서 `make functions-check`(포맷이면 `make functions-format`)로 재현해 고친 뒤 push합니다. lock 파일이면 `functions/`에서 `npm install`을 돌려 바뀐 `package-lock.json`을 함께 커밋합니다 |
 | PR에 `This branch has conflicts` | 다른 사람이 같은 곳을 먼저 고침 | Claude에게 "develop 최신 내용 받아서 충돌 해결해줘" |
 | Merge 버튼이 회색 | 검사 실패, 충돌, 또는 승인 필요(main) | PR 페이지 아래쪽 안내 문구를 확인 |
 | API 키나 `.env`를 올림 | | 바로 팀에 알리고 그 키를 발급한 곳에서 폐기. 지우는 것보다 폐기가 먼저 |

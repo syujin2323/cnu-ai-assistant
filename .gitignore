@@ -9,6 +9,8 @@ GoogleService-Info.plist
 .secret.local
 # flutterfire configure 기록(프로젝트 ID·앱 ID). 레포 루트의 firebase.json(에뮬레이터 설정)은 커밋한다.
 app/firebase.json
+# firebase use가 만드는 프로젝트 ID 기록. 각자 firebase use --add로 만든다.
+.firebaserc
 
 # 앱 서명 파일
 key.properties
