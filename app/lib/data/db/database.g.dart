@@ -52,15 +52,6 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _aliasMeta = const VerificationMeta('alias');
-  @override
-  late final GeneratedColumn<String> alias = GeneratedColumn<String>(
-    'alias',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
   static const VerificationMeta _colorMeta = const VerificationMeta('color');
   @override
   late final GeneratedColumn<int> color = GeneratedColumn<int>(
@@ -87,7 +78,6 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
     remoteId,
     semester,
     name,
-    alias,
     color,
     lastSeenAt,
   ];
@@ -125,12 +115,6 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
       );
     } else if (isInserting) {
       context.missing(_nameMeta);
-    }
-    if (data.containsKey('alias')) {
-      context.handle(
-        _aliasMeta,
-        alias.isAcceptableOrUnknown(data['alias']!, _aliasMeta),
-      );
     }
     if (data.containsKey('color')) {
       context.handle(
@@ -176,10 +160,6 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
         DriftSqlType.string,
         data['${effectivePrefix}name'],
       )!,
-      alias: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}alias'],
-      ),
       color: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}color'],
@@ -202,7 +182,6 @@ class CoursesCompanion extends UpdateCompanion<Course> {
   final Value<String?> remoteId;
   final Value<String?> semester;
   final Value<String> name;
-  final Value<String?> alias;
   final Value<int?> color;
   final Value<DateTime?> lastSeenAt;
   const CoursesCompanion({
@@ -210,7 +189,6 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     this.remoteId = const Value.absent(),
     this.semester = const Value.absent(),
     this.name = const Value.absent(),
-    this.alias = const Value.absent(),
     this.color = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
   });
@@ -219,7 +197,6 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     this.remoteId = const Value.absent(),
     this.semester = const Value.absent(),
     required String name,
-    this.alias = const Value.absent(),
     this.color = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
   }) : name = Value(name);
@@ -228,7 +205,6 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     Expression<String>? remoteId,
     Expression<String>? semester,
     Expression<String>? name,
-    Expression<String>? alias,
     Expression<int>? color,
     Expression<DateTime>? lastSeenAt,
   }) {
@@ -237,7 +213,6 @@ class CoursesCompanion extends UpdateCompanion<Course> {
       if (remoteId != null) 'remote_id': remoteId,
       if (semester != null) 'semester': semester,
       if (name != null) 'name': name,
-      if (alias != null) 'alias': alias,
       if (color != null) 'color': color,
       if (lastSeenAt != null) 'last_seen_at': lastSeenAt,
     });
@@ -248,7 +223,6 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     Value<String?>? remoteId,
     Value<String?>? semester,
     Value<String>? name,
-    Value<String?>? alias,
     Value<int?>? color,
     Value<DateTime?>? lastSeenAt,
   }) {
@@ -257,7 +231,6 @@ class CoursesCompanion extends UpdateCompanion<Course> {
       remoteId: remoteId ?? this.remoteId,
       semester: semester ?? this.semester,
       name: name ?? this.name,
-      alias: alias ?? this.alias,
       color: color ?? this.color,
       lastSeenAt: lastSeenAt ?? this.lastSeenAt,
     );
@@ -278,9 +251,6 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     if (name.present) {
       map['name'] = Variable<String>(name.value);
     }
-    if (alias.present) {
-      map['alias'] = Variable<String>(alias.value);
-    }
     if (color.present) {
       map['color'] = Variable<int>(color.value);
     }
@@ -297,7 +267,6 @@ class CoursesCompanion extends UpdateCompanion<Course> {
           ..write('remoteId: $remoteId, ')
           ..write('semester: $semester, ')
           ..write('name: $name, ')
-          ..write('alias: $alias, ')
           ..write('color: $color, ')
           ..write('lastSeenAt: $lastSeenAt')
           ..write(')'))
@@ -2836,6 +2805,20 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
       'UNIQUE REFERENCES lms_items (remote_key)',
     ),
   );
+  static const VerificationMeta _courseIdMeta = const VerificationMeta(
+    'courseId',
+  );
+  @override
+  late final GeneratedColumn<int> courseId = GeneratedColumn<int>(
+    'course_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES courses (id)',
+    ),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2847,6 +2830,7 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     spentMin,
     status,
     lmsKey,
+    courseId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2909,6 +2893,12 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         lmsKey.isAcceptableOrUnknown(data['lms_key']!, _lmsKeyMeta),
       );
     }
+    if (data.containsKey('course_id')) {
+      context.handle(
+        _courseIdMeta,
+        courseId.isAcceptableOrUnknown(data['course_id']!, _courseIdMeta),
+      );
+    }
     return context;
   }
 
@@ -2958,6 +2948,10 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         DriftSqlType.string,
         data['${effectivePrefix}lms_key'],
       ),
+      courseId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}course_id'],
+      ),
     );
   }
 
@@ -2983,6 +2977,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
   final Value<int?> spentMin;
   final Value<TaskStatus> status;
   final Value<String?> lmsKey;
+  final Value<int?> courseId;
   const TasksCompanion({
     this.id = const Value.absent(),
     this.title = const Value.absent(),
@@ -2993,6 +2988,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.spentMin = const Value.absent(),
     this.status = const Value.absent(),
     this.lmsKey = const Value.absent(),
+    this.courseId = const Value.absent(),
   });
   TasksCompanion.insert({
     this.id = const Value.absent(),
@@ -3004,6 +3000,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.spentMin = const Value.absent(),
     required TaskStatus status,
     this.lmsKey = const Value.absent(),
+    this.courseId = const Value.absent(),
   }) : title = Value(title),
        kind = Value(kind),
        dueTimeUnknown = Value(dueTimeUnknown),
@@ -3018,6 +3015,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Expression<int>? spentMin,
     Expression<String>? status,
     Expression<String>? lmsKey,
+    Expression<int>? courseId,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3029,6 +3027,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       if (spentMin != null) 'spent_min': spentMin,
       if (status != null) 'status': status,
       if (lmsKey != null) 'lms_key': lmsKey,
+      if (courseId != null) 'course_id': courseId,
     });
   }
 
@@ -3042,6 +3041,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Value<int?>? spentMin,
     Value<TaskStatus>? status,
     Value<String?>? lmsKey,
+    Value<int?>? courseId,
   }) {
     return TasksCompanion(
       id: id ?? this.id,
@@ -3053,6 +3053,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       spentMin: spentMin ?? this.spentMin,
       status: status ?? this.status,
       lmsKey: lmsKey ?? this.lmsKey,
+      courseId: courseId ?? this.courseId,
     );
   }
 
@@ -3090,6 +3091,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
     if (lmsKey.present) {
       map['lms_key'] = Variable<String>(lmsKey.value);
     }
+    if (courseId.present) {
+      map['course_id'] = Variable<int>(courseId.value);
+    }
     return map;
   }
 
@@ -3104,7 +3108,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
           ..write('estimateMin: $estimateMin, ')
           ..write('spentMin: $spentMin, ')
           ..write('status: $status, ')
-          ..write('lmsKey: $lmsKey')
+          ..write('lmsKey: $lmsKey, ')
+          ..write('courseId: $courseId')
           ..write(')'))
         .toString();
   }
@@ -5419,7 +5424,6 @@ typedef $$CoursesTableCreateCompanionBuilder = CoursesCompanion Function({
   Value<String?> remoteId,
   Value<String?> semester,
   required String name,
-  Value<String?> alias,
   Value<int?> color,
   Value<DateTime?> lastSeenAt,
 });
@@ -5428,7 +5432,6 @@ typedef $$CoursesTableUpdateCompanionBuilder = CoursesCompanion Function({
   Value<String?> remoteId,
   Value<String?> semester,
   Value<String> name,
-  Value<String?> alias,
   Value<int?> color,
   Value<DateTime?> lastSeenAt,
 });
@@ -5473,6 +5476,25 @@ final class $$CoursesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$TasksTable, List<Task>> _tasksRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.tasks,
+    aliasName: 'courses__id__tasks__course_id',
+  );
+
+  $$TasksTableProcessedTableManager get tasksRefs {
+    final manager = $$TasksTableTableManager(
+      $_db,
+      $_db.tasks,
+    ).filter((f) => f.courseId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_tasksRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$CoursesTableFilterComposer
@@ -5501,11 +5523,6 @@ class $$CoursesTableFilterComposer
 
   ColumnFilters<String> get name => $composableBuilder(
     column: $table.name,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get alias => $composableBuilder(
-    column: $table.alias,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5568,6 +5585,31 @@ class $$CoursesTableFilterComposer
     );
     return f(composer);
   }
+
+  Expression<bool> tasksRefs(
+    Expression<bool> Function($$TasksTableFilterComposer f) f,
+  ) {
+    final $$TasksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.courseId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TasksTableFilterComposer(
+            $db: $db,
+            $table: $db.tasks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$CoursesTableOrderingComposer
@@ -5596,11 +5638,6 @@ class $$CoursesTableOrderingComposer
 
   ColumnOrderings<String> get name => $composableBuilder(
     column: $table.name,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get alias => $composableBuilder(
-    column: $table.alias,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -5635,9 +5672,6 @@ class $$CoursesTableAnnotationComposer
 
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
-
-  GeneratedColumn<String> get alias =>
-      $composableBuilder(column: $table.alias, builder: (column) => column);
 
   GeneratedColumn<int> get color =>
       $composableBuilder(column: $table.color, builder: (column) => column);
@@ -5696,6 +5730,31 @@ class $$CoursesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> tasksRefs<T extends Object>(
+    Expression<T> Function($$TasksTableAnnotationComposer a) f,
+  ) {
+    final $$TasksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.courseId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TasksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.tasks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$CoursesTableTableManager
@@ -5711,7 +5770,11 @@ class $$CoursesTableTableManager
           $$CoursesTableUpdateCompanionBuilder,
           (Course, $$CoursesTableReferences),
           Course,
-          PrefetchHooks Function({bool classSlotsRefs, bool lmsItemsRefs})
+          PrefetchHooks Function({
+            bool classSlotsRefs,
+            bool lmsItemsRefs,
+            bool tasksRefs,
+          })
         > {
   $$CoursesTableTableManager(_$AppDatabase db, $CoursesTable table)
     : super(
@@ -5730,7 +5793,6 @@ class $$CoursesTableTableManager
                 Value<String?> remoteId = const Value.absent(),
                 Value<String?> semester = const Value.absent(),
                 Value<String> name = const Value.absent(),
-                Value<String?> alias = const Value.absent(),
                 Value<int?> color = const Value.absent(),
                 Value<DateTime?> lastSeenAt = const Value.absent(),
               }) => CoursesCompanion(
@@ -5738,7 +5800,6 @@ class $$CoursesTableTableManager
                 remoteId: remoteId,
                 semester: semester,
                 name: name,
-                alias: alias,
                 color: color,
                 lastSeenAt: lastSeenAt,
               ),
@@ -5748,7 +5809,6 @@ class $$CoursesTableTableManager
                 Value<String?> remoteId = const Value.absent(),
                 Value<String?> semester = const Value.absent(),
                 required String name,
-                Value<String?> alias = const Value.absent(),
                 Value<int?> color = const Value.absent(),
                 Value<DateTime?> lastSeenAt = const Value.absent(),
               }) => CoursesCompanion.insert(
@@ -5756,7 +5816,6 @@ class $$CoursesTableTableManager
                 remoteId: remoteId,
                 semester: semester,
                 name: name,
-                alias: alias,
                 color: color,
                 lastSeenAt: lastSeenAt,
               ),
@@ -5769,12 +5828,17 @@ class $$CoursesTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({classSlotsRefs = false, lmsItemsRefs = false}) {
+              ({
+                classSlotsRefs = false,
+                lmsItemsRefs = false,
+                tasksRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (classSlotsRefs) db.classSlots,
                     if (lmsItemsRefs) db.lmsItems,
+                    if (tasksRefs) db.tasks,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -5819,6 +5883,22 @@ class $$CoursesTableTableManager
                           referencedColumn: 'course_id',
                           typedResults: items,
                         ),
+                      if (tasksRefs)
+                        await $_getPrefetchedDataByColumns<
+                          Course,
+                          $CoursesTable,
+                          Task,
+                          $TasksTable
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CoursesTableReferences
+                              ._tasksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CoursesTableReferences(db, table, p0).tasksRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'course_id',
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -5839,7 +5919,11 @@ typedef $$CoursesTableProcessedTableManager =
       $$CoursesTableUpdateCompanionBuilder,
       (Course, $$CoursesTableReferences),
       Course,
-      PrefetchHooks Function({bool classSlotsRefs, bool lmsItemsRefs})
+      PrefetchHooks Function({
+        bool classSlotsRefs,
+        bool lmsItemsRefs,
+        bool tasksRefs,
+      })
     >;
 typedef $$ClassSlotsTableCreateCompanionBuilder = ClassSlotsCompanion Function({
   Value<int> id,
@@ -8064,6 +8148,7 @@ typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
   Value<int?> spentMin,
   required TaskStatus status,
   Value<String?> lmsKey,
+  Value<int?> courseId,
 });
 typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
   Value<int> id,
@@ -8075,6 +8160,7 @@ typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
   Value<int?> spentMin,
   Value<TaskStatus> status,
   Value<String?> lmsKey,
+  Value<int?> courseId,
 });
 
 final class $$TasksTableReferences
@@ -8092,6 +8178,23 @@ final class $$TasksTableReferences
       $_db.lmsItems,
     ).filter((f) => f.remoteKey.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_lmsKeyTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $CoursesTable _courseIdTable(_$AppDatabase db) =>
+      db.courses.createAlias('tasks__course_id__courses__id');
+
+  $$CoursesTableProcessedTableManager? get courseId {
+    final $_column = $_itemColumn<int>('course_id');
+    if ($_column == null) return null;
+    final manager = $$CoursesTableTableManager(
+      $_db,
+      $_db.courses,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_courseIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -8181,6 +8284,29 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
           }) => $$LmsItemsTableFilterComposer(
             $db: $db,
             $table: $db.lmsItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CoursesTableFilterComposer get courseId {
+    final $$CoursesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.courseId,
+      referencedTable: $db.courses,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CoursesTableFilterComposer(
+            $db: $db,
+            $table: $db.courses,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -8287,6 +8413,29 @@ class $$TasksTableOrderingComposer
     );
     return composer;
   }
+
+  $$CoursesTableOrderingComposer get courseId {
+    final $$CoursesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.courseId,
+      referencedTable: $db.courses,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CoursesTableOrderingComposer(
+            $db: $db,
+            $table: $db.courses,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$TasksTableAnnotationComposer
@@ -8349,6 +8498,29 @@ class $$TasksTableAnnotationComposer
     return composer;
   }
 
+  $$CoursesTableAnnotationComposer get courseId {
+    final $$CoursesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.courseId,
+      referencedTable: $db.courses,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CoursesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.courses,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   Expression<T> planBlocksRefs<T extends Object>(
     Expression<T> Function($$PlanBlocksTableAnnotationComposer a) f,
   ) {
@@ -8388,7 +8560,11 @@ class $$TasksTableTableManager
           $$TasksTableUpdateCompanionBuilder,
           (Task, $$TasksTableReferences),
           Task,
-          PrefetchHooks Function({bool lmsKey, bool planBlocksRefs})
+          PrefetchHooks Function({
+            bool lmsKey,
+            bool courseId,
+            bool planBlocksRefs,
+          })
         > {
   $$TasksTableTableManager(_$AppDatabase db, $TasksTable table)
     : super(
@@ -8412,6 +8588,7 @@ class $$TasksTableTableManager
                 Value<int?> spentMin = const Value.absent(),
                 Value<TaskStatus> status = const Value.absent(),
                 Value<String?> lmsKey = const Value.absent(),
+                Value<int?> courseId = const Value.absent(),
               }) => TasksCompanion(
                 id: id,
                 title: title,
@@ -8422,6 +8599,7 @@ class $$TasksTableTableManager
                 spentMin: spentMin,
                 status: status,
                 lmsKey: lmsKey,
+                courseId: courseId,
               ),
           createCompanionCallback:
               ({
@@ -8434,6 +8612,7 @@ class $$TasksTableTableManager
                 Value<int?> spentMin = const Value.absent(),
                 required TaskStatus status,
                 Value<String?> lmsKey = const Value.absent(),
+                Value<int?> courseId = const Value.absent(),
               }) => TasksCompanion.insert(
                 id: id,
                 title: title,
@@ -8444,6 +8623,7 @@ class $$TasksTableTableManager
                 spentMin: spentMin,
                 status: status,
                 lmsKey: lmsKey,
+                courseId: courseId,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -8453,63 +8633,78 @@ class $$TasksTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({lmsKey = false, planBlocksRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [if (planBlocksRefs) db.planBlocks],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (lmsKey) {
-                      state = state.withJoin(
-                        currentTable: table,
-                        currentColumn: table.lmsKey,
-                        referencedTable: $$TasksTableReferences._lmsKeyTable(
-                          db,
-                        ),
-                        referencedColumn: $$TasksTableReferences
-                            ._lmsKeyTable(db)
-                            .remoteKey,
-                      ) as T;
-                    }
+          prefetchHooksCallback:
+              ({lmsKey = false, courseId = false, planBlocksRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [if (planBlocksRefs) db.planBlocks],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (lmsKey) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.lmsKey,
+                            referencedTable: $$TasksTableReferences
+                                ._lmsKeyTable(db),
+                            referencedColumn: $$TasksTableReferences
+                                ._lmsKeyTable(db)
+                                .remoteKey,
+                          ) as T;
+                        }
+                        if (courseId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.courseId,
+                            referencedTable: $$TasksTableReferences
+                                ._courseIdTable(db),
+                            referencedColumn: $$TasksTableReferences
+                                ._courseIdTable(db)
+                                .id,
+                          ) as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (planBlocksRefs)
+                        await $_getPrefetchedDataByColumns<
+                          Task,
+                          $TasksTable,
+                          PlanBlock,
+                          $PlanBlocksTable
+                        >(
+                          currentTable: table,
+                          referencedTable: $$TasksTableReferences
+                              ._planBlocksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$TasksTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).planBlocksRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'task_id',
+                          typedResults: items,
+                        ),
+                    ];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (planBlocksRefs)
-                    await $_getPrefetchedDataByColumns<
-                      Task,
-                      $TasksTable,
-                      PlanBlock,
-                      $PlanBlocksTable
-                    >(
-                      currentTable: table,
-                      referencedTable: $$TasksTableReferences
-                          ._planBlocksRefsTable(db),
-                      managerFromTypedResult: (p0) =>
-                          $$TasksTableReferences(db, table, p0).planBlocksRefs,
-                      currentColumn: 'id',
-                      referencedColumn: 'task_id',
-                      typedResults: items,
-                    ),
-                ];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -8526,7 +8721,7 @@ typedef $$TasksTableProcessedTableManager =
       $$TasksTableUpdateCompanionBuilder,
       (Task, $$TasksTableReferences),
       Task,
-      PrefetchHooks Function({bool lmsKey, bool planBlocksRefs})
+      PrefetchHooks Function({bool lmsKey, bool courseId, bool planBlocksRefs})
     >;
 typedef $$PlanBlocksTableCreateCompanionBuilder = PlanBlocksCompanion Function({
   Value<int> id,
