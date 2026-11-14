@@ -89,6 +89,16 @@ class ClassExceptions extends Table {
   TextColumn get source => text().map(
     const EnumConverter(EntrySource.values, fallback: EntrySource.manual),
   )();
+  IntColumn get startMin => integer().nullable()();
+  IntColumn get endMin => integer().nullable()();
+
+  /// 보강 시각은 수업 칸의 시각과 같은 규칙이고, 둘은 함께 있거나 함께 없다(없으면 평소 시각).
+  @override
+  List<String> get customConstraints => const [
+    'CHECK ("start_min" BETWEEN 0 AND 1439)',
+    'CHECK ("end_min" > "start_min" AND "end_min" < "start_min" + 1440)',
+    'CHECK (("start_min" IS NULL) = ("end_min" IS NULL))',
+  ];
 }
 
 @UseRowClass(FixedBlock)

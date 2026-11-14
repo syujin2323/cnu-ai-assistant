@@ -12,6 +12,8 @@ class ClassException {
     required this.kind,
     this.place,
     required this.source,
+    this.startMin,
+    this.endMin,
   });
 
   final int id;
@@ -28,4 +30,10 @@ class ClassException {
   final String? place;
 
   final EntrySource source;
+
+  /// 보강 시각(그 날짜 0시 기준 분). 둘은 함께 있거나 함께 없고, 없으면 그 수업 칸의 평소 시각에 보강한다.
+  /// 자정을 넘으면 수업 칸처럼 [endMin]에 1440을 더한다. 빈 시간 계산은 보강(`makeup`)에만 쓴다.
+  final int? startMin;
+
+  final int? endMin;
 }

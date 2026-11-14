@@ -82,4 +82,26 @@ void main() {
       expect(check(bufferMin: 61), [TimetableIssue.bufferMin]);
     });
   });
+
+  group('보강 시각', () {
+    test('둘 다 없으면 평소 시각이라 통과하고, 있으면 수업 칸과 같은 규칙이다', () {
+      expect(checkMakeupTime(), isEmpty);
+      expect(checkMakeupTime(startMin: 840, endMin: 900), isEmpty);
+      expect(checkMakeupTime(startMin: 1320, endMin: 1560), isEmpty);
+      expect(checkMakeupTime(startMin: 1440, endMin: 1500), [
+        TimetableIssue.startMin,
+      ]);
+      expect(checkMakeupTime(startMin: 840, endMin: 840), [
+        TimetableIssue.endMin,
+      ]);
+      expect(checkMakeupTime(startMin: 840, endMin: 2280), [
+        TimetableIssue.endMin,
+      ]);
+    });
+
+    test('하나만 있으면 없는 쪽이 걸린다', () {
+      expect(checkMakeupTime(startMin: 840), [TimetableIssue.endMin]);
+      expect(checkMakeupTime(endMin: 900), [TimetableIssue.startMin]);
+    });
+  });
 }
