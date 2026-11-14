@@ -1,0 +1,12 @@
+{
+  "intent": "query",
+  "needsClarification": false,
+  "clarification": null,
+  "queryType": "deadlines_this_week",
+  "queryFrom": "2026-10-19",
+  "queryTo": "2026-10-25",
+  "queryCourse": "선형대수",
+  "unsupportedRule": null,
+  "items": [],
+  "rules": []
+}

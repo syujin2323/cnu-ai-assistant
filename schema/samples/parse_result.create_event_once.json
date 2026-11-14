@@ -1,0 +1,36 @@
+{
+  "intent": "create_event",
+  "needsClarification": false,
+  "clarification": null,
+  "queryType": null,
+  "queryFrom": null,
+  "queryTo": null,
+  "queryCourse": null,
+  "unsupportedRule": null,
+  "items": [
+    {
+      "title": "스터디",
+      "kind": "event",
+      "category": "personal",
+      "course": null,
+      "date": "2026-10-13",
+      "weekday": "화",
+      "dateExpression": "내일",
+      "timeExpression": "오후 3시",
+      "start": "15:00",
+      "end": null,
+      "repeat": null,
+      "fixedBlockKind": null,
+      "due": null,
+      "dueTime": null,
+      "estimatedMinutes": null,
+      "reminderMinutes": null,
+      "place": "도서관",
+      "prep": "노트북",
+      "shiftMinutes": null,
+      "target": null,
+      "exceptionType": null
+    }
+  ],
+  "rules": []
+}
