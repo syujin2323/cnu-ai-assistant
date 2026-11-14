@@ -16,6 +16,14 @@ void main() {
     expect(Defaults.mealMin, 40);
     expect(Defaults.mealWindowStartMin, 11 * 60 + 30);
     expect(Defaults.mealWindowEndMin, 13 * 60 + 30);
+    // 점심으로 보는 넓은 띠 10:30–15:30. 기본 점심 시간대는 이 띠 안에 있어야 점심 규칙이 대신한다.
+    expect(Defaults.lunchBandStartMin, 10 * 60 + 30);
+    expect(Defaults.lunchBandEndMin, 15 * 60 + 30);
+    expect(
+      Defaults.lunchBandStartMin <= Defaults.mealWindowStartMin &&
+          Defaults.mealWindowEndMin <= Defaults.lunchBandEndMin,
+      isTrue,
+    );
   });
 
   test('배치 조각·지평·다른 시간 제안·놓침 판정', () {
