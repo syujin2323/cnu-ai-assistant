@@ -339,7 +339,10 @@ RuleParams paramsToStore(
   return current == null ? incoming : current.params.mergedWith(incoming);
 }
 
-/// 하루 안의 시각 구간. 자정 기준 분이고, 자정을 넘으면 [endMin]에 1440을 더한다.
+/// 날마다 반복되는 실제 시각 구간. 구간이 시작하는 달력일의 자정 기준 분이고, 자정을 넘으면 [endMin]에 1440을
+/// 더한다(22:00–02:00 → 1320–1560). 하루 경계와 관계없이 저장하고, 어느 논리적 하루에 드는지는 빈 시간
+/// 계산이 정한다(`ruleSpansInLogicalDay`, docs/decisions.md 2026-11-14 '규칙의 시각 구간은 실제 시각으로
+/// 놓는다').
 final class MinuteRange {
   const MinuteRange(this.startMin, this.endMin);
 
@@ -529,7 +532,9 @@ final class PlannerConfig {
   /// 나중에 저장한 것이 먼저다.
   final List<Rule> _estimates;
 
-  /// [weekday](1 월 – 7 일)에 적용하는 조건. 블록이 시작하는 논리적 하루의 요일을 넣는다.
+  /// [weekday](1 월 – 7 일)에 적용하는 조건. 시각 구간(하루 창·피할 시간·선호 시간대)은 구간이 시작하는
+  /// 달력일의 요일로 읽고(`ruleSpansInLogicalDay`), 이동 시간과 하루 최대 공부량은 논리적 하루의 요일로
+  /// 읽는다.
   DayPlanRules forWeekday(int weekday) {
     RangeError.checkValueInInterval(
       weekday,

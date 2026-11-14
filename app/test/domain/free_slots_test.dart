@@ -63,11 +63,25 @@ void main() {
     List<Rule> rules = const [],
     int day = monday,
     bool meals = false,
+    int boundary = Defaults.dayBoundaryMin,
   }) => freeSlots(
     DateTime(2026, 10, day),
     schedule: schedule,
     config: PlannerConfig.from([...baseRules, if (!meals) noLunch, ...rules]),
-    dayBoundaryMin: Defaults.dayBoundaryMin,
+    dayBoundaryMin: boundary,
+  );
+
+  Rule window(int startMin, int endMin, {List<int>? weekdays}) => rule(
+    RuleKind.workWindow,
+    RuleParams(startMin: startMin, endMin: endMin),
+    weekdays: weekdays,
+  );
+
+  Rule blackout(int startMin, int endMin, {List<int>? weekdays}) => rule(
+    RuleKind.blackout,
+    RuleParams(startMin: startMin, endMin: endMin),
+    id: 101,
+    weekdays: weekdays,
   );
 
   ClassSlot classSlot({
@@ -256,6 +270,64 @@ void main() {
       ]);
     });
 
+    test('하루 첫 수업은 시작이 가장 이른 수업, 마지막 수업은 끝이 가장 늦은 수업이다', () {
+      // 수 13:00–16:00 정규 수업에 월 14:00–15:00 수업의 보강이 겹친다. 마지막 이동은 늦게 시작한 보강이
+      // 아니라 16:00에 끝나는 정규 수업 뒤에 건다.
+      const wednesday = monday + 2;
+      final schedule = Schedule(
+        classSlots: [
+          classSlot(
+            id: 1,
+            weekday: DateTime.wednesday,
+            startMin: 780,
+            endMin: 960,
+          ),
+          classSlot(id: 2, startMin: 840, endMin: 900),
+        ],
+        classExceptions: [
+          ClassException(
+            id: 1,
+            date: '2026-10-$wednesday',
+            classSlotId: 2,
+            kind: ClassExceptionKind.makeup,
+            source: EntrySource.manual,
+          ),
+        ],
+      );
+      expect(
+        free(
+          schedule,
+          rules: [travel(TravelPosition.dayEdges)],
+          day: wednesday,
+        ),
+        [
+          span(at(wednesday, 9), at(wednesday, 12)),
+          span(at(wednesday, 17), at(wednesday, 18)),
+        ],
+      );
+    });
+
+    test('시작이 같은 두 수업은 입력 순서와 관계없이 같은 결과다', () {
+      final short = classSlot(id: 1, startMin: 840, endMin: 900);
+      final long = classSlot(id: 2, startMin: 840, endMin: 960);
+      for (final order in [
+        [short, long],
+        [long, short],
+      ]) {
+        expect(
+          free(
+            Schedule(classSlots: order),
+            rules: [travel(TravelPosition.dayEdges)],
+          ),
+          [
+            span(at(monday, 9), at(monday, 13)),
+            span(at(monday, 17), at(monday, 18)),
+          ],
+          reason: '입력 순서 ${order.map((slot) => slot.id)}',
+        );
+      }
+    });
+
     test('그 논리적 하루의 수업만 보므로 다음 날 첫 수업은 이날의 마지막 수업이 아니다', () {
       // 월 10:00–11:00, 화 09:00–10:00.
       final schedule = Schedule(
@@ -429,28 +501,222 @@ void main() {
       expect(free(schedule), [span(at(monday, 9, 30), at(monday, 18))]);
     });
 
-    test('하루 창이 논리적 하루를 넘으면 그 하루 안으로 자른다', () {
-      final early = [
-        rule(RuleKind.workWindow, const RuleParams(startMin: 120, endMin: 600)),
-      ];
-      expect(free(const Schedule(), rules: early), [
-        span(
-          DateTime(2026, 10, monday, 0, Defaults.dayBoundaryMin),
-          at(monday, 10),
-        ),
+    test('하루 경계를 걸치는 하루 창은 경계에서 나눠 각 논리적 하루에 드는 조각을 모두 쓴다', () {
+      // 02:00–10:00: 월 04:00–10:00과, 화요일 창의 화 02:00–04:00(월의 논리적 하루).
+      expect(free(const Schedule(), rules: [window(120, 600)]), [
+        span(at(monday, 4), at(monday, 10)),
+        span(at(monday + 1, 2), at(monday + 1, 4)),
       ]);
+      // 20:00–다음 날 09:20: 일요일 창의 월 04:00–09:20과, 월요일 창의 월 20:00–화 04:00.
+      expect(free(const Schedule(), rules: [window(1200, 2000)]), [
+        span(at(monday, 4), at(monday, 9, 20)),
+        span(at(monday, 20), at(monday + 1, 4)),
+      ]);
+    });
+  });
 
-      final late = [
+  group('규칙의 새벽 구간(실제 시각)', () {
+    // docs/decisions.md 2026-11-14 '규칙의 시각 구간은 실제 시각으로 놓는다'.
+    test('밤 12시–새벽 3시 하루 창은 그날 밤에 놓는다', () {
+      expect(free(const Schedule(), rules: [window(0, 180)]), [
+        span(at(monday + 1, 0), at(monday + 1, 3)),
+      ]);
+    });
+
+    test('늦은 하루 창 끝의 새벽 피할 시간과 야식도 그날 밤에 건다', () {
+      // 하루 창 20:00–02:00, 피할 시간 01:00–03:00, 야식 00:00–01:00 사이 30분.
+      final snack = rule(
+        RuleKind.meal,
+        const RuleParams(startMin: 0, endMin: 60, minutes: 30),
+        id: 102,
+      );
+      final rules = [window(1200, 1560), blackout(60, 180), snack];
+      // 피할 시간이 01:00부터 막고, 야식은 남은 조각의 끝(00:30–01:00)에 붙는다.
+      expect(free(const Schedule(), rules: rules), [
+        span(at(monday, 20), at(monday + 1, 0, 30)),
+      ]);
+    });
+
+    test('야식은 그 시간대가 놓인 날(다음 날 새벽)의 식사 고정 일정이 대신한다', () {
+      // 하루 창 20:00–02:00, 야식 00:00–01:00 사이 30분, 화요일 00:00–00:20 식사 고정 일정.
+      final snack = rule(
+        RuleKind.meal,
+        const RuleParams(startMin: 0, endMin: 60, minutes: 30),
+        id: 102,
+      );
+      final lateSnack = FixedBlock(
+        id: 1,
+        name: '야식',
+        weekdays: const [DateTime.tuesday],
+        startMin: 0,
+        endMin: 20,
+        bufferMin: 0,
+        kind: FixedBlockKind.meal,
+        source: EntrySource.manual,
+      );
+      expect(
+        free(
+          Schedule(fixedBlocks: [lateSnack]),
+          rules: [window(1200, 1560), snack],
+        ),
+        [
+          span(at(monday, 20), at(monday + 1, 0)),
+          span(at(monday + 1, 0, 20), at(monday + 1, 2)),
+        ],
+      );
+    });
+
+    test('하루 경계를 걸치는 식사 시간대는 시작하는 논리적 하루에서 한 번만 비운다', () {
+      // 하루 창 02:00–10:00, 식사 03:00–05:00 사이 30분. 월 03:00에 시작하는 시간대는 일요일 몫이라
+      // 월요일에는 화 03:00에 시작하는 시간대만 비운다(화 03:30–04:00).
+      final meal = rule(
+        RuleKind.meal,
+        const RuleParams(startMin: 180, endMin: 300, minutes: 30),
+        id: 102,
+      );
+      expect(free(const Schedule(), rules: [window(120, 600), meal]), [
+        span(at(monday, 4), at(monday, 10)),
+        span(at(monday + 1, 2), at(monday + 1, 3, 30)),
+      ]);
+    });
+
+    test('요일을 고른 새벽 구간은 그 구간이 시작하는 달력일의 요일로 고른다', () {
+      // '화요일 01:00–03:00 피할 시간'은 실제 화요일 새벽(월요일 논리적 하루의 끝)이다.
+      final rules = [
+        window(1200, 1560),
+        blackout(60, 180, weekdays: [DateTime.tuesday]),
+      ];
+      expect(free(const Schedule(), rules: rules), [
+        span(at(monday, 20), at(monday + 1, 1)),
+      ]);
+      // 화요일 논리적 하루의 끝(수요일 새벽)은 막지 않는다.
+      expect(free(const Schedule(), rules: rules, day: monday + 1), [
+        span(at(monday + 1, 20), at(monday + 2, 2)),
+      ]);
+    });
+
+    test('전날 밤 시작해 자정을 넘는 피할 시간이 아침을 막는다', () {
+      // 수면 23:00–10:00.
+      expect(free(const Schedule(), rules: [blackout(1380, 2040)]), [
+        span(at(monday, 10), at(monday, 18)),
+      ]);
+    });
+
+    test('그 요일 하루 창이 모두 전날 몫이면 빈 시간이 없고, 결과는 고칠 수 있는 목록이다', () {
+      // 월요일만 00:00–03:00. 그 시간(월 새벽)은 일요일 논리적 하루에 든다.
+      final rules = [
+        window(0, 180, weekdays: [DateTime.monday]),
+      ];
+      final mondaySlots = free(const Schedule(), rules: rules);
+      expect(mondaySlots, isEmpty);
+      mondaySlots.add(span(at(monday, 9), at(monday, 10)));
+      expect(free(const Schedule(), rules: rules, day: monday - 1), [
+        span(at(monday - 1, 9), at(monday - 1, 18)),
+        span(at(monday, 0), at(monday, 3)),
+      ]);
+    });
+  });
+
+  group('하루 경계를 바꿀 때', () {
+    test('경계 06:00이면 05:00–12:00 하루 창은 그날 06:00–12:00과 다음 날 05:00–06:00이다', () {
+      expect(free(const Schedule(), rules: [window(300, 720)], boundary: 360), [
+        span(at(monday, 6), at(monday, 12)),
+        span(at(monday + 1, 5), at(monday + 1, 6)),
+      ]);
+    });
+
+    test('경계 03:00이면 20:00–04:00 하루 창은 그날 03:00–04:00과 20:00–다음 날 03:00이다', () {
+      expect(
+        free(const Schedule(), rules: [window(1200, 1680)], boundary: 180),
+        [
+          span(at(monday, 3), at(monday, 4)),
+          span(at(monday, 20), at(monday + 1, 3)),
+        ],
+      );
+    });
+
+    test('경계 전 새벽 수업은 전날 논리적 하루라 이동 시간을 걸지 않는다', () {
+      // 경계 06:00, 하루 창 06:00–12:00, 월 05:30–06:30·10:00–11:00 대면 수업, day_edges 60분.
+      final schedule = Schedule(
+        classSlots: [
+          classSlot(id: 1, startMin: 330, endMin: 390),
+          classSlot(id: 2, startMin: 600, endMin: 660),
+        ],
+      );
+      final rules = [
+        window(360, 720),
         rule(
-          RuleKind.workWindow,
-          const RuleParams(startMin: 1200, endMin: 2000),
+          RuleKind.travel,
+          const RuleParams(minutes: 60, position: TravelPosition.dayEdges),
+          id: 102,
         ),
       ];
-      expect(free(const Schedule(), rules: late), [
-        span(
-          at(monday, 20),
-          DateTime(2026, 10, monday + 1, 0, Defaults.dayBoundaryMin),
+      // 05:30 수업 뒤에는 여유 10분만, 이동은 10:00 수업 앞뒤에 건다.
+      expect(free(schedule, rules: rules, boundary: 360), [
+        span(at(monday, 6, 40), at(monday, 9)),
+      ]);
+    });
+
+    test('하루 창과 이동 시간 모두 넘긴 경계로 나눈다', () {
+      // 경계 06:00, 하루 창 05:00–12:00, 월 05:00–05:30 대면 수업, 여유 0분, day_edges 60분.
+      final schedule = Schedule(
+        classSlots: [classSlot(startMin: 300, endMin: 330)],
+      );
+      final rules = [
+        window(300, 720),
+        rule(RuleKind.classBuffer, const RuleParams(minutes: 0), id: 102),
+        rule(
+          RuleKind.travel,
+          const RuleParams(minutes: 60, position: TravelPosition.dayEdges),
+          id: 103,
         ),
+      ];
+      // 05:00 수업은 일요일 논리적 하루라 월요일 하루 창에도 이동 시간에도 들지 않는다.
+      expect(free(schedule, rules: rules, boundary: 360), [
+        span(at(monday, 6), at(monday, 12)),
+        span(at(monday + 1, 5), at(monday + 1, 6)),
+      ]);
+    });
+
+    test('하루 경계가 0–1439 밖이면 수업이 없어도 RangeError다', () {
+      expect(
+        () => free(const Schedule(), boundary: -60),
+        throwsA(isA<RangeError>()),
+      );
+      expect(
+        () => free(const Schedule(), boundary: 1440),
+        throwsA(isA<RangeError>()),
+      );
+    });
+  });
+
+  group('ruleSpansInLogicalDay', () {
+    List<TimeSpan> spans(DateTime day, Map<int, List<MinuteRange>> byWeekday) =>
+        ruleSpansInLogicalDay(
+          day,
+          dayBoundaryMin: Defaults.dayBoundaryMin,
+          rangesFor: (weekday) => byWeekday[weekday] ?? const [],
+        );
+
+    test('요일은 구간이 시작하는 달력일이고 그 논리적 하루 안 조각만 돌려준다', () {
+      // 배치 엔진의 선호 시간대도 이렇게 놓는다.
+      final byWeekday = {
+        DateTime.tuesday: const [MinuteRange(60, 180)],
+      };
+      expect(spans(DateTime(2026, 10, monday), byWeekday), [
+        span(at(monday + 1, 1), at(monday + 1, 3)),
+      ]);
+      expect(spans(DateTime(2026, 10, monday + 1), byWeekday), isEmpty);
+    });
+
+    test('겹치거나 맞닿은 조각은 하나로 합친다', () {
+      // 월 23:00–다음 날 01:00과 화 01:00–02:00, 화 01:30–03:00.
+      final byWeekday = {
+        DateTime.monday: const [MinuteRange(1380, 1500)],
+        DateTime.tuesday: const [MinuteRange(60, 120), MinuteRange(90, 180)],
+      };
+      expect(spans(DateTime(2026, 10, monday), byWeekday), [
+        span(at(monday, 23), at(monday + 1, 3)),
       ]);
     });
   });
