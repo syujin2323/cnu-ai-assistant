@@ -1,4 +1,4 @@
-/// 일정을 누가 넣었는지. [notification]은 알림 감지(R1)로 넣은 일정이다.
+/// 일정을 누가 넣었는지. [notification]은 07 알림 감지(스토어 공개 뒤)로 넣은 일정이다.
 enum EventSource { manual, ai, notification }
 
 /// 한 번뿐인 개인 일정. `events` 표의 한 행.
