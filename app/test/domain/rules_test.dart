@@ -460,6 +460,30 @@ void main() {
 
     test('알림 재설계 전에는 notify에서 브리핑 시각만 저장한다', () {
       expect(savableNotifyFields, {RuleField.briefingMin});
+      // validateRule은 범위만 보므로 하루 상한·조용한 시간은 통과하지만, 저장할 수 없는 자리로 따로 알린다.
+      const capAndQuiet = RuleParams(
+        briefingMin: Defaults.briefingMin,
+        notifyCap: 3,
+        quietStartMin: 1380,
+        quietEndMin: 1860,
+      );
+      expect(issues(RuleKind.notify, capAndQuiet), isEmpty);
+      expect(unsavableFields(RuleKind.notify, capAndQuiet), [
+        RuleField.notifyCap,
+        RuleField.quietStartMin,
+        RuleField.quietEndMin,
+      ]);
+      expect(
+        unsavableFields(
+          RuleKind.notify,
+          const RuleParams(briefingMin: Defaults.briefingMin),
+        ),
+        isEmpty,
+      );
+      expect(
+        unsavableFields(RuleKind.dailyCap, const RuleParams(minutes: 120)),
+        isEmpty,
+      );
       expect(
         issues(
           RuleKind.notify,

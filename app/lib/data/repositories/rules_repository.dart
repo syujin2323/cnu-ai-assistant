@@ -5,8 +5,8 @@
 // 합쳐 켜며, 같은 요일을 대신하는 종류와 과목·종류가 같은 예상 시간은 이전 규칙을 끈다([rulesReplacedBy]).
 // 규칙을 켜거나 끄거나 고치면 `updatedAt`을 지금으로 바꾼다. 한 동작의 쓰기와 되돌리기 기록(`undo_log`
 // 한 행)은 한 트랜잭션이다. 값 검사를 통과하지 못한 값이나 알림 재설계 전에 저장하지 않는 알림 값
-// ([savableNotifyFields] 밖)을 넣으면 [ArgumentError]다. 부르는 쪽은 [paramsToStore]와 [validateRule]로
-// 먼저 보고 되묻는다. 폰 DB를 읽거나 쓰지 못하면 [StorageError]를 담은 [Err]다.
+// ([unsavableFields])을 넣으면 [ArgumentError]다. 부르는 쪽은 [paramsToStore]로 합친 값을 [validateRule]과
+// [unsavableFields]로 먼저 보고 되묻는다. 폰 DB를 읽거나 쓰지 못하면 [StorageError]를 담은 [Err]다.
 
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/guard_storage.dart';
@@ -227,17 +227,12 @@ class RulesRepository {
     }
   }
 
-  /// 알림 재설계 전에는 `notify`에서 [savableNotifyFields]만 저장한다.
+  /// 알림 재설계 전에는 `notify`에서 [savableNotifyFields]만 저장한다([unsavableFields]).
   static void _checkSavable(RuleKind kind, RuleParams params) {
-    if (kind != RuleKind.notify) return;
-    final unsavable = [
-      for (final field in RuleField.values)
-        if (field.isSetIn(params) && !savableNotifyFields.contains(field))
-          field.name,
-    ];
+    final unsavable = unsavableFields(kind, params);
     if (unsavable.isNotEmpty) {
       throw ArgumentError.value(
-        unsavable,
+        [for (final field in unsavable) field.name],
         'params',
         'notify fields not saved before the notification redesign',
       );

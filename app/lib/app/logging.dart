@@ -81,11 +81,12 @@ void handleFlutterError(FlutterErrorDetails details) {
   if (!kReleaseMode) FlutterError.presentError(details);
 }
 
-/// 어디서도 잡지 않은 오류. 종류만 남기고 처리했다고 알려(true), 엔진이 오류 원문과 스택을 기기 로그에
-/// 찍지 않게 한다.
+/// 어디서도 잡지 않은 오류. 종류만 남긴다. release에서는 처리했다고 알려(true) 엔진이 오류 원문과 스택을 기기
+/// 로그에 찍지 않게 하고, debug·profile에서는 false를 돌려 엔진이 평소처럼 원문과 스택을 찍게 한다(개발자가
+/// 보도록. [handleFlutterError]와 같은 규칙).
 bool handleUncaughtError(Object error, StackTrace stack) {
   appLog('uncaught_error', area: 'error', data: {'error': errorKind(error)});
-  return true;
+  return kReleaseMode;
 }
 
 final RegExp _name = RegExp(r'^[A-Za-z0-9_.]+$');
