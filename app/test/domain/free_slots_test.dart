@@ -270,6 +270,64 @@ void main() {
       ]);
     });
 
+    test('하루 첫 수업은 시작이 가장 이른 수업, 마지막 수업은 끝이 가장 늦은 수업이다', () {
+      // 수 13:00–16:00 정규 수업에 월 14:00–15:00 수업의 보강이 겹친다. 마지막 이동은 늦게 시작한 보강이
+      // 아니라 16:00에 끝나는 정규 수업 뒤에 건다.
+      const wednesday = monday + 2;
+      final schedule = Schedule(
+        classSlots: [
+          classSlot(
+            id: 1,
+            weekday: DateTime.wednesday,
+            startMin: 780,
+            endMin: 960,
+          ),
+          classSlot(id: 2, startMin: 840, endMin: 900),
+        ],
+        classExceptions: [
+          ClassException(
+            id: 1,
+            date: '2026-10-$wednesday',
+            classSlotId: 2,
+            kind: ClassExceptionKind.makeup,
+            source: EntrySource.manual,
+          ),
+        ],
+      );
+      expect(
+        free(
+          schedule,
+          rules: [travel(TravelPosition.dayEdges)],
+          day: wednesday,
+        ),
+        [
+          span(at(wednesday, 9), at(wednesday, 12)),
+          span(at(wednesday, 17), at(wednesday, 18)),
+        ],
+      );
+    });
+
+    test('시작이 같은 두 수업은 입력 순서와 관계없이 같은 결과다', () {
+      final short = classSlot(id: 1, startMin: 840, endMin: 900);
+      final long = classSlot(id: 2, startMin: 840, endMin: 960);
+      for (final order in [
+        [short, long],
+        [long, short],
+      ]) {
+        expect(
+          free(
+            Schedule(classSlots: order),
+            rules: [travel(TravelPosition.dayEdges)],
+          ),
+          [
+            span(at(monday, 9), at(monday, 13)),
+            span(at(monday, 17), at(monday, 18)),
+          ],
+          reason: '입력 순서 ${order.map((slot) => slot.id)}',
+        );
+      }
+    });
+
     test('그 논리적 하루의 수업만 보므로 다음 날 첫 수업은 이날의 마지막 수업이 아니다', () {
       // 월 10:00–11:00, 화 09:00–10:00.
       final schedule = Schedule(

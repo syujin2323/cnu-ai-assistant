@@ -183,6 +183,10 @@ List<TimeSpan> _cut(List<TimeSpan> free, TimeSpan cut) => [
 ];
 
 /// 수업과 그 앞뒤로 막는 시간(여유·이동 시간).
+///
+/// `day_edges` 이동 시간은 그 논리적 하루의 대면 수업 가운데 하루 첫 수업(시작이 가장 이른 수업) 앞과
+/// 마지막 수업(끝이 가장 늦은 수업) 뒤에 건다. 시작이나 끝이 같으면 수업 칸 id로 가려, 수업이 겹치거나
+/// 입력 순서가 달라도 같은 결과를 낸다.
 Iterable<TimeSpan> _classSpans(
   List<DateTime> dates,
   DateTime day,
@@ -209,27 +213,39 @@ Iterable<TimeSpan> _classSpans(
   ];
 
   // 이동 시간은 그 논리적 하루의 대면 수업에만 건다.
-  final inPerson =
-      classes
-          .where(
-            (c) =>
-                !c.slot.online &&
-                logicalDate(c.span.start, dayBoundaryMin: dayBoundaryMin) ==
-                    day,
-          )
-          .toList()
-        ..sort((a, b) => a.span.start.compareTo(b.span.start));
+  final inPerson = [
+    for (final c in classes)
+      if (!c.slot.online &&
+          logicalDate(c.span.start, dayBoundaryMin: dayBoundaryMin) == day)
+        c,
+  ];
+  ({TimeSpan span, ClassSlot slot})? firstClass;
+  ({TimeSpan span, ClassSlot slot})? lastClass;
+  for (final c in inPerson) {
+    if (firstClass == null ||
+        c.span.start.isBefore(firstClass.span.start) ||
+        (c.span.start.isAtSameMomentAs(firstClass.span.start) &&
+            c.slot.id < firstClass.slot.id)) {
+      firstClass = c;
+    }
+    if (lastClass == null ||
+        c.span.end.isAfter(lastClass.span.end) ||
+        (c.span.end.isAtSameMomentAs(lastClass.span.end) &&
+            c.slot.id > lastClass.slot.id)) {
+      lastClass = c;
+    }
+  }
 
   return classes.map((c) {
     final buffer = c.slot.online ? 0 : bufferMin;
     var before = buffer;
     var after = buffer;
-    if (travel != null && inPerson.isNotEmpty) {
+    if (travel != null) {
       final everyClass = travel.position == TravelPosition.everyClass;
-      if (everyClass ? inPerson.contains(c) : c == inPerson.first) {
+      if (everyClass ? inPerson.contains(c) : c == firstClass) {
         before = max(before, travel.minutes);
       }
-      if (everyClass ? inPerson.contains(c) : c == inPerson.last) {
+      if (everyClass ? inPerson.contains(c) : c == lastClass) {
         after = max(after, travel.minutes);
       }
     }
