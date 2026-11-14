@@ -3,19 +3,20 @@
 //
 // 문장 속 시각은 "오전 10시 30분"처럼 12시간제([clockText]), 화면의 시각은 "09:30"처럼 24시간제
 // ([hhmmText]), 칩은 "오전 8:00"처럼([shortClockText]), 길이는 "2시간"·"50분"처럼 아라비아 숫자로 쓴다.
-// 하루 안의 시각은 폰 DB처럼 자정 기준 분(09:30 → 570)으로 받는다. 자정(00:00·24:00)과 하루 경계 전
-// 새벽 시각의 표기는 정하지 않았다(docs/screens.md '날짜·시각 표기'). 정할 때까지 00:00과 새벽 시각은 실제
-// 시각을 그대로 적는다([hhmmText]는 0–1439, [shortClockText]는 60–1439를 받고 그 밖은 받지 않음). 그래서
-// [hhmmText]를 거치는 [dueText]·[opensText]·[homeSummaryText]·[timeRangeText]도 새벽 시각을 그대로 쓰고,
-// 표기를 정하는 PR이 이 함수들을 함께 고친다.
+// 하루 안의 시각은 폰 DB처럼 자정 기준 분(09:30 → 570)으로 받는다. 자정과 하루 경계 전 새벽 시각은
+// docs/decisions.md 2026-11-14 '자정 마감은 전날 24:00, 새벽 마감은 달력 날짜로 쓴다'대로 쓴다. 정확히 00:00에
+// 끝나는 것(마감, 시간 범위의 끝)은 전날의 '24:00'(문장 속에서는 '밤 12시')이고, 00:01부터 하루 경계 전까지의
+// 마감은 그 달력 날짜의 날짜 말에 실제 시각을 붙인다. 칩([shortClockText])은 브리핑 시각(06:00–12:00)만 쓰므로
+// 자정 무렵을 받지 않는다.
 // 날짜(해가 다를 때만 연도), 지난 시간, 남은 일, 공개 줄, 02 머리, 주 범위, '불러옴', 시간 범위의 꼴은
 // 임시다(docs/decisions.md 2026-11-13 '날짜·시각 표기의 꼴(임시)').
 
 import 'package:cnu_ai_assistant/domain/clock.dart';
 
 /// 문장 속 시각. 자정 기준 분을 12시간제로 적는다. 570 → '오전 9시 30분', 780 → '오후 1시',
-/// 0 → '오전 12시', 720 → '오후 12시'. 자정을 넘어 1440을 더한 값(2879까지)은 그 시각으로 적는다.
-/// 화면의 'HH:MM'은 [hhmmText], 칩은 [shortClockText]다.
+/// 720 → '오후 12시'. 정확히 자정(0, 1440)은 '밤 12시'다('오전 12시'는 하루의 시작과 끝을 가르지 못함).
+/// 자정을 넘어 1440을 더한 값(2879까지)은 그 시각으로 적는다(1560 → '오전 2시'). 화면의 'HH:MM'은
+/// [hhmmText], 칩은 [shortClockText]다.
 String clockText(int minuteOfDay) {
   RangeError.checkValueInInterval(
     minuteOfDay,
@@ -23,6 +24,7 @@ String clockText(int minuteOfDay) {
     2 * _minutesPerDay - 1,
     'minuteOfDay',
   );
+  if (minuteOfDay % _minutesPerDay == 0) return '밤 12시';
   final hour = minuteOfDay ~/ 60 % 24;
   final minute = minuteOfDay % 60;
   final period = hour < 12 ? '오전' : '오후';
@@ -31,20 +33,21 @@ String clockText(int minuteOfDay) {
 }
 
 /// 화면의 시각 'HH:MM'(24시간제). 570 → '09:30', 1439 → '23:59'. 09 일간의 'HH:MM에 놓기', 마감 문구,
-/// 하루 경계 같은 자리에 쓴다. 서버·JSON의 시각 변환에는 쓰지 않는다(그쪽은 `schema/`의 시각 꼴을
-/// 따르고 24:00을 받지 않는다). 자정을 넘는 끝 시각(1440 이상)의 표기는 정하지 않아 아직 받지 않는다.
+/// 하루 경계 같은 자리에 쓴다. 1440은 정확히 자정에 끝나는 것(마감·시간 범위의 끝)의 '24:00'이다. 자정을
+/// 넘는 끝은 실제 시각(1500이면 [timeRangeText]가 '01:00')으로 쓰므로 1440보다 큰 값은 받지 않는다.
+/// 서버·JSON의 시각 변환에는 쓰지 않는다(그쪽은 `schema/`의 시각 꼴을 따르고 24:00을 받지 않는다).
 String hhmmText(int minuteOfDay) {
   RangeError.checkValueInInterval(
     minuteOfDay,
     0,
-    _minutesPerDay - 1,
+    _minutesPerDay,
     'minuteOfDay',
   );
   return '${_twoDigits(minuteOfDay ~/ 60)}:${_twoDigits(minuteOfDay % 60)}';
 }
 
 /// 칩의 시각 '오전 8:00'·'오후 12:30'(12시간제). 14 온보딩 5단계·10 나·12 내 규칙의 브리핑 시각 칩이
-/// 쓴다. 자정 무렵(00:00–00:59)과 1440 이상의 표기는 정하지 않아 아직 받지 않는다.
+/// 쓴다. 브리핑 시각(06:00–12:00)만 쓰므로 자정 무렵(00:00–00:59)과 1440 이상은 받지 않는다.
 String shortClockText(int minuteOfDay) {
   RangeError.checkValueInInterval(
     minuteOfDay,
@@ -59,11 +62,13 @@ String shortClockText(int minuteOfDay) {
 }
 
 /// 마감 문구(docs/screens.md '날짜·시각 표기'). 마감이 없으면 '마감 없음', 시각을 모르면
-/// '{날짜 말} 마감 · 시각 미상'(임시), 그 밖에는 '{날짜 말} HH:MM 마감'이다. 날짜 말은 [dayWord]이고,
-/// [farAsDate]가 true면(03 할 일) [taskDayText]다. [now]에는 [Clock.now]의 값을 넘긴다.
+/// '{날짜 말} 마감 · 시각 미상'(임시), 그 밖에는 '{날짜 말} HH:MM 마감'이다. [farAsDate]가 true면(03 할 일)
+/// 7일 이상 남았거나 이틀 이상 지난 마감은 날짜 말 대신 [monthDayText]를 쓴다. [now]에는 [Clock.now]의 값을
+/// 넘긴다.
 ///
-/// 정확히 00:00인 마감(24:00 마감)과 하루 경계 전 새벽 마감의 표기는 정하지 않았다. 그때까지는 논리적
-/// 하루의 날짜 말에 실제 시각을 붙인다(하루 경계 04:00에서 금요일 01:00 마감은 '목요일 01:00 마감').
+/// 마감 날짜는 [dueDayOffset]의 규칙이다. 정확히 00:00인 마감은 전날의 '24:00 마감'이고(목요일 24:00 마감),
+/// 00:01부터 하루 경계 전까지의 마감은 그 달력 날짜의 날짜 말에 실제 시각을 붙인다(하루 경계 04:00에서 금요일
+/// 01:30 마감은 목요일 밤에 보면 '내일 01:30 마감').
 String dueText(
   DateTime? dueAt, {
   required bool dueTimeUnknown,
@@ -72,12 +77,43 @@ String dueText(
   bool farAsDate = false,
 }) {
   if (dueAt == null) return '마감 없음';
-  final day = farAsDate
-      ? taskDayText(dueAt, now: now, dayBoundaryMin: dayBoundaryMin)
-      : dayWord(dueAt, now: now, dayBoundaryMin: dayBoundaryMin);
+  final date = _dueDate(dueAt);
+  final today = logicalDate(now, dayBoundaryMin: dayBoundaryMin);
+  final days = _daysBetween(today, date);
+  final day = farAsDate && (days <= -2 || days >= 7)
+      ? monthDayText(date, today: today)
+      : _dayWordOf(days, date);
   if (dueTimeUnknown) return '$day 마감 · 시각 미상';
-  return '$day ${hhmmText(dueAt.hour * 60 + dueAt.minute)} 마감';
+  final minute = dueAt.hour * 60 + dueAt.minute;
+  return '$day ${hhmmText(minute == 0 ? _minutesPerDay : minute)} 마감';
 }
+
+/// 오늘(논리적 날짜)에서 마감 날짜까지의 날 수. 마감 문구([dueText])의 날짜와 같은 규칙이라 붉게 쓸지
+/// ([isDueSoon])도 이것으로 본다. 정확히 00:00인 마감은 전날(24:00 마감)이고, 그 밖에는 마감의 달력 날짜다
+/// (하루 경계 전 새벽 마감도 그 달력 날짜. docs/decisions.md 2026-11-14 '자정 마감은 전날 24:00, 새벽 마감은
+/// 달력 날짜로 쓴다'). [now]에는 [Clock.now]의 값을 넘긴다.
+int dueDayOffset(
+  DateTime dueAt, {
+  required DateTime now,
+  required int dayBoundaryMin,
+}) => _daysBetween(
+  logicalDate(now, dayBoundaryMin: dayBoundaryMin),
+  _dueDate(dueAt),
+);
+
+/// 마감 날짜: 정확히 00:00이면 전날, 그 밖에는 달력 날짜.
+DateTime _dueDate(DateTime dueAt) => DateTime(
+  dueAt.year,
+  dueAt.month,
+  dueAt.hour == 0 && dueAt.minute == 0 ? dueAt.day - 1 : dueAt.day,
+);
+
+/// [from]에서 [to]까지의 날 수(날짜만 본다).
+int _daysBetween(DateTime from, DateTime to) => DateTime.utc(
+  to.year,
+  to.month,
+  to.day,
+).difference(DateTime.utc(from.year, from.month, from.day)).inDays;
 
 /// 길이를 적는다. 50 → '50분', 120 → '2시간', 90 → '1시간 30분', 0 → '0분'.
 String durationText(int minutes) {
@@ -186,8 +222,8 @@ String approxHoursText(int minutes) {
 /// 공개 전 할 일의 '{날짜} HH:MM에 열려요'(임시). 공개는 한 순간이라 공개 날짜는 논리적 하루가 아니라 달력으로
 /// 본다(00:00 공개는 그날). 오늘은 다른 표기처럼 [dayBoundaryMin]을 반영한 논리적 하루로 세어 같은 줄의 마감
 /// 날짜 말과 어긋나지 않게 한다. 7일 뒤부터는 날짜 말 대신 [monthDayText]를 쓴다('11월 28일 (토) 09:00에
-/// 열려요'). [openAt]이 [now]보다 뒤인 공개 전 항목에만 쓴다. 하루 경계 전 새벽 공개의 표기는 자정 표기와 함께
-/// 정하지 않았다.
+/// 열려요'). [openAt]이 [now]보다 뒤인 공개 전 항목에만 쓴다. 공개는 끝이 아니라 시작이라 00:00 공개도 그날
+/// '00:00'이고, 하루 경계 전 새벽 공개는 마감처럼 그 달력 날짜에 실제 시각을 쓴다.
 String opensText(
   DateTime openAt, {
   required DateTime now,
@@ -195,11 +231,7 @@ String opensText(
 }) {
   final openDay = logicalDate(openAt, dayBoundaryMin: 0);
   final today = logicalDate(now, dayBoundaryMin: dayBoundaryMin);
-  final days = DateTime.utc(
-    openDay.year,
-    openDay.month,
-    openDay.day,
-  ).difference(DateTime.utc(today.year, today.month, today.day)).inDays;
+  final days = _daysBetween(today, openDay);
   final day = days >= 7
       ? monthDayText(openDay, today: today)
       : _dayWordOf(days, openDay);
@@ -234,12 +266,23 @@ String weekRangeText(DateTime monday, {required DateTime today}) {
 String importedOnText(DateTime day, {required DateTime today}) =>
     '${_yearPrefix(day, today)}${day.month}월 ${day.day}일 불러옴';
 
-/// 근거 시트의 'HH:MM–HH:MM'(임시). 자정을 넘는 끝(1440부터)은 [hhmmText]처럼 아직 받지 않는다.
-String timeRangeText(int startMin, int endMin) =>
-    '${hhmmText(startMin)}–${hhmmText(endMin)}';
+/// 시간 범위 'HH:MM–HH:MM'(근거 시트, 12 내 규칙의 짧은 값. 임시). 시각은 폰 DB처럼 자정 기준 분이고, 자정을
+/// 넘는 끝은 1440을 더해 받는다. 끝이 정확히 자정이면 '24:00', 그 뒤면 실제 시각이다(1320–1560 →
+/// '22:00–02:00'). [startMin]은 0–1439, [endMin]은 [startMin]보다 크고 하루(1440분) 안이어야 한다.
+String timeRangeText(int startMin, int endMin) {
+  RangeError.checkValueInInterval(startMin, 0, _minutesPerDay - 1, 'startMin');
+  RangeError.checkValueInInterval(
+    endMin,
+    startMin + 1,
+    startMin + _minutesPerDay - 1,
+    'endMin',
+  );
+  final end = endMin == _minutesPerDay ? endMin : endMin % _minutesPerDay;
+  return '${hhmmText(startMin)}–${hhmmText(end)}';
+}
 
 /// 붉게 쓸 마감인지. 오늘·내일 마감만 붉게 쓴다(docs/screens.md '날짜·시각 표기').
-/// [days]는 그 마감의 [dayOffset] 값이다.
+/// [days]는 그 마감의 [dueDayOffset] 값이다(마감 문구의 날짜 말과 같은 날).
 bool isDueSoon(int days) => days == 0 || days == 1;
 
 const List<String> _weekdays = ['월', '화', '수', '목', '금', '토', '일'];
