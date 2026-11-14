@@ -450,3 +450,11 @@
 - 받아들인 점: 새벽에는 02 홈 머리(논리적 날짜)와 마감 줄의 '오늘'이 서로 다른 날을 가리킬 수 있다.
 - 다른 후보: 논리적 날짜 말에 00:00부터 하루 경계 전까지를 24시를 넘겨 이어 쓰기('24:00', '25:30'. 권장안이었다), 논리적 날짜 말에 실제 시각 그대로 쓰기.
 - 영향: screens.md '날짜·시각 표기', `app/lib/domain/text/time_text.dart`(`clockText`, `hhmmText`, `dueText`, `dueDayOffset`, `timeRangeText`, `isDueSoon` 주석), `app/lib/domain/rule_text.dart`.
+
+## 2026-11-14 기기 시간대와 관계없이 한국 시각을 쓴다
+
+- 결정: 앱은 기기 시간대와 관계없이 모든 시각을 한국 시각(UTC+9)으로 쓴다. 화면의 시각과 논리적 하루, 호출 예산의 하루와 조용한 시간, `/v1/parse`의 날짜·시각이 모두 한국 시각이다. 앱의 `DateTime`은 한국 시각의 벽시계 값을 담은 로컬 값이고, 지금은 `Clock.now`가 한국 시각으로 준다. 폰 DB의 표에는 그 순간의 UTC 문자열로 저장하고 읽을 때 한국 시각으로 돌리며(`KstDateTimeConverter`), `settings`와 JSON 안의 시각은 한국 시각에 `+09:00`을 붙여 적는다.
+- 이유: 앱은 충남대 학생의 수업·LMS 마감을 다루고, LMS 시각·호출 예산·조용한 시간은 문서가 이미 한국 시간으로 정했다. 화면만 기기 시간대를 따르면 해외에 있는 학생이 볼 때 수업과 마감이 다른 날로 갈리고, 문서끼리('기기 로컬 시각(한국 시간)'과 'LMS는 기기 시간대를 쓰지 않음')도 다른 답을 낸다. 또 지금까지는 오프셋을 붙여 읽은 UTC 값이 표에 '…Z'로 저장되고 UTC로 돌아와, 섞이면 마감순 정렬과 날짜가 어긋났다. 순간을 UTC 문자열로 저장하면 기기 시간대가 바뀌어도 같은 값이고 정렬도 맞는다.
+- 받아들인 점: 해외에서 쓰면 화면 시각이 그곳 시각과 다르다. 기기 시간대에 서머타임이 있으면 그 시간대에 없는 벽시계 시각(봄의 한 시간)은 한 시간 밀릴 수 있다.
+- 다른 후보: 호출 예산·조용한 시간·API 날짜만 한국 시간으로 두고 화면과 논리적 하루는 기기 시간대를 따르기(권장안이었다).
+- 영향: architecture.md '앱 코드 규약'(시각 규칙, 백그라운드 작업)·'폰 DB'(공통 규칙)·'확인과 CI', lms.md '응답 해석', `app/lib/domain/clock.dart`(`seoulWallClock`, `kstToUtc`, `logicalDayStart`·`logicalDayEnd`), `app/lib/data/db/kst_date_time_converter.dart`, `app/lib/data/db/tables.dart`, `app/lib/domain/models/value_codec.dart`, `app/lib/data/repositories/retention_repository.dart`. 같은 PR에서 `busy_timeout`(5000ms)을 WAL과 함께 걸었다.
