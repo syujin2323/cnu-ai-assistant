@@ -18,6 +18,8 @@ import 'package:cnu_ai_assistant/data/db/demo_database_files.dart';
 import 'package:cnu_ai_assistant/data/demo/demo_seed.dart';
 import 'package:cnu_ai_assistant/data/repositories/briefing_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/demo_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/event_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/fixed_block_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/lms_item_change_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/plan_block_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/rules_repository.dart';
@@ -253,6 +255,16 @@ final syncRunRepositoryProvider = Provider<SyncRunRepository>(
 /// LMS 항목 변경 기록 저장소(`lms_item_changes` 표). 지금 모드의 폰 DB를 본다.
 final lmsItemChangeRepositoryProvider = Provider<LmsItemChangeRepository>(
   (ref) => LmsItemChangeRepository(ref.watch(databaseProvider)),
+);
+
+/// 일정 저장소(`events` 표). 지금 모드의 폰 DB를 본다.
+final eventRepositoryProvider = Provider<EventRepository>(
+  (ref) => EventRepository(ref.watch(databaseProvider)),
+);
+
+/// 고정 일정 저장소(`fixed_blocks` 표). 지금 모드의 폰 DB를 본다.
+final fixedBlockRepositoryProvider = Provider<FixedBlockRepository>(
+  (ref) => FixedBlockRepository(ref.watch(databaseProvider)),
 );
 
 /// 설정 값. 표에 없는 키는 기본값으로 채워진다.
