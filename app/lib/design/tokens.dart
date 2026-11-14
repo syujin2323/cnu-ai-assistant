@@ -355,6 +355,7 @@ abstract final class AppText {
   /// 숫자는 고정 폭으로 쓴다(시각·분·개수가 바뀔 때 글자 폭이 흔들리지 않게).
   static const List<FontFeature> _numbers = [FontFeature.tabularFigures()];
 
+  // 본문·작은 글자의 자간은 0이다. 비워 두면 테마가 Material 글자 기하의 자간(body +0.25px 등)을 채운다.
   static const TextStyle caption = TextStyle(
     fontFamily: fontFamily,
     fontSize: 12,
@@ -362,6 +363,7 @@ abstract final class AppText {
     leadingDistribution: TextLeadingDistribution.even,
     fontFeatures: _numbers,
     fontWeight: regular,
+    letterSpacing: 0,
   );
   static const TextStyle small = TextStyle(
     fontFamily: fontFamily,
@@ -370,6 +372,7 @@ abstract final class AppText {
     leadingDistribution: TextLeadingDistribution.even,
     fontFeatures: _numbers,
     fontWeight: regular,
+    letterSpacing: 0,
   );
   static const TextStyle body = TextStyle(
     fontFamily: fontFamily,
@@ -378,6 +381,7 @@ abstract final class AppText {
     leadingDistribution: TextLeadingDistribution.even,
     fontFeatures: _numbers,
     fontWeight: regular,
+    letterSpacing: 0,
   );
   static const TextStyle bodyLarge = TextStyle(
     fontFamily: fontFamily,

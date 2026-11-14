@@ -137,6 +137,14 @@ ThemeData buildAppTheme({Brightness brightness = Brightness.light}) {
     radioTheme: RadioThemeData(
       fillColor: _bySelected(colors.strong, colors.icon),
     ),
+    // 세그먼트 버튼('주 | 월' 등): 고른 쪽은 켜진 상태라 strong 배경에 onStrong 글자다. 정하지 않으면
+    // secondaryContainer(위에서 FilterChip 때문에 옅은 tint로 둠)가 되어 흰 배경과 거의 구별되지 않는다.
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: SegmentedButton.styleFrom(
+        selectedBackgroundColor: colors.strong,
+        selectedForegroundColor: colors.onStrong,
+      ),
+    ),
     // 시트: sheet 배경, 위 모서리 32, 뒤는 scrim. 여는 곳은 `design/widgets/app_sheet.dart`.
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: colors.sheet,
