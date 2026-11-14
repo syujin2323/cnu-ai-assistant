@@ -24,10 +24,8 @@ import 'package:cnu_ai_assistant/domain/models/rule.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_screen.dart';
 import 'package:cnu_ai_assistant/features/onboarding/onboarding_controller.dart';
 import 'package:cnu_ai_assistant/features/onboarding/onboarding_screen.dart';
-import 'package:cnu_ai_assistant/features/onboarding/steps/login_step.dart';
 import 'package:cnu_ai_assistant/features/onboarding/widgets/onboarding_step_layout.dart';
 import 'package:cnu_ai_assistant/features/today/today_screen.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -395,32 +393,42 @@ void main() {
     });
   }
 
-  testWidgets("개발용 '$_devSkip'는 끄면 보이지 않는다(release·profile 빌드와 같음)", (
-    tester,
-  ) async {
-    Future<void> pumpStep({required bool showDevSkip}) => tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp(
-          home: Scaffold(
-            body: LoginStep(
-              onLoggedIn: () async {},
-              onBrowse: () {},
-              onSkipLoginForDev: () {},
-              showDevSkip: showDevSkip,
-            ),
-          ),
+  testWidgets(
+    "개발용 '$_devSkip'는 debug 빌드(devLoginSkipAllowedProvider)에서만 있고, 막으면 버튼도 동작도 없다",
+    (tester) async {
+      // 테스트는 늘 debug로 돌아 kDebugMode를 바꿀 수 없으므로, release·profile 빌드는 이 provider를 false로
+      // 덮어써 본다. 버튼과 skipLoginForDev가 이 하나만 보므로 kDebugMode 검사가 빠지면 여기서 걸린다.
+      var app = await pumpTestApp(tester, start: TestStart.fresh);
+      expect(find.text(_devSkip), findsOneWidget);
+      await app.dispose(tester);
+
+      app = await pumpTestApp(
+        tester,
+        start: TestStart.fresh,
+        overrides: [devLoginSkipAllowedProvider.overrideWithValue(false)],
+      );
+      expect(find.text(OnboardingStep.login.title), findsOneWidget);
+      expect(find.text(_devSkip), findsNothing);
+      expect(
+        await app.container
+            .read(onboardingControllerProvider.notifier)
+            .skipLoginForDev(),
+        isFalse,
+      );
+      final settings = await SettingsRepository(app.db).read();
+      expect(
+        settings,
+        isA<Ok<AppSettings>>().having(
+          (ok) => ok.value.lmsSessionState,
+          'lmsSessionState',
+          LmsSessionState.disconnected,
         ),
-      ),
-    );
+      );
+      expect(find.text(OnboardingStep.login.title), findsOneWidget);
 
-    // 테스트는 debug 빌드로 돌므로 기본값이면 보인다.
-    await pumpStep(showDevSkip: true);
-    expect(find.text(_devSkip), findsOneWidget);
-
-    await pumpStep(showDevSkip: false);
-    expect(find.text(OnboardingStep.login.title), findsOneWidget);
-    expect(find.text(_devSkip), findsNothing);
-  });
+      await app.dispose(tester);
+    },
+  );
 
   testWidgets('처음 그릴 때 컨트롤러의 지금 단계를 연다', (tester) async {
     final app = await pumpTestApp(
