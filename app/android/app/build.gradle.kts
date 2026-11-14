@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -5,6 +7,15 @@ plugins {
     // END: FlutterFire Configuration
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// release 서명 키(docs/architecture.md '테스트 배포'). 팀장이 만든 업로드 키스토어와 app/android/key.properties
+// (storeFile·storePassword·keyAlias·keyPassword. storeFile은 app/android/app/ 기준이거나 절대 경로)를 팀 비공개 채널에서
+// 받아 넣고 커밋하지 않는다. 없으면 release 빌드를 디버그 키로 서명하고 버전 이름에 -debugkey를 붙인다.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val hasReleaseKey = keystorePropertiesFile.exists()
+val keystoreProperties = Properties().apply {
+    if (hasReleaseKey) keystorePropertiesFile.inputStream().use { load(it) }
 }
 
 // 값은 docs/architecture.md '플랫폼 프로젝트 설정'을 따른다. 바꾸면 그 절도 같은 PR에서 고친다.
@@ -33,12 +44,38 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
+                storePassword = keystoreProperties.getProperty("storePassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // release 서명은 첫 테스트 배포 PR에서 둔다(docs/architecture.md '테스트 배포'). 그 전에는
-            // `flutter run --release`가 되도록 디버그 키로 서명하고, 이렇게 만든 빌드는 테스터에게 주지 않는다.
-            signingConfig = signingConfigs.getByName("debug")
+            if (hasReleaseKey) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                // 팀 키가 없으면 `flutter run --release`가 되도록 디버그 키로 서명한다. 이 빌드는 테스터·스토어에 내지
+                // 않으며, 버전 이름의 -debugkey와 빌드 경고로 알아보게 한다.
+                signingConfig = signingConfigs.getByName("debug")
+                versionNameSuffix = "-debugkey"
+            }
         }
+    }
+}
+
+// 팀 키 없이 release 빌드를 만들 때만 경고한다(debug 빌드에서는 조용히).
+gradle.taskGraph.whenReady {
+    if (!hasReleaseKey && allTasks.any { it.name.contains("Release") }) {
+        logger.warn(
+            "warning: app/android/key.properties가 없어 release 빌드를 디버그 키로 서명합니다(버전 이름 -debugkey). " +
+                "이 빌드는 테스터·스토어에 내지 마세요.",
+        )
     }
 }
 
