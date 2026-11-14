@@ -115,22 +115,20 @@ final class LmsResponseClassifier {
     LmsClassification<T> result(LmsOutcomeKind kind) =>
         LmsClassification._(LmsOutcome(kind, statusCode: status));
 
-    if (status == null) return result(LmsOutcomeKind.networkFailure);
-    final body = response.body;
-    if (status >= 500 || status == 429 || _hasAny(body, markers.maintenance)) {
-      return result(LmsOutcomeKind.serverError);
+    if (lmsTransportFailure(response, markers) case final kind?) {
+      return result(kind);
     }
     final finalUrl = response.finalUrl;
     if ((finalUrl != null && isLoginUrl(finalUrl)) ||
-        _hasAny(body, markers.loginPage)) {
+        _hasAny(response.body, markers.loginPage)) {
       return result(LmsOutcomeKind.reloginRequired);
     }
-    final json = _decodeJson(response);
-    if (identical(json, _notJson)) return result(LmsOutcomeKind.parseFailure);
+    final (:isJson, value: json) = decodeLmsJson(response);
+    if (!isJson) return result(LmsOutcomeKind.parseFailure);
     if (markers.authError.any((marker) => marker.matches(json))) {
       return result(LmsOutcomeKind.restoreRequired);
     }
-    if (status < 200 || status >= 300) {
+    if (status! < 200 || status >= 300) {
       return result(LmsOutcomeKind.parseFailure);
     }
     final LmsSchemaResult<T> read;
@@ -166,20 +164,33 @@ final _fieldName = RegExp(r'^[A-Za-z0-9_.]{1,64}$');
 
 const _unexpectedField = 'unexpected';
 
-/// JSON이 아님을 나타내는 값(JSON의 null과 가르기 위해 따로 둔다).
-const Object _notJson = Object();
+/// 판별 ①②: 응답을 받지 못했으면 네트워크 실패, 5xx·429이거나 본문에 점검 표식이 있으면 서버 오류·점검이다. 그 밖에는
+/// null이다. 로그인 흐름처럼 판별기를 쓰지 않는 요청도 이것으로 먼저 거른다.
+LmsOutcomeKind? lmsTransportFailure(
+  LmsRawResponse response,
+  LmsMarkers markers,
+) {
+  final status = response.statusCode;
+  if (status == null) return LmsOutcomeKind.networkFailure;
+  if (status >= 500 ||
+      status == 429 ||
+      markers.maintenance.any(response.body.contains)) {
+    return LmsOutcomeKind.serverError;
+  }
+  return null;
+}
 
 /// 본문을 JSON으로 푼다. 앞뒤 공백과 BOM은 무시하고(`String.trim`은 BOM도 지운다), 본문이 `{`·`[`로 시작하거나
-/// `Content-Type`이 JSON일 때만 풀어 본다. 풀지 못하면 [_notJson]이다.
-Object? _decodeJson(LmsRawResponse response) {
+/// `Content-Type`이 JSON일 때만 풀어 본다. 풀지 못하면 `isJson`이 false다(JSON의 null과 가른다).
+({bool isJson, Object? value}) decodeLmsJson(LmsRawResponse response) {
   final text = response.body.trim();
   final looksJson = text.startsWith('{') || text.startsWith('[');
   final saysJson =
       response.contentType?.toLowerCase().contains('json') ?? false;
-  if (!looksJson && !saysJson) return _notJson;
+  if (!looksJson && !saysJson) return (isJson: false, value: null);
   try {
-    return jsonDecode(text);
+    return (isJson: true, value: jsonDecode(text));
   } on FormatException {
-    return _notJson;
+    return (isJson: false, value: null);
   }
 }
