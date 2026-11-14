@@ -5373,11 +5373,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $UndoLogTable undoLog = $UndoLogTable(this);
   late final Index classExceptionsSlotDate = Index(
     'class_exceptions_slot_date',
-    'CREATE INDEX class_exceptions_slot_date ON class_exceptions (class_slot_id, date)',
+    'CREATE INDEX IF NOT EXISTS class_exceptions_slot_date ON class_exceptions (class_slot_id, date)',
   );
   late final Index planBlocksTaskId = Index(
     'plan_blocks_task_id',
-    'CREATE INDEX plan_blocks_task_id ON plan_blocks (task_id)',
+    'CREATE INDEX IF NOT EXISTS plan_blocks_task_id ON plan_blocks (task_id)',
   );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>

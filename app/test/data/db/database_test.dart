@@ -798,6 +798,26 @@ void main() {
         expect(await _userVersion(raw), 1);
       });
     });
+
+    test('처음 만들다 버전을 적기 전에 멈춘 파일도 다시 열린다(표와 인덱스를 다시 만들어도 실패하지 않음)', () async {
+      final file = await _tempDatabaseFile();
+      final first = AppDatabase(NativeDatabase(file));
+      await first.customSelect('SELECT 1').get();
+      await first.close();
+      // 처음 만들다 버전(user_version)을 적기 전에 앱이 꺼진 것처럼 0으로 되돌린다. drift는 버전을 마지막에
+      // 적으므로, 다음에 열 때 표와 인덱스를 처음부터 다시 만든다.
+      await _withoutMigrations(
+        file,
+        (raw) => raw.customStatement('PRAGMA user_version = 0'),
+      );
+
+      final again = AppDatabase(NativeDatabase(file));
+      await expectLater(again.customSelect('SELECT 1').get(), completes);
+      await again.close();
+      await _withoutMigrations(file, (raw) async {
+        expect(await _userVersion(raw), 1);
+      });
+    });
   });
 
   group('데모 시드', () {
@@ -904,6 +924,25 @@ void main() {
 
       expect(await courseNames(db), isEmpty);
     });
+
+    test(
+      '넣다가 Exception이 아닌 Error(샘플 코드의 실수)가 나도 아무것도 남기지 않고 빈 데모로 연다',
+      () async {
+        final db = AppDatabase(
+          NativeDatabase.memory(),
+          demoSeeder: (db, now) async {
+            await db
+                .into(db.courses)
+                .insert(CoursesCompanion.insert(name: '샘플 과목'));
+            throw StateError('샘플 코드의 실수(시험)');
+          },
+          clock: TestClock(day1),
+        );
+        addTearDown(db.close);
+
+        expect(await courseNames(db), isEmpty);
+      },
+    );
 
     test('시드가 없는 DB(실제 모드)는 넣지 않는다', () async {
       final db = AppDatabase(NativeDatabase.memory(), clock: TestClock(day1));
