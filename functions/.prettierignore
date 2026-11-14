@@ -1,0 +1,4 @@
+lib/
+coverage/
+src/schema/
+package-lock.json
