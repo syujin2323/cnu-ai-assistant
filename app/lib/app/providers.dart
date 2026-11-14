@@ -18,11 +18,13 @@ import 'package:cnu_ai_assistant/data/db/demo_database_files.dart';
 import 'package:cnu_ai_assistant/data/demo/demo_seed.dart';
 import 'package:cnu_ai_assistant/data/repositories/briefing_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/demo_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/lms_item_change_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/plan_block_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/rules_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/schedule_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/task_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/sync_run_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/undo_repository.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
@@ -241,6 +243,16 @@ final taskRepositoryProvider = Provider<TaskRepository>(
 /// 할 일 블록 저장소(`plan_blocks` 표). 지금 모드의 폰 DB를 본다.
 final planBlockRepositoryProvider = Provider<PlanBlockRepository>(
   (ref) => PlanBlockRepository(ref.watch(databaseProvider)),
+);
+
+/// 동기화 기록 저장소(`sync_runs` 표). 지금 모드의 폰 DB를 본다(데모 DB에는 기록이 없다).
+final syncRunRepositoryProvider = Provider<SyncRunRepository>(
+  (ref) => SyncRunRepository(ref.watch(databaseProvider)),
+);
+
+/// LMS 항목 변경 기록 저장소(`lms_item_changes` 표). 지금 모드의 폰 DB를 본다.
+final lmsItemChangeRepositoryProvider = Provider<LmsItemChangeRepository>(
+  (ref) => LmsItemChangeRepository(ref.watch(databaseProvider)),
 );
 
 /// 설정 값. 표에 없는 키는 기본값으로 채워진다.
