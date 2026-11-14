@@ -84,15 +84,29 @@ void main() {
     final firstDone = await holdWriteLock(first, release.future);
 
     final watch = Stopwatch()..start();
+    var secondElapsed = Duration.zero;
     final secondWrite = guardStorage(
       'settings.write',
       () => addSetting(second, 'second'),
-    );
+    ).whenComplete(() => secondElapsed = watch.elapsed);
     await Future<void>.delayed(const Duration(milliseconds: 300));
     release.complete();
     await firstDone;
 
-    expect(await secondWrite, isA<Ok<int>>());
+    final result = await secondWrite;
+    if (result is Err<int>) {
+      final version = await second
+          .customSelect('SELECT sqlite_version() AS v')
+          .getSingle();
+      final options = await second.customSelect('PRAGMA compile_options').get();
+      printOnFailure(
+        'sqlite ${version.data['v']}, busy_timeout '
+        '${await pragma(second, 'busy_timeout')}, failed after '
+        '${secondElapsed.inMilliseconds} ms, options '
+        '${options.map((row) => row.data.values.single).where((o) => '$o'.contains('LOCK') || '$o'.contains('WAL') || '$o'.contains('THREAD')).toList()}',
+      );
+    }
+    expect(result, isA<Ok<int>>());
     expect(
       watch.elapsed,
       greaterThanOrEqualTo(const Duration(milliseconds: 250)),
