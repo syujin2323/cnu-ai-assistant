@@ -151,7 +151,7 @@ cnu-ai-assistant/
 | `features/suggest/` | 07 알림 감지 (Android, 스토어 공개 뒤) |
 | `features/system/` | 20 시스템 |
 
-기능 폴더 안은 `<화면>_screen.dart`(화면 위젯), `<화면>_controller.dart`(노티파이어와 provider), `widgets/`(그 화면만 쓰는 위젯)입니다. 예: `features/tasks/task_list_screen.dart`, `features/tasks/task_detail_screen.dart`. 두 화면 이상이 쓰는 위젯은 `design/widgets/`에 둡니다. 블록 근거 시트는 `design/widgets/block_sheet.dart`이고 01 아침 브리핑·02 홈·09 일간·11 주간·06 AI 비서가 함께 씁니다.
+기능 폴더 안은 `<화면>_screen.dart`(화면 위젯), `<화면>_controller.dart`(노티파이어와 provider), `widgets/`(그 화면만 쓰는 위젯)입니다. 예: `features/tasks/task_list_screen.dart`, `features/tasks/task_detail_screen.dart`. 두 화면 이상이 쓰는 위젯은 `design/widgets/`에 둡니다. 블록 근거 시트는 `design/widgets/block_sheet.dart`이고 01 아침 브리핑·02 홈·09 일간·11 주간·06 AI 비서가 함께 씁니다. 세로 하루 시간표는 `design/widgets/day_timeline.dart`이고 02 홈·09 일간이 함께 씁니다. 자리 계산(`day_timeline_layout.dart`)은 최종 프로토타입의 값(임시)을 따릅니다: 한 시간 60pt, 카드 최소 44pt(이동·점심·빈 시간은 30pt), 겹치면 앞 카드 아래로 밀고, 높이 92pt 이상·60pt 이상·그 밖의 세 모양, 빈 시간 카드는 45분 이상, 이동은 15분 미만을 그리지 않고, 오늘은 끝난 항목을 접습니다. 할 일 블록의 점선은 `design/widgets/dashed_border.dart`로 그립니다.
 
 ### 온보딩
 
