@@ -640,3 +640,17 @@
 - 이유: 서버는 한도를 한국 달력 날짜로 세므로 그날 다시 보내도 늘 429다. 기억하지 않으면 보낼 때마다 응답을 기다린 뒤에야 직접 추가 폼으로 넘어가고, 10 나가 '오늘 사용량 다 씀'을 미리 보일 수 없다. 메모리에만 두면 앱을 다시 켤 때마다 한 번 더 보낸다. 503은 서비스 전체 상한 말고도 제공사 오류처럼 곧 풀리는 까닭이 섞여 있고, 앱은 상태 코드로만 동작을 정한다.
 - 다른 후보: 앱 메모리에만 기억하기, 기억하지 않고 매번 보내기.
 - 영향: architecture.md '폰 DB'(settings 키)·'POST /v1/parse'. 코드는 06 AI 비서 화면 PR에서 만든다.
+
+## 2026-11-15 업데이트 필요 화면을 첫 테스터 빌드에 넣는다 (2026-11-15 '스토어 1.0 범위와 배포 경로'의 업데이트 필요 앞당김 구체화)
+
+- 결정:
+  - 앱 버전이 Remote Config `min_app_version`보다 낮으면 어느 화면에서든 업데이트 화면(`/update`)으로 막는다. 첫 테스터 빌드부터 넣는다.
+  - 앱 버전은 `package_info_plus`로 읽고, 세 숫자를 앞에서부터 견준다. 빌드 번호와 꼬리(`-debugkey`)는 보지 않고, 앱 버전이나 최소 버전의 꼴이 맞지 않거나 읽지 못하면 막지 않는다.
+  - 최소 버전은 지난 실행에서 받아 둔 값으로 먼저 보고, 이번 실행에서 Remote Config를 받은 뒤 다시 본다.
+  - 업데이트 버튼은 Android는 Play 스토어의 앱 페이지, iOS는 App Store에 내기 전까지 Firebase App Distribution의 테스터 페이지를 연다. App Store에 내면 App Store 주소로 바꾼다(Dart만 바뀜).
+- 이유:
+  - 테스트 기간에 표 변경이나 새 열거값을 담은 release를 내면 옛 빌드를 쓰는 테스터를 막아야 한다. 앱 버전을 읽는 플러그인은 네이티브라 첫 테스터 release에 들어가야 한다.
+  - iPhone 테스터는 App Store가 아니라 기기 등록 배포로 받으므로 App Store 주소가 아직 없다(관리자 결정).
+  - 콘솔에 잘못 넣은 값으로 모든 사용자를 막으면 고칠 길이 콘솔뿐이라 막지 않는 쪽을 고른다.
+- 다른 후보: iOS는 버튼 없이 '받은 메일의 링크로 새 빌드를 설치해 주세요' 안내만 두기, 라우트 대신 앱 루트에서 화면을 덮기(시작 위치는 redirect 한 곳에서 정하는 규칙과 어긋남).
+- 영향: architecture.md '앱 식별자와 버전'·'화면 이동'(라우트 표, 시작 위치)·패키지 줄·'폴더 구조', screens.md '20 시스템', `app/lib/app/update_required.dart`, `app/lib/app/router.dart`, `app/lib/app/config.dart`, `app/lib/domain/app_version.dart`, `app/lib/features/system/update_required_screen.dart`. LMS 조회를 멈추는 것(lms.md '원격 스위치')은 동기화 PR이 이 provider로 한다.
