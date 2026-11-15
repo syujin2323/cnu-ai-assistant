@@ -28,26 +28,36 @@
 //       "results": [{"when": [조건, ...], "result": "success"}],  처음 맞는 규칙의 결과. 없으면 해석 실패
 //       "handoff": 요청                                   성공 뒤 요청(세션 넘기기. 쓸 때만)
 //     },
-//     "parse": {"kindCodes": {...}},                      응답 해석 설정(`parsers/parse_config.dart`). sync가 있으면 꼭
+//     "parse": {"kindCodes": {...}, "timetable": {...}},  응답 해석 설정(`parsers/parse_config.dart`). sync가 있으면 꼭
 //     "sync": {                                           동기화 요청(없으면 동기화하지 않음)
 //       "vars": {"이름": "값"},                           학기마다 콘솔에서 바꾸는 값(학년도·학기 코드 등). 요청의 변수
 //       "semester": "{이름}-{이름}",                      학기 값(과목의 학기, 원본 키의 앞부분) 틀. vars만 쓰고 `:` 없음
 //       "steps": [요청, ...],                             조회 전 준비 요청(암호 키 뽑기 등. 쓸 때만)
 //       "courses": 요청,                                  과목 목록 조회
 //       "todos": 요청                                     할 일 목록 조회
+//     },
+//     "timetable": {                                      시간표 불러오기(통합정보시스템. 없으면 불러오지 않음, sync 필요)
+//       "courseInfo": 요청,                               과목마다 LMS에 묻는 요청. 변수 courseId·classNo를 더 쓴다
+//       "steps": [요청, ...],                             그 뒤 과목마다 차례로 보내는 요청
+//       "slotText": "이름"                                과목의 시간표 글자를 담는 변수(steps가 뽑음)
 //     }
 //   }
 //
-// 요청: {"method": "GET"|"POST", "url": 주소, "headers": {이름: 틀}, "body": 본문, "extract": {변수: 뽑기}}
+// 요청: {"method": "GET"|"POST", "url": 주소, "headers": {이름: 틀}, "body": 본문, "extract": {변수: 뽑기},
+//        "generate": {변수: "hex32"}}
 //   - url은 학교 도메인의 https 주소이거나 `{변수}` 하나다(상대 주소면 앞 요청의 최종 주소 기준).
 //   - body는 {"form": {필드: 틀}}, {"json": JSON 틀}, {"encrypted": {"cipher": 이름, "field": 필드, "json": JSON 틀}} 가운데
-//     하나다. 헤더 Cookie·User-Agent·Host·Content-Length는 넣을 수 없다(쿠키는 금고, User-Agent는 위 값).
+//     하나다. JSON 틀의 값 자리에는 그 값만 따로 암호화하는 {"$encrypt": {"cipher": 이름, "text": 틀}}을 둘 수 있다.
+//     헤더 Cookie·User-Agent·Host·Content-Length는 넣을 수 없다(쿠키는 금고, User-Agent는 위 값).
 //   - 뽑기는 {"pattern": 정규식(첫 묶음)} 또는 {"path": "a.b"}이고 "optional": true면 못 찾아도 빈 값이다.
+//   - generate는 보내기 전에 새로 만드는 값이다(hex32: 무작위 16바이트의 16진수 32자). 이 요청과 뒤 요청의 변수다.
 // 암호: {"key": {"var": 변수, "removeChars": "-", "takeBytes": 16}, "iv": "zero"|"key"} (AES-CBC, PKCS#7, base64)
 // 조건: {"path": "a.b", "anyOf": [...]}, {"path": "a.b", "present": true}, {"contains": "본문 글자"}. 한 규칙의 조건은
 //   모두 맞아야 한다. 결과는 success, wrongCredentials, parseFailure 가운데 하나이고 success 규칙이 하나 이상 있어야 한다.
-// 각 요청은 앞 요청에서 뽑은 변수만 쓸 수 있고(로그인 요청만 studentId·password도, 동기화 요청은 sync.vars도), 이 파일이
-// 해석할 때 확인한다. 뽑는 변수 이름은 학번·비밀번호나 sync.vars의 이름과 겹칠 수 없다.
+// 각 요청은 앞 요청에서 뽑거나 만든 변수와 그 요청이 만드는 변수만 쓸 수 있고(로그인 요청만 studentId·password도, 동기화
+// 요청은 sync.vars도, 시간표 요청은 sync.vars·sync.steps가 뽑은 값과 courseId·classNo도), 이 파일이 해석할 때 확인한다.
+// 암호의 키 변수도 그 요청 앞에 뽑았거나 그 요청이 만드는 값이어야 한다. 뽑거나 만드는 변수 이름은 학번·비밀번호나
+// sync.vars(시간표는 courseId·classNo도)의 이름과 겹칠 수 없다.
 //
 // 표식 목록은 비어 있어도 된다. 표식은 대소문자를 가리는 부분 문자열이고, `path`는 점으로 나눈 키(목록이면 0부터
 // 세는 번호)이며, `anyOf`의 값은 문자열이나 정수다.
@@ -63,6 +73,9 @@ const lmsRequestParamsVersions = {1};
 
 /// 로그인 요청만 쓸 수 있는 변수(학번·비밀번호).
 const lmsCredentialVariables = {'studentId', 'password'};
+
+/// 시간표 불러오기가 과목마다 주는 변수(과목 ID·분반).
+const lmsTimetableCourseVariables = {'courseId', 'classNo'};
 
 /// 요청 상수를 해석하지 못한 이유. 로그에는 이름만 남긴다.
 enum LmsConfigProblem {
@@ -145,6 +158,7 @@ final class LmsRequestParams {
     required this.login,
     this.parse,
     this.sync,
+    this.timetable,
   });
 
   final int version;
@@ -176,6 +190,9 @@ final class LmsRequestParams {
   /// 동기화 요청. 없으면 동기화하지 않는다('설정 없음'으로 건너뜀).
   final LmsSyncSpec? sync;
 
+  /// 시간표 불러오기 요청. 없으면 불러오지 않는다. 있으면 [sync]와 [parse]의 시간표 해석 설정도 늘 있다.
+  final LmsTimetableSpec? timetable;
+
   /// [uri]가 로그인 주소로 넘어간 주소인지. 같은 호스트이고 경로가 로그인 주소의 경로와 같거나 그 아래다(쿼리는
   /// 보지 않는다). 경로는 마디 단위로 견줘 `/login`은 `/login/x`를 포함하지만 `/loginx`는 포함하지 않는다.
   bool isLoginUrl(Uri uri) {
@@ -199,7 +216,8 @@ final class LmsRequestParams {
       mapEquals(other.ciphers, ciphers) &&
       other.login == login &&
       other.parse == parse &&
-      other.sync == sync;
+      other.sync == sync &&
+      other.timetable == timetable;
 
   @override
   int get hashCode => Object.hash(
@@ -215,7 +233,38 @@ final class LmsRequestParams {
     login,
     parse,
     sync,
+    timetable,
   );
+}
+
+/// 시간표 불러오기 요청(docs/lms.md '시간표 (통합정보시스템)'). 과목마다 [courseInfo]를 LMS에 묻고 [steps]를 차례로 보낸
+/// 뒤 [slotText] 변수의 글자를 시간표로 읽는다. 실제 주소와 값은 Remote Config에만 있다.
+@immutable
+final class LmsTimetableSpec {
+  const LmsTimetableSpec({
+    required this.courseInfo,
+    required this.steps,
+    required this.slotText,
+  });
+
+  /// 과목마다 LMS에 묻는 요청. 세션이 끊겼는지 이 응답으로 가린다.
+  final LmsRequestSpec courseInfo;
+
+  /// 그 뒤 과목마다 차례로 보내는 요청(통합정보시스템).
+  final List<LmsRequestSpec> steps;
+
+  /// 과목의 시간표 글자를 담는 변수 이름.
+  final String slotText;
+
+  @override
+  bool operator ==(Object other) =>
+      other is LmsTimetableSpec &&
+      other.courseInfo == courseInfo &&
+      listEquals(other.steps, steps) &&
+      other.slotText == slotText;
+
+  @override
+  int get hashCode => Object.hash(courseInfo, Object.hashAll(steps), slotText);
 }
 
 /// 동기화 요청(docs/lms.md '동기화'). 실제 주소와 값은 Remote Config에만 있다.
@@ -477,6 +526,10 @@ LmsRequestParams _readParams(Map<String, Object?> json, String domain) {
       ? null
       : LmsParseConfig.fromJson(json['parse']) ?? (throw _field);
   if (sync != null && parse == null) throw _field;
+  final timetable = json['timetable'] == null
+      ? null
+      : _timetable(json['timetable'], domain, ciphers, sync ?? (throw _field));
+  if (timetable != null && parse?.timetableSlot == null) throw _field;
   return LmsRequestParams(
     version: version,
     homeUrl: _schoolUrl(json['homeUrl'], domain),
@@ -494,6 +547,7 @@ LmsRequestParams _readParams(Map<String, Object?> json, String domain) {
     login: _login(json['login'], domain, ciphers),
     parse: parse,
     sync: sync,
+    timetable: timetable,
   );
 }
 
@@ -626,7 +680,66 @@ LmsRequestSpec _request(
     headers: _headers(object['headers']),
     body: _body(object['body'], ciphers),
     extract: _extracts(object['extract']),
+    generate: _generators(object['generate']),
   );
+}
+
+Map<String, LmsGenerator> _generators(Object? value) {
+  if (value == null) return const {};
+  return {
+    for (final MapEntry(:key, :value) in _object(value).entries)
+      if (lmsCredentialVariables.contains(_name(key)))
+        key: throw _field
+      else
+        key: switch (value) {
+          'hex32' => LmsGenerator.hex32,
+          _ => throw _field,
+        },
+  };
+}
+
+/// JSON 틀의 값 암호화 자리가 꼴에 맞고 있는 암호를 쓰는지 본다. `$encrypt` 키가 있는 객체는 그 키 하나만 둔다.
+void _checkJsonTemplate(Object? template, Map<String, LmsCipherSpec> ciphers) {
+  switch (template) {
+    case Map() when template.containsKey(lmsEncryptKey):
+      final spec = template[lmsEncryptKey];
+      if (template.length != 1 ||
+          spec is! Map ||
+          spec.length != 2 ||
+          spec['text'] is! String ||
+          !ciphers.containsKey(spec['cipher'])) {
+        throw _field;
+      }
+    case Map():
+      for (final value in template.values) {
+        _checkJsonTemplate(value, ciphers);
+      }
+    case List():
+      for (final value in template) {
+        _checkJsonTemplate(value, ciphers);
+      }
+  }
+}
+
+/// 요청 [spec]이 쓰는 변수가 [known]·[extra]·그 요청이 만드는 값 안에 있고, 암호 키 변수가 [known]이나 그 요청이
+/// 만드는 값인지 본다. 뽑거나 만드는 이름은 [reserved]와 겹칠 수 없다. 통과하면 [known]에 뽑고 만드는 이름을 더한다.
+void _checkSpec(
+  LmsRequestSpec spec,
+  Set<String> known,
+  Map<String, LmsCipherSpec> ciphers, {
+  Set<String> extra = const {},
+  Set<String> reserved = const {},
+}) {
+  final generated = spec.generate.keys.toSet();
+  final keys = {for (final cipher in spec.ciphers) ciphers[cipher]!.keyVar};
+  final produced = {...spec.extract.keys, ...generated};
+  if (!{...known, ...extra, ...generated}.containsAll(spec.names) ||
+      !{...known, ...generated}.containsAll(keys) ||
+      produced.any(reserved.contains) ||
+      spec.extract.keys.any(generated.contains)) {
+    throw _field;
+  }
+  known.addAll(produced);
 }
 
 Map<String, LmsTemplate> _headers(Object? value) {
@@ -658,6 +771,7 @@ LmsBodySpec? _body(Object? value, Map<String, LmsCipherSpec> ciphers) {
             key: LmsTemplate(value),
       });
     case 'json':
+      _checkJsonTemplate(content, ciphers);
       return LmsJsonBody(content);
     case 'encrypted':
       final encrypted = _object(content);
@@ -666,6 +780,7 @@ LmsBodySpec? _body(Object? value, Map<String, LmsCipherSpec> ciphers) {
       if (cipher is! String || !ciphers.containsKey(cipher)) throw _field;
       if (field is! String || field.isEmpty) throw _field;
       if (!encrypted.containsKey('json')) throw _field;
+      _checkJsonTemplate(encrypted['json'], ciphers);
       return LmsEncryptedBody(
         cipher: cipher,
         field: field,
@@ -738,33 +853,49 @@ LmsSyncSpec _sync(
   final todos = _request(object['todos'], domain, ciphers);
 
   final known = vars.keys.toSet();
-  void check(LmsRequestSpec spec) {
-    final body = spec.body;
-    final cipherKey = body is LmsEncryptedBody
-        ? ciphers[body.cipher]!.keyVar
-        : null;
-    if (!known.containsAll(spec.names) ||
-        (cipherKey != null && !known.contains(cipherKey)) ||
-        spec.extract.keys.any(
-          (name) =>
-              vars.containsKey(name) || lmsCredentialVariables.contains(name),
-        )) {
-      throw _field;
-    }
-    known.addAll(spec.extract.keys);
+  final reserved = vars.keys.toSet();
+  for (final spec in [...steps, courses, todos]) {
+    _checkSpec(spec, known, ciphers, reserved: reserved);
   }
-
-  for (final step in steps) {
-    check(step);
-  }
-  check(courses);
-  check(todos);
   return LmsSyncSpec(
     vars: vars,
     semester: semester,
     steps: steps,
     courses: courses,
     todos: todos,
+  );
+}
+
+/// 시간표 불러오기 요청들. 과목마다 `courseId`·`classNo`를 주고 [sync]의 `vars`와 준비 요청이 뽑은 값을 쓴다. 요청마다
+/// 쓰는 변수가 그 앞에서 뽑거나 만든 변수인지, 시간표 글자 변수를 어느 요청이 뽑는지 확인한다.
+LmsTimetableSpec _timetable(
+  Object? value,
+  String domain,
+  Map<String, LmsCipherSpec> ciphers,
+  LmsSyncSpec sync,
+) {
+  final object = _object(value);
+  final courseInfo = _request(object['courseInfo'], domain, ciphers);
+  final steps = [
+    for (final step in _list(object['steps'])) _request(step, domain, ciphers),
+  ];
+  final slotText = _name(object['slotText']);
+  final known = {
+    ...sync.vars.keys,
+    for (final step in sync.steps) ...step.extract.keys,
+    for (final step in sync.steps) ...step.generate.keys,
+    ...lmsTimetableCourseVariables,
+  };
+  final reserved = {...sync.vars.keys, ...lmsTimetableCourseVariables};
+  final before = known.toSet();
+  for (final spec in [courseInfo, ...steps]) {
+    _checkSpec(spec, known, ciphers, reserved: reserved);
+  }
+  if (!known.difference(before).contains(slotText)) throw _field;
+  return LmsTimetableSpec(
+    courseInfo: courseInfo,
+    steps: steps,
+    slotText: slotText,
   );
 }
 
@@ -791,24 +922,11 @@ LmsLoginSpec _login(
   }
 
   final known = <String>{};
-  void check(LmsRequestSpec spec, Set<String> extra) {
-    final usable = {...known, ...extra};
-    final body = spec.body;
-    final cipherKey = body is LmsEncryptedBody
-        ? ciphers[body.cipher]!.keyVar
-        : null;
-    if (!usable.containsAll(spec.names) ||
-        (cipherKey != null && !known.contains(cipherKey))) {
-      throw _field;
-    }
-    known.addAll(spec.extract.keys);
-  }
-
   for (final step in steps) {
-    check(step, const {});
+    _checkSpec(step, known, ciphers);
   }
-  check(request, lmsCredentialVariables);
-  if (handoff != null) check(handoff, const {});
+  _checkSpec(request, known, ciphers, extra: lmsCredentialVariables);
+  if (handoff != null) _checkSpec(handoff, known, ciphers);
   return LmsLoginSpec(
     steps: steps,
     request: request,
