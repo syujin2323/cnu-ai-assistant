@@ -27,6 +27,14 @@
 //       "request": 요청,                                  로그인 요청. 변수 studentId·password를 쓸 수 있다
 //       "results": [{"when": [조건, ...], "result": "success"}],  처음 맞는 규칙의 결과. 없으면 해석 실패
 //       "handoff": 요청                                   성공 뒤 요청(세션 넘기기. 쓸 때만)
+//     },
+//     "parse": {"kindCodes": {...}},                      응답 해석 설정(`parsers/parse_config.dart`). sync가 있으면 꼭
+//     "sync": {                                           동기화 요청(없으면 동기화하지 않음)
+//       "vars": {"이름": "값"},                           학기마다 콘솔에서 바꾸는 값(학년도·학기 코드 등). 요청의 변수
+//       "semester": "{이름}-{이름}",                      학기 값(과목의 학기, 원본 키의 앞부분) 틀. vars만 쓰고 `:` 없음
+//       "steps": [요청, ...],                             조회 전 준비 요청(암호 키 뽑기 등. 쓸 때만)
+//       "courses": 요청,                                  과목 목록 조회
+//       "todos": 요청                                     할 일 목록 조회
 //     }
 //   }
 //
@@ -38,13 +46,15 @@
 // 암호: {"key": {"var": 변수, "removeChars": "-", "takeBytes": 16}, "iv": "zero"|"key"} (AES-CBC, PKCS#7, base64)
 // 조건: {"path": "a.b", "anyOf": [...]}, {"path": "a.b", "present": true}, {"contains": "본문 글자"}. 한 규칙의 조건은
 //   모두 맞아야 한다. 결과는 success, wrongCredentials, parseFailure 가운데 하나이고 success 규칙이 하나 이상 있어야 한다.
-// 각 요청은 앞 요청에서 뽑은 변수만 쓸 수 있고(로그인 요청만 studentId·password도), 이 파일이 해석할 때 확인한다.
+// 각 요청은 앞 요청에서 뽑은 변수만 쓸 수 있고(로그인 요청만 studentId·password도, 동기화 요청은 sync.vars도), 이 파일이
+// 해석할 때 확인한다. 뽑는 변수 이름은 학번·비밀번호나 sync.vars의 이름과 겹칠 수 없다.
 //
 // 표식 목록은 비어 있어도 된다. 표식은 대소문자를 가리는 부분 문자열이고, `path`는 점으로 나눈 키(목록이면 0부터
 // 세는 번호)이며, `anyOf`의 값은 문자열이나 정수다.
 
 import 'dart:convert';
 
+import 'package:cnu_ai_assistant/lms/parsers/parse_config.dart';
 import 'package:cnu_ai_assistant/lms/request_spec.dart';
 import 'package:flutter/foundation.dart' show immutable, listEquals, mapEquals;
 
@@ -133,6 +143,8 @@ final class LmsRequestParams {
     required this.userAgent,
     this.ciphers = const {},
     required this.login,
+    this.parse,
+    this.sync,
   });
 
   final int version;
@@ -158,6 +170,12 @@ final class LmsRequestParams {
   /// 로그인 요청.
   final LmsLoginSpec login;
 
+  /// 응답 해석 설정. [sync]가 있으면 늘 있다.
+  final LmsParseConfig? parse;
+
+  /// 동기화 요청. 없으면 동기화하지 않는다('설정 없음'으로 건너뜀).
+  final LmsSyncSpec? sync;
+
   /// [uri]가 로그인 주소로 넘어간 주소인지. 같은 호스트이고 경로가 로그인 주소의 경로와 같거나 그 아래다(쿼리는
   /// 보지 않는다). 경로는 마디 단위로 견줘 `/login`은 `/login/x`를 포함하지만 `/loginx`는 포함하지 않는다.
   bool isLoginUrl(Uri uri) {
@@ -179,7 +197,9 @@ final class LmsRequestParams {
       other.markers == markers &&
       other.userAgent == userAgent &&
       mapEquals(other.ciphers, ciphers) &&
-      other.login == login;
+      other.login == login &&
+      other.parse == parse &&
+      other.sync == sync;
 
   @override
   int get hashCode => Object.hash(
@@ -193,6 +213,55 @@ final class LmsRequestParams {
       ciphers.entries.map((e) => Object.hash(e.key, e.value)),
     ),
     login,
+    parse,
+    sync,
+  );
+}
+
+/// 동기화 요청(docs/lms.md '동기화'). 실제 주소와 값은 Remote Config에만 있다.
+@immutable
+final class LmsSyncSpec {
+  const LmsSyncSpec({
+    this.vars = const {},
+    required this.semester,
+    this.steps = const [],
+    required this.courses,
+    required this.todos,
+  });
+
+  /// 학기마다 콘솔에서 바꾸는 값(학년도·학기 코드 등). 요청 틀의 변수로 쓴다.
+  final Map<String, String> vars;
+
+  /// 학기 값(`courses.semester`, 원본 키의 앞부분). `semester` 틀을 [vars]로 채운 것이다.
+  final String semester;
+
+  /// 조회 전 준비 요청(차례대로. 뽑은 값은 뒤 요청의 변수).
+  final List<LmsRequestSpec> steps;
+
+  /// 과목 목록 조회.
+  final LmsRequestSpec courses;
+
+  /// 할 일 목록 조회.
+  final LmsRequestSpec todos;
+
+  @override
+  bool operator ==(Object other) =>
+      other is LmsSyncSpec &&
+      mapEquals(other.vars, vars) &&
+      other.semester == semester &&
+      listEquals(other.steps, steps) &&
+      other.courses == courses &&
+      other.todos == todos;
+
+  @override
+  int get hashCode => Object.hash(
+    Object.hashAllUnordered(
+      vars.entries.map((e) => Object.hash(e.key, e.value)),
+    ),
+    semester,
+    Object.hashAll(steps),
+    courses,
+    todos,
   );
 }
 
@@ -401,6 +470,13 @@ LmsRequestParams _readParams(Map<String, Object?> json, String domain) {
     throw _field;
   }
   final ciphers = _ciphers(json['ciphers']);
+  final sync = json['sync'] == null
+      ? null
+      : _sync(json['sync'], domain, ciphers);
+  final parse = json['parse'] == null
+      ? null
+      : LmsParseConfig.fromJson(json['parse']) ?? (throw _field);
+  if (sync != null && parse == null) throw _field;
   return LmsRequestParams(
     version: version,
     homeUrl: _schoolUrl(json['homeUrl'], domain),
@@ -416,6 +492,8 @@ LmsRequestParams _readParams(Map<String, Object?> json, String domain) {
     userAgent: userAgent,
     ciphers: ciphers,
     login: _login(json['login'], domain, ciphers),
+    parse: parse,
+    sync: sync,
   );
 }
 
@@ -624,6 +702,70 @@ Map<String, LmsExtract> _extracts(Object? value) {
     }
   }
   return extracts;
+}
+
+/// 동기화 요청들. 요청마다 쓰는 변수가 `vars`이거나 그 앞에서 뽑은 변수인지, 학기 틀이 `vars`만 쓰는지 확인한다.
+LmsSyncSpec _sync(
+  Object? value,
+  String domain,
+  Map<String, LmsCipherSpec> ciphers,
+) {
+  final object = _object(value);
+  final vars = <String, String>{};
+  final rawVars = object['vars'];
+  if (rawVars != null) {
+    for (final MapEntry(:key, :value) in _object(rawVars).entries) {
+      if (value is! String ||
+          _controlChar.hasMatch(value) ||
+          lmsCredentialVariables.contains(_name(key))) {
+        throw _field;
+      }
+      vars[key] = value;
+    }
+  }
+  final rawSemester = object['semester'];
+  if (rawSemester is! String) throw _field;
+  final semesterTemplate = LmsTemplate(rawSemester);
+  if (!vars.keys.toSet().containsAll(semesterTemplate.names)) throw _field;
+  final semester = semesterTemplate.render(vars);
+  if (semester.trim().isEmpty || semester.contains(':')) throw _field;
+
+  final steps = [
+    for (final step in _list(object['steps'] ?? const <Object?>[]))
+      _request(step, domain, ciphers),
+  ];
+  final courses = _request(object['courses'], domain, ciphers);
+  final todos = _request(object['todos'], domain, ciphers);
+
+  final known = vars.keys.toSet();
+  void check(LmsRequestSpec spec) {
+    final body = spec.body;
+    final cipherKey = body is LmsEncryptedBody
+        ? ciphers[body.cipher]!.keyVar
+        : null;
+    if (!known.containsAll(spec.names) ||
+        (cipherKey != null && !known.contains(cipherKey)) ||
+        spec.extract.keys.any(
+          (name) =>
+              vars.containsKey(name) || lmsCredentialVariables.contains(name),
+        )) {
+      throw _field;
+    }
+    known.addAll(spec.extract.keys);
+  }
+
+  for (final step in steps) {
+    check(step);
+  }
+  check(courses);
+  check(todos);
+  return LmsSyncSpec(
+    vars: vars,
+    semester: semester,
+    steps: steps,
+    courses: courses,
+    todos: todos,
+  );
 }
 
 /// 로그인 요청들. 요청마다 쓰는 변수가 그 앞에서 뽑은 변수(로그인 요청은 학번·비밀번호도)인지 확인한다.

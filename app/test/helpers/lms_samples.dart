@@ -108,6 +108,62 @@ final String syntheticRequestParamsJson = jsonEncode(syntheticRequestParams);
 Map<String, Object?> syntheticRequestParamsCopy() =>
     jsonDecode(syntheticRequestParamsJson) as Map<String, Object?>;
 
+/// 합성 동기화 요청(`sync`). 키 스크립트에서 암호 키를 받은 뒤 과목·할 일 목록을 암호화한 요청으로 묻는다.
+const Map<String, Object> syntheticSyncSection = {
+  'vars': {'termYear': '2026', 'termCode': '20'},
+  'semester': '{termYear}-{termCode}',
+  'steps': [
+    {
+      'method': 'GET',
+      'url': 'https://example.invalid/assets/synthetic-key-3.js',
+      'extract': {
+        'bodyKey': {'pattern': "syntheticKey = '([^']+)'"},
+      },
+    },
+  ],
+  'courses': {
+    'method': 'POST',
+    'url': 'https://example.invalid/api/synthetic-courses',
+    'body': {
+      'encrypted': {
+        'cipher': 'body',
+        'field': 'e',
+        'json': {'year': '{termYear}', 'term': '{termCode}'},
+      },
+    },
+  },
+  'todos': {
+    'method': 'POST',
+    'url': 'https://example.invalid/api/synthetic-todos',
+    'body': {
+      'encrypted': {
+        'cipher': 'body',
+        'field': 'e',
+        'json': {'year': '{termYear}', 'term': '{termCode}'},
+      },
+    },
+  },
+};
+
+/// 합성 응답 해석 설정(`parse`). 합성 할 일 목록 샘플의 종류 코드에 맞춘다.
+const Map<String, Object> syntheticParseSection = {
+  'kindCodes': {
+    'video': ['K1'],
+    'assignment': ['K2'],
+  },
+};
+
+/// [syntheticSyncSection]의 학기 값.
+const syntheticSemester = '2026-20';
+
+/// [syntheticRequestParams]에 [syntheticSyncSection]·[syntheticParseSection]을 더해 깊이 복사한 것.
+Map<String, Object?> syntheticSyncParamsCopy() => syntheticRequestParamsCopy()
+  ..['sync'] = jsonDecode(jsonEncode(syntheticSyncSection))
+  ..['parse'] = jsonDecode(jsonEncode(syntheticParseSection));
+
+/// [syntheticSyncParamsCopy]의 JSON 문자열(Remote Config 값 꼴).
+final String syntheticSyncParamsJson = jsonEncode(syntheticSyncParamsCopy());
+
 /// `test/lms/fixtures/`의 합성 응답 샘플 [name]을 읽는다. `flutter test`는 `app/`에서 돈다.
 String lmsFixture(String name) =>
     File('test/lms/fixtures/$name').readAsStringSync();
