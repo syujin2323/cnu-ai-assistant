@@ -22,6 +22,7 @@
 
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
+import 'package:cnu_ai_assistant/app/toast_controller.dart';
 import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_tab_bar.dart';
@@ -156,6 +157,12 @@ final routerProvider = Provider<GoRouter>((ref) {
   router = GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: Routes.root,
+    // 시트·대화 상자를 열면 토스트를 거둔다(토스트가 시트 아래쪽 버튼을 가리지 않게).
+    observers: [
+      ToastPopupObserver(
+        () => ref.read(toastControllerProvider.notifier).hide(),
+      ),
+    ],
     // 플랫폼이 넘기는 첫 경로(Android intent의 `route` 값 등)를 보지 않고 늘 `/`에서 시작한다.
     // 그 경로로 열면 시작 위치 규칙을 거치지 않아 온보딩을 건너뛸 수 있다. 실행 중에 들어오는
     // 딥링크는 AndroidManifest의 `flutter_deeplinking_enabled` false가 막는다.
