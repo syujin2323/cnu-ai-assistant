@@ -8,9 +8,12 @@
 // 탭 모션(navDrop·navIconPop), 지금 탭이 넓어지는 배치와 활성 표시의 모양 바꾸기는 R0 모션 PR에서
 // 더한다.
 
+import 'dart:math' as math;
+
 import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
+import 'package:cnu_ai_assistant/design/widgets/app_toast.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// 탭 하나의 라벨과 아이콘.
@@ -45,6 +48,18 @@ class AppTabBar extends StatelessWidget {
 
   /// 탭 알약과 AI 비서 버튼의 기본 높이(탭 하나의 최소 높이 + 알약 안쪽 여백).
   static const double barHeight = AppSize.minTouch + AppSpace.s4 * 2;
+
+  /// 아래 시스템 영역(홈 표시줄·내비게이션 바)이 이보다 작아도 알약 아래에 두는 최소 여백.
+  static const double _bottomMinimum = AppSpace.s8;
+
+  /// 알약 위아래의 바깥 여백.
+  static const double _outerGap = AppSpace.s8;
+
+  /// 화면 아래 끝에서 탭 알약 윗변까지의 거리. 탭바 위에 띄우는 것(토스트)이 쓴다.
+  static double pillTop(BuildContext context) =>
+      math.max(MediaQuery.paddingOf(context).bottom, _bottomMinimum) +
+      _outerGap +
+      barHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -82,27 +97,30 @@ class AppTabBar extends StatelessWidget {
     }
     return SafeArea(
       top: false,
-      minimum: const EdgeInsets.only(bottom: AppSpace.s8),
+      minimum: const EdgeInsets.only(bottom: _bottomMinimum),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
           AppSpace.screen,
-          AppSpace.s8,
+          _outerGap,
           AppSpace.screen,
-          AppSpace.s8,
+          _outerGap,
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Semantics(
-                container: true,
-                explicitChildNodes: true,
-                label: '주요 메뉴',
-                child: ClipRRect(borderRadius: radius, child: bar),
+        // 토스트는 알약 윗변 위에 뜬다(글자를 키워 알약이 커져도 따라감).
+        child: ToastAnchor(
+          child: Row(
+            children: [
+              Expanded(
+                child: Semantics(
+                  container: true,
+                  explicitChildNodes: true,
+                  label: '주요 메뉴',
+                  child: ClipRRect(borderRadius: radius, child: bar),
+                ),
               ),
-            ),
-            const SizedBox(width: AppSpace.s8),
-            _AssistantButton(glass: glass, onTap: onAssistant),
-          ],
+              const SizedBox(width: AppSpace.s8),
+              _AssistantButton(glass: glass, onTap: onAssistant),
+            ],
+          ),
         ),
       ),
     );
@@ -187,19 +205,21 @@ class _AssistantButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    Widget button = Material(
-      type: MaterialType.transparency,
-      child: Ink(
-        decoration: BoxDecoration(
-          color: glass ? AppGlass.fill : colors.bg,
-          shape: BoxShape.circle,
-          border: Border.all(color: colors.edge),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: SizedBox.square(
-            dimension: AppTabBar.barHeight,
+    // 테두리까지 알약과 같은 높이로 둔다. Ink는 테두리 두께만큼 안쪽을 띄우므로 크기를 바깥에서 정한다(안에서
+    // 정하면 버튼이 테두리만큼 커져 알약이 버튼 가운데로 1pt 내려간다).
+    Widget button = SizedBox.square(
+      dimension: AppTabBar.barHeight,
+      child: Material(
+        type: MaterialType.transparency,
+        child: Ink(
+          decoration: BoxDecoration(
+            color: glass ? AppGlass.fill : colors.bg,
+            shape: BoxShape.circle,
+            border: Border.all(color: colors.edge),
+          ),
+          child: InkWell(
+            onTap: onTap,
+            customBorder: const CircleBorder(),
             child: Center(child: AppIcon.assistant(color: colors.accent)),
           ),
         ),

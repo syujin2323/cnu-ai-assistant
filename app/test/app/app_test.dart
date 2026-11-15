@@ -10,17 +10,22 @@ import 'dart:io';
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
+import 'package:cnu_ai_assistant/app/toast_controller.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/briefing_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/event_repository.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
+import 'package:cnu_ai_assistant/design/widgets/app_sheet.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_tab_bar.dart';
+import 'package:cnu_ai_assistant/design/widgets/app_toast.dart';
 import 'package:cnu_ai_assistant/design/widgets/demo_band.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
+import 'package:cnu_ai_assistant/domain/models/models.dart' show EventSource;
 import 'package:cnu_ai_assistant/features/assistant/assistant_args.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_screen.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_screen.dart';
@@ -1458,6 +1463,69 @@ void main() {
           expect(find.byType(OnboardingScreen), findsOneWidget);
           await scrollTo(tester, find.text(_browseDemo));
           expect(find.text(_browseDemo), findsOneWidget);
+
+          await app.dispose(tester);
+        });
+      });
+
+      group('토스트', () {
+        // docs/screens.md '되돌리기'. 토스트는 RootApp이 모든 화면 위에 하나만 그린다.
+        testWidgets('하단 탭 알약 위에 뜨고, 탭을 바꿔도 남으며, 되돌리기는 마지막 동작을 되돌린다', (
+          tester,
+        ) async {
+          final app = await pumpTestApp(tester, textScale: textScale);
+          final added = await EventRepository(app.db).add(
+            title: '스터디',
+            startAt: app.clock.now().add(const Duration(hours: 1)),
+            endAt: app.clock.now().add(const Duration(hours: 2)),
+            source: EventSource.manual,
+            now: app.clock.now(),
+          );
+          expect(added, isA<Ok<int>>());
+
+          app.container
+              .read(toastControllerProvider.notifier)
+              .show('일정을 넣었어요', undoable: true);
+          await tester.pump();
+          expect(find.text('일정을 넣었어요'), findsOneWidget);
+          // 글자를 키워 탭바가 커져도 탭 알약 윗변 위 12pt다.
+          expect(
+            tester.getTopLeft(find.byType(ToastAnchor)).dy -
+                tester.getBottomLeft(find.byType(AppToast)).dy,
+            AppToastLayer.gap,
+          );
+
+          await tapTab(tester, '할 일');
+          expect(find.text('일정을 넣었어요'), findsOneWidget);
+
+          await tester.tap(find.text('되돌리기'));
+          await tester.pumpAndSettle();
+          expect(await app.db.select(app.db.events).get(), isEmpty);
+          expect(find.text('일정을 넣었어요'), findsNothing);
+          expect(find.text(ToastController.undoFailedText), findsNothing);
+
+          await app.dispose(tester);
+        });
+
+        testWidgets('시트를 열면 토스트를 거둔다', (tester) async {
+          final app = await pumpTestApp(tester, textScale: textScale);
+          app.container
+              .read(toastControllerProvider.notifier)
+              .show('확정했어요', undoable: true);
+          await tester.pump();
+          expect(find.text('확정했어요'), findsOneWidget);
+
+          unawaited(
+            showAppSheet<void>(
+              context: tester.element(find.byType(TodayScreen)),
+              motion: MotionLevel.off,
+              builder: (_) => const Text('시트'),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('시트'), findsOneWidget);
+          expect(find.text('확정했어요'), findsNothing);
+          expect(app.container.read(toastControllerProvider)?.visible, isFalse);
 
           await app.dispose(tester);
         });
