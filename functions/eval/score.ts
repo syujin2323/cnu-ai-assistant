@@ -1,6 +1,6 @@
 // /v1/parse 평가의 채점(docs/architecture.md '제공사 호출 규칙'의 평가 세트).
 //
-// 기준: 의도 97%, 날짜·시각 95%, 규칙 95%, 제공사 호출 시간 p95 2초. 제목·장소처럼 말을 옮기는 칸과 원래 표현
+// 기준: 의도 97%, 날짜·시각 95%, 규칙 95%, 제공사 호출 시간 p95 3초(decisions.md 2026-11-15 'AI 평가의 응답 시간 기준을 p95 3초로 늦춘다'). 제목·장소처럼 말을 옮기는 칸과 원래 표현
 // (dateExpression·timeExpression·target)은 매기지 않는다.
 import type {
   ParseItem,
@@ -13,7 +13,7 @@ export const THRESHOLDS = {
   intent: 0.97,
   dateTime: 0.95,
   rule: 0.95,
-  p95Ms: 2000,
+  p95Ms: 3000,
 } as const;
 
 /** 한 사례의 채점. null은 그 사례에 해당하지 않는 지표다. */

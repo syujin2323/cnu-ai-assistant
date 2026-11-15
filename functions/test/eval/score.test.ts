@@ -147,7 +147,7 @@ describe("summary", () => {
     intent: { correct: 97, total: 100 },
     dateTime: { correct: 95, total: 100 },
     rule: { correct: 19, total: 20 },
-    p95Ms: 2000,
+    p95Ms: 3000,
   };
 
   it("passes exactly at every threshold", () => {
@@ -162,7 +162,7 @@ describe("summary", () => {
       false,
     );
     expect(passes({ ...base, rule: { correct: 18, total: 20 } })).toBe(false);
-    expect(passes({ ...base, p95Ms: 2001 })).toBe(false);
+    expect(passes({ ...base, p95Ms: 3001 })).toBe(false);
   });
 
   it("counts only applicable cases", () => {
@@ -182,6 +182,6 @@ describe("summary", () => {
     const lines = reportLines(base);
     expect(lines).toHaveLength(4);
     expect(lines[0]).toBe("의도 정확도: 97.0% (97/100), 기준 97.0% 통과");
-    expect(lines[3]).toBe("제공사 호출 시간 p95: 2000ms, 기준 2000ms 통과");
+    expect(lines[3]).toBe("제공사 호출 시간 p95: 3000ms, 기준 3000ms 통과");
   });
 });
