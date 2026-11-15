@@ -634,6 +634,13 @@
   - `app/android/`, `app/ios/`, `app/lib/platform/`
   - 관리자: Apple Developer의 App ID에 Push Notifications 기능을 켜고 프로비저닝 프로파일을 다시 받는다(켜지 않으면 iOS Release 빌드가 서명되지 않음). 서버 신호 푸시 PR 전에 Firebase 콘솔에 APNs 인증 키를 올린다. Play Console의 포그라운드 서비스 신고가 필요한지 본다(`workmanager`가 `FOREGROUND_SERVICE_SHORT_SERVICE` 권한을 더함).
 
+## 2026-11-15 오늘 AI 사용량을 다 쓴 날을 기억한다
+
+- 결정: `/v1/parse`가 429(`install_limit`, 설치당 하루 한도를 다 씀)를 돌려주면 앱은 그 한국 달력 날짜를 `settings`의 `aiLimitReachedOn`에 적는다. 그날은 06 AI 비서와 12 '말로 정하기'가 문장을 보내지 않고, 429를 받았을 때처럼 '오늘 AI 사용량을 다 썼어요'를 보인 뒤 직접 추가 폼(12는 직접 정하기)으로 간다. 다음 날이면 다시 보낸다. 10 나 › AI의 '오늘 사용량 다 씀'도 이 값으로 보인다. 503은 기억하지 않는다.
+- 이유: 서버는 한도를 한국 달력 날짜로 세므로 그날 다시 보내도 늘 429다. 기억하지 않으면 보낼 때마다 응답을 기다린 뒤에야 직접 추가 폼으로 넘어가고, 10 나가 '오늘 사용량 다 씀'을 미리 보일 수 없다. 메모리에만 두면 앱을 다시 켤 때마다 한 번 더 보낸다. 503은 서비스 전체 상한 말고도 제공사 오류처럼 곧 풀리는 까닭이 섞여 있고, 앱은 상태 코드로만 동작을 정한다.
+- 다른 후보: 앱 메모리에만 기억하기, 기억하지 않고 매번 보내기.
+- 영향: architecture.md '폰 DB'(settings 키)·'POST /v1/parse'. 코드는 06 AI 비서 화면 PR에서 만든다.
+
 ## 2026-11-15 사용 지표 본문과 합계 문서의 꼴
 
 - 결정: `/v1/metrics` 본문은 논리적 하루 하나의 숫자 열한 키(`date`, `briefingOpened`, `todaySuggested`, `planConfirmed`, `confirmSeconds`, `editsBeforeConfirm`, `missedDeadlines`, `syncAttempts`, `syncSuccesses`, `installAgeDays`, `daysSinceLmsLogin`)이고 뜻과 범위는 architecture.md '지표'의 표다. 동기화 시도·성공 수는 계기(`sync_runs.trigger`)마다 센다. 서버는 `metrics/<date>` 문서에 더하기만 하고, 확정까지 걸린 초(0·10·30·60·120·300·600·1800초)와 마지막 LMS 로그인 뒤 지난 날 수(0·1·2·3·7·14·30일)는 구간마다, 설치 후 날 수는 0·1·7·30일만 개수를 센다. `date`가 서버의 오늘에서 7일 전부터 하루 뒤까지가 아니면 받지 않는다. 답은 204(본문 없음)이고 합계 문서에는 TTL을 두지 않는다.
