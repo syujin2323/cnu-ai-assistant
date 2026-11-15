@@ -42,6 +42,11 @@ import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
+import 'package:cnu_ai_assistant/domain/lms_status.dart';
+import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
+import 'package:cnu_ai_assistant/domain/models/sync_run.dart';
+import 'package:cnu_ai_assistant/domain/models/task_entry.dart';
+import 'package:cnu_ai_assistant/lms/lms_config.dart';
 import 'package:cnu_ai_assistant/domain/planner/plan_range.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
@@ -360,6 +365,92 @@ final parseClientProvider = Provider<ParseClient>(
 
 /// 지금 시각. 테스트는 `FixedClock`으로 덮어쓴다.
 final clockProvider = Provider<Clock>((ref) => const Clock());
+
+/// 분이 바뀔 때마다 새 값을 내는 지금 시각. 'N분 전'처럼 분마다 바뀌는 문구가 본다.
+final minuteClockProvider = NotifierProvider<MinuteClock, DateTime>(
+  MinuteClock.new,
+);
+
+/// [minuteClockProvider]의 노티파이어. 다음 분이 시작될 때 [clockProvider]의 지금으로 바꾼다.
+class MinuteClock extends Notifier<DateTime> {
+  Timer? _timer;
+
+  @override
+  DateTime build() {
+    ref.onDispose(() => _timer?.cancel());
+    final now = ref.watch(clockProvider).now();
+    _schedule(now);
+    return now;
+  }
+
+  void _schedule(DateTime now) {
+    _timer?.cancel();
+    final next = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      now.hour,
+      now.minute + 1,
+    );
+    _timer = Timer(next.difference(now), () {
+      final current = ref.read(clockProvider).now();
+      state = current;
+      _schedule(current);
+    });
+  }
+}
+
+/// 숨기지 않은 할 일과 그 LMS 원본·과목(마감순). 할 일·LMS 원본·과목이 바뀌면 다시 낸다.
+final taskEntriesProvider = StreamProvider<List<TaskEntry>>(
+  (ref) => ref.watch(taskRepositoryProvider).watch(),
+);
+
+/// 마지막 LMS 동기화 시도(건너뛴 기록 제외). LMS 상태 줄의 실패 상태(점검·연결 실패)에 쓴다.
+final latestSyncAttemptProvider = StreamProvider<SyncRun?>(
+  (ref) => ref.watch(syncRunRepositoryProvider).watchLatestAttempt(),
+);
+
+/// 마지막으로 성공한 LMS 동기화. LMS 상태 줄의 '방금'(사용자 새로 고침)에 쓴다.
+final latestSyncSuccessProvider = StreamProvider<SyncRun?>(
+  (ref) => ref.watch(syncRunRepositoryProvider).watchLatestSuccess(),
+);
+
+/// LMS 상태 줄(docs/screens.md 'LMS 상태 줄과 다시 로그인'). 데모 모드면 '샘플 데이터 · 데모'로 고정이다. 실제
+/// 모드에서 설정이나 동기화 기록을 아직 읽지 못했거나 읽지 못하면 null이고, 화면은 상태 줄을 그리지 않는다. 원격
+/// 스위치는 Remote Config를 가져오는 동안과 읽지 못했을 때 켜진 것으로 본다(앱 기본값과 같음).
+final lmsStatusProvider = Provider<LmsStatus?>((ref) {
+  final now = ref.watch(minuteClockProvider);
+  if (ref.watch(appModeProvider) == AppMode.demo) {
+    return lmsStatus(
+      demo: true,
+      enabled: true,
+      session: LmsSessionState.disconnected,
+      lastAttempt: null,
+      lastSuccessAt: null,
+      byUserRefresh: false,
+      now: now,
+    );
+  }
+  final settings = ref.watch(settingsProvider).value;
+  final attempt = ref.watch(latestSyncAttemptProvider);
+  final success = ref.watch(latestSyncSuccessProvider);
+  if (settings == null || !attempt.hasValue || !success.hasValue) return null;
+  final lastSuccessAt = settings.lmsLastSuccessAt;
+  final latestSuccess = success.value;
+  return lmsStatus(
+    demo: false,
+    enabled: ref.watch(lmsConfigProvider).value?.enabled ?? true,
+    session: settings.lmsSessionState,
+    lastAttempt: attempt.value?.result,
+    lastSuccessAt: lastSuccessAt,
+    // '방금'은 마지막 확인을 남긴 동기화가 사용자 새로 고침일 때만이다.
+    byUserRefresh:
+        latestSuccess != null &&
+        latestSuccess.trigger == SyncTrigger.manual &&
+        latestSuccess.startedAt == lastSuccessAt,
+    now: now,
+  );
+});
 
 /// Remote Config `fetchAndActivate()`가 끝났는지.
 ///

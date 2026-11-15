@@ -403,6 +403,42 @@ void main() {
     });
   });
 
+  group('lastCheckedText', () {
+    final now = DateTime(2026, 10, 12, 12);
+
+    test('확인에 성공한 적이 없으면 없음이다', () {
+      expect(lastCheckedText(lastSuccessAt: null, now: now), '없음');
+      expect(
+        lastCheckedText(lastSuccessAt: null, now: now, byUserRefresh: true),
+        '없음',
+      );
+    });
+
+    test('LMS 정보 줄과 같은 규칙으로 방금·N분 전·N시간 전이다', () {
+      final justNow = now.subtract(const Duration(minutes: 9, seconds: 59));
+      expect(
+        lastCheckedText(lastSuccessAt: justNow, now: now, byUserRefresh: true),
+        '방금',
+      );
+      expect(lastCheckedText(lastSuccessAt: justNow, now: now), '9분 전');
+      expect(
+        lastCheckedText(
+          lastSuccessAt: now.subtract(const Duration(minutes: 10)),
+          now: now,
+          byUserRefresh: true,
+        ),
+        '10분 전',
+      );
+      expect(
+        lastCheckedText(
+          lastSuccessAt: now.subtract(const Duration(hours: 3)),
+          now: now,
+        ),
+        '3시간 전',
+      );
+    });
+  });
+
   group('approxHoursText', () {
     test('1시간이 안 되면 1시간 미만, 그 밖에는 30분부터 올려 시간으로 쓴다', () {
       expect(approxHoursText(0), '1시간 미만');

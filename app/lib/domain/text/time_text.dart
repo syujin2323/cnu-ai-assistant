@@ -206,9 +206,20 @@ String lmsInfoText({
   bool byUserRefresh = false,
 }) {
   if (lastSuccessAt == null) return 'LMS 정보 받기 전';
+  return 'LMS 정보 ${lastCheckedText(lastSuccessAt: lastSuccessAt, now: now, byUserRefresh: byUserRefresh)}';
+}
+
+/// 03 할 일 LMS 정보 시트의 '마지막 확인' 값(임시). [lmsInfoText]와 같은 규칙으로 '방금'·'N분 전'·'N시간 전'이고,
+/// 확인에 성공한 적이 없으면 '없음'이다.
+String lastCheckedText({
+  required DateTime? lastSuccessAt,
+  required DateTime now,
+  bool byUserRefresh = false,
+}) {
+  if (lastSuccessAt == null) return '없음';
   final since = now.difference(lastSuccessAt);
-  if (byUserRefresh && since < _justNow) return 'LMS 정보 방금';
-  return 'LMS 정보 ${elapsedText(since)}';
+  if (byUserRefresh && since < _justNow) return '방금';
+  return elapsedText(since);
 }
 
 /// 03 할 일 요약 줄 '남은 일 {…}'의 길이(임시). 1시간이 안 되면 '1시간 미만', 그 밖에는 시간 단위로
