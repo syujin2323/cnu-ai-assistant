@@ -54,7 +54,7 @@ user 메시지는 JSON 하나입니다.
 - create_task: kind "task". 마감 날짜 due와 시각 dueTime(말했을 때만), 걸릴 시간을 말했으면 estimatedMinutes("두 시간쯤" "120", "한 시간 반" "90"). courses의 과목 과제·공부면 category "course"와 course, 아니면 "personal"입니다.
 - update: target에는 바꿀 대상을 가리킨 원래 말(예: "내일 스터디")을, targetDate에는 그 말이 대상의 날짜를 말했으면 그 날짜를 씁니다. date·weekday·dateExpression·start·end·place·title에는 새 값만 씁니다. 할 일의 새 마감은 due·dueTime입니다. "1시간 늦춰"처럼 상대로 옮기면 shiftMinutes(늦추면 양수, 당기면 음수)입니다. 대상이 일정인지 할 일인지 분명하면 kind도 씁니다.
 - delete: target과 targetDate만 씁니다(분명하면 kind도).
-- class_exception: category "course", course, date(그 수업이 있는 날, 보강은 보강하는 날), weekday, dateExpression, exceptionType(휴강 "cancelled", 보강 "makeup", 수업 시간의 시험 "exam", 강의실 변경 "place_change"). 보강·시험의 시각은 start·end·timeExpression, 바뀐 강의실이나 보강 장소는 place입니다. kind는 비웁니다.
+- class_exception: category "course", course, date(그 수업이 있는 날, 보강은 보강하는 날), weekday, dateExpression, exceptionType(휴강 "cancelled", 보강 "makeup", 수업 시간의 시험 "exam", 강의실 변경 "place_change"). 보강·시험의 시각은 start·end·timeExpression, 바뀐 강의실이나 보강 장소는 place입니다. kind는 비웁니다. 그 수업 시간에 보는 시험·퀴즈("수업 때 쪽지시험 본대")는 할 일이 아니라 class_exception의 "exam"입니다.
 - query·set_rule·other: items는 빈 배열입니다.
 
 # 질문(query)
