@@ -12,12 +12,14 @@ import 'dart:async';
 
 import 'package:cnu_ai_assistant/app/config.dart';
 import 'package:cnu_ai_assistant/app/logging.dart';
+import 'package:cnu_ai_assistant/app/plan_controller.dart';
 import 'package:cnu_ai_assistant/data/api/install_token.dart';
 import 'package:cnu_ai_assistant/data/api/parse_client.dart';
 import 'package:cnu_ai_assistant/data/api/server_api.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/db/demo_database_files.dart';
 import 'package:cnu_ai_assistant/data/demo/demo_seed.dart';
+import 'package:cnu_ai_assistant/data/plan_recalculator.dart';
 import 'package:cnu_ai_assistant/data/repositories/briefing_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/class_exception_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/class_slot_repository.dart';
@@ -26,6 +28,7 @@ import 'package:cnu_ai_assistant/data/repositories/demo_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/event_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/fixed_block_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/lms_item_change_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/plan_apply_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/plan_block_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/rules_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/schedule_repository.dart';
@@ -38,6 +41,7 @@ import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
+import 'package:cnu_ai_assistant/domain/planner/plan_range.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -272,6 +276,28 @@ final eventRepositoryProvider = Provider<EventRepository>(
 /// 고정 일정 저장소(`fixed_blocks` 표). 지금 모드의 폰 DB를 본다.
 final fixedBlockRepositoryProvider = Provider<FixedBlockRepository>(
   (ref) => FixedBlockRepository(ref.watch(databaseProvider)),
+);
+
+/// 재계산 결과를 쓰는 저장소(`plan_blocks` 표의 제안·놓침·지운 블록 정리). 지금 모드의 폰 DB를 본다.
+final planApplyRepositoryProvider = Provider<PlanApplyRepository>(
+  (ref) => PlanApplyRepository(ref.watch(databaseProvider)),
+);
+
+/// 재계산 서비스. 지금 모드의 폰 DB를 본다.
+final planRecalculatorProvider = Provider<PlanRecalculator>(
+  (ref) => PlanRecalculator(
+    schedule: ref.watch(scheduleRepositoryProvider),
+    tasks: ref.watch(taskRepositoryProvider),
+    rules: ref.watch(rulesRepositoryProvider),
+    settings: ref.watch(settingsRepositoryProvider),
+    apply: ref.watch(planApplyRepositoryProvider),
+    clock: ref.watch(clockProvider),
+  ),
+);
+
+/// 재계산 계기와 마지막 결과(시간 부족, 급한 순서). `RootApp`이 앱을 켠 동안 늘 듣는다.
+final planControllerProvider = NotifierProvider<PlanController, PlanResult?>(
+  PlanController.new,
 );
 
 /// 과목 저장소(`courses` 표의 읽기). 지금 모드의 폰 DB를 본다.

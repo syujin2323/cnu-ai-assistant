@@ -17,7 +17,63 @@ enum AppIconName {
   me('assets/icons/me.svg'),
 
   /// 하단 탭 옆 'AI 비서에게 말하기' 버튼(말풍선).
-  assistant('assets/icons/assistant.svg');
+  assistant('assets/icons/assistant.svg'),
+
+  // 02 홈과 그 시트·카드(캔버스 '최종 프로토타입'의 아이콘).
+
+  /// 알림.
+  bell('assets/icons/bell.svg'),
+
+  /// 새로 고침·다시 확인.
+  refresh('assets/icons/refresh.svg'),
+
+  /// 네모 안 체크(했어요).
+  checkSquare('assets/icons/check_square.svg'),
+
+  /// 체크(완료 표시, 굵은 선).
+  check('assets/icons/check.svg'),
+
+  /// 시계(시각).
+  clock('assets/icons/clock.svg'),
+
+  /// 빈 시간(찻잔).
+  freeTime('assets/icons/free_time.svg'),
+
+  /// 오른쪽 꺾쇠(더 보기).
+  chevronRight('assets/icons/chevron_right.svg'),
+
+  /// 모래시계(시간 부족).
+  hourglass('assets/icons/hourglass.svg'),
+
+  /// 위 꺾쇠(접기).
+  chevronUp('assets/icons/chevron_up.svg'),
+
+  /// 더하기(놓기).
+  plus('assets/icons/plus.svg'),
+
+  /// 이동 시간(버스).
+  bus('assets/icons/bus.svg'),
+
+  /// 식사.
+  meal('assets/icons/meal.svg'),
+
+  /// 일정·고정 일정(사람).
+  person('assets/icons/person.svg'),
+
+  /// 운동 고정 일정(아령).
+  exercise('assets/icons/exercise.svg'),
+
+  /// 직접 정한 시간(연필).
+  pencil('assets/icons/pencil.svg'),
+
+  /// 급한 순번(깃발).
+  flag('assets/icons/flag.svg'),
+
+  /// 안내.
+  info('assets/icons/info.svg'),
+
+  /// 되돌리기(돌아가는 화살표).
+  undo('assets/icons/undo.svg');
 
   const AppIconName(this.asset);
 
