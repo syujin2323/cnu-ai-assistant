@@ -10,6 +10,7 @@ import type { ParseInput } from "../../src/ai/types.js";
 import { createApp } from "../../src/app.js";
 import type { RequestLogLine } from "../../src/http/request-log.js";
 import { apiRoutes } from "../../src/routes.js";
+import { unusedMetricsDeps } from "../support/deps.js";
 import { loadSamples, sampleInput } from "../support/samples.js";
 import { withServer } from "../support/server.js";
 
@@ -83,7 +84,7 @@ async function post(
 ) {
   const app = createApp({
     log: (line) => h.lines.push(line),
-    routes: apiRoutes({ parse: h.deps }),
+    routes: apiRoutes({ parse: h.deps, metrics: unusedMetricsDeps }),
   });
   return withServer(app, async (base) => {
     const res = await fetch(`${base}/v1/parse`, {
