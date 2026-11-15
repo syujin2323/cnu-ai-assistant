@@ -164,6 +164,7 @@
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
+				FA7F8A97D8F4DA8FC4F44750 /* Upload Crashlytics Symbols */,
 			);
 			buildRules = (
 			);
@@ -273,6 +274,29 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
+		};
+		FA7F8A97D8F4DA8FC4F44750 /* Upload Crashlytics Symbols */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}",
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${PRODUCT_NAME}",
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Info.plist",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/GoogleService-Info.plist",
+				"$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)",
+			);
+			name = "Upload Crashlytics Symbols";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Crashlytics dSYM 올리기(docs/architecture.md '플랫폼 프로젝트 설정'). Release 구성에서만 돈다.\n# flutter 명령은 Swift 패키지를 build/ios/SourcePackages에, Xcode는 DerivedData에 받는다.\nif [ \"${CONFIGURATION}\" != \"Release\" ]; then exit 0; fi\nfor dir in \"${SRCROOT}/../build/ios/SourcePackages\" \"${BUILD_DIR%/Build/*}/SourcePackages\"; do\n  run=\"${dir}/checkouts/firebase-ios-sdk/Crashlytics/run\"\n  if [ -x \"${run}\" ]; then exec \"${run}\"; fi\ndone\necho \"warning: Crashlytics run script not found, dSYM not uploaded\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
