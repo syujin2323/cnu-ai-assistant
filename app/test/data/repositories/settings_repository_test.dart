@@ -62,6 +62,7 @@ void main() {
       expect(settings.lmsSessionState, LmsSessionState.disconnected);
       expect(settings.lmsLastSuccessAt, isNull);
       expect(settings.lmsLastConnectedAt, isNull);
+      expect(settings.lmsCredentialRejected, isFalse);
       expect(settings.checkinMin, isNull);
       expect(settings.dueTodayTimeSensitive, isFalse);
       expect(settings.onboardingSkipped, isEmpty);
@@ -80,6 +81,7 @@ void main() {
         'lmsSessionState': 'disconnected',
         'lmsLastSuccessAt': null,
         'lmsLastConnectedAt': null,
+        'lmsCredentialRejected': false,
         'checkinMin': null,
         'dueTodayTimeSensitive': false,
         'onboardingSkipped': <int>[],
@@ -102,6 +104,7 @@ void main() {
         SettingKeys.lmsSessionState,
         LmsSessionState.reconnectRequired,
       );
+      await writeOk(SettingKeys.lmsCredentialRejected, true);
       await writeOk(SettingKeys.checkinMin, 1350);
       await writeOk(SettingKeys.dueTodayTimeSensitive, true);
       await writeOk(SettingKeys.onboardingSkipped, [3, 4]);
@@ -115,6 +118,7 @@ void main() {
           privacyConsentAt: privacyAt,
           metricsLastSentOn: '2026-10-28',
           lmsSessionState: LmsSessionState.reconnectRequired,
+          lmsCredentialRejected: true,
           checkinMin: 1350,
           dueTodayTimeSensitive: true,
           onboardingSkipped: [3, 4],

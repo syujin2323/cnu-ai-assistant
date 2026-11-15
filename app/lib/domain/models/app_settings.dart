@@ -23,6 +23,7 @@ abstract final class SettingKeys {
   static const lmsSessionState = 'lmsSessionState';
   static const lmsLastSuccessAt = 'lmsLastSuccessAt';
   static const lmsLastConnectedAt = 'lmsLastConnectedAt';
+  static const lmsCredentialRejected = 'lmsCredentialRejected';
   static const checkinMin = 'checkinMin';
   static const dueTodayTimeSensitive = 'dueTodayTimeSensitive';
   static const onboardingSkipped = 'onboardingSkipped';
@@ -39,6 +40,7 @@ abstract final class SettingKeys {
     lmsSessionState,
     lmsLastSuccessAt,
     lmsLastConnectedAt,
+    lmsCredentialRejected,
     checkinMin,
     dueTodayTimeSensitive,
     onboardingSkipped,
@@ -58,6 +60,7 @@ class AppSettings {
     required this.lmsSessionState,
     required this.lmsLastSuccessAt,
     required this.lmsLastConnectedAt,
+    required this.lmsCredentialRejected,
     required this.checkinMin,
     required this.dueTodayTimeSensitive,
     required this.onboardingSkipped,
@@ -75,6 +78,7 @@ class AppSettings {
     lmsSessionState: LmsSessionState.disconnected,
     lmsLastSuccessAt: null,
     lmsLastConnectedAt: null,
+    lmsCredentialRejected: false,
     checkinMin: null,
     dueTodayTimeSensitive: false,
     onboardingSkipped: [],
@@ -112,6 +116,9 @@ class AppSettings {
       lmsLastConnectedAt:
           tryDecodeDateTime(values[SettingKeys.lmsLastConnectedAt]) ??
           d.lmsLastConnectedAt,
+      lmsCredentialRejected:
+          _boolOrNull(values[SettingKeys.lmsCredentialRejected]) ??
+          d.lmsCredentialRejected,
       checkinMin:
           _minuteOfDayOrNull(values[SettingKeys.checkinMin]) ?? d.checkinMin,
       dueTodayTimeSensitive:
@@ -157,6 +164,11 @@ class AppSettings {
   /// 마지막으로 `connecting`에서 `active`가 된 시각.
   final DateTime? lmsLastConnectedAt;
 
+  /// 저장된 학번·비밀번호로 조용히 다시 로그인했다가 '학번·비밀번호 틀림'을 받았는지(docs/lms.md '학번·비밀번호와
+  /// 자동 재로그인'). true면 사용자가 다시 로그인할 때까지 그 값으로 다시 시도하지 않고, 다시 로그인에 성공하면
+  /// false로 돌린다. 앱을 다시 켜도 남고 백그라운드도 읽는다.
+  final bool lmsCredentialRejected;
+
   /// 저녁 체크인 시각(자정 기준 분). null이면 [Defaults.checkinMin]. 저녁 체크인은 임시로 뺐고
   /// (docs/decisions.md 2026-11-15) 이 키는 기능을 다시 정할 때 함께 본다.
   final int? checkinMin;
@@ -184,6 +196,7 @@ class AppSettings {
         value == null ? null : _requireMinuteOfDay(key, value),
       SettingKeys.aiEnabled ||
       SettingKeys.metricsEnabled ||
+      SettingKeys.lmsCredentialRejected ||
       SettingKeys.dueTodayTimeSensitive => _require<bool>(key, value),
       SettingKeys.aiConsentAt ||
       SettingKeys.privacyConsentAt ||
@@ -216,6 +229,7 @@ class AppSettings {
     SettingKeys.lmsSessionState => lmsSessionState,
     SettingKeys.lmsLastSuccessAt => lmsLastSuccessAt,
     SettingKeys.lmsLastConnectedAt => lmsLastConnectedAt,
+    SettingKeys.lmsCredentialRejected => lmsCredentialRejected,
     SettingKeys.checkinMin => checkinMin,
     SettingKeys.dueTodayTimeSensitive => dueTodayTimeSensitive,
     SettingKeys.onboardingSkipped => onboardingSkipped,
@@ -234,6 +248,7 @@ class AppSettings {
     LmsSessionState? lmsSessionState,
     Object? lmsLastSuccessAt = _keep,
     Object? lmsLastConnectedAt = _keep,
+    bool? lmsCredentialRejected,
     Object? checkinMin = _keep,
     bool? dueTodayTimeSensitive,
     List<int>? onboardingSkipped,
@@ -259,6 +274,8 @@ class AppSettings {
       lmsLastConnectedAt: identical(lmsLastConnectedAt, _keep)
           ? this.lmsLastConnectedAt
           : lmsLastConnectedAt as DateTime?,
+      lmsCredentialRejected:
+          lmsCredentialRejected ?? this.lmsCredentialRejected,
       checkinMin: identical(checkinMin, _keep)
           ? this.checkinMin
           : checkinMin as int?,
@@ -283,6 +300,7 @@ class AppSettings {
       other.lmsSessionState == lmsSessionState &&
       other.lmsLastSuccessAt == lmsLastSuccessAt &&
       other.lmsLastConnectedAt == lmsLastConnectedAt &&
+      other.lmsCredentialRejected == lmsCredentialRejected &&
       other.checkinMin == checkinMin &&
       other.dueTodayTimeSensitive == dueTodayTimeSensitive &&
       _sameInts(other.onboardingSkipped, onboardingSkipped) &&
@@ -299,6 +317,7 @@ class AppSettings {
     lmsSessionState,
     lmsLastSuccessAt,
     lmsLastConnectedAt,
+    lmsCredentialRejected,
     checkinMin,
     dueTodayTimeSensitive,
     Object.hashAll(onboardingSkipped),

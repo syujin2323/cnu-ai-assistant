@@ -5,7 +5,8 @@
 // 단계를 진행 줄로 보이고 결과로 다음 화면을 정한다.
 //
 // '로그인'을 누르면 LMS 상태를 `connecting`으로 쓴다. 성공하면 학번·비밀번호와 쿠키(User-Agent 함께)를 보안 저장소에
-// 두고 상태를 `active`, 마지막 로그인 시각(`lmsLastConnectedAt`)을 지금으로 쓴다. 실패하면 아무것도 저장하지 않고
+// 두고 상태를 `active`, 마지막 로그인 시각(`lmsLastConnectedAt`)을 지금으로 쓰며 저장된 비밀번호 거절
+// 표시(`lmsCredentialRejected`)를 지운다. 실패하면 아무것도 저장하지 않고
 // `connecting`에 둔다. 로그인 화면을 성공 없이 떠나면 [LoginFlow.abandon]이 시작 전 상태로 돌린다. LMS 상태는 앱
 // 모드와 관계없이 실제 모드의 폰 DB에 쓴다.
 //
@@ -220,6 +221,7 @@ class LmsLoginFlow implements LoginFlow {
       () => _settings.writeAll({
         SettingKeys.lmsSessionState: LmsSessionState.active,
         SettingKeys.lmsLastConnectedAt: _clock.now(),
+        SettingKeys.lmsCredentialRejected: false,
       }),
     ];
     for (final write in writes) {

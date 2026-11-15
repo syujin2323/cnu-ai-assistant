@@ -336,6 +336,8 @@ void main() {
       expect(result.kind, SyncResultKind.reloginRequired);
       expect((await runs()).single.result, SyncResultKind.reloginRequired);
       expect(server.to('/home'), hasLength(1));
+      // 보안 저장소에 학번·비밀번호가 없으니 다시 로그인하지 않는다.
+      expect(server.to('/synthetic-login/submit'), isEmpty);
       expect(
         (await readSettings()).lmsSessionState,
         LmsSessionState.reconnectRequired,
@@ -389,6 +391,215 @@ void main() {
     });
   });
 
+  group('세션 복원 3단계(저장된 학번·비밀번호로 다시 로그인)', () {
+    FakeLmsResponse loginPage() => const FakeLmsResponse(
+      200,
+      contentType: 'text/html; charset=utf-8',
+      body: '<form data-synthetic-login-form></form>',
+    );
+
+    // 합성 로그인 요청이 주는 쿠키(auth)가 있을 때만 할 일 목록을 준다. setUp의 금고 쿠키(sess)만으로는 끊겨 있다.
+    FakeLmsResponse todosIfLoggedIn(FakeLmsRequest request) =>
+        (request.header('cookie') ?? '').contains('auth=a1')
+        ? FakeLmsResponse(
+            200,
+            contentType: 'application/json',
+            body: todosBody(),
+          )
+        : loginPage();
+
+    Future<void> saveCredential({String password = syntheticPassword}) async {
+      await vault.writeCredential(
+        LmsCredential(studentId: syntheticStudentId, password: password),
+      );
+    }
+
+    test(
+      '홈 요청으로도 끊겨 있으면 저장된 값으로 다시 로그인하고, 새 쿠키로 준비 요청부터 다시 해 active로 돌린다',
+      () async {
+        await saveCredential();
+        final server = FakeLmsServer(routes(todos: todosIfLoggedIn));
+
+        final result = await manual(coordinator(server));
+
+        expect(result.kind, SyncResultKind.normal);
+        expect(result.changedCount, 2);
+        expect((await runs()).single.result, SyncResultKind.normal);
+        expect(server.to('/synthetic-login/submit'), hasLength(1));
+        expect(
+          server.requests.map((r) => r.url.path),
+          containsAllInOrder([
+            '/api/synthetic-todos',
+            '/home',
+            '/api/synthetic-todos',
+            '/synthetic-login/submit',
+            '/handoff',
+            '/assets/synthetic-key-3.js',
+            '/api/synthetic-todos',
+          ]),
+        );
+        final after = await readSettings();
+        expect(after.lmsSessionState, LmsSessionState.active);
+        expect(after.lmsCredentialRejected, isFalse);
+        expect(after.lmsLastSuccessAt, _now);
+        // 다시 로그인한 쿠키와 요청 상수의 User-Agent를 금고에 쓴다.
+        final saved = (await vault.readSession() as Ok<LmsSession?>).value!;
+        expect(saved.userAgent, 'SyntheticAgent/1.0');
+        expect({
+          for (final c in saved.cookies) c.name,
+        }, containsAll(['pre', 'auth', 'sess']));
+      },
+    );
+
+    test(
+      '저장된 값이 거절되면 거절 표시를 남기고 reconnectRequired로 두며, 다음 계기에는 LMS를 부르지 않는다',
+      () async {
+        await saveCredential(password: 'pw-old');
+        final server = FakeLmsServer(routes(todos: (_) => loginPage()));
+
+        final result = await manual(coordinator(server));
+
+        expect(result.kind, SyncResultKind.reloginRequired);
+        expect(server.to('/synthetic-login/submit'), hasLength(1));
+        final after = await readSettings();
+        expect(after.lmsSessionState, LmsSessionState.reconnectRequired);
+        expect(after.lmsCredentialRejected, isTrue);
+
+        final sent = server.requests.length;
+        expect(
+          (await manual(coordinator(server))).kind,
+          SyncResultKind.skipped,
+        );
+        expect(server.requests, hasLength(sent));
+        expect(await runs(), hasLength(1));
+      },
+    );
+
+    test(
+      '다시 로그인이 네트워크 실패면 restoring에 두고, 해석 실패면 reconnectRequired로 둔다(거절 표시는 없음)',
+      () async {
+        await saveCredential();
+        final down = FakeLmsServer({
+          ...routes(todos: (_) => loginPage()),
+          'POST /synthetic-login/submit': (_) =>
+              const FakeLmsResponse.networkFailure(),
+        });
+
+        expect(
+          (await manual(coordinator(down))).kind,
+          SyncResultKind.networkFailure,
+        );
+        expect(
+          (await readSettings()).lmsSessionState,
+          LmsSessionState.restoring,
+        );
+
+        final odd = FakeLmsServer({
+          ...routes(todos: (_) => loginPage()),
+          'POST /synthetic-login/submit': (_) => FakeLmsResponse(
+            200,
+            contentType: 'application/json',
+            body: jsonEncode({
+              'result': {'code': 'other'},
+            }),
+          ),
+        });
+        final result = await manual(coordinator(odd));
+
+        expect(
+          (result.kind, result.detail),
+          (SyncResultKind.parseFailure, 'relogin.result'),
+        );
+        expect(events.last.$1, 'lms_parse_failure');
+        expect(events.last.$2, {'scope': 'list', 'field': 'relogin.result'});
+        final after = await readSettings();
+        expect(after.lmsSessionState, LmsSessionState.reconnectRequired);
+        expect(after.lmsCredentialRejected, isFalse);
+      },
+    );
+
+    test(
+      '복원 중인데 거절 표시가 있으면(표시를 남긴 뒤 앱이 꺼진 경우) 다시 로그인하지 않고 reconnectRequired로 둔다',
+      () async {
+        await saveCredential();
+        await settings.writeAll({
+          SettingKeys.lmsSessionState: LmsSessionState.restoring,
+          SettingKeys.lmsCredentialRejected: true,
+        });
+        final server = FakeLmsServer(routes(todos: (_) => loginPage()));
+
+        expect(
+          (await manual(coordinator(server))).kind,
+          SyncResultKind.reloginRequired,
+        );
+        expect(server.to('/home'), hasLength(1));
+        expect(server.to('/synthetic-login/submit'), isEmpty);
+        expect(
+          (await readSettings()).lmsSessionState,
+          LmsSessionState.reconnectRequired,
+        );
+      },
+    );
+
+    test('다시 로그인한 뒤에도 끊겨 있으면 reconnectRequired로 두고 거절 표시는 남기지 않는다', () async {
+      await saveCredential();
+      final server = FakeLmsServer(routes(todos: (_) => loginPage()));
+
+      final result = await manual(coordinator(server));
+
+      expect(result.kind, SyncResultKind.reloginRequired);
+      expect(server.to('/synthetic-login/submit'), hasLength(1));
+      expect(server.to('/api/synthetic-todos'), hasLength(3));
+      final after = await readSettings();
+      expect(after.lmsSessionState, LmsSessionState.reconnectRequired);
+      expect(after.lmsCredentialRejected, isFalse);
+    });
+
+    test(
+      '다시 로그인 필요라도 저장된 값이 있고 거절되지 않았으면 다음 계기에 복원부터 하고, 거절 표시가 있으면 부르지 않는다',
+      () async {
+        await saveCredential();
+        await settings.write(
+          SettingKeys.lmsSessionState,
+          LmsSessionState.reconnectRequired,
+        );
+        final states = <LmsSessionState>[];
+        final sub = settings.watch().listen(
+          (s) => states.add(s.lmsSessionState),
+        );
+        addTearDown(sub.cancel);
+        final server = FakeLmsServer(routes());
+
+        expect((await manual(coordinator(server))).kind, SyncResultKind.normal);
+        await pumpEventQueue();
+
+        expect(
+          server.requests.map((r) => r.url.path),
+          containsAllInOrder(['/home', '/api/synthetic-todos']),
+        );
+        expect(server.to('/synthetic-login/submit'), isEmpty);
+        expect(
+          states,
+          containsAllInOrder([
+            LmsSessionState.restoring,
+            LmsSessionState.active,
+          ]),
+        );
+
+        await settings.writeAll({
+          SettingKeys.lmsSessionState: LmsSessionState.reconnectRequired,
+          SettingKeys.lmsCredentialRejected: true,
+        });
+        final sent = server.requests.length;
+        expect(
+          (await manual(coordinator(server))).kind,
+          SyncResultKind.skipped,
+        );
+        expect(server.requests, hasLength(sent));
+      },
+    );
+  });
+
   group('부르지 않을 때', () {
     test('데모 모드·원격 스위치 꺼짐·설정 없음은 이유와 함께 건너뛴다', () async {
       final server = FakeLmsServer(routes());
@@ -428,7 +639,7 @@ void main() {
       expect(server.requests, isEmpty);
     });
 
-    test('업데이트가 필요하거나, 로그인 전·다시 로그인 필요이거나, 금고에 세션이 없으면 기록 없이 끝낸다', () async {
+    test('업데이트가 필요하거나, 로그인 전이거나, 저장된 학번·비밀번호 없이 다시 로그인 필요이거나, 금고에 세션이 없으면 기록 없이 끝낸다', () async {
       final server = FakeLmsServer(routes());
 
       updateRequired = true;

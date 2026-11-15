@@ -142,8 +142,9 @@ void main() {
     });
 
     test(
-      '학번·비밀번호와 쿠키 금고를 저장하고, LMS 상태를 active로, 마지막 로그인 시각을 지금으로 쓴다',
+      '학번·비밀번호와 쿠키 금고를 저장하고, LMS 상태를 active로, 마지막 로그인 시각을 지금으로 쓰며 거절 표시를 지운다',
       () async {
+        await settings.write(SettingKeys.lmsCredentialRejected, true);
         final (result, _) = await login(
           flowWith(FakeLmsServer(syntheticLoginRoutes())),
         );
@@ -166,6 +167,7 @@ void main() {
         final after = await readSettings();
         expect(after.lmsSessionState, LmsSessionState.active);
         expect(after.lmsLastConnectedAt, _now);
+        expect(after.lmsCredentialRejected, isFalse);
       },
     );
 
