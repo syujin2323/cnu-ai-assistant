@@ -5,45 +5,13 @@
 // 빈 목록이다. 글자가 있는데 맞는 자리가 없거나, 요일·시각을 읽지 못하거나, 끝이 시작보다 이르면 해석 실패(null)다.
 // 같은 칸이 두 번 나오면 한 번만 쓴다. 원문은 남기지 않는다.
 
-import 'package:flutter/foundation.dart' show immutable;
-
-/// 통합정보시스템에서 불러온 수업 칸 하나.
-@immutable
-final class LmsImportedSlot {
-  const LmsImportedSlot({
-    required this.weekday,
-    required this.startMin,
-    required this.endMin,
-    this.place,
-  });
-
-  /// 요일 1(월)–7(일).
-  final int weekday;
-
-  /// 시작·끝(자정 기준 분).
-  final int startMin;
-  final int endMin;
-
-  /// 강의실. 없으면 null이다.
-  final String? place;
-
-  @override
-  bool operator ==(Object other) =>
-      other is LmsImportedSlot &&
-      other.weekday == weekday &&
-      other.startMin == startMin &&
-      other.endMin == endMin &&
-      other.place == place;
-
-  @override
-  int get hashCode => Object.hash(weekday, startMin, endMin, place);
-}
+import 'package:cnu_ai_assistant/domain/models/imported_class_slot.dart';
 
 /// 시간표 글자 [text]를 [pattern](이름 붙은 묶음 `day`·`start`·`end`, 있으면 `place`)으로 읽는다. 해석하지 못하면
 /// null이다.
-List<LmsImportedSlot>? parseTimetableSlots(String text, RegExp pattern) {
+List<ImportedClassSlot>? parseTimetableSlots(String text, RegExp pattern) {
   if (text.trim().isEmpty) return const [];
-  final slots = <LmsImportedSlot>[];
+  final slots = <ImportedClassSlot>[];
   for (final match in pattern.allMatches(text)) {
     final weekday = _weekdays[match.namedGroup('day')];
     final start = _minuteOfDay(match.namedGroup('start'));
@@ -54,7 +22,7 @@ List<LmsImportedSlot>? parseTimetableSlots(String text, RegExp pattern) {
     final place = match.groupNames.contains('place')
         ? match.namedGroup('place')?.trim()
         : null;
-    final slot = LmsImportedSlot(
+    final slot = ImportedClassSlot(
       weekday: weekday,
       startMin: start,
       endMin: end,
