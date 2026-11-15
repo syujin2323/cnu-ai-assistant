@@ -164,6 +164,122 @@ Map<String, Object?> syntheticSyncParamsCopy() => syntheticRequestParamsCopy()
 /// [syntheticSyncParamsCopy]의 JSON 문자열(Remote Config 값 꼴).
 final String syntheticSyncParamsJson = jsonEncode(syntheticSyncParamsCopy());
 
+/// 합성 시간표 불러오기 요청(`timetable`). 과목마다 강의계획서 요청 → 연결 주소 열기 → 폼 제출로 세션 값 받기 →
+/// 값마다 따로 암호화한 시간표 요청이다. 주소·이름·글자 꼴은 모두 지어낸 값이다([syntheticTimetableRoutes]).
+const Map<String, Object> syntheticTimetableSection = {
+  'courseInfo': {
+    'method': 'POST',
+    'url': 'https://example.invalid/api/synthetic-course-plan',
+    'body': {
+      'encrypted': {
+        'cipher': 'body',
+        'field': 'e',
+        'json': {
+          'course': '{courseId}',
+          'section': '{classNo}',
+          'year': '{termYear}',
+          'term': '{termCode}',
+        },
+      },
+    },
+    'extract': {
+      'outlinkUrl': {'path': 'body.plan.link'},
+    },
+  },
+  'steps': [
+    {
+      'method': 'GET',
+      'url': '{outlinkUrl}',
+      'extract': {
+        'menuKey': {'pattern': 'name="menu" value="([^"]*)"'},
+        'courseCode': {'pattern': 'name="code" value="([^"]*)"'},
+      },
+    },
+    {
+      'method': 'POST',
+      'url': 'https://example.invalid/outlink/submit',
+      'body': {
+        'form': {'menu': '{menuKey}', 'code': '{courseCode}'},
+      },
+      'extract': {
+        'sessionUser': {'pattern': "syntheticSession = '([^']+)'"},
+      },
+    },
+    {
+      'method': 'POST',
+      'url': 'https://example.invalid/outlink/timetable',
+      'headers': {'X-Synthetic': 'yes'},
+      'generate': {'txId': 'hex32'},
+      'body': {
+        'json': {
+          'param': {
+            'N0': [
+              {
+                r'$encrypt': {'cipher': 'session', 'text': 'TX'},
+              },
+            ],
+            'V0': [
+              {
+                r'$encrypt': {'cipher': 'session', 'text': '{txId}'},
+              },
+            ],
+            'N1': [
+              {
+                r'$encrypt': {'cipher': 'tx', 'text': 'CODE'},
+              },
+            ],
+            'V1': [
+              {
+                r'$encrypt': {'cipher': 'tx', 'text': '{courseCode}'},
+              },
+            ],
+          },
+        },
+      },
+      'extract': {
+        'slotText': {'path': 'rows.0.slots', 'optional': true},
+        'rowName': {'path': 'rows.0.name'},
+      },
+    },
+  ],
+  'slotText': 'slotText',
+};
+
+/// 합성 시간표 글자에서 수업 칸 하나를 찾는 정규식(`parse.timetable.slot`). 합성 글자 꼴은 `월|09:00|10:15|강의실`을
+/// `;`로 이은 것이다.
+const syntheticTimetableSlotPattern =
+    r'(?<day>[월화수목금토일])\|(?<start>\d{1,2}:\d{2})\|(?<end>\d{1,2}:\d{2})(?:\|(?<place>[^;]*))?';
+
+/// 시간표 요청의 세션 값 암호와 요청마다 만드는 값의 암호(키 = 초기 벡터, 앞 16바이트).
+const Map<String, Object> syntheticTimetableCiphers = {
+  'session': {
+    'key': {'var': 'sessionUser', 'removeChars': '-', 'takeBytes': 16},
+    'iv': 'key',
+  },
+  'tx': {
+    'key': {'var': 'txId', 'takeBytes': 16},
+    'iv': 'key',
+  },
+};
+
+/// [syntheticSyncParamsCopy]에 시간표 불러오기(요청·암호·해석 설정)를 더해 깊이 복사한 것.
+Map<String, Object?> syntheticTimetableParamsCopy() {
+  final params = syntheticSyncParamsCopy();
+  (params['ciphers']! as Map<String, Object?>).addAll(
+    jsonDecode(jsonEncode(syntheticTimetableCiphers)) as Map<String, Object?>,
+  );
+  (params['parse']! as Map<String, Object?>)['timetable'] = {
+    'slot': syntheticTimetableSlotPattern,
+  };
+  params['timetable'] = jsonDecode(jsonEncode(syntheticTimetableSection));
+  return params;
+}
+
+/// [syntheticTimetableParamsCopy]의 JSON 문자열(Remote Config 값 꼴).
+final String syntheticTimetableParamsJson = jsonEncode(
+  syntheticTimetableParamsCopy(),
+);
+
 /// `test/lms/fixtures/`의 합성 응답 샘플 [name]을 읽는다. `flutter test`는 `app/`에서 돈다.
 String lmsFixture(String name) =>
     File('test/lms/fixtures/$name').readAsStringSync();

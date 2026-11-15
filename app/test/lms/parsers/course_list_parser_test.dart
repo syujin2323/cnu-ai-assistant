@@ -104,4 +104,15 @@ void main() {
     }
     expect(lmsCourseRemoteId('C1', '2'), 'C1/2');
   });
+
+  test('원본 ID를 과목 ID와 분반으로 나누고, 꼴이 아니면 null이다', () {
+    expect(lmsCourseIdParts(lmsCourseRemoteId('C1', '1')), (
+      courseId: 'C1',
+      classNo: '1',
+    ));
+    expect(lmsCourseIdParts('a/b/02'), (courseId: 'a/b', classNo: '02'));
+    for (final id in ['C1', '/1', 'C1/']) {
+      expect(lmsCourseIdParts(id), isNull, reason: id);
+    }
+  });
 }

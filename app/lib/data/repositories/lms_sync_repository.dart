@@ -1,7 +1,7 @@
 // LMS 동기화가 받은 원본을 폰 DB에 쓰는 저장소. docs/lms.md '동기화', docs/architecture.md '폰 DB'.
 //
 // 동기화가 쓰는 표는 `courses`, `lms_items`, `lms_item_changes`와 `tasks`의 복사 열(제목·종류·마감·마감 시각
-// 모름)뿐이다. 사용자의 계획(블록)과 사용자 값(상태·예상 시간 등)은 바꾸지 않고 되돌리기 기록도 남기지 않는다.
+// 모름)뿐이다. 시간표 불러오기는 여기에 더해 불러온 수업 칸(`class_slots`의 `source` `auto`)을 넣는다. 사용자의 계획(블록)과 사용자 값(상태·예상 시간 등)은 바꾸지 않고 되돌리기 기록도 남기지 않는다.
 // 응답 하나를 한 트랜잭션으로 쓰고 그 안에서 네트워크를 기다리지 않는다. LMS 데이터는 앱 모드와 관계없이 실제
 // DB(`app.sqlite`)에 있다(데모에서는 동기화하지 않음). 폰 DB를 읽거나 쓰지 못하면 [StorageError]를 담은
 // [Err]다.
@@ -16,7 +16,9 @@ import 'package:cnu_ai_assistant/domain/lms_to_task.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_item_change.dart';
 import 'package:cnu_ai_assistant/domain/models/task.dart';
 import 'package:cnu_ai_assistant/domain/models/value_codec.dart';
+import 'package:cnu_ai_assistant/domain/models/class_slot.dart';
 import 'package:cnu_ai_assistant/lms/parsers/course_list_parser.dart';
+import 'package:cnu_ai_assistant/lms/parsers/timetable_parser.dart';
 import 'package:cnu_ai_assistant/lms/parsers/todo_list_parser.dart';
 import 'package:drift/drift.dart';
 
@@ -39,6 +41,54 @@ class LmsSyncRepository {
   LmsSyncRepository(this._db);
 
   final AppDatabase _db;
+
+  /// 시간표 불러오기가 받은 과목별 수업 칸 [slotsByCourse](`courses.id` → 칸)를 불러온 수업(`source` `auto`)으로
+  /// 넣는다. 돌려주는 값은 넣은 칸 수다.
+  ///
+  /// 처음 불러오기(14 온보딩 1단계 로그인)만 쓴다. 이미 불러온 수업이 있는 과목은 건드리지 않는다(새로 고침의 비교·반영은
+  /// 따로 한다). 넣는 칸의 불러온 원래 값(`imported*`)은 그 칸의 값과 같고, 캠퍼스는 대덕(시간표에 캠퍼스가 없어
+  /// 사용자가 13 시간표에서 고침), 실시간 온라인은 아님이다. 되돌리기 기록은 남기지 않는다.
+  Future<Result<int>> addImportedSlots(
+    Map<int, List<LmsImportedSlot>> slotsByCourse,
+  ) => guardStorage(
+    'lmsSync.addImportedSlots',
+    () => _db.transaction(() async {
+      var added = 0;
+      for (final MapEntry(key: courseId, value: slots)
+          in slotsByCourse.entries) {
+        final existing =
+            await (_db.select(_db.classSlots)..where(
+                  (t) =>
+                      t.courseId.equals(courseId) &
+                      t.source.equalsValue(SlotSource.auto),
+                ))
+                .get();
+        if (existing.isNotEmpty) continue;
+        for (final slot in slots) {
+          await _db
+              .into(_db.classSlots)
+              .insert(
+                ClassSlotsCompanion.insert(
+                  courseId: courseId,
+                  weekday: slot.weekday,
+                  startMin: slot.startMin,
+                  endMin: slot.endMin,
+                  place: Value(slot.place),
+                  campus: Campus.daedeok,
+                  online: false,
+                  source: SlotSource.auto,
+                  importedWeekday: Value(slot.weekday),
+                  importedStartMin: Value(slot.startMin),
+                  importedEndMin: Value(slot.endMin),
+                  importedPlace: Value(slot.place),
+                ),
+              );
+          added++;
+        }
+      }
+      return added;
+    }),
+  );
 
   /// 과목 목록 [records]를 학기 값 [semester]로 쓴다. 돌려주는 값은 과목 원본 ID → `courses.id`다.
   ///

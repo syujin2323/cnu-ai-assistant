@@ -73,4 +73,35 @@ void main() {
       expect(LmsParseConfig.fromJson(json), isNull, reason: '$json');
     }
   });
+
+  test('시간표 해석 설정(timetable.slot)은 이름 붙은 묶음 day·start·end가 있는 정규식이다', () {
+    const kindCodes = {
+      'video': ['K1'],
+    };
+    final config = LmsParseConfig.fromJson({
+      'kindCodes': kindCodes,
+      'timetable': {'slot': r'(?<day>.)(?<start>\d+:\d+)-(?<end>\d+:\d+)'},
+    })!;
+    expect(config.timetableSlot!.hasMatch('월9:00-10:00'), isTrue);
+    expect(
+      LmsParseConfig.fromJson({'kindCodes': kindCodes})!.timetableSlot,
+      isNull,
+    );
+    for (final timetable in [
+      'x',
+      {'slot': 1},
+      {'slot': r'(?<day>.)(?<start>\d+)'},
+      {'slot': r'(?<day>.)(?<start>.)(?<end>.)('},
+    ]) {
+      expect(
+        LmsParseConfig.fromJson({
+          'kindCodes': kindCodes,
+          'timetable': timetable,
+        }),
+        isNull,
+        reason: '$timetable',
+      );
+    }
+    expect(config, isNot(LmsParseConfig.fromJson({'kindCodes': kindCodes})));
+  });
 }

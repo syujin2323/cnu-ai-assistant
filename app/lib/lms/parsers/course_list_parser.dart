@@ -31,6 +31,16 @@ final class LmsCourseRecord {
 String lmsCourseRemoteId(String courseId, String classNo) =>
     '$courseId/$classNo';
 
+/// 원본 ID [remoteId]([lmsCourseRemoteId])를 과목 ID와 분반으로 나눈다. 꼴이 맞지 않으면 null이다.
+({String courseId, String classNo})? lmsCourseIdParts(String remoteId) {
+  final at = remoteId.lastIndexOf('/');
+  if (at <= 0 || at == remoteId.length - 1) return null;
+  return (
+    courseId: remoteId.substring(0, at),
+    classNo: remoteId.substring(at + 1),
+  );
+}
+
 /// 응답 JSON에서 ID 꼴의 값(비어 있지 않은 문자열이나 정수)을 글자로 읽는다. 아니면 null이다.
 String? lmsIdText(Object? value) => switch (value) {
   String() when value.trim().isNotEmpty => value.trim(),

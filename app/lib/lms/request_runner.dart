@@ -1,10 +1,12 @@
 // 요청 틀 실행. docs/lms.md '로그인'.
 //
 // 요청 틀([LmsRequestSpec])을 변수로 채워 요청을 만들고([buildLmsRequest]) 보낸 뒤, 응답에서 틀이 정한 값을 뽑는다.
-// 주소가 변수이면 그 값을 앞 요청의 최종 주소 기준으로 풀고, 학교 도메인의 https 주소가 아니면 보내지 않는다. 변수
-// 값(학번·비밀번호 포함)과 응답 원문은 로그에 남기지 않는다.
+// 틀이 새로 만들라고 한 값(`generate`)은 보내기 전에 만들어 변수에 더하고 뽑은 값과 함께 돌려준다. 주소가 변수이면 그
+// 값을 앞 요청의 최종 주소 기준으로 풀고, 학교 도메인의 https 주소가 아니면 보내지 않는다. 변수 값(학번·비밀번호
+// 포함)과 응답 원문은 로그에 남기지 않는다.
 
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:cnu_ai_assistant/lms/cipher.dart';
@@ -69,6 +71,10 @@ final class LmsStepSent extends LmsStepResult {
     if (url == null || !isSchoolUrl(url, domain: schoolDomain)) {
       return (request: null, problem: 'url');
     }
+    String? encrypt(String cipher, String plain) => switch (ciphers[cipher]) {
+      final spec? => lmsEncrypt(spec, vars, plain),
+      null => null,
+    };
     final headers = {
       for (final MapEntry(:key, :value) in spec.headers.entries)
         key: value.render(vars),
@@ -90,13 +96,15 @@ final class LmsStepSent extends LmsStepResult {
         );
         contentType = _formType;
       case LmsJsonBody(:final template):
-        body = utf8.encode(jsonEncode(renderJsonTemplate(template, vars)));
+        body = utf8.encode(
+          jsonEncode(renderJsonTemplate(template, vars, encrypt: encrypt)),
+        );
         contentType = 'application/json; charset=utf-8';
       case LmsEncryptedBody(:final cipher, :final field, :final template):
         final encrypted = lmsEncrypt(
           ciphers[cipher]!,
           vars,
-          jsonEncode(renderJsonTemplate(template, vars)),
+          jsonEncode(renderJsonTemplate(template, vars, encrypt: encrypt)),
         );
         if (encrypted == null) return (request: null, problem: 'cipher');
         body = utf8.encode(_form({field: encrypted}));
@@ -117,6 +125,8 @@ final class LmsStepSent extends LmsStepResult {
     );
   } on LmsMissingVariable {
     return (request: null, problem: 'variable');
+  } on LmsCipherUnavailable {
+    return (request: null, problem: 'cipher');
   }
 }
 
@@ -133,7 +143,8 @@ class LmsRequestRunner {
     required this.client,
     required this.ciphers,
     required this.schoolDomain,
-  });
+    Random? random,
+  }) : _random = random ?? Random.secure();
 
   final LmsClient client;
 
@@ -141,15 +152,22 @@ class LmsRequestRunner {
 
   final String schoolDomain;
 
+  /// 새로 만드는 값의 무작위 근원. 테스트는 씨앗을 준 것으로 바꾼다.
+  final Random _random;
+
   /// [spec]을 [vars]로 채워 보낸다. [base]는 변수 주소가 상대 주소일 때 기준이다.
   Future<LmsStepResult> run(
     LmsRequestSpec spec,
     Map<String, String> vars, {
     Uri? base,
   }) async {
+    final generated = {
+      for (final MapEntry(key: name, value: kind) in spec.generate.entries)
+        name: _generate(kind),
+    };
     final built = buildLmsRequest(
       spec,
-      vars,
+      {...vars, ...generated},
       ciphers: ciphers,
       schoolDomain: schoolDomain,
       base: base,
@@ -158,7 +176,7 @@ class LmsRequestRunner {
     if (request == null) return LmsStepNotSent(built.problem!);
     final response = await client.send(request);
     final (:isJson, value: json) = decodeLmsJson(response);
-    final values = <String, String>{};
+    final values = <String, String>{...generated};
     String? missing;
     for (final MapEntry(key: name, value: extract) in spec.extract.entries) {
       final found = switch (extract) {
@@ -185,6 +203,13 @@ class LmsRequestRunner {
       missing: missing,
     );
   }
+
+  String _generate(LmsGenerator kind) => switch (kind) {
+    LmsGenerator.hex32 => [
+      for (var i = 0; i < 16; i++)
+        _random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ].join(),
+  };
 
   static String? _firstGroup(RegExp pattern, String body) {
     final match = pattern.firstMatch(body);
