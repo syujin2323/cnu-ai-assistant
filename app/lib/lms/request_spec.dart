@@ -5,7 +5,9 @@
 // 채우는 규칙만 둔다. 해석은 `request_params.dart`가, 보내기는 `request_runner.dart`가 한다.
 //
 // 문자열 틀의 `{이름}`은 변수 값으로 바뀐다. 이름은 영문자로 시작하는 영문·숫자·`_`이고, 이 꼴이 아닌 중괄호는 그대로
-// 둔다. 변수 값은 앞 요청에서 뽑은 값과 학번·비밀번호(로그인 요청만)이다. 변수 값은 로그·폰 DB에 남기지 않는다.
+// 둔다. 변수 값은 앞 요청에서 뽑은 값, 요청마다 새로 만드는 값(`generate`), 학번·비밀번호(로그인 요청만)이다. JSON 틀의
+// 값 자리에는 그 값만 따로 암호화하는 `{"$encrypt": {"cipher": 암호 이름, "text": 문자열 틀}}`을 둘 수 있다. 변수
+// 값은 로그·폰 DB에 남기지 않는다.
 
 import 'package:flutter/foundation.dart' show immutable, listEquals, mapEquals;
 
@@ -48,6 +50,31 @@ final class LmsTemplate {
   int get hashCode => source.hashCode;
 }
 
+/// JSON 틀에서 값 하나를 따로 암호화하는 자리의 키. `{"$encrypt": {"cipher": 암호 이름, "text": 문자열 틀}}`은 틀을
+/// 채워 그 암호로 암호화한 base64 글자가 된다. 꼴은 `request_params.dart`가 해석할 때 확인한다.
+const lmsEncryptKey = r'$encrypt';
+
+/// JSON 틀의 값 [node]가 값 암호화 자리면 그 암호 이름과 틀이다. 아니면 null이다.
+({String cipher, LmsTemplate text})? lmsEncryptNode(Object? node) {
+  if (node is! Map || node.length != 1) return null;
+  final spec = node[lmsEncryptKey];
+  if (spec is! Map) return null;
+  final cipher = spec['cipher'];
+  final text = spec['text'];
+  if (cipher is! String || text is! String) return null;
+  return (cipher: cipher, text: LmsTemplate(text));
+}
+
+/// 값 암호화 자리를 채우는 함수. 암호 [cipher]로 [plain]을 암호화한 글자이고, 키를 만들지 못하면 null이다.
+typedef LmsValueEncrypter = String? Function(String cipher, String plain);
+
+/// 값 암호화 자리의 암호로 암호화하지 못했다(키 변수가 없거나 길이가 맞지 않음).
+final class LmsCipherUnavailable implements Exception {
+  const LmsCipherUnavailable(this.cipher);
+
+  final String cipher;
+}
+
 /// 틀이 쓰는 변수가 없다.
 final class LmsMissingVariable implements Exception {
   const LmsMissingVariable(this.name);
@@ -55,25 +82,54 @@ final class LmsMissingVariable implements Exception {
   final String name;
 }
 
-/// JSON 틀([LmsJsonBody]·[LmsEncryptedBody])이 쓰는 변수 이름. 문자열 값만 틀이다.
-Set<String> jsonTemplateNames(Object? template) => switch (template) {
-  String() => LmsTemplate(template).names,
-  Map() => {for (final value in template.values) ...jsonTemplateNames(value)},
-  List() => {for (final value in template) ...jsonTemplateNames(value)},
-  _ => const {},
-};
+/// JSON 틀([LmsJsonBody]·[LmsEncryptedBody])이 쓰는 변수 이름. 문자열 값과 값 암호화 자리의 틀만 틀이다.
+Set<String> jsonTemplateNames(Object? template) {
+  if (lmsEncryptNode(template) case final node?) return node.text.names;
+  return switch (template) {
+    String() => LmsTemplate(template).names,
+    Map() => {for (final value in template.values) ...jsonTemplateNames(value)},
+    List() => {for (final value in template) ...jsonTemplateNames(value)},
+    _ => const {},
+  };
+}
 
-/// JSON 틀을 [vars]로 채운다. 문자열 값만 바꾸고 키 순서는 그대로 둔다.
-Object? renderJsonTemplate(Object? template, Map<String, String> vars) =>
-    switch (template) {
-      String() => LmsTemplate(template).render(vars),
-      Map() => {
-        for (final MapEntry(:key, :value) in template.entries)
-          key as String: renderJsonTemplate(value, vars),
-      },
-      List() => [for (final value in template) renderJsonTemplate(value, vars)],
-      _ => template,
-    };
+/// JSON 틀의 값 암호화 자리가 쓰는 암호 이름.
+Set<String> jsonEncryptCiphers(Object? template) {
+  if (lmsEncryptNode(template) case final node?) return {node.cipher};
+  return switch (template) {
+    Map() => {
+      for (final value in template.values) ...jsonEncryptCiphers(value),
+    },
+    List() => {for (final value in template) ...jsonEncryptCiphers(value)},
+    _ => const {},
+  };
+}
+
+/// JSON 틀을 [vars]로 채운다. 문자열 값만 바꾸고 키 순서는 그대로 둔다. 값 암호화 자리는 [encrypt]로 채우고, 채우지
+/// 못하면 [LmsCipherUnavailable]을 던진다.
+Object? renderJsonTemplate(
+  Object? template,
+  Map<String, String> vars, {
+  LmsValueEncrypter? encrypt,
+}) {
+  if (lmsEncryptNode(template) case final node?) {
+    final plain = node.text.render(vars);
+    return encrypt?.call(node.cipher, plain) ??
+        (throw LmsCipherUnavailable(node.cipher));
+  }
+  return switch (template) {
+    String() => LmsTemplate(template).render(vars),
+    Map() => {
+      for (final MapEntry(:key, :value) in template.entries)
+        key as String: renderJsonTemplate(value, vars, encrypt: encrypt),
+    },
+    List() => [
+      for (final value in template)
+        renderJsonTemplate(value, vars, encrypt: encrypt),
+    ],
+    _ => template,
+  };
+}
 
 /// 해석한 JSON [json]에서 [path](점으로 나눈 키. 목록이면 0부터 세는 번호) 자리의 값. 없으면 null이다.
 Object? jsonAt(Object? json, List<String> path) {
@@ -110,6 +166,9 @@ sealed class LmsBodySpec {
 
   /// 본문이 쓰는 변수 이름.
   Set<String> get names;
+
+  /// 본문이 쓰는 암호 이름(본문 전체 암호화와 값 암호화 자리).
+  Set<String> get ciphers;
 }
 
 /// 폼 본문(`application/x-www-form-urlencoded`). 필드 값이 틀이다.
@@ -120,6 +179,9 @@ final class LmsFormBody extends LmsBodySpec {
 
   @override
   Set<String> get names => {for (final f in fields.values) ...f.names};
+
+  @override
+  Set<String> get ciphers => const {};
 
   @override
   bool operator ==(Object other) =>
@@ -137,6 +199,9 @@ final class LmsJsonBody extends LmsBodySpec {
 
   @override
   Set<String> get names => jsonTemplateNames(template);
+
+  @override
+  Set<String> get ciphers => jsonEncryptCiphers(template);
 
   @override
   bool operator ==(Object other) =>
@@ -162,6 +227,9 @@ final class LmsEncryptedBody extends LmsBodySpec {
 
   @override
   Set<String> get names => jsonTemplateNames(template);
+
+  @override
+  Set<String> get ciphers => {cipher, ...jsonEncryptCiphers(template)};
 
   @override
   bool operator ==(Object other) =>
@@ -213,6 +281,12 @@ final class LmsJsonExtract extends LmsExtract {
   int get hashCode => Object.hash(Object.hashAll(path), optional);
 }
 
+/// 요청마다 새로 만드는 값의 꼴.
+enum LmsGenerator {
+  /// 무작위 16바이트를 소문자 16진수 32자로 적은 값(하이픈 없는 UUID 꼴).
+  hex32,
+}
+
 /// 요청 하나.
 @immutable
 final class LmsRequestSpec {
@@ -222,6 +296,7 @@ final class LmsRequestSpec {
     this.headers = const {},
     this.body,
     this.extract = const {},
+    this.generate = const {},
   });
 
   final LmsMethod method;
@@ -237,12 +312,18 @@ final class LmsRequestSpec {
   /// 응답에서 뽑아 다음 요청의 변수로 쓰는 값.
   final Map<String, LmsExtract> extract;
 
+  /// 보내기 전에 새로 만들어 이 요청과 다음 요청의 변수로 쓰는 값.
+  final Map<String, LmsGenerator> generate;
+
   /// 이 요청이 쓰는 변수 이름.
   Set<String> get names => {
     ...url.names,
     for (final h in headers.values) ...h.names,
     ...?body?.names,
   };
+
+  /// 이 요청이 쓰는 암호 이름.
+  Set<String> get ciphers => body?.ciphers ?? const {};
 
   @override
   bool operator ==(Object other) =>
@@ -251,7 +332,8 @@ final class LmsRequestSpec {
       other.url == url &&
       mapEquals(other.headers, headers) &&
       other.body == body &&
-      mapEquals(other.extract, extract);
+      mapEquals(other.extract, extract) &&
+      mapEquals(other.generate, generate);
 
   @override
   int get hashCode => Object.hash(
@@ -260,6 +342,7 @@ final class LmsRequestSpec {
     Object.hashAllUnordered(headers.entries.map(_entryHash)),
     body,
     Object.hashAllUnordered(extract.entries.map(_entryHash)),
+    Object.hashAllUnordered(generate.entries.map(_entryHash)),
   );
 }
 

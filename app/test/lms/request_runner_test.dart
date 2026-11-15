@@ -1,9 +1,10 @@
 // 요청 틀 실행 테스트. docs/lms.md '로그인'.
 //
-// 요청 틀을 변수로 채워 만드는 요청(주소 풀기, 폼·JSON·암호 본문, Content-Type)과 응답에서 값 뽑기를 본다. 값은 모두
-// 합성 값이다.
+// 요청 틀을 변수로 채워 만드는 요청(주소 풀기, 폼·JSON·암호 본문, 값 암호화 자리, Content-Type)과 요청마다 만드는 값,
+// 응답에서 값 뽑기를 본다. 값은 모두 합성 값이다.
 
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/lms/cookie_vault.dart';
@@ -189,21 +190,99 @@ void main() {
         'cipher',
       );
     });
+
+    test('JSON 틀의 값 암호화 자리는 그 값만 이름 붙은 암호로 따로 암호화하고, 키를 만들지 못하면 cipher다', () {
+      const valueCiphers = {
+        'vk': LmsCipherSpec(
+          keyVar: 'sk',
+          removeChars: '-',
+          takeBytes: 16,
+          iv: LmsIv.key,
+        ),
+      };
+      final spec = LmsRequestSpec(
+        method: LmsMethod.post,
+        url: LmsTemplate('https://example.invalid/'),
+        body: const LmsJsonBody({
+          'p': [
+            {
+              lmsEncryptKey: {'cipher': 'vk', 'text': '이름-{n}'},
+            },
+          ],
+          'plain': '{n}',
+        }),
+      );
+      final built = buildLmsRequest(
+        spec,
+        {'n': '7', 'sk': '0123-4567-89ab-cdef-zz'},
+        ciphers: valueCiphers,
+        schoolDomain: 'example.invalid',
+      );
+      final json = jsonDecode(utf8.decode(built.request!.body!)) as Map;
+      final key = utf8.encode('0123456789abcdef');
+      expect(json['plain'], '7');
+      expect(
+        aesCbcDecryptBase64((json['p'] as List).single as String, key, key),
+        '이름-7',
+      );
+      expect(
+        buildLmsRequest(
+          spec,
+          {'n': '7', 'sk': 'short'},
+          ciphers: valueCiphers,
+          schoolDomain: 'example.invalid',
+        ).problem,
+        'cipher',
+      );
+      expect(
+        jsonTemplateNames(
+          spec.body is LmsJsonBody
+              ? (spec.body! as LmsJsonBody).template
+              : null,
+        ),
+        {'n'},
+      );
+      expect(spec.ciphers, {'vk'});
+    });
   });
 
   group('LmsRequestRunner.run', () {
-    LmsRequestRunner runner(FakeLmsServer server) => LmsRequestRunner(
-      client: LmsClient(
-        dio: createLmsDio(adapter: server),
-        jar: LmsCookieJar(schoolDomain: 'example.invalid'),
-        userAgent: 'SyntheticAgent/1.0',
-        schoolDomain: 'example.invalid',
-        clock: FixedClock(DateTime(2026, 11, 15, 10)),
-        sleep: (_) async {},
-      ),
-      ciphers: ciphers,
-      schoolDomain: 'example.invalid',
-    );
+    LmsRequestRunner runner(FakeLmsServer server, {Random? random}) =>
+        LmsRequestRunner(
+          client: LmsClient(
+            dio: createLmsDio(adapter: server),
+            jar: LmsCookieJar(schoolDomain: 'example.invalid'),
+            userAgent: 'SyntheticAgent/1.0',
+            schoolDomain: 'example.invalid',
+            clock: FixedClock(DateTime(2026, 11, 15, 10)),
+            sleep: (_) async {},
+          ),
+          ciphers: ciphers,
+          schoolDomain: 'example.invalid',
+          random: random,
+        );
+
+    test('요청마다 새로 만드는 값(hex32)을 그 요청의 변수로 쓰고 뽑은 값과 함께 돌려준다', () async {
+      final server = FakeLmsServer({
+        'POST /gen': (_) => const FakeLmsResponse(200, body: 'ok'),
+      });
+      final spec = LmsRequestSpec(
+        method: LmsMethod.post,
+        url: LmsTemplate('https://example.invalid/gen'),
+        body: LmsFormBody({'t': LmsTemplate('{tx}')}),
+        generate: const {'tx': LmsGenerator.hex32},
+      );
+
+      final first = await runner(server, random: Random(1)).run(spec, {});
+      final second = await runner(server, random: Random(2)).run(spec, {});
+      final again = await runner(server, random: Random(1)).run(spec, {});
+
+      final tx = (first as LmsStepSent).values['tx']!;
+      expect(tx, matches(RegExp(r'^[0-9a-f]{32}$')));
+      expect(server.to('/gen').first.form['t'], tx);
+      expect((second as LmsStepSent).values['tx'], isNot(tx));
+      expect((again as LmsStepSent).values['tx'], tx);
+    });
 
     test('정규식의 첫 묶음과 JSON 자리 값을 뽑고, 못 찾은 선택 값은 빈 문자열이다', () async {
       final server = FakeLmsServer({
