@@ -151,6 +151,8 @@ void main() {
       SyncScope.full: 0,
       SyncScope.list: 3,
       SyncScope.detail: 1,
+      // 시간표 불러오기는 동기화 기록에 남기지 않아 늘 0이다.
+      SyncScope.timetable: 0,
     });
   });
 

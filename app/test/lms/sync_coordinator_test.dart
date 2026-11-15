@@ -12,6 +12,7 @@ import 'package:cnu_ai_assistant/data/repositories/sync_run_repository.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
+import 'package:cnu_ai_assistant/domain/models/class_slot.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/domain/models/sync_lease.dart';
 import 'package:cnu_ai_assistant/domain/models/sync_run.dart';
@@ -596,6 +597,204 @@ void main() {
           SyncResultKind.skipped,
         );
         expect(server.requests, hasLength(sent));
+      },
+    );
+  });
+
+  group('시간표 불러오기', () {
+    final timetableParams = parseLmsRequestParams(
+      syntheticTimetableParamsJson,
+      schoolDomain: syntheticSchoolDomain,
+    ).params!;
+
+    FakeLmsResponse loginPage() => const FakeLmsResponse(
+      200,
+      contentType: 'text/html; charset=utf-8',
+      body: '<form data-synthetic-login-form></form>',
+    );
+
+    // 합성 과목 목록은 C1/1(과목A)과 2/2(과목B)다. 과목A는 두 칸, 과목B는 수업 시간이 없는(온라인) 과목이다.
+    String slotsFor(String code) =>
+        code == 'C1-1' ? '월|09:00|10:15|합성관101; 수|09:00|10:15|합성관101' : '';
+
+    Map<String, FakeLmsResponse Function(FakeLmsRequest)> timetableRoutes({
+      String Function(String code)? slots,
+      Set<String> missingPlan = const {},
+    }) => {
+      ...routes(),
+      ...syntheticTimetableRoutes(
+        slotsFor: slots ?? slotsFor,
+        missingPlan: missingPlan,
+      ),
+    };
+
+    SyncCoordinator withTimetable(FakeLmsServer server) => coordinator(
+      server,
+      config: LmsConfig(enabled: true, requestParams: timetableParams),
+    );
+
+    Future<SyncResult> importTimetable(SyncCoordinator c) =>
+        c.run(trigger: SyncTrigger.login, scope: SyncScope.timetable);
+
+    Future<int> courseId(String remoteId) async => (await (db.select(
+      db.courses,
+    )..where((c) => c.remoteId.equals(remoteId))).getSingle()).id;
+
+    test(
+      '과목 목록을 쓰고 과목마다 시간표를 읽어 불러온 수업으로 넣으며, 동기화 기록과 마지막 확인 시각에는 남기지 않는다',
+      () async {
+        final server = FakeLmsServer(timetableRoutes());
+
+        final result = await importTimetable(withTimetable(server));
+
+        expect(result.kind, SyncResultKind.normal);
+        expect(result.changedCount, 2);
+        expect(result.failedCourseIds, isEmpty);
+        expect(await runs(), isEmpty);
+        expect((await readSettings()).lmsLastSuccessAt, isNull);
+        final a = await courseId('C1/1');
+        final rows = await db.select(db.classSlots).get();
+        expect(
+          rows.map(
+            (r) => (r.courseId, r.weekday, r.startMin, r.endMin, r.place),
+          ),
+          [(a, 1, 540, 615, '합성관101'), (a, 3, 540, 615, '합성관101')],
+        );
+        expect(rows.map((r) => r.source), everyElement(SlotSource.auto));
+        // 강의계획서 요청은 과목 ID·분반과 sync.vars의 학년도·학기로 묻는다.
+        final plans = [
+          for (final request in server.to('/api/synthetic-course-plan'))
+            jsonDecode(
+              aesCbcDecryptBase64(
+                request.form['e']!,
+                utf8.encode(syntheticBodyKey),
+                List.filled(16, 0),
+              ),
+            ),
+        ];
+        expect(plans, [
+          {'course': 'C1', 'section': '1', 'year': '2026', 'term': '20'},
+          {'course': '2', 'section': '2', 'year': '2026', 'term': '20'},
+        ]);
+        // 시간표 요청마다 새 값을 만들고(합성 서버가 풀어 확인), 연결 주소에서 받은 쿠키를 붙인다.
+        final timetables = server.to('/outlink/timetable');
+        expect(timetables, hasLength(2));
+        expect(timetables.first.header('x-synthetic'), 'yes');
+        expect(timetables.first.header('cookie'), contains('olk=o1'));
+      },
+    );
+
+    test('연결 주소가 없거나 시간표 글자를 읽지 못한 과목은 건너뛰고 partial로 끝내며 해석 실패를 알린다', () async {
+      final server = FakeLmsServer(timetableRoutes(missingPlan: {'2/2'}));
+
+      final result = await importTimetable(withTimetable(server));
+
+      expect(result.kind, SyncResultKind.partial);
+      expect(result.failedCourseIds, [await courseId('2/2')]);
+      expect(result.changedCount, 2);
+      expect(events.map((e) => (e.$1, e.$2['field'])), [
+        ('lms_parse_failure', 'timetable.outlinkUrl'),
+      ]);
+    });
+
+    test('모든 과목이 실패하면 첫 실패의 종류로 끝내고 아무것도 넣지 않는다', () async {
+      final server = FakeLmsServer(timetableRoutes(slots: (_) => '수업 시간 미정'));
+
+      final result = await importTimetable(withTimetable(server));
+
+      expect(
+        (result.kind, result.detail),
+        (SyncResultKind.parseFailure, 'timetable.slot'),
+      );
+      expect(await db.select(db.classSlots).get(), isEmpty);
+    });
+
+    test('통합정보시스템 요청이 2xx가 아니면 본문에 값이 있어도 그 과목은 실패다', () async {
+      final server = FakeLmsServer({
+        ...timetableRoutes(),
+        'POST /outlink/timetable': (_) => FakeLmsResponse(
+          403,
+          contentType: 'application/json',
+          body: jsonEncode({
+            'rows': [
+              {'name': '합성 과목', 'slots': '월|09:00|10:00'},
+            ],
+          }),
+        ),
+      });
+
+      final result = await importTimetable(withTimetable(server));
+
+      expect(
+        (result.kind, result.detail),
+        (SyncResultKind.parseFailure, 'timetable.status'),
+      );
+      expect(await db.select(db.classSlots).get(), isEmpty);
+    });
+
+    test('이미 불러온 수업이 있는 과목은 다시 넣지 않는다', () async {
+      final server = FakeLmsServer(timetableRoutes());
+      await importTimetable(withTimetable(server));
+
+      final again = await importTimetable(withTimetable(server));
+
+      expect(again.kind, SyncResultKind.normal);
+      expect(again.changedCount, 0);
+      expect(await db.select(db.classSlots).get(), hasLength(2));
+    });
+
+    test('강의계획서 요청에서 세션이 끊겼으면 복원해 처음부터 다시 한다', () async {
+      final plan = syntheticTimetableRoutes(
+        slotsFor: slotsFor,
+      )['POST /api/synthetic-course-plan']!;
+      var calls = 0;
+      final server = FakeLmsServer({
+        ...timetableRoutes(),
+        'POST /api/synthetic-course-plan': (request) =>
+            calls++ == 0 ? loginPage() : plan(request),
+      });
+
+      final result = await importTimetable(withTimetable(server));
+
+      expect(result.kind, SyncResultKind.normal);
+      expect(server.to('/home'), hasLength(1));
+      expect(server.to('/api/synthetic-courses'), hasLength(2));
+      expect((await readSettings()).lmsSessionState, LmsSessionState.active);
+      expect(await db.select(db.classSlots).get(), hasLength(2));
+    });
+
+    test('시간표 요청 상수가 없으면 설정 없음으로 건너뛰고 기록도 남기지 않는다', () async {
+      final server = FakeLmsServer(timetableRoutes());
+
+      final result = await importTimetable(coordinator(server));
+
+      expect(
+        (result.kind, result.detail),
+        (SyncResultKind.skipped, SyncRunDetail.configMissing),
+      );
+      expect(server.requests, isEmpty);
+      expect(await runs(), isEmpty);
+    });
+
+    test(
+      '할 일 동기화가 도는 중에 부르면 끝나기를 기다렸다가 따로 하고, 같은 범위는 진행 중인 것을 함께 받는다',
+      () async {
+        final server = FakeLmsServer(timetableRoutes());
+        final c = withTimetable(server);
+
+        final sync = c.run(trigger: SyncTrigger.manual, scope: SyncScope.list);
+        final timetable = importTimetable(c);
+        final syncAgain = c.run(
+          trigger: SyncTrigger.manual,
+          scope: SyncScope.list,
+        );
+
+        expect((await sync).kind, SyncResultKind.normal);
+        expect(await syncAgain, same(await sync));
+        expect((await timetable).kind, SyncResultKind.normal);
+        expect(await runs(), hasLength(1));
+        expect(server.to('/api/synthetic-todos'), hasLength(1));
+        expect(server.to('/outlink/timetable'), hasLength(2));
       },
     );
   });

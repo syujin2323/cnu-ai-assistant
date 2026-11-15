@@ -91,15 +91,28 @@ final loginFlowProvider = Provider<LoginFlow>((ref) {
     schoolDomain: ref.watch(lmsSchoolDomainProvider),
     createDio: () => createLmsDio(adapter: ref.read(lmsHttpAdapterProvider)),
     sleep: ref.watch(lmsSleepProvider),
-    // 로그인 직후 동기화(docs/lms.md '동기화'): 처음 로그인은 전체, 다시 로그인은 갱신. 화면은 기다리지 않는다.
-    onLoggedIn: (mode) => unawaited(
-      ref
-          .read(syncCoordinatorProvider)
-          .run(
-            trigger: SyncTrigger.login,
-            scope: mode == LoginMode.first ? SyncScope.full : SyncScope.list,
-          ),
-    ),
+    // 로그인 직후(docs/lms.md '동기화'·'시간표 (통합정보시스템)'): 처음 로그인(14 온보딩 1단계. 로그아웃 뒤 로그인
+    // 포함)은 이번 학기 시간표를 불러온 뒤 전체 동기화(온보딩 진행 줄의 차례, docs/screens.md '14 온보딩'), 다시 로그인은
+    // 갱신이다. 화면은 기다리지 않는다.
+    onLoggedIn: (mode) {
+      final coordinator = ref.read(syncCoordinatorProvider);
+      if (mode == LoginMode.first) {
+        unawaited(
+          coordinator
+              .run(trigger: SyncTrigger.login, scope: SyncScope.timetable)
+              .then(
+                (_) => coordinator.run(
+                  trigger: SyncTrigger.login,
+                  scope: SyncScope.full,
+                ),
+              ),
+        );
+      } else {
+        unawaited(
+          coordinator.run(trigger: SyncTrigger.login, scope: SyncScope.list),
+        );
+      }
+    },
   );
 });
 

@@ -22,6 +22,11 @@
 //    다시 쓴다. 해석 실패는 필드 이름만 담아 오류 보고(Crashlytics 비치명)로도 보낸다.
 //
 // 과목별 상세 조회(`detail`)는 상세 응답의 꼴을 확인한 뒤 더한다. 그전까지 전체(`full`)는 과목 목록과 할 일 목록이다.
+//
+// 시간표 불러오기(`timetable`, docs/lms.md '시간표 (통합정보시스템)')도 같은 차례(설정·상태·잠금·세션 복원)를 지난다.
+// 과목 목록을 묻고 쓴 뒤 과목마다 강의계획서 요청(LMS. 세션이 끊겼는지 여기서 가림)과 그 뒤 요청(통합정보시스템)을 차례로
+// 보내 시간표 글자를 읽고, 처음 불러오는 과목의 수업 칸을 넣는다. 과목 하나가 실패하면 그 과목만 건너뛴다(`partial`).
+// 동기화 기록(`sync_runs`)과 마지막 확인 시각에는 남기지 않고, 다른 범위가 도는 중이면 끝나기를 기다렸다가 한다.
 
 import 'dart:async';
 
@@ -46,6 +51,7 @@ import 'package:cnu_ai_assistant/lms/lms_config.dart';
 import 'package:cnu_ai_assistant/lms/login_request.dart';
 import 'package:cnu_ai_assistant/lms/parsers/course_list_parser.dart';
 import 'package:cnu_ai_assistant/lms/parsers/parse_config.dart';
+import 'package:cnu_ai_assistant/lms/parsers/timetable_parser.dart';
 import 'package:cnu_ai_assistant/lms/parsers/todo_list_parser.dart';
 import 'package:cnu_ai_assistant/lms/request_params.dart';
 import 'package:cnu_ai_assistant/lms/request_runner.dart';
@@ -115,6 +121,7 @@ class SyncCoordinator {
 
   final _runningChanges = StreamController<bool>.broadcast();
   Future<SyncResult>? _current;
+  SyncScope? _currentScope;
 
   /// 지금 동기화가 도는지.
   bool get isRunning => _current != null;
@@ -122,17 +129,24 @@ class SyncCoordinator {
   /// [isRunning]이 바뀔 때마다 새 값을 낸다.
   Stream<bool> get runningChanges => _runningChanges.stream;
 
-  /// [trigger]로 [scope] 범위를 동기화한다. 이미 돌고 있으면 그 Future를 돌려준다.
+  /// [trigger]로 [scope] 범위를 동기화한다. 이미 돌고 있으면 그 Future를 돌려준다. 다만 시간표 불러오기와 할 일
+  /// 동기화는 서로의 결과로 대신할 수 없으므로, 다른 쪽이 도는 중이면 끝나기를 기다렸다가 한다.
   Future<SyncResult> run({
     required SyncTrigger trigger,
     required SyncScope scope,
   }) {
-    if (_current case final current?) return current;
+    if (_current case final current?) {
+      final timetable = scope == SyncScope.timetable;
+      if (timetable == (_currentScope == SyncScope.timetable)) return current;
+      return current.then((_) => run(trigger: trigger, scope: scope));
+    }
     final future = _run(trigger, scope);
     _current = future;
+    _currentScope = scope;
     _runningChanges.add(true);
     return future.whenComplete(() {
       _current = null;
+      _currentScope = null;
       if (!_runningChanges.isClosed) _runningChanges.add(false);
     });
   }
@@ -149,20 +163,28 @@ class SyncCoordinator {
       SyncResultKind kind, {
       int changed = 0,
       String? detail,
+      List<int> failedCourseIds = const [],
     }) async {
       final note = detail ?? budgetNote;
       final elapsed = stopwatch.elapsedMilliseconds;
-      final added = await _syncRuns.add(
-        startedAt: startedAt,
-        trigger: trigger,
-        scope: scope,
-        result: kind,
-        changedCount: changed,
-        elapsedMs: elapsed,
-        detail: note,
-      );
-      if (added case Err(:final error)) {
-        appLog('sync_run_write_failed', area: 'lms', data: errorLogData(error));
+      if (scope != SyncScope.timetable) {
+        final added = await _syncRuns.add(
+          startedAt: startedAt,
+          trigger: trigger,
+          scope: scope,
+          result: kind,
+          changedCount: changed,
+          elapsedMs: elapsed,
+          detail: note,
+          failedCourseIds: failedCourseIds.isEmpty ? null : failedCourseIds,
+        );
+        if (added case Err(:final error)) {
+          appLog(
+            'sync_run_write_failed',
+            area: 'lms',
+            data: errorLogData(error),
+          );
+        }
       }
       appLog(
         'lms_sync',
@@ -172,6 +194,7 @@ class SyncCoordinator {
           'scope': scope.name,
           'kind': kind.name,
           'changed': changed,
+          'failed': failedCourseIds.length,
           'ms': elapsed,
           'detail': ?note,
         },
@@ -179,6 +202,7 @@ class SyncCoordinator {
       return SyncResult(
         kind,
         changedCount: changed,
+        failedCourseIds: failedCourseIds,
         duration: stopwatch.elapsed,
         detail: note,
       );
@@ -195,7 +219,11 @@ class SyncCoordinator {
     final params = config.requestParams;
     final sync = params?.sync;
     final parse = params?.parse;
-    if (params == null || sync == null || parse == null) {
+    if (params == null ||
+        sync == null ||
+        parse == null ||
+        (scope == SyncScope.timetable &&
+            (params.timetable == null || parse.timetableSlot == null))) {
       return finish(
         SyncResultKind.skipped,
         detail: SyncRunDetail.configMissing,
@@ -307,8 +335,9 @@ class SyncCoordinator {
           'field': ?attempt.field,
         });
       }
-      if (attempt.kind == SyncResultKind.normal ||
-          attempt.kind == SyncResultKind.empty) {
+      if (scope != SyncScope.timetable &&
+          (attempt.kind == SyncResultKind.normal ||
+              attempt.kind == SyncResultKind.empty)) {
         final advanced = await _settings.advanceLmsLastSuccessAt(startedAt);
         if (advanced case Err(:final error)) {
           appLog(
@@ -322,6 +351,7 @@ class SyncCoordinator {
         attempt.kind,
         changed: attempt.changed,
         detail: attempt.field,
+        failedCourseIds: attempt.failedCourseIds,
       );
     } finally {
       await _saveCookies(connection.jar, connection.userAgent, params);
@@ -359,15 +389,26 @@ class SyncCoordinator {
     var vars = prepared.vars;
 
     final classifier = LmsResponseClassifier.of(params);
-    Future<_Attempt> query() => _query(
-      runner: connection.runner,
-      classifier: classifier,
-      sync: sync,
-      parse: parse,
-      vars: vars,
-      scope: scope,
-      startedAt: startedAt,
-    );
+    Future<_Attempt> query() => scope == SyncScope.timetable
+        ? _queryTimetable(
+            runner: connection.runner,
+            classifier: classifier,
+            params: params,
+            sync: sync,
+            timetable: params.timetable!,
+            slotPattern: parse.timetableSlot!,
+            vars: vars,
+            startedAt: startedAt,
+          )
+        : _query(
+            runner: connection.runner,
+            classifier: classifier,
+            sync: sync,
+            parse: parse,
+            vars: vars,
+            scope: scope,
+            startedAt: startedAt,
+          );
 
     var restoring = state != LmsSessionState.active;
     if (restoring) await _restoreViaHome(connection.runner, params);
@@ -634,6 +675,160 @@ class SyncCoordinator {
     }
   }
 
+  /// 시간표 불러오기: 과목 목록을 묻고 쓴 뒤 과목마다 시간표를 읽고([_courseTimetable]), 처음 불러오는 과목의 수업
+  /// 칸을 넣는다. 세션이 끊기면 그 자리에서 멈추고(복원은 [_fetch]가 함), 과목 하나가 실패하면 그 과목만 건너뛴다.
+  /// 모든 과목이 실패하면 첫 실패의 종류다.
+  Future<_Attempt> _queryTimetable({
+    required LmsRequestRunner runner,
+    required LmsResponseClassifier classifier,
+    required LmsRequestParams params,
+    required LmsSyncSpec sync,
+    required LmsTimetableSpec timetable,
+    required RegExp slotPattern,
+    required Map<String, String> vars,
+    required DateTime startedAt,
+  }) async {
+    if (await _stopReason() case final reason?) {
+      return _Attempt(SyncResultKind.cancelled, field: reason);
+    }
+    final courses = await _request(
+      runner,
+      classifier,
+      sync.courses,
+      vars,
+      courseListSchema,
+    );
+    final records = courses.records;
+    if (records == null) return _Attempt(courses.kind, field: courses.field);
+    final Map<String, int> ids;
+    switch (await _store.upsertCourses(
+      records,
+      semester: sync.semester,
+      now: startedAt,
+    )) {
+      case Ok(:final value):
+        ids = value;
+      case Err(:final error):
+        appLog('lms_sync_store_failed', area: 'lms', data: errorLogData(error));
+        return const _Attempt(SyncResultKind.parseFailure, field: 'storage');
+    }
+
+    final slotsByCourse = <int, List<LmsImportedSlot>>{};
+    final failed = <int>[];
+    _Attempt? firstFailure;
+    final reported = <String>{};
+    for (final record in records) {
+      if (await _stopReason() case final reason?) {
+        return _Attempt(SyncResultKind.cancelled, field: reason);
+      }
+      final courseDbId = ids[record.remoteId];
+      final parts = lmsCourseIdParts(record.remoteId);
+      if (courseDbId == null || parts == null) continue;
+      final result = await _courseTimetable(
+        runner: runner,
+        classifier: classifier,
+        params: params,
+        timetable: timetable,
+        slotPattern: slotPattern,
+        vars: {...vars, 'courseId': parts.courseId, 'classNo': parts.classNo},
+      );
+      if (result.sessionLost) return result;
+      if (result.kind != SyncResultKind.normal) {
+        failed.add(courseDbId);
+        firstFailure ??= result;
+        appLog(
+          'lms_timetable_course_failed',
+          area: 'lms',
+          data: {'kind': result.kind.name, 'field': ?result.field},
+        );
+        if (result.kind == SyncResultKind.parseFailure &&
+            reported.add(result.field ?? '')) {
+          _reportEvent('lms_parse_failure', {
+            'scope': SyncScope.timetable.name,
+            'field': ?result.field,
+          });
+        }
+        continue;
+      }
+      slotsByCourse[courseDbId] = result.slots;
+    }
+    if (records.isNotEmpty && slotsByCourse.isEmpty && firstFailure != null) {
+      return firstFailure;
+    }
+    switch (await _store.addImportedSlots(slotsByCourse)) {
+      case Ok(:final value):
+        return _Attempt(
+          records.isEmpty
+              ? SyncResultKind.empty
+              : failed.isEmpty
+              ? SyncResultKind.normal
+              : SyncResultKind.partial,
+          changed: value,
+          failedCourseIds: failed,
+        );
+      case Err(:final error):
+        appLog('lms_sync_store_failed', area: 'lms', data: errorLogData(error));
+        return const _Attempt(SyncResultKind.parseFailure, field: 'storage');
+    }
+  }
+
+  /// 과목 하나의 시간표를 읽는다. 강의계획서 요청(LMS)은 판별기로 세션이 끊겼는지 가리고, 그 뒤 요청(통합정보시스템)은
+  /// 연결 실패·서버 오류와 상태 코드, 꼭 뽑아야 하는 값만 본다. 정상이면 [_Attempt.slots]에 수업 칸을 담는다.
+  Future<_Attempt> _courseTimetable({
+    required LmsRequestRunner runner,
+    required LmsResponseClassifier classifier,
+    required LmsRequestParams params,
+    required LmsTimetableSpec timetable,
+    required RegExp slotPattern,
+    required Map<String, String> vars,
+  }) async {
+    _Attempt failure(String field) =>
+        _Attempt(SyncResultKind.parseFailure, field: 'timetable.$field');
+    Uri? base;
+    switch (await runner.run(timetable.courseInfo, vars)) {
+      case LmsStepNotSent(:final field):
+        return failure(field);
+      case final LmsStepSent sent:
+        final kind = _kindOf(
+          classifier.classify(sent.response, _anyJson).outcome.kind,
+        );
+        if (kind != SyncResultKind.normal) {
+          return kind == SyncResultKind.parseFailure
+              ? failure('course_info')
+              : _Attempt(kind);
+        }
+        if (sent.missing case final missing?) return failure(missing);
+        vars.addAll(sent.values);
+        base = sent.response.finalUrl;
+    }
+    for (final step in timetable.steps) {
+      switch (await runner.run(step, vars, base: base)) {
+        case LmsStepNotSent(:final field):
+          return failure(field);
+        case final LmsStepSent sent:
+          if (lmsTransportFailure(sent.response, params.markers)
+              case final kind?) {
+            return _Attempt(_kindOf(kind));
+          }
+          final status = sent.response.statusCode!;
+          if (status < 200 || status >= 300) return failure('status');
+          if (sent.missing case final missing?) return failure(missing);
+          vars.addAll(sent.values);
+          base = sent.response.finalUrl;
+      }
+    }
+    final slots = parseTimetableSlots(
+      vars[timetable.slotText] ?? '',
+      slotPattern,
+    );
+    if (slots == null) return failure('slot');
+    return _Attempt(SyncResultKind.normal, slots: slots);
+  }
+
+  /// 강의계획서 응답은 꼴을 보지 않고 세션 상태만 가린다.
+  static LmsSchemaResult<Object?> _anyJson(Object? json) =>
+      LmsSchemaMatch(json, itemCount: 1);
+
   /// [spec]을 보내고 판별한다. 정상·빈 목록이면 해석한 값을 담는다.
   Future<({SyncResultKind kind, List<T>? records, String? field})> _request<T>(
     LmsRequestRunner runner,
@@ -724,13 +919,25 @@ class SyncCoordinator {
 
 /// 조회 한 번의 결과.
 final class _Attempt {
-  const _Attempt(this.kind, {this.changed = 0, this.field});
+  const _Attempt(
+    this.kind, {
+    this.changed = 0,
+    this.field,
+    this.failedCourseIds = const [],
+    this.slots = const [],
+  });
 
   final SyncResultKind kind;
   final int changed;
 
   /// 해석 실패의 필드 이름이나 멈춘 이유 코드.
   final String? field;
+
+  /// 시간표 불러오기에서 실패해 건너뛴 과목(`courses.id`).
+  final List<int> failedCourseIds;
+
+  /// 과목 하나의 시간표를 읽은 수업 칸([SyncCoordinator._courseTimetable]).
+  final List<LmsImportedSlot> slots;
 
   /// 세션이 끊겼다는 판별인지.
   bool get sessionLost =>

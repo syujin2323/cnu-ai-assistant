@@ -220,3 +220,93 @@ Map<String, FakeLmsResponse Function(FakeLmsRequest)> syntheticLoginRoutes({
     body: '<p>합성 홈</p>',
   ),
 };
+
+/// 합성 시간표 서버의 세션 값. `-`를 지운 앞 16바이트가 세션 값 암호의 키다.
+const syntheticSessionUser = 'abcd-efgh-ijkl-mnop-qrst';
+
+/// 합성 시간표 서버의 경로. [syntheticTimetableSection]의 요청 틀에 맞춘다.
+///
+/// - 강의계획서: 암호문을 풀어 과목·분반으로 연결 주소를 준다. [missingPlan]의 과목(`과목ID/분반`)은 주소가 없다.
+/// - 연결 주소: 폼 필드(메뉴·과목 코드)를 담은 HTML과 쿠키를 준다.
+/// - 폼 제출: 세션 값을 담은 스크립트를 준다.
+/// - 시간표: 이름·값을 세션 값 키(0번)와 요청마다 만든 값 키(나머지)로 풀어 확인하고 [slotsFor]의 글자를 준다. 암호문이
+///   맞지 않으면 400이다.
+Map<String, FakeLmsResponse Function(FakeLmsRequest)> syntheticTimetableRoutes({
+  required String Function(String code) slotsFor,
+  Set<String> missingPlan = const {},
+}) {
+  String decrypt(String text, String key) {
+    final bytes = utf8.encode(key).sublist(0, 16);
+    return aesCbcDecryptBase64(text, bytes, bytes);
+  }
+
+  return {
+    'POST /api/synthetic-course-plan': (request) {
+      final payload = jsonDecode(
+        aesCbcDecryptBase64(
+          request.form['e']!,
+          utf8.encode(syntheticBodyKey),
+          List.filled(16, 0),
+        ),
+      ) as Map<String, Object?>;
+      final code = '${payload['course']}-${payload['section']}';
+      final missing = missingPlan.contains(
+        '${payload['course']}/${payload['section']}',
+      );
+      return FakeLmsResponse(
+        200,
+        contentType: 'application/json',
+        body: jsonEncode({
+          'header': {'code': 200},
+          'body': {
+            'plan': missing
+                ? null
+                : {'link': 'https://example.invalid/outlink/open?c=$code'},
+          },
+        }),
+      );
+    },
+    'GET /outlink/open': (request) => FakeLmsResponse(
+      200,
+      contentType: 'text/html; charset=utf-8',
+      body:
+          '<form><input name="menu" value="m1">'
+          '<input name="code" value="${request.url.queryParameters['c']}">'
+          '</form>',
+      setCookies: const ['olk=o1; Path=/'],
+    ),
+    'POST /outlink/submit': (request) => FakeLmsResponse(
+      200,
+      contentType: 'text/html; charset=utf-8',
+      body: request.form['menu'] == 'm1'
+          ? "<script>var syntheticSession = '$syntheticSessionUser';</script>"
+          : '<p>합성 오류</p>',
+    ),
+    'POST /outlink/timetable': (request) {
+      try {
+        final param =
+            (jsonDecode(utf8.decode(request.body)) as Map)['param'] as Map;
+        String value(String key) => (param[key] as List).single as String;
+        final sessionKey = syntheticSessionUser.replaceAll('-', '');
+        final tx = decrypt(value('V0'), sessionKey);
+        if (decrypt(value('N0'), sessionKey) != 'TX' ||
+            decrypt(value('N1'), tx) != 'CODE' ||
+            !RegExp(r'^[0-9a-f]{32}$').hasMatch(tx)) {
+          return const FakeLmsResponse(400);
+        }
+        final code = decrypt(value('V1'), tx);
+        return FakeLmsResponse(
+          200,
+          contentType: 'application/json',
+          body: jsonEncode({
+            'rows': [
+              {'name': '합성 과목', 'slots': slotsFor(code)},
+            ],
+          }),
+        );
+      } on Object {
+        return const FakeLmsResponse(400);
+      }
+    },
+  };
+}
