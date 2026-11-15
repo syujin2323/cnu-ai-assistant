@@ -9,7 +9,8 @@
 //    성공이 간격 안이면 기록 없이 끝내고, 자동 조회가 실패한 뒤 최소 간격 안이거나 오늘 횟수를 다 썼으면
 //    `skipped`(`budget`)다. 사용자 새로 고침과 로그인 직후는 예산을 보지 않는다.
 // 3. 잠금을 잡고(못 잡으면 `skipped`(`lease`)) 금고의 쿠키와 User-Agent로 준비 요청 → (전체면) 과목 목록 → 할 일
-//    목록을 묻고 판별해 [LmsSyncRepository]로 쓴다.
+//    목록을 묻고 판별해 [LmsSyncRepository]로 쓴다. 도중에 데모 모드에 들어가거나 원격 스위치가 꺼지면 다음 조회
+//    앞에서 멈추고 `cancelled`(이유 코드)로 남긴다.
 // 4. '재로그인 필요'·'복원 필요'면 `restoring`으로 바꾸고 세션 복원 1단계(홈 요청)를 한 뒤 그 조회를 한 번 다시
 //    한다. 시작할 때 이미 `restoring`이면 복원부터 한다. 다시 받은 조회가 정상·빈 목록이면 `active`, 또
 //    '재로그인 필요'·'복원 필요'면 `reconnectRequired`다(저장된 비밀번호로 다시 로그인하는 3단계는 조용한 재로그인
@@ -393,7 +394,16 @@ class SyncCoordinator {
     return attempt;
   }
 
-  /// (전체면) 과목 목록과 할 일 목록을 묻고 쓴다. 데모 모드에 들어갔으면 그 자리에서 멈춘다.
+  /// 진행 중인 동기화를 멈출 까닭. 데모 모드에 들어갔으면 `demo_mode`, 원격 스위치가 꺼졌으면(실행 중에 바뀐 값)
+  /// `switch_off`이고, 둘 다 아니면 null이다.
+  Future<String?> _stopReason() async {
+    if (_isDemo()) return SyncRunDetail.demoMode;
+    if (!(await _config()).enabled) return SyncRunDetail.switchOff;
+    return null;
+  }
+
+  /// (전체면) 과목 목록과 할 일 목록을 묻고 쓴다. 데모 모드에 들어갔거나 원격 스위치가 꺼졌으면 그 자리에서
+  /// 멈춘다.
   Future<_Attempt> _query({
     required LmsRequestRunner runner,
     required LmsResponseClassifier classifier,
@@ -404,11 +414,8 @@ class SyncCoordinator {
     required DateTime startedAt,
   }) async {
     if (scope == SyncScope.full) {
-      if (_isDemo()) {
-        return const _Attempt(
-          SyncResultKind.cancelled,
-          field: SyncRunDetail.demoMode,
-        );
+      if (await _stopReason() case final reason?) {
+        return _Attempt(SyncResultKind.cancelled, field: reason);
       }
       final courses = await _request(
         runner,
@@ -429,11 +436,8 @@ class SyncCoordinator {
         return const _Attempt(SyncResultKind.parseFailure, field: 'storage');
       }
     }
-    if (_isDemo()) {
-      return const _Attempt(
-        SyncResultKind.cancelled,
-        field: SyncRunDetail.demoMode,
-      );
+    if (await _stopReason() case final reason?) {
+      return _Attempt(SyncResultKind.cancelled, field: reason);
     }
     final todos = await _request(
       runner,

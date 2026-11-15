@@ -93,10 +93,13 @@ void main() {
   SyncCoordinator coordinator(
     FakeLmsServer server, {
     LmsConfig? config,
+    LmsConfig Function()? configNow,
     DateTime? now,
   }) => SyncCoordinator(
     config: () async =>
-        config ?? LmsConfig(enabled: true, requestParams: params),
+        configNow?.call() ??
+        config ??
+        LmsConfig(enabled: true, requestParams: params),
     vault: vault,
     settings: settings,
     syncRuns: syncRuns,
@@ -498,6 +501,48 @@ void main() {
         (SyncResultKind.cancelled, SyncRunDetail.demoMode),
       );
       expect(server.to('/api/synthetic-todos'), isEmpty);
+    });
+
+    test('도중에 원격 스위치가 꺼지면 다음 조회 앞에서 멈추고 cancelled로 남긴다', () async {
+      for (final scope in [SyncScope.list, SyncScope.full]) {
+        var enabled = true;
+        final server = FakeLmsServer({
+          ...routes(),
+          'GET /assets/synthetic-key-3.js': (_) {
+            enabled = false;
+            return const FakeLmsResponse(
+              200,
+              contentType: 'application/javascript',
+              body: "var syntheticKey = '$syntheticBodyKey';",
+            );
+          },
+        });
+
+        final result = await manual(
+          coordinator(
+            server,
+            configNow: () => LmsConfig(enabled: enabled, requestParams: params),
+          ),
+          scope: scope,
+        );
+
+        expect(
+          (result.kind, result.detail),
+          (SyncResultKind.cancelled, SyncRunDetail.switchOff),
+          reason: scope.name,
+        );
+        expect(
+          server.to('/api/synthetic-courses'),
+          isEmpty,
+          reason: scope.name,
+        );
+        expect(server.to('/api/synthetic-todos'), isEmpty, reason: scope.name);
+        expect(
+          (await runs()).last.detail,
+          SyncRunDetail.switchOff,
+          reason: scope.name,
+        );
+      }
     });
   });
 
