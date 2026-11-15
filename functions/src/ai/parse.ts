@@ -5,34 +5,26 @@
 // 남기지 않고, 받은 자리에서 제공사로 넘긴다.
 import type { Request, RequestHandler } from "express";
 
-import { HttpError } from "../http/errors.js";
 import {
-  noteAppCheck,
-  noteError,
-  noteUsage,
-  type AppCheckState,
-} from "../http/request-log.js";
+  checkAppCheck,
+  type AppCheckConfig,
+  type AppCheckVerifier,
+} from "../http/app_check.js";
+import { HttpError } from "../http/errors.js";
+import { noteError, noteUsage } from "../http/request-log.js";
 import { ProviderError, type AiProvider } from "./provider.js";
 import type { QuotaLimits, QuotaStore } from "./quota.js";
 import type { ParseInput } from "./types.js";
 import { isParseRequest } from "./validate.js";
 
 export const INSTALL_TOKEN_HEADER = "X-Install-Token";
-export const APP_CHECK_HEADER = "X-Firebase-AppCheck";
 
 /** 설치 토큰 꼴(앱이 만든 32바이트 난수를 base64url로 적은 43자). */
 export const INSTALL_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
-/** App Check 토큰을 검증한다. 맞으면 true. */
-export type AppCheckVerifier = (token: string) => Promise<boolean>;
-
 /** 요청마다 읽는 설정. 설정값은 핸들러 안에서만 읽는다(모듈 최상위에서 읽으면 배포가 실패함). */
-export interface ParseConfig {
+export interface ParseConfig extends AppCheckConfig {
   limits: QuotaLimits;
-  /** true면 App Check 실패를 401로 거부한다(APP_CHECK_ENFORCE). */
-  enforceAppCheck: boolean;
-  /** 에뮬레이터에서는 App Check 검증을 건너뛴다. */
-  skipAppCheck: boolean;
 }
 
 export interface ParseDeps {
@@ -41,19 +33,6 @@ export interface ParseDeps {
   verifyAppCheck: AppCheckVerifier;
   config: () => ParseConfig;
   now?: () => Date;
-}
-
-/** App Check 헤더를 검증한 결과. 검증이 오류로 끝나도 invalid다. */
-export async function appCheckState(
-  token: string | undefined,
-  verify: AppCheckVerifier,
-): Promise<AppCheckState> {
-  if (token === undefined || token === "") return "missing";
-  try {
-    return (await verify(token)) ? "ok" : "invalid";
-  } catch {
-    return "invalid";
-  }
 }
 
 /** 검증한 요청 본문에서 제공사로 넘길 값만 꺼낸다. 모르는 필드는 넘기지 않는다. */
@@ -84,16 +63,7 @@ export function parseHandler(deps: ParseDeps): RequestHandler {
   return async (req, res) => {
     const config = deps.config();
     const installToken = installTokenOf(req);
-    if (!config.skipAppCheck) {
-      const state = await appCheckState(
-        req.get(APP_CHECK_HEADER),
-        deps.verifyAppCheck,
-      );
-      noteAppCheck(res, state);
-      if (config.enforceAppCheck && state !== "ok") {
-        throw new HttpError(401, "unauthorized", "App Check failed.");
-      }
-    }
+    await checkAppCheck(req, res, deps.verifyAppCheck, config);
     if (!isParseRequest(req.body)) {
       throw new HttpError(
         400,

@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildParseRequest,
+  calendarAround,
   ClaudeProvider,
   CLAUDE_MODEL,
   FALLBACK_BETA,
@@ -76,6 +77,35 @@ async function parseError(
   throw new Error("parse did not fail");
 }
 
+describe("calendarAround", () => {
+  it("lists every day from a week before to six weeks after today", () => {
+    const calendar = calendarAround("2026-10-12");
+    const days = Object.keys(calendar);
+    expect(days).toHaveLength(50);
+    expect(days[0]).toBe("2026-10-05");
+    expect(days.at(-1)).toBe("2026-11-23");
+    expect(calendar).toMatchObject({
+      "2026-10-05": "월",
+      "2026-10-12": "월",
+      "2026-10-15": "목",
+      "2026-10-16": "금",
+      "2026-10-18": "일",
+      "2026-11-23": "월",
+    });
+  });
+
+  it("crosses months, years and leap days", () => {
+    expect(calendarAround("2026-12-28")).toMatchObject({
+      "2026-12-31": "목",
+      "2027-01-01": "금",
+    });
+    expect(calendarAround("2028-02-27")).toMatchObject({
+      "2028-02-29": "화",
+      "2028-03-01": "수",
+    });
+  });
+});
+
 describe("buildParseRequest", () => {
   it("builds the request the provider rules describe", () => {
     const params = buildParseRequest(sampleInput("내일 3시 회의"));
@@ -98,9 +128,11 @@ describe("buildParseRequest", () => {
     ]);
     expect(params.messages).toHaveLength(1);
     expect(params.messages[0]!.role).toBe("user");
-    expect(JSON.parse(params.messages[0]!.content as string)).toEqual(
-      sampleInput("내일 3시 회의"),
-    );
+    const input = sampleInput("내일 3시 회의");
+    expect(JSON.parse(params.messages[0]!.content as string)).toEqual({
+      ...input,
+      calendar: calendarAround(input.today),
+    });
   });
 
   it("sends no sampling parameters, tools, metadata or prefill", () => {

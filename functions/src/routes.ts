@@ -3,14 +3,17 @@
 import { Router } from "express";
 
 import { parseHandler, type ParseDeps } from "./ai/parse.js";
+import { metricsHandler, type MetricsDeps } from "./metrics/metrics.js";
 
 export interface ApiDeps {
   parse: ParseDeps;
+  metrics: MetricsDeps;
 }
 
 /** API 경로를 붙인 라우터. */
 export function apiRoutes(deps: ApiDeps): Router {
   const router = Router();
   router.post("/v1/parse", parseHandler(deps.parse));
+  router.post("/v1/metrics", metricsHandler(deps.metrics));
   return router;
 }

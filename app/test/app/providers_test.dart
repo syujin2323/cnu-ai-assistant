@@ -10,11 +10,18 @@ import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/class_slot.dart';
+import 'package:cnu_ai_assistant/data/repositories/sync_run_repository.dart';
+import 'package:cnu_ai_assistant/domain/lms_status.dart';
+import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
+import 'package:cnu_ai_assistant/domain/models/sync_run.dart';
+import 'package:cnu_ai_assistant/lms/lms_config.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart' show NativeDatabase;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../helpers/pump_app.dart' show TestClock;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -255,4 +262,207 @@ void main() {
       expect(demo, isNot(same(real)));
     });
   });
+
+  group('minuteClockProvider', () {
+    testWidgets('분이 바뀔 때마다 시계의 지금으로 바꾼다', (tester) async {
+      final clock = TestClock(DateTime(2026, 11, 16, 9, 0, 30));
+      final container = ProviderContainer(
+        overrides: [clockProvider.overrideWithValue(clock)],
+      );
+      final seen = <DateTime>[];
+      container.listen(
+        minuteClockProvider,
+        (_, next) => seen.add(next),
+        fireImmediately: true,
+      );
+      expect(seen, [DateTime(2026, 11, 16, 9, 0, 30)]);
+
+      clock.current = DateTime(2026, 11, 16, 9, 1);
+      await tester.pump(const Duration(seconds: 29));
+      expect(seen, hasLength(1), reason: '아직 다음 분이 아니다');
+      await tester.pump(const Duration(seconds: 1));
+      expect(seen.last, DateTime(2026, 11, 16, 9, 1));
+
+      clock.current = DateTime(2026, 11, 16, 9, 2);
+      await tester.pump(const Duration(minutes: 1));
+      expect(seen.last, DateTime(2026, 11, 16, 9, 2));
+      container.dispose();
+    });
+  });
+
+  group('lmsStatusProvider', () {
+    // 2026-11-16(월) 12:00.
+    final now = DateTime(2026, 11, 16, 12);
+
+    Future<(ProviderContainer, AppDatabase)> start({
+      Map<String, Object> preferences = const {},
+      LmsConfig? config,
+    }) async {
+      SharedPreferences.setMockInitialValues(preferences);
+      final db = AppDatabase.memory();
+      addTearDown(db.close);
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(
+            await SharedPreferences.getInstance(),
+          ),
+          databaseProvider.overrideWithValue(db),
+          clockProvider.overrideWithValue(TestClock(now)),
+          if (config != null)
+            lmsConfigProvider.overrideWith(() => _FixedLmsConfig(config)),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(lmsStatusProvider, (_, _) {});
+      return (container, db);
+    }
+
+    /// DB 스트림이 새 값을 낼 때까지 기다린 뒤의 상태 줄 문구.
+    Future<String?> textOf(ProviderContainer container) async {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      return container.read(lmsStatusProvider)?.text;
+    }
+
+    Future<void> addRun(
+      AppDatabase db, {
+      required DateTime startedAt,
+      required SyncTrigger trigger,
+      required SyncResultKind result,
+    }) async {
+      final added = await SyncRunRepository(db).add(
+        startedAt: startedAt,
+        trigger: trigger,
+        scope: SyncScope.list,
+        result: result,
+        elapsedMs: 100,
+      );
+      expect(added, isA<Ok<int>>());
+    }
+
+    test('설정과 동기화 기록을 읽어 상태 줄을 정하고, 바뀌면 다시 정한다', () async {
+      final (container, db) = await start();
+      final settings = SettingsRepository(db);
+      final fiveMinutesAgo = now.subtract(const Duration(minutes: 5));
+      expect(
+        await settings.writeAll({
+          SettingKeys.lmsSessionState: LmsSessionState.active,
+          SettingKeys.lmsLastSuccessAt: fiveMinutesAgo,
+        }),
+        isA<Ok<void>>(),
+      );
+      // 마지막 확인을 남긴 동기화가 사용자 새로 고침이면 10분 동안 방금이다.
+      await addRun(
+        db,
+        startedAt: fiveMinutesAgo,
+        trigger: SyncTrigger.manual,
+        result: SyncResultKind.normal,
+      );
+      expect(await textOf(container), 'LMS 정보 방금');
+
+      // 그 뒤 자동 동기화가 실패하면 연결할 수 없어요를 붙인다.
+      await addRun(
+        db,
+        startedAt: now.subtract(const Duration(minutes: 1)),
+        trigger: SyncTrigger.periodic,
+        result: SyncResultKind.networkFailure,
+      );
+      expect(await textOf(container), 'LMS 정보 방금 · 연결할 수 없어요');
+      expect(
+        container.read(lmsStatusProvider)?.kind,
+        LmsStatusKind.connectionFailed,
+      );
+
+      expect(
+        await settings.write(
+          SettingKeys.lmsSessionState,
+          LmsSessionState.reconnectRequired,
+        ),
+        isA<Ok<void>>(),
+      );
+      expect(await textOf(container), 'LMS 정보 방금 · 다시 로그인');
+    });
+
+    test('마지막 확인을 남긴 동기화가 자동이면 방금이 아니다', () async {
+      final (container, db) = await start();
+      final settings = SettingsRepository(db);
+      final threeMinutesAgo = now.subtract(const Duration(minutes: 3));
+      expect(
+        await settings.writeAll({
+          SettingKeys.lmsSessionState: LmsSessionState.active,
+          SettingKeys.lmsLastSuccessAt: threeMinutesAgo,
+        }),
+        isA<Ok<void>>(),
+      );
+      await addRun(
+        db,
+        startedAt: threeMinutesAgo,
+        trigger: SyncTrigger.open,
+        result: SyncResultKind.normal,
+      );
+      expect(await textOf(container), 'LMS 정보 3분 전');
+    });
+
+    test('새로 고침이 남긴 확인 시각이 아니면(더 늦은 확인이 따로 있음) 방금이 아니다', () async {
+      final (container, db) = await start();
+      final settings = SettingsRepository(db);
+      expect(
+        await settings.writeAll({
+          SettingKeys.lmsSessionState: LmsSessionState.active,
+          SettingKeys.lmsLastSuccessAt: now.subtract(
+            const Duration(minutes: 3),
+          ),
+        }),
+        isA<Ok<void>>(),
+      );
+      await addRun(
+        db,
+        startedAt: now.subtract(const Duration(minutes: 5)),
+        trigger: SyncTrigger.manual,
+        result: SyncResultKind.normal,
+      );
+      expect(await textOf(container), 'LMS 정보 3분 전');
+    });
+
+    test('데모 모드면 샘플 데이터 · 데모로 고정이다', () async {
+      final (container, db) = await start(preferences: {'app_mode': 'demo'});
+      expect(
+        await SettingsRepository(
+          db,
+        ).write(SettingKeys.lmsSessionState, LmsSessionState.reconnectRequired),
+        isA<Ok<void>>(),
+      );
+      expect(await textOf(container), '샘플 데이터 · 데모');
+    });
+
+    test('원격 스위치가 꺼졌으면 연동 멈춤이고, 설정을 받는 동안은 켜진 것으로 본다', () async {
+      final (paused, pausedDb) = await start(
+        config: const LmsConfig(enabled: false, requestParams: null),
+      );
+      expect(
+        await SettingsRepository(pausedDb)
+            .write(SettingKeys.lmsSessionState, LmsSessionState.active),
+        isA<Ok<void>>(),
+      );
+      expect(await textOf(paused), 'LMS 연동을 잠시 멈췄어요');
+
+      // Remote Config를 가져오는 중(테스트에서는 끝나지 않음)이면 스위치가 켜진 것으로 본다.
+      final (loading, loadingDb) = await start();
+      expect(
+        await SettingsRepository(loadingDb)
+            .write(SettingKeys.lmsSessionState, LmsSessionState.active),
+        isA<Ok<void>>(),
+      );
+      expect(await textOf(loading), 'LMS 정보 받기 전');
+    });
+  });
+}
+
+/// 정해 둔 LMS 설정을 내는 노티파이어.
+class _FixedLmsConfig extends LmsConfigController {
+  _FixedLmsConfig(this.config);
+
+  final LmsConfig config;
+
+  @override
+  Future<LmsConfig> build() async => config;
 }
