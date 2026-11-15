@@ -13,6 +13,7 @@ import 'dart:async';
 import 'package:cnu_ai_assistant/app/config.dart';
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/plan_controller.dart';
+import 'package:cnu_ai_assistant/app/toast_controller.dart';
 import 'package:cnu_ai_assistant/data/api/install_token.dart';
 import 'package:cnu_ai_assistant/data/api/parse_client.dart';
 import 'package:cnu_ai_assistant/data/api/server_api.dart';
@@ -298,6 +299,11 @@ final planRecalculatorProvider = Provider<PlanRecalculator>(
 /// 재계산 계기와 마지막 결과(시간 부족, 급한 순서). `RootApp`이 앱을 켠 동안 늘 듣는다.
 final planControllerProvider = NotifierProvider<PlanController, PlanResult?>(
   PlanController.new,
+);
+
+/// 앱의 토스트 하나와 그 '되돌리기'. `RootApp`이 모든 화면 위에 그린다.
+final toastControllerProvider = NotifierProvider<ToastController, ToastState?>(
+  ToastController.new,
 );
 
 /// 과목 저장소(`courses` 표의 읽기). 지금 모드의 폰 DB를 본다.

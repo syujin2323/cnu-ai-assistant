@@ -641,6 +641,41 @@
 - 다른 후보: 앱 메모리에만 기억하기, 기억하지 않고 매번 보내기.
 - 영향: architecture.md '폰 DB'(settings 키)·'POST /v1/parse'. 코드는 06 AI 비서 화면 PR에서 만든다.
 
+## 2026-11-15 오류 보고는 개인정보 처리 안내에 넣고 동의한 뒤에만 보낸다 (2026-11-15 '스토어 1.0 범위와 배포 경로'의 Crashlytics 앞당김 구체화)
+
+- 결정:
+  - 첫 테스터 빌드부터 Firebase Crashlytics로 오류를 보고한다.
+  - 14 온보딩 1단계의 개인정보 처리 안내(필수 동의)에 오류 보고 줄을 넣는다: 앱이 멈추거나 오류가 나면 오류 종류와 코드 위치, 기기 모델·OS 버전, 설치마다 만든 무작위 값을 Google(Firebase Crashlytics)로 보내고 90일 동안 남으며, 할 일·일정·학번 같은 내용은 보내지 않는다.
+  - 그 안내에 동의한 뒤(실제 DB `settings`의 `privacyConsentAt`), release 빌드에서만 보낸다. 네이티브 SDK는 자동 수집을 꺼 둔 채 시작하고 앱이 동의를 따라 켜고 끈다. 동의하지 않은 데모 모드 사용자와 debug·profile 빌드는 보내지 않고, 데이터를 지우면 다시 끈다.
+  - 예외 메시지는 보내지 않고 오류의 종류(타입 이름)와 스택만 보낸다. 앱이 알아챈 비치명 오류는 이벤트 이름과 이름 꼴 값만 보낸다(로그 규칙과 같음).
+- 이유:
+  - 테스트 기간에 테스터 기기의 오류를 알아야 고치고 Shorebird 패치로 낼 수 있다.
+  - 개인정보 처리 안내에는 그 빌드가 하는 것만 적고(2026-11-13), 동의 전에는 보내지 않는다(AI 사용 동의와 같은 원칙).
+  - 예외 메시지에는 SQL과 바인딩 값, 요청 주소, 사용자가 쓴 문장이 들어갈 수 있다.
+- 다른 후보: 사용 지표처럼 선택(기본 꺼짐)으로 두기, 동의와 관계없이 앱을 켤 때부터 보내기.
+- 영향: architecture.md '한눈에 보기'(패키지), '앱 코드 규약'(로그), '플랫폼 프로젝트 설정', screens.md '개인정보 처리 안내 시트', `app/lib/app/crash_reports.dart`, `app/lib/app/logging.dart`, `app/lib/app/bootstrap.dart`, `app/lib/features/lms_connect/privacy_sheet.dart`, Android Gradle 설정과 매니페스트, iOS Info.plist와 빌드 단계. 개인정보 처리방침(R4)과 스토어의 Data safety·App Privacy에도 같은 내용을 적는다.
+
+## 2026-11-15 업데이트 필요 화면을 첫 테스터 빌드에 넣는다 (2026-11-15 '스토어 1.0 범위와 배포 경로'의 업데이트 필요 앞당김 구체화)
+
+- 결정:
+  - 앱 버전이 Remote Config `min_app_version`보다 낮으면 어느 화면에서든 업데이트 화면(`/update`)으로 막는다. 첫 테스터 빌드부터 넣는다.
+  - 앱 버전은 `package_info_plus`로 읽고, 세 숫자를 앞에서부터 견준다. 빌드 번호와 꼬리(`-debugkey`)는 보지 않고, 앱 버전이나 최소 버전의 꼴이 맞지 않거나 읽지 못하면 막지 않는다.
+  - 최소 버전은 지난 실행에서 받아 둔 값으로 먼저 보고, 이번 실행에서 Remote Config를 받은 뒤 다시 본다.
+  - 업데이트 버튼은 Android는 Play 스토어의 앱 페이지, iOS는 App Store에 내기 전까지 Firebase App Distribution의 테스터 페이지를 연다. App Store에 내면 App Store 주소로 바꾼다(Dart만 바뀜).
+- 이유:
+  - 테스트 기간에 표 변경이나 새 열거값을 담은 release를 내면 옛 빌드를 쓰는 테스터를 막아야 한다. 앱 버전을 읽는 플러그인은 네이티브라 첫 테스터 release에 들어가야 한다.
+  - iPhone 테스터는 App Store가 아니라 기기 등록 배포로 받으므로 App Store 주소가 아직 없다(관리자 결정).
+  - 콘솔에 잘못 넣은 값으로 모든 사용자를 막으면 고칠 길이 콘솔뿐이라 막지 않는 쪽을 고른다.
+- 다른 후보: iOS는 버튼 없이 '받은 메일의 링크로 새 빌드를 설치해 주세요' 안내만 두기, 라우트 대신 앱 루트에서 화면을 덮기(시작 위치는 redirect 한 곳에서 정하는 규칙과 어긋남).
+- 영향: architecture.md '앱 식별자와 버전'·'화면 이동'(라우트 표, 시작 위치)·패키지 줄·'폴더 구조', screens.md '20 시스템', `app/lib/app/update_required.dart`, `app/lib/app/router.dart`, `app/lib/app/config.dart`, `app/lib/domain/app_version.dart`, `app/lib/features/system/update_required_screen.dart`. LMS 조회를 멈추는 것(lms.md '원격 스위치')은 동기화 PR이 이 provider로 한다.
+
+## 2026-11-15 AI 평가의 응답 시간 기준을 p95 3초로 늦춘다 (2026-10-11 'AI 사용 방식'의 응답 시간 기준 바꿈)
+
+- 결정: `/v1/parse` 평가의 응답 시간 기준을 제공사 호출 p95 2초에서 3초로 바꾼다. 날짜·시각 95%, 의도 97%, 규칙 95%는 그대로다. 모델은 Claude Sonnet 5.5 그대로 두고, 속도보다 정확도와 사용감을 먼저 본다.
+- 이유: 관리자가 속도보다 정확도·사용감을 우선하기로 했다. 평가 세트 129문장에서 Sonnet 5.5는 정확도 기준을 모두 넘었지만, 출력이 평균 220토큰가량이라 호출 시간 중앙값이 2.3초, p95가 2.6–2.8초였다. Claude Haiku 5.5는 더 빨랐지만(중앙값 1.6초, p95 2.4초) 날짜·시각 정확도가 66.7%였고 역시 2초를 넘었다. 3초는 제공사 시간 상한(4초)과 앱의 요청 시간 상한(5초) 안이다.
+- 다른 후보: 2초를 지키려고 Haiku 5.5로 바꾸고 프롬프트를 손보기(정확도 차이가 큼), 출력이 짧아지게 응답 꼴을 바꾸기(앱·서버 약속이 바뀜), 응답 시간 기준을 없애기.
+- 영향: architecture.md '제공사 호출 규칙'·'앱과 서버 사이 약속 (API)', `functions/eval/score.ts`의 기준. 시간 상한(제공사 4초, 앱 5초)은 그대로다. 상한을 넘어 직접 추가 폼으로 넘어간 호출은 평가에서 129번 가운데 0–1번이었고, 상한을 늘릴지는 따로 정한다.
+
 ## 2026-11-15 사용 지표 본문과 합계 문서의 꼴
 
 - 결정: `/v1/metrics` 본문은 논리적 하루 하나의 숫자 열한 키(`date`, `briefingOpened`, `todaySuggested`, `planConfirmed`, `confirmSeconds`, `editsBeforeConfirm`, `missedDeadlines`, `syncAttempts`, `syncSuccesses`, `installAgeDays`, `daysSinceLmsLogin`)이고 뜻과 범위는 architecture.md '지표'의 표다. 동기화 시도·성공 수는 계기(`sync_runs.trigger`)마다 센다. 서버는 `metrics/<date>` 문서에 더하기만 하고, 확정까지 걸린 초(0·10·30·60·120·300·600·1800초)와 마지막 LMS 로그인 뒤 지난 날 수(0·1·2·3·7·14·30일)는 구간마다, 설치 후 날 수는 0·1·7·30일만 개수를 센다. `date`가 서버의 오늘에서 7일 전부터 하루 뒤까지가 아니면 받지 않는다. 답은 204(본문 없음)이고 합계 문서에는 TTL을 두지 않는다.
