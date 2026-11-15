@@ -41,16 +41,42 @@ export type CreateMessage = (
   params: MessageCreateParamsNonStreaming,
 ) => Promise<BetaMessage>;
 
+/** user 메시지에 넣는 요일 표의 범위(오늘에서 며칠 전부터 며칠 뒤까지). */
+export const CALENDAR_DAYS_BEFORE = 7;
+export const CALENDAR_DAYS_AFTER = 42;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEKDAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"] as const;
+
+/**
+ * [today](YYYY-MM-DD) 앞뒤 날짜마다 요일(월–일). 모델이 날짜에서 요일을 계산하다 틀리는 일이 있어(평가 세트),
+ * 계산하지 않고 찾게 한다. 요청마다 달라 시스템 프롬프트가 아니라 user 메시지에 넣는다.
+ */
+export function calendarAround(today: string): Record<string, string> {
+  const base = Date.parse(`${today}T00:00:00Z`);
+  const calendar: Record<string, string> = {};
+  for (
+    let offset = -CALENDAR_DAYS_BEFORE;
+    offset <= CALENDAR_DAYS_AFTER;
+    offset++
+  ) {
+    const day = new Date(base + offset * DAY_MS);
+    calendar[day.toISOString().slice(0, 10)] = WEEKDAY_NAMES[day.getUTCDay()]!;
+  }
+  return calendar;
+}
+
 /** /v1/parse 요청을 Claude 요청 본문으로 만든다. */
 export function buildParseRequest(
   input: ParseInput,
 ): MessageCreateParamsNonStreaming {
-  const user: ParseInput = {
+  const user = {
     text: input.text,
     today: input.today,
     weekday: input.weekday,
     now: input.now,
     courses: input.courses.map((course) => ({ name: course.name })),
+    calendar: calendarAround(input.today),
   };
   return {
     model: CLAUDE_MODEL,
