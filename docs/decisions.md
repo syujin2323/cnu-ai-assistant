@@ -633,3 +633,10 @@
   - architecture.md '한눈에 보기'(플랫폼 코드, 패키지), '폴더 구조', '앱 코드 규약'(백그라운드 작업), '플랫폼 프로젝트 설정', '알림'
   - `app/android/`, `app/ios/`, `app/lib/platform/`
   - 관리자: Apple Developer의 App ID에 Push Notifications 기능을 켜고 프로비저닝 프로파일을 다시 받는다(켜지 않으면 iOS Release 빌드가 서명되지 않음). 서버 신호 푸시 PR 전에 Firebase 콘솔에 APNs 인증 키를 올린다. Play Console의 포그라운드 서비스 신고가 필요한지 본다(`workmanager`가 `FOREGROUND_SERVICE_SHORT_SERVICE` 권한을 더함).
+
+## 2026-11-15 사용 지표 본문과 합계 문서의 꼴
+
+- 결정: `/v1/metrics` 본문은 논리적 하루 하나의 숫자 열한 키(`date`, `briefingOpened`, `todaySuggested`, `planConfirmed`, `confirmSeconds`, `editsBeforeConfirm`, `missedDeadlines`, `syncAttempts`, `syncSuccesses`, `installAgeDays`, `daysSinceLmsLogin`)이고 뜻과 범위는 architecture.md '지표'의 표다. 동기화 시도·성공 수는 계기(`sync_runs.trigger`)마다 센다. 서버는 `metrics/<date>` 문서에 더하기만 하고, 확정까지 걸린 초(0·10·30·60·120·300·600·1800초)와 마지막 LMS 로그인 뒤 지난 날 수(0·1·2·3·7·14·30일)는 구간마다, 설치 후 날 수는 0·1·7·30일만 개수를 센다. `date`가 서버의 오늘에서 7일 전부터 하루 뒤까지가 아니면 받지 않는다. 답은 204(본문 없음)이고 합계 문서에는 TTL을 두지 않는다.
+- 이유: 개별 요청을 남기지 않고도 중앙값과 1·7·30일 잔존율을 읽게 한다. 값마다 세면 문서의 필드가 끝없이 늘어나므로 구간으로 센다. 날짜 범위는 시계가 틀린 기기나 꾸민 요청이 아무 날짜의 문서를 만들지 않게 하고, 앱을 며칠 열지 않았다가 보내는 것은 받는다. 합계에는 개인을 가리키는 값이 없다.
+- 다른 후보: 값마다 개수 세기, 설치 후 날 수를 모든 날로 세기, 날짜 범위 없이 받기, 동기화 수를 결과(`sync_runs.result`)마다 세기.
+- 영향: architecture.md '지표'·'폴더 구조', `functions/src/metrics/`, 앱의 지표 집계 PR(이 키와 뜻대로 보냄).
