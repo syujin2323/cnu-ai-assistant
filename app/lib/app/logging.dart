@@ -62,6 +62,12 @@ Map<String, Object> errorLogData(AppError error) => switch (error) {
   },
 };
 
+/// 잡히지 않은 오류를 오류 보고(Crashlytics)로도 보내는 곳. bootstrap이 Firebase를 연 뒤 건다
+/// (`app/crash_reports.dart`의 `CrashReports.recordUncaught`. 개인정보 처리 안내에 동의한 release 빌드에서만
+/// 보내고, 종류와 스택만 보냄). 그전이나 테스트에서는 null이다.
+void Function(Object error, StackTrace stack, {required bool fatal})?
+crashReporter;
+
 /// 잡히지 않은 오류의 처리기를 건다. `main`에서 runApp 전에 한 번 부른다. release에서는 `debugPrint`도
 /// 끈다(프레임워크와 플러그인이 찍는 문구에 예외 메시지가 섞일 수 있음).
 void installErrorHandlers() {
@@ -78,6 +84,11 @@ void handleFlutterError(FlutterErrorDetails details) {
     area: 'error',
     data: {'error': errorKind(details.exception)},
   );
+  crashReporter?.call(
+    details.exception,
+    details.stack ?? StackTrace.empty,
+    fatal: true,
+  );
   if (!kReleaseMode) FlutterError.presentError(details);
 }
 
@@ -86,6 +97,7 @@ void handleFlutterError(FlutterErrorDetails details) {
 /// 보도록. [handleFlutterError]와 같은 규칙).
 bool handleUncaughtError(Object error, StackTrace stack) {
   appLog('uncaught_error', area: 'error', data: {'error': errorKind(error)});
+  crashReporter?.call(error, stack, fatal: true);
   return kReleaseMode;
 }
 

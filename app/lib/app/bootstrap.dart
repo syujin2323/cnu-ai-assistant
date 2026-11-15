@@ -16,6 +16,7 @@
 // 띄우므로 이 파일을 부르지 않는다.
 
 import 'package:cnu_ai_assistant/app/config.dart';
+import 'package:cnu_ai_assistant/app/crash_reports.dart';
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/startup.dart';
@@ -109,6 +110,9 @@ Future<BootOutcome> bootstrap() async {
         realDatabaseProvider.overrideWithValue(realDb),
       ],
     );
+    // 잡히지 않은 오류를 오류 보고로도 보내고, 개인정보 처리 안내 동의에 맞춰 켜고 끈다(app/crash_reports.dart).
+    crashReporter = container.read(crashReportsProvider).recordUncaught;
+    listenCrashReportsConsent(container);
     await dateFormatting;
     await orientation;
     // 지금 모드의 폰 DB를 연다(데모면 데모 DB). 첫 화면이 기다리지 않고 DB를 읽게 여기서 끝낸다. 데모 DB를

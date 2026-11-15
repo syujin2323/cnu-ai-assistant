@@ -75,6 +75,7 @@ class PrivacySheet extends StatelessWidget {
           section('서버를 거치는 것', const [
             'AI 비서에 쓴 문장과 함께 보내는 것은 AI 사용에 동의했을 때만 해외 AI 제공사로 가요.',
             '앱 서버에는 설치마다 만든 무작위 값별 AI 호출 수(이틀)와 접속 기록(시각·IP, 30일)이 남아요.',
+            '앱이 멈추거나 오류가 나면 오류 종류와 코드 위치, 기기 모델·OS 버전, 설치마다 만든 무작위 값을 Google(Firebase Crashlytics)로 보내고 90일 동안 남아요. 할 일·일정·학번 같은 내용은 보내지 않아요.',
           ]),
           section('알아 둘 것', const [
             '꼭 허락해야 하는 권한은 없어요.',
