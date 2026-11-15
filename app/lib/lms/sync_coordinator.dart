@@ -776,7 +776,10 @@ class SyncCoordinator {
         diff = compareTimetable(
           existing: value.slots,
           fetched: slotsByCourse,
-          dropped: value.courseIds.difference(ids.values.toSet()),
+          // 과목 목록이 빈 목록으로 오면 일시적인 빈 응답일 수 있어 빠진 과목으로 보지 않는다.
+          dropped: records.isEmpty
+              ? const <int>{}
+              : value.courseIds.difference(ids.values.toSet()),
         );
       case Err(:final error):
         appLog('lms_sync_store_failed', area: 'lms', data: errorLogData(error));

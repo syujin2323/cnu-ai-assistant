@@ -812,6 +812,27 @@ void main() {
       expect(await db.select(db.classSlots).get(), hasLength(2));
     });
 
+    test('과목 목록이 빈 목록으로 오면 빠진 과목으로 보지 않는다', () async {
+      await importTimetable(withTimetable(FakeLmsServer(timetableRoutes())));
+      final server = FakeLmsServer({
+        ...timetableRoutes(),
+        'POST /api/synthetic-courses': (_) => FakeLmsResponse(
+          200,
+          contentType: 'application/json',
+          body: jsonEncode({
+            'header': {'code': 200},
+            'body': {'course_list': []},
+          }),
+        ),
+      });
+
+      final result = await importTimetable(withTimetable(server));
+
+      expect(result.kind, SyncResultKind.empty);
+      expect(result.timetableChanges, isEmpty);
+      expect(await db.select(db.classSlots).get(), hasLength(2));
+    });
+
     test('강의계획서 요청에서 세션이 끊겼으면 복원해 처음부터 다시 한다', () async {
       final plan = syntheticTimetableRoutes(
         slotsFor: slotsFor,
