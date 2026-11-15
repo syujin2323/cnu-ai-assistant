@@ -164,10 +164,14 @@ class TestApp {
   void releaseBriefingCheck() => _briefingCheck.release();
 
   /// 위젯 트리를 내려 provider를 정리한 뒤 DB를 닫는다(drift 스트림 타이머가 남지 않게).
+  ///
+  /// drift는 provider가 보던 스트림(`watch`)을 닫을 때 `Timer.run`으로 정리하고 `close`가 그 타이머를
+  /// 기다린다. 위젯 트리를 내린 뒤 그 타이머가 생기므로 가짜 시간을 조금 흘린 뒤 닫는다(흘리지 않으면 `close`가
+  /// 돌아오지 않는다).
   Future<void> dispose(WidgetTester tester) async {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
     await db.close();
     for (final demoDb in _demoDbs) {
       await demoDb.close();

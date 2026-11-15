@@ -17,6 +17,9 @@ abstract final class AppStrings {
   /// 03 할 일 LMS 정보 시트 아래.
   static const String unofficialReadOnly = '충남대 비공식 앱 · LMS에서 읽기만 해요';
 
+  /// 데모 모드에서 LMS 버튼(다시 로그인, LMS 정보 시트 등)을 눌렀을 때의 안내(docs/architecture.md '데모 모드').
+  static const String demoNoLms = '데모에서는 LMS에 연결하지 않아요';
+
   // 하단 탭(오늘 · 캘린더 · 할 일 · 나 순서). docs/screens.md '하단 탭과 AI 비서 버튼'.
   static const String tabToday = '오늘';
   static const String tabCalendar = '캘린더';
