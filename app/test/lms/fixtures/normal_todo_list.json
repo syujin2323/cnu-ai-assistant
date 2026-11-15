@@ -1,9 +1,32 @@
 {
   "header": {"code": 200, "msg": "합성"},
   "body": {
+    "todo_count": {"all_count": 2},
     "todo_list": [
-      {"course_id": "1", "class_no": "1", "course_nm": "과목A", "item_title_temp": "과제 1"},
-      {"course_id": "2", "class_no": "1", "course_nm": "과목B", "item_title_temp": "영상 1"}
+      {
+        "module_type": "K2",
+        "course_id": "C1",
+        "class_no": "1",
+        "course_nm": "과목A",
+        "item_title_temp": " 과제 1 ",
+        "info": "2026-11-20 23:59:00",
+        "edate_temp": "20261121235900",
+        "item_id": "R1",
+        "contents_id": "R1",
+        "week_no": 11,
+        "seq_no": 1
+      },
+      {
+        "module_type": "K1",
+        "course_id": "C2",
+        "class_no": 2,
+        "course_nm": "과목B",
+        "item_title_temp": "영상 1",
+        "info": "2026-11-22",
+        "contents_id": "V1",
+        "week_no": "12",
+        "seq_no": "2"
+      }
     ]
   }
 }
