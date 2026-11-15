@@ -651,3 +651,10 @@
   - dio의 리다이렉트 따라가기는 중간 응답의 쿠키를 돌려주지 않아 세션 넘기기 쿠키를 놓친다.
 - 다른 후보: 로그인 순서를 코드에 적고 상수만 받기(방식이 레포에 남고 순서가 바뀌면 패치가 필요), 기기 WebView의 User-Agent(모바일 경로), `cryptography` 패키지(비동기 API), dio `CookieManager`(쿠키가 금고 밖 파일 저장소에 남음).
 - 영향: lms.md '로그인'·'쿠키 금고'·'세션 상태'·'동기화'·'로그아웃'·'테스트', architecture.md '폴더 구조'·패키지 줄·'환경 변수', `app/lib/lms/`, `app/lib/data/remote_config.dart`. 콘솔의 `lms_request_params`에 `userAgent`·`login`(암호를 쓰면 `ciphers`도)을 넣어야 로그인 버튼이 켜진다.
+
+## 2026-11-15 개발용 로그인 없이 다음으로는 debug 빌드에 남긴다 (2026-11-06 '개발 중에는 debug 빌드에만 로그인 없이 넘어가는 길을 둔다'에서 미룬 것 정함)
+
+- 결정: debug 빌드(`kDebugMode`)에만 있는 14 온보딩 1단계의 개발용 '로그인 없이 다음으로'를 LMS 로그인이 붙은 뒤에도 남긴다. release·profile 빌드에는 그대로 없다.
+- 이유: 실제 계정 없이 실제 모드 화면과 온보딩 2–5단계를 개발하고 확인할 수 있어야 한다. 로그인할 때마다 같은 계정의 PC·웹 LMS 세션이 끊기므로(lms.md '원칙') 개발 중 확인을 모두 실제 로그인으로 하기 어렵다.
+- 다른 후보: LMS 로그인 PR에서 버튼과 `devLoginSkipAllowedProvider`를 빼기.
+- 영향: architecture.md '폴더 구조'의 LMS 연동 줄, screens.md '14 온보딩'.
