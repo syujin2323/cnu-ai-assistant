@@ -83,6 +83,7 @@ void main() {
       task(at(10, 30), at(11)),
       task(at(11, 15), at(12, 15)),
       task(at(13), at(13, 20)),
+      task(at(14), at(16)),
     ], now: at(8, 30));
     // 지금 08:30 → 08시 줄부터.
     expect(describe(result), [
@@ -91,6 +92,8 @@ void main() {
       '카드 150 44 short',
       '카드 198 53 short',
       '카드 300 44 short',
+      // 2시간 블록은 높이 116pt라 tall이다.
+      '카드 360 116 tall',
     ]);
   });
 
@@ -128,6 +131,8 @@ void main() {
         span(at(10, 10), at(10, 40)),
         span(at(12), at(13)),
         span(at(13, 30), at(18)),
+        // 지금 뒤지만 45분이 안 된다.
+        span(at(19), at(19, 40)),
       ],
       now: at(13, 50),
       showPast: true,
@@ -182,8 +187,9 @@ void main() {
   test('지금 하는 것은 하나만 표시하고 할 일 블록을 먼저 고른다', () {
     final result = layout(
       [
+        // 블록이 수업보다 먼저 놓여도(마지막 것이 아니어도) 블록을 고른다.
+        task(at(9, 50), at(10, 50)),
         lesson(at(10), at(11)),
-        task(at(10), at(10, 50)),
         task(at(9), at(9, 30), status: PlanBlockStatus.done),
       ],
       now: at(10, 20),
