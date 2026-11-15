@@ -1,8 +1,9 @@
 // LMS 설정 읽기 테스트. docs/lms.md '원격 스위치'·'호출 예산', docs/architecture.md '환경 변수'·'실행 방법'.
 //
 // 앱 열기 뒤의 `fetchAndActivate()`가 끝나기 전에는 Remote Config를 읽지 않고, 끝나면 원격 스위치, 해석한 요청
-// 상수, 호출 예산을 내놓는지 본다. 원격 값은 합성 값이다.
+// 상수, 호출 예산을 내놓는지, 그 뒤 실행 중에 바뀐 값을 다시 읽는지 본다. 원격 값은 합성 값이다.
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:cnu_ai_assistant/app/providers.dart';
@@ -26,11 +27,13 @@ void main() {
     required RemoteConfigFetch fetch,
     required LmsRemoteValues Function() values,
     String? schoolDomain = syntheticSchoolDomain,
+    Stream<void> updates = const Stream.empty(),
   }) {
     final container = ProviderContainer(
       overrides: [
         remoteConfigFetchProvider.overrideWithValue(fetch),
         lmsRemoteValuesProvider.overrideWithValue(values),
+        lmsRemoteUpdatesProvider.overrideWithValue(updates),
         if (schoolDomain != null)
           lmsSchoolDomainProvider.overrideWithValue(schoolDomain),
       ],
@@ -136,6 +139,125 @@ void main() {
       expect(config.budget, budget, reason: raw);
       expect(config.budgetParseFailed, failed, reason: raw);
     }
+  });
+
+  group('실행 중 갱신', () {
+    late StreamController<void> updates;
+    late bool enabled;
+    late String requestParams;
+    late String syncBudget;
+    late int reads;
+
+    setUp(() {
+      updates = StreamController<void>();
+      addTearDown(updates.close);
+      enabled = true;
+      requestParams = syntheticRequestParamsJson;
+      syncBudget = defaultBudget;
+      reads = 0;
+    });
+
+    ProviderContainer live({RemoteConfigFetch? fetch}) => containerWith(
+      fetch: fetch ?? (RemoteConfigFetch()..markDone()),
+      updates: updates.stream,
+      values: () {
+        reads++;
+        return (
+          enabled: enabled,
+          requestParams: requestParams,
+          syncBudget: syncBudget,
+        );
+      },
+    );
+
+    test('fetchAndActivate()가 끝난 뒤에만 갱신을 듣고, 버려지면 그만 듣는다', () async {
+      final fetch = RemoteConfigFetch();
+      final container = live(fetch: fetch);
+      final subscription = container.listen(lmsConfigProvider, (_, _) {});
+      await pumpEventQueue();
+      expect(updates.hasListener, isFalse);
+
+      fetch.markDone();
+      await container.read(lmsConfigProvider.future);
+      expect(updates.hasListener, isTrue);
+
+      subscription.close();
+      container.dispose();
+      expect(updates.hasListener, isFalse);
+    });
+
+    test('값이 바뀌었다는 알림을 받으면 다시 읽어 원격 스위치·요청 상수·호출 예산을 바꾼다', () async {
+      final container = live();
+      final seen = <LmsConfig?>[];
+      final subscription = container.listen(
+        lmsConfigProvider,
+        (_, next) => seen.add(next.value),
+      );
+      addTearDown(subscription.close);
+      expect(
+        await container.read(lmsConfigProvider.future),
+        LmsConfig(enabled: true, requestParams: synthetic),
+      );
+      seen.clear();
+
+      enabled = false;
+      updates.add(null);
+      await pumpEventQueue();
+      expect(seen, [LmsConfig(enabled: false, requestParams: synthetic)]);
+      expect(
+        await container.read(lmsConfigProvider.future),
+        LmsConfig(enabled: false, requestParams: synthetic),
+      );
+
+      enabled = true;
+      requestParams = '';
+      syncBudget = '';
+      updates.add(null);
+      await pumpEventQueue();
+      expect(
+        container.read(lmsConfigProvider).value,
+        const LmsConfig(
+          enabled: true,
+          requestParams: null,
+          budgetParseFailed: true,
+        ),
+      );
+    });
+
+    test('다시 읽은 값이 같으면 알리지 않는다', () async {
+      final container = live();
+      var notified = 0;
+      final subscription = container.listen(
+        lmsConfigProvider,
+        (_, _) => notified++,
+      );
+      addTearDown(subscription.close);
+      await container.read(lmsConfigProvider.future);
+      final before = notified;
+      final readsBefore = reads;
+
+      updates.add(null);
+      await pumpEventQueue();
+
+      expect(reads, readsBefore + 1);
+      expect(notified, before);
+    });
+
+    test('갱신 스트림의 오류는 기록만 하고 지난 값을 두며, 그 뒤 알림도 받는다', () async {
+      final container = live();
+      final subscription = container.listen(lmsConfigProvider, (_, _) {});
+      addTearDown(subscription.close);
+      await container.read(lmsConfigProvider.future);
+
+      enabled = false;
+      updates.addError(StateError('synthetic'));
+      await pumpEventQueue();
+      expect(container.read(lmsConfigProvider).value?.enabled, isTrue);
+
+      updates.add(null);
+      await pumpEventQueue();
+      expect(container.read(lmsConfigProvider).value?.enabled, isFalse);
+    });
   });
 
   test('LmsConfig는 네 값이 모두 같을 때만 같다', () {

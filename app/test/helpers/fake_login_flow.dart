@@ -16,13 +16,14 @@ import 'lms_samples.dart';
 
 /// `fetchAndActivate()`를 마친 것으로 두고 LMS 원격 값을 [enabled]·[requestParams]로 둔다. 요청 상수를 주지
 /// 않으면 합성 요청 상수(받은 상태)이고, 빈 문자열이면 '설정 없음'이다. 학교 도메인은 합성 샘플의 호스트로 바꾸고,
-/// 호출 예산은 앱 기본값이다.
+/// 호출 예산은 앱 기본값이며, 실행 중에 값이 바뀌지 않는다.
 List<Override> lmsConfigOverrides({
   bool enabled = true,
   String? requestParams,
 }) => [
   remoteConfigFetchProvider.overrideWithValue(RemoteConfigFetch()..markDone()),
   lmsSchoolDomainProvider.overrideWithValue(syntheticSchoolDomain),
+  lmsRemoteUpdatesProvider.overrideWithValue(const Stream.empty()),
   lmsRemoteValuesProvider.overrideWithValue(
     () => (
       enabled: enabled,
