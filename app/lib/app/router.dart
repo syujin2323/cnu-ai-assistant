@@ -22,6 +22,7 @@
 
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
+import 'package:cnu_ai_assistant/app/update_required.dart';
 import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_tab_bar.dart';
@@ -40,6 +41,7 @@ import 'package:cnu_ai_assistant/features/me/me_screen.dart';
 import 'package:cnu_ai_assistant/features/me/rules_screen.dart';
 import 'package:cnu_ai_assistant/features/me/timetable_screen.dart';
 import 'package:cnu_ai_assistant/features/onboarding/onboarding_screen.dart';
+import 'package:cnu_ai_assistant/features/system/update_required_screen.dart';
 import 'package:cnu_ai_assistant/features/tasks/task_detail_screen.dart';
 import 'package:cnu_ai_assistant/features/tasks/task_list_screen.dart';
 import 'package:cnu_ai_assistant/features/today/day_screen.dart';
@@ -117,6 +119,9 @@ abstract final class Routes {
   /// 담는다(사용자가 쓴 문장을 경로에 넣지 않음).
   static const String assistant = '/assistant';
 
+  /// 20 시스템의 업데이트 필요. 앱 버전이 최소 지원 버전보다 낮으면 어느 화면에서든 여기로 막는다.
+  static const String update = '/update';
+
   // 하위 경로 조각과 경로·쿼리 매개변수 이름. 라우터 정의에만 쓴다.
   static const String _daySegment = 'day';
   static const String _monthSegment = 'month';
@@ -152,6 +157,13 @@ final routerProvider = Provider<GoRouter>((ref) {
   }
 
   final startRules = ref.read(startRulesProvider);
+  // 업데이트 필요가 바뀌면(Remote Config를 받은 뒤 등) redirect를 다시 돌려 막거나 푼다.
+  final updateRequired = ValueNotifier<bool>(ref.read(updateRequiredProvider));
+  ref.listen<bool>(
+    updateRequiredProvider,
+    (_, next) => updateRequired.value = next,
+  );
+  ref.onDispose(updateRequired.dispose);
   late final GoRouter router;
   router = GoRouter(
     navigatorKey: rootNavigatorKey,
@@ -160,6 +172,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     // 그 경로로 열면 시작 위치 규칙을 거치지 않아 온보딩을 건너뛸 수 있다. 실행 중에 들어오는
     // 딥링크는 AndroidManifest의 `flutter_deeplinking_enabled` false가 막는다.
     overridePlatformDefaultLocation: true,
+    refreshListenable: updateRequired,
     redirect: (context, state) => _redirect(
       ref,
       state,
@@ -181,6 +194,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.login,
         builder: (context, state) => const ReloginScreen(),
+      ),
+      GoRoute(
+        path: Routes.update,
+        builder: (context, state) => const UpdateRequiredScreen(),
       ),
       GoRoute(
         path: Routes.briefing,
@@ -308,7 +325,10 @@ final routerProvider = Provider<GoRouter>((ref) {
 
 /// 시작 위치를 정하는 한 곳(docs/architecture.md '화면 이동', '데모 모드').
 ///
-/// 시작 위치(`/`)에서 순서대로 정한다. 업데이트 필요(R1)·앱 잠금(스토어 공개 뒤) 화면이 생기면 맨 앞에서 본다.
+/// 업데이트가 필요하면(`updateRequiredProvider`) 어느 위치에서든 `/update`로 막고, 필요 없어지면 `/update`에서
+/// 시작 위치로 보낸다. 앱 잠금(스토어 공개 뒤) 화면이 생기면 그 뒤에서 본다.
+///
+/// 시작 위치(`/`)에서 순서대로 정한다.
 /// 실제 모드에서 온보딩을 끝내지 않았거나 LMS 상태가 로그인 전(`disconnected`·`connecting`. 로그아웃 뒤처럼
 /// 로그인 정보가 없거나 로그인하는 중)이면 `/onboarding` → 알림 payload 경로(알림은 재설계 예정. 순서는 재설계 때 다시 봄) →
 /// 오늘(논리적 하루)의 브리핑을 아직 보지 않았으면 `/briefing` → 그 밖에는 `/today`다. 데모 모드면
@@ -331,6 +351,10 @@ Future<String?> _redirect(
   required String Function() previousPath,
 }) async {
   final location = state.uri.path;
+  if (ref.read(updateRequiredProvider)) {
+    return location == Routes.update ? null : Routes.update;
+  }
+  if (location == Routes.update) return Routes.root;
   if (location != Routes.root && location != Routes.onboarding) return null;
   final toOnboarding = location == Routes.onboarding;
   // payload는 앱을 켤 때 `/`에서 한 번만 꺼낸다. 온보딩으로 보낼 때와 데모 모드에서는 쓰지 않고 버린다.
