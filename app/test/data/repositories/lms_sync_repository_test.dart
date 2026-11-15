@@ -1,3 +1,4 @@
+import 'package:cnu_ai_assistant/domain/models/imported_class_slot.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/lms_sync_repository.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
@@ -8,7 +9,6 @@ import 'package:cnu_ai_assistant/domain/models/lms_item_change.dart';
 import 'package:cnu_ai_assistant/domain/models/task.dart';
 import 'package:cnu_ai_assistant/domain/models/value_codec.dart';
 import 'package:cnu_ai_assistant/lms/parsers/course_list_parser.dart';
-import 'package:cnu_ai_assistant/lms/parsers/timetable_parser.dart';
 import 'package:cnu_ai_assistant/lms/parsers/todo_list_parser.dart';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:flutter_test/flutter_test.dart';
@@ -76,13 +76,13 @@ void main() {
       final added = await ok(
         repo.addImportedSlots({
           a: const [
-            LmsImportedSlot(
+            ImportedClassSlot(
               weekday: 1,
               startMin: 540,
               endMin: 615,
               place: '합성관101',
             ),
-            LmsImportedSlot(weekday: 3, startMin: 540, endMin: 615),
+            ImportedClassSlot(weekday: 3, startMin: 540, endMin: 615),
           ],
           b: const [],
         }),
@@ -112,43 +112,53 @@ void main() {
       expect(rows.last.importedPlace, isNull);
     });
 
-    test('이미 불러온 수업이 있는 과목은 건드리지 않고, 직접 넣은 수업만 있으면 넣는다', () async {
+    test('정해 준 칸을 그대로 넣는다(이미 불러온 수업이 있는 과목에도)', () async {
       final a = await manualCourse('과목A', remoteId: 'A/1', semester: _semester);
-      final b = await manualCourse('과목B', remoteId: 'B/1', semester: _semester);
-      const slot = LmsImportedSlot(weekday: 2, startMin: 600, endMin: 660);
+      const slot = ImportedClassSlot(weekday: 2, startMin: 600, endMin: 660);
       await ok(
         repo.addImportedSlots({
           a: const [slot],
         }),
       );
-      await db
-          .into(db.classSlots)
-          .insert(
-            ClassSlotsCompanion.insert(
-              courseId: b,
-              weekday: 4,
-              startMin: 600,
-              endMin: 660,
-              campus: Campus.daedeok,
-              online: false,
-              source: SlotSource.manual,
-            ),
-          );
 
       final added = await ok(
         repo.addImportedSlots({
-          a: const [LmsImportedSlot(weekday: 5, startMin: 600, endMin: 660)],
-          b: const [slot],
+          a: const [ImportedClassSlot(weekday: 5, startMin: 600, endMin: 660)],
         }),
       );
 
       expect(added, 1);
-      final rows = await slots();
-      expect(rows.where((r) => r.courseId == a).map((r) => r.weekday), [2]);
-      expect(
-        rows.where((r) => r.courseId == b).map((r) => (r.weekday, r.source)),
-        [(4, SlotSource.manual), (2, SlotSource.auto)],
-      );
+      expect((await slots()).map((r) => r.weekday), [2, 5]);
+    });
+  });
+
+  group('importedSlots', () {
+    test('이번 학기 LMS 과목과 그 과목들의 불러온 수업만 읽는다', () async {
+      final a = await manualCourse('과목A', remoteId: 'A/1', semester: _semester);
+      final old = await manualCourse('옛 과목', remoteId: 'O/1', semester: _older);
+      final mine = await manualCourse('직접 만든 과목');
+      Future<void> slot(int courseId, SlotSource source, int weekday) => db
+          .into(db.classSlots)
+          .insert(
+            ClassSlotsCompanion.insert(
+              courseId: courseId,
+              weekday: weekday,
+              startMin: 600,
+              endMin: 660,
+              campus: Campus.daedeok,
+              online: false,
+              source: source,
+            ),
+          );
+      await slot(a, SlotSource.auto, 1);
+      await slot(a, SlotSource.manual, 2);
+      await slot(old, SlotSource.auto, 3);
+      await slot(mine, SlotSource.auto, 4);
+
+      final read = await ok(repo.importedSlots(semester: _semester));
+
+      expect(read.courseIds, {a});
+      expect(read.slots.map((s) => (s.courseId, s.weekday)), [(a, 1)]);
     });
   });
 

@@ -24,6 +24,7 @@ abstract final class SettingKeys {
   static const lmsLastSuccessAt = 'lmsLastSuccessAt';
   static const lmsLastConnectedAt = 'lmsLastConnectedAt';
   static const lmsCredentialRejected = 'lmsCredentialRejected';
+  static const lmsTimetableImportedAt = 'lmsTimetableImportedAt';
   static const checkinMin = 'checkinMin';
   static const dueTodayTimeSensitive = 'dueTodayTimeSensitive';
   static const onboardingSkipped = 'onboardingSkipped';
@@ -41,6 +42,7 @@ abstract final class SettingKeys {
     lmsLastSuccessAt,
     lmsLastConnectedAt,
     lmsCredentialRejected,
+    lmsTimetableImportedAt,
     checkinMin,
     dueTodayTimeSensitive,
     onboardingSkipped,
@@ -61,6 +63,7 @@ class AppSettings {
     required this.lmsLastSuccessAt,
     required this.lmsLastConnectedAt,
     required this.lmsCredentialRejected,
+    required this.lmsTimetableImportedAt,
     required this.checkinMin,
     required this.dueTodayTimeSensitive,
     required this.onboardingSkipped,
@@ -79,6 +82,7 @@ class AppSettings {
     lmsLastSuccessAt: null,
     lmsLastConnectedAt: null,
     lmsCredentialRejected: false,
+    lmsTimetableImportedAt: null,
     checkinMin: null,
     dueTodayTimeSensitive: false,
     onboardingSkipped: [],
@@ -119,6 +123,9 @@ class AppSettings {
       lmsCredentialRejected:
           _boolOrNull(values[SettingKeys.lmsCredentialRejected]) ??
           d.lmsCredentialRejected,
+      lmsTimetableImportedAt:
+          tryDecodeDateTime(values[SettingKeys.lmsTimetableImportedAt]) ??
+          d.lmsTimetableImportedAt,
       checkinMin:
           _minuteOfDayOrNull(values[SettingKeys.checkinMin]) ?? d.checkinMin,
       dueTodayTimeSensitive:
@@ -169,6 +176,10 @@ class AppSettings {
   /// false로 돌린다. 앱을 다시 켜도 남고 백그라운드도 읽는다.
   final bool lmsCredentialRejected;
 
+  /// 통합정보시스템에서 시간표를 마지막으로 불러온 시각(처음 불러오기와 13 시간표·고정 일정의 새로 고침). 13의 부제
+  /// '{날짜} 불러옴'에 쓴다. 불러온 적이 없으면 null이다.
+  final DateTime? lmsTimetableImportedAt;
+
   /// 저녁 체크인 시각(자정 기준 분). null이면 [Defaults.checkinMin]. 저녁 체크인은 임시로 뺐고
   /// (docs/decisions.md 2026-11-15) 이 키는 기능을 다시 정할 때 함께 본다.
   final int? checkinMin;
@@ -202,6 +213,7 @@ class AppSettings {
       SettingKeys.privacyConsentAt ||
       SettingKeys.lmsLastSuccessAt ||
       SettingKeys.lmsLastConnectedAt ||
+      SettingKeys.lmsTimetableImportedAt ||
       SettingKeys.installedAt =>
         value == null ? null : encodeDateTime(_require<DateTime>(key, value)),
       SettingKeys.metricsLastSentOn =>
@@ -230,6 +242,7 @@ class AppSettings {
     SettingKeys.lmsLastSuccessAt => lmsLastSuccessAt,
     SettingKeys.lmsLastConnectedAt => lmsLastConnectedAt,
     SettingKeys.lmsCredentialRejected => lmsCredentialRejected,
+    SettingKeys.lmsTimetableImportedAt => lmsTimetableImportedAt,
     SettingKeys.checkinMin => checkinMin,
     SettingKeys.dueTodayTimeSensitive => dueTodayTimeSensitive,
     SettingKeys.onboardingSkipped => onboardingSkipped,
@@ -249,6 +262,7 @@ class AppSettings {
     Object? lmsLastSuccessAt = _keep,
     Object? lmsLastConnectedAt = _keep,
     bool? lmsCredentialRejected,
+    Object? lmsTimetableImportedAt = _keep,
     Object? checkinMin = _keep,
     bool? dueTodayTimeSensitive,
     List<int>? onboardingSkipped,
@@ -276,6 +290,9 @@ class AppSettings {
           : lmsLastConnectedAt as DateTime?,
       lmsCredentialRejected:
           lmsCredentialRejected ?? this.lmsCredentialRejected,
+      lmsTimetableImportedAt: identical(lmsTimetableImportedAt, _keep)
+          ? this.lmsTimetableImportedAt
+          : lmsTimetableImportedAt as DateTime?,
       checkinMin: identical(checkinMin, _keep)
           ? this.checkinMin
           : checkinMin as int?,
@@ -301,6 +318,7 @@ class AppSettings {
       other.lmsLastSuccessAt == lmsLastSuccessAt &&
       other.lmsLastConnectedAt == lmsLastConnectedAt &&
       other.lmsCredentialRejected == lmsCredentialRejected &&
+      other.lmsTimetableImportedAt == lmsTimetableImportedAt &&
       other.checkinMin == checkinMin &&
       other.dueTodayTimeSensitive == dueTodayTimeSensitive &&
       _sameInts(other.onboardingSkipped, onboardingSkipped) &&
@@ -318,6 +336,7 @@ class AppSettings {
     lmsLastSuccessAt,
     lmsLastConnectedAt,
     lmsCredentialRejected,
+    lmsTimetableImportedAt,
     checkinMin,
     dueTodayTimeSensitive,
     Object.hashAll(onboardingSkipped),

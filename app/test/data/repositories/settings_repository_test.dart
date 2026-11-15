@@ -63,6 +63,7 @@ void main() {
       expect(settings.lmsLastSuccessAt, isNull);
       expect(settings.lmsLastConnectedAt, isNull);
       expect(settings.lmsCredentialRejected, isFalse);
+      expect(settings.lmsTimetableImportedAt, isNull);
       expect(settings.checkinMin, isNull);
       expect(settings.dueTodayTimeSensitive, isFalse);
       expect(settings.onboardingSkipped, isEmpty);
@@ -82,6 +83,7 @@ void main() {
         'lmsLastSuccessAt': null,
         'lmsLastConnectedAt': null,
         'lmsCredentialRejected': false,
+        'lmsTimetableImportedAt': null,
         'checkinMin': null,
         'dueTodayTimeSensitive': false,
         'onboardingSkipped': <int>[],
@@ -105,6 +107,8 @@ void main() {
         LmsSessionState.reconnectRequired,
       );
       await writeOk(SettingKeys.lmsCredentialRejected, true);
+      final importedAt = DateTime(2026, 11, 15, 14, 20);
+      await writeOk(SettingKeys.lmsTimetableImportedAt, importedAt);
       await writeOk(SettingKeys.checkinMin, 1350);
       await writeOk(SettingKeys.dueTodayTimeSensitive, true);
       await writeOk(SettingKeys.onboardingSkipped, [3, 4]);
@@ -119,6 +123,7 @@ void main() {
           metricsLastSentOn: '2026-10-28',
           lmsSessionState: LmsSessionState.reconnectRequired,
           lmsCredentialRejected: true,
+          lmsTimetableImportedAt: importedAt,
           checkinMin: 1350,
           dueTodayTimeSensitive: true,
           onboardingSkipped: [3, 4],

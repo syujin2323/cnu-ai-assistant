@@ -25,11 +25,15 @@
 //
 // 시간표 불러오기(`timetable`, docs/lms.md '시간표 (통합정보시스템)')도 같은 차례(설정·상태·잠금·세션 복원)를 지난다.
 // 과목 목록을 묻고 쓴 뒤 과목마다 강의계획서 요청(LMS. 세션이 끊겼는지 여기서 가림)과 그 뒤 요청(통합정보시스템)을 차례로
-// 보내 시간표 글자를 읽고, 처음 불러오는 과목의 수업 칸을 넣는다. 과목 하나가 실패하면 그 과목만 건너뛴다(`partial`).
-// 동기화 기록(`sync_runs`)과 마지막 확인 시각에는 남기지 않고, 다른 범위가 도는 중이면 끝나기를 기다렸다가 한다.
+// 보내 시간표 글자를 읽고, 폰 DB의 불러온 수업과 견줘(`domain/timetable_refresh.dart`) 새 수업은 바로 넣고 바뀌거나
+// 없어진 수업은 결과([SyncResult.timetableChanges])로 내놓는다(반영은 13 화면이 고른 것만
+// `TimetableRefreshRepository`가 함). 불러온 시각은 `settings`의 `lmsTimetableImportedAt`에 적는다. 과목 하나가
+// 실패하면 그 과목만 건너뛴다(`partial`). 동기화 기록(`sync_runs`)과 마지막 확인 시각에는 남기지 않고, 다른 범위가 도는
+// 중이면 끝나기를 기다렸다가 한다.
 
 import 'dart:async';
 
+import 'package:cnu_ai_assistant/domain/models/imported_class_slot.dart';
 import 'package:cnu_ai_assistant/app/crash_reports.dart';
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
@@ -45,6 +49,7 @@ import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/domain/models/sync_lease.dart';
 import 'package:cnu_ai_assistant/domain/models/sync_run.dart';
+import 'package:cnu_ai_assistant/domain/timetable_refresh.dart';
 import 'package:cnu_ai_assistant/lms/cookie_vault.dart';
 import 'package:cnu_ai_assistant/lms/lms_client.dart';
 import 'package:cnu_ai_assistant/lms/lms_config.dart';
@@ -68,15 +73,21 @@ final class SyncResult {
     this.failedCourseIds = const [],
     this.duration = Duration.zero,
     this.detail,
+    this.timetableChanges = const [],
   });
 
   final SyncResultKind kind;
 
-  /// 새로 보였거나 바뀌었거나 사라진 항목 수.
+  /// 새로 보였거나 바뀌었거나 사라진 항목 수. 시간표 불러오기는 바로 넣은 새 수업 칸 수다.
   final int changedCount;
 
-  /// 상세 조회에 실패한 과목(`courses.id`). 상세 조회를 붙이면 채운다.
+  /// 조회에 실패한 과목(`courses.id`). 시간표 불러오기는 시간표를 받지 못해 건너뛴 과목이고, 상세 조회는 붙이면
+  /// 채운다.
   final List<int> failedCourseIds;
+
+  /// 시간표 불러오기에서 반영할지 물을 바뀜(학교 쪽 시간·강의실이 바뀐 수업, 원래 값과 다르게 고친 수업, 없어진 수업).
+  /// 13 화면이 보이고 고른 것만 `TimetableRefreshRepository.apply`로 반영한다. 다른 범위는 늘 비어 있다.
+  final List<TimetableChange> timetableChanges;
 
   final Duration duration;
 
@@ -164,6 +175,7 @@ class SyncCoordinator {
       int changed = 0,
       String? detail,
       List<int> failedCourseIds = const [],
+      List<TimetableChange> timetableChanges = const [],
     }) async {
       final note = detail ?? budgetNote;
       final elapsed = stopwatch.elapsedMilliseconds;
@@ -195,6 +207,7 @@ class SyncCoordinator {
           'kind': kind.name,
           'changed': changed,
           'failed': failedCourseIds.length,
+          'asks': timetableChanges.length,
           'ms': elapsed,
           'detail': ?note,
         },
@@ -205,6 +218,7 @@ class SyncCoordinator {
         failedCourseIds: failedCourseIds,
         duration: stopwatch.elapsed,
         detail: note,
+        timetableChanges: timetableChanges,
       );
     }
 
@@ -352,6 +366,7 @@ class SyncCoordinator {
         changed: attempt.changed,
         detail: attempt.field,
         failedCourseIds: attempt.failedCourseIds,
+        timetableChanges: attempt.timetableChanges,
       );
     } finally {
       await _saveCookies(connection.jar, connection.userAgent, params);
@@ -675,9 +690,9 @@ class SyncCoordinator {
     }
   }
 
-  /// 시간표 불러오기: 과목 목록을 묻고 쓴 뒤 과목마다 시간표를 읽고([_courseTimetable]), 처음 불러오는 과목의 수업
-  /// 칸을 넣는다. 세션이 끊기면 그 자리에서 멈추고(복원은 [_fetch]가 함), 과목 하나가 실패하면 그 과목만 건너뛴다.
-  /// 모든 과목이 실패하면 첫 실패의 종류다.
+  /// 시간표 불러오기: 과목 목록을 묻고 쓴 뒤 과목마다 시간표를 읽고([_courseTimetable]), 폰 DB의 불러온 수업과 견줘
+  /// 새 수업은 넣고 반영할지 물을 바뀜을 내놓는다. 세션이 끊기면 그 자리에서 멈추고(복원은 [_fetch]가 함), 과목 하나가
+  /// 실패하면 그 과목만 건너뛴다(그 과목의 수업은 견주지 않음). 모든 과목이 실패하면 첫 실패의 종류다.
   Future<_Attempt> _queryTimetable({
     required LmsRequestRunner runner,
     required LmsResponseClassifier classifier,
@@ -713,7 +728,7 @@ class SyncCoordinator {
         return const _Attempt(SyncResultKind.parseFailure, field: 'storage');
     }
 
-    final slotsByCourse = <int, List<LmsImportedSlot>>{};
+    final slotsByCourse = <int, List<ImportedClassSlot>>{};
     final failed = <int>[];
     _Attempt? firstFailure;
     final reported = <String>{};
@@ -755,8 +770,31 @@ class SyncCoordinator {
     if (records.isNotEmpty && slotsByCourse.isEmpty && firstFailure != null) {
       return firstFailure;
     }
-    switch (await _store.addImportedSlots(slotsByCourse)) {
+    final TimetableDiff diff;
+    switch (await _store.importedSlots(semester: sync.semester)) {
       case Ok(:final value):
+        diff = compareTimetable(
+          existing: value.slots,
+          fetched: slotsByCourse,
+          dropped: value.courseIds.difference(ids.values.toSet()),
+        );
+      case Err(:final error):
+        appLog('lms_sync_store_failed', area: 'lms', data: errorLogData(error));
+        return const _Attempt(SyncResultKind.parseFailure, field: 'storage');
+    }
+    switch (await _store.addImportedSlots(diff.added)) {
+      case Ok(:final value):
+        final written = await _settings.write(
+          SettingKeys.lmsTimetableImportedAt,
+          startedAt,
+        );
+        if (written case Err(:final error)) {
+          appLog(
+            'lms_timetable_time_failed',
+            area: 'lms',
+            data: errorLogData(error),
+          );
+        }
         return _Attempt(
           records.isEmpty
               ? SyncResultKind.empty
@@ -765,6 +803,7 @@ class SyncCoordinator {
               : SyncResultKind.partial,
           changed: value,
           failedCourseIds: failed,
+          timetableChanges: diff.changes,
         );
       case Err(:final error):
         appLog('lms_sync_store_failed', area: 'lms', data: errorLogData(error));
@@ -925,6 +964,7 @@ final class _Attempt {
     this.field,
     this.failedCourseIds = const [],
     this.slots = const [],
+    this.timetableChanges = const [],
   });
 
   final SyncResultKind kind;
@@ -937,7 +977,10 @@ final class _Attempt {
   final List<int> failedCourseIds;
 
   /// 과목 하나의 시간표를 읽은 수업 칸([SyncCoordinator._courseTimetable]).
-  final List<LmsImportedSlot> slots;
+  final List<ImportedClassSlot> slots;
+
+  /// 시간표 불러오기에서 반영할지 물을 바뀜.
+  final List<TimetableChange> timetableChanges;
 
   /// 세션이 끊겼다는 판별인지.
   bool get sessionLost =>

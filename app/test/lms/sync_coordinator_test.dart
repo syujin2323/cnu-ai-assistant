@@ -16,6 +16,7 @@ import 'package:cnu_ai_assistant/domain/models/class_slot.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/domain/models/sync_lease.dart';
 import 'package:cnu_ai_assistant/domain/models/sync_run.dart';
+import 'package:cnu_ai_assistant/domain/timetable_refresh.dart';
 import 'package:cnu_ai_assistant/lms/cookie_vault.dart';
 import 'package:cnu_ai_assistant/lms/lms_client.dart';
 import 'package:cnu_ai_assistant/lms/lms_config.dart';
@@ -740,6 +741,74 @@ void main() {
 
       expect(again.kind, SyncResultKind.normal);
       expect(again.changedCount, 0);
+      expect(await db.select(db.classSlots).get(), hasLength(2));
+    });
+
+    test('다시 불러오면 견줘 새 수업은 바로 넣고 바뀐 수업은 결과로 내놓으며, 불러온 시각을 적는다', () async {
+      await importTimetable(withTimetable(FakeLmsServer(timetableRoutes())));
+
+      final result = await importTimetable(
+        withTimetable(
+          FakeLmsServer(
+            timetableRoutes(
+              slots: (code) => code == 'C1-1'
+                  ? '월|09:00|10:15|합성관202; 금|13:00|14:00|합성관101'
+                  : '화|10:00|11:00|합성관303',
+            ),
+          ),
+        ),
+      );
+
+      expect(result.kind, SyncResultKind.normal);
+      expect(result.changedCount, 1);
+      final updates = result.timetableChanges.cast<TimetableSlotUpdate>();
+      expect(updates.map((u) => (u.slot.weekday, u.to.weekday)), [
+        (1, 1),
+        (3, 5),
+      ]);
+      expect(updates.map((u) => u.reasons), [
+        {TimetableUpdateReason.schoolPlace},
+        {TimetableUpdateReason.schoolTime},
+      ]);
+      final b = await courseId('2/2');
+      final rows = await db.select(db.classSlots).get();
+      expect(
+        rows.where((r) => r.courseId == b).map((r) => (r.weekday, r.place)),
+        [(2, '합성관303')],
+      );
+      // 반영은 13 화면이 고른 것만 하므로 지금 칸은 그대로다.
+      expect(
+        rows.where((r) => r.courseId != b).map((r) => (r.weekday, r.place)),
+        [(1, '합성관101'), (3, '합성관101')],
+      );
+      expect((await readSettings()).lmsTimetableImportedAt, _now);
+    });
+
+    test('과목 목록에서 빠진 이번 학기 과목의 불러온 수업은 지울지 묻는다', () async {
+      await importTimetable(withTimetable(FakeLmsServer(timetableRoutes())));
+      final server = FakeLmsServer({
+        ...timetableRoutes(),
+        'POST /api/synthetic-courses': (_) => FakeLmsResponse(
+          200,
+          contentType: 'application/json',
+          body: jsonEncode({
+            'header': {'code': 200},
+            'body': {
+              'course_list': [
+                {'course_id': 2, 'class_no': 2, 'course_nm': '과목B'},
+              ],
+            },
+          }),
+        ),
+      });
+
+      final result = await importTimetable(withTimetable(server));
+
+      expect(result.kind, SyncResultKind.normal);
+      expect(
+        result.timetableChanges.map((c) => (c.runtimeType, c.slot.weekday)),
+        [(TimetableSlotRemoval, 1), (TimetableSlotRemoval, 3)],
+      );
       expect(await db.select(db.classSlots).get(), hasLength(2));
     });
 

@@ -1,5 +1,6 @@
 // 시간표 글자 해석 테스트. docs/lms.md '시간표 (통합정보시스템)'. 글자 꼴과 정규식은 합성 값이다.
 
+import 'package:cnu_ai_assistant/domain/models/imported_class_slot.dart';
 import 'package:cnu_ai_assistant/lms/parsers/timetable_parser.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -15,21 +16,21 @@ void main() {
         pattern,
       ),
       const [
-        LmsImportedSlot(
+        ImportedClassSlot(
           weekday: 1,
           startMin: 540,
           endMin: 615,
           place: '합성관101',
         ),
-        LmsImportedSlot(weekday: 3, startMin: 540, endMin: 615),
-        LmsImportedSlot(weekday: 5, startMin: 810, endMin: 900),
+        ImportedClassSlot(weekday: 3, startMin: 540, endMin: 615),
+        ImportedClassSlot(weekday: 5, startMin: 810, endMin: 900),
       ],
     );
   });
 
   test('일요일까지 요일을 읽고, 같은 칸이 두 번 나오면 한 번만 쓴다', () {
     expect(parseTimetableSlots('일|20:00|21:00; 일|20:00|21:00', pattern), const [
-      LmsImportedSlot(weekday: 7, startMin: 1200, endMin: 1260),
+      ImportedClassSlot(weekday: 7, startMin: 1200, endMin: 1260),
     ]);
   });
 
@@ -55,7 +56,7 @@ void main() {
       r'(?<day>[월화수목금토일])\|(?<start>\d{1,2}:\d{2})\|(?<end>\d{1,2}:\d{2})',
     );
     expect(parseTimetableSlots('화|08:00|09:00|합성관', noPlace), const [
-      LmsImportedSlot(weekday: 2, startMin: 480, endMin: 540),
+      ImportedClassSlot(weekday: 2, startMin: 480, endMin: 540),
     ]);
   });
 }

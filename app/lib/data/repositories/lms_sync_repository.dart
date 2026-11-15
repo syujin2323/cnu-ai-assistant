@@ -13,12 +13,13 @@ import 'package:cnu_ai_assistant/data/repositories/guard_storage.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/lms_to_task.dart';
+import 'package:cnu_ai_assistant/domain/models/class_slot.dart';
+import 'package:cnu_ai_assistant/domain/models/imported_class_slot.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_item_change.dart';
 import 'package:cnu_ai_assistant/domain/models/task.dart';
 import 'package:cnu_ai_assistant/domain/models/value_codec.dart';
-import 'package:cnu_ai_assistant/domain/models/class_slot.dart';
+import 'package:cnu_ai_assistant/domain/timetable_refresh.dart';
 import 'package:cnu_ai_assistant/lms/parsers/course_list_parser.dart';
-import 'package:cnu_ai_assistant/lms/parsers/timetable_parser.dart';
 import 'package:cnu_ai_assistant/lms/parsers/todo_list_parser.dart';
 import 'package:drift/drift.dart';
 
@@ -42,28 +43,49 @@ class LmsSyncRepository {
 
   final AppDatabase _db;
 
-  /// 시간표 불러오기가 받은 과목별 수업 칸 [slotsByCourse](`courses.id` → 칸)를 불러온 수업(`source` `auto`)으로
-  /// 넣는다. 돌려주는 값은 넣은 칸 수다.
+  /// 이번 학기([semester]) LMS 과목(`courses.id`)과 그 과목들의 불러온 수업(`source` `auto`). 시간표 새로 고침이
+  /// 견줄 때 쓴다(`domain/timetable_refresh.dart`).
+  Future<Result<({Set<int> courseIds, List<ClassSlot> slots})>> importedSlots({
+    required String semester,
+  }) => guardStorage(
+    'lmsSync.importedSlots',
+    () => _db.transaction(() async {
+      final courses = _db.courses;
+      final courseIds =
+          (await (_db.selectOnly(courses)
+                    ..addColumns([courses.id])
+                    ..where(
+                      courses.semester.equals(semester) &
+                          courses.remoteId.isNotNull(),
+                    ))
+                  .map((row) => row.read(courses.id)!)
+                  .get())
+              .toSet();
+      final slots =
+          await (_db.select(_db.classSlots)..where(
+                (t) =>
+                    t.source.equalsValue(SlotSource.auto) &
+                    t.courseId.isIn(courseIds),
+              ))
+              .get();
+      return (courseIds: courseIds, slots: slots);
+    }),
+  );
+
+  /// 시간표 불러오기가 정한 새 수업 칸 [slotsByCourse](`courses.id` → 칸)를 불러온 수업(`source` `auto`)으로 넣는다.
+  /// 돌려주는 값은 넣은 칸 수다.
   ///
-  /// 처음 불러오기(14 온보딩 1단계 로그인)만 쓴다. 이미 불러온 수업이 있는 과목은 건드리지 않는다(새로 고침의 비교·반영은
-  /// 따로 한다). 넣는 칸의 불러온 원래 값(`imported*`)은 그 칸의 값과 같고, 캠퍼스는 대덕(시간표에 캠퍼스가 없어
-  /// 사용자가 13 시간표에서 고침), 실시간 온라인은 아님이다. 되돌리기 기록은 남기지 않는다.
+  /// 어떤 칸을 넣을지는 견준 결과(`domain/timetable_refresh.dart`의 [TimetableDiff.added])가 정한다. 넣는 칸의 불러온
+  /// 원래 값(`imported*`)은 그 칸의 값과 같고, 캠퍼스는 대덕(시간표에 캠퍼스가 없어 사용자가 13 시간표에서 고침),
+  /// 실시간 온라인은 아님이다. 사용자 동작이 아니므로 되돌리기 기록은 남기지 않는다.
   Future<Result<int>> addImportedSlots(
-    Map<int, List<LmsImportedSlot>> slotsByCourse,
+    Map<int, List<ImportedClassSlot>> slotsByCourse,
   ) => guardStorage(
     'lmsSync.addImportedSlots',
     () => _db.transaction(() async {
       var added = 0;
       for (final MapEntry(key: courseId, value: slots)
           in slotsByCourse.entries) {
-        final existing =
-            await (_db.select(_db.classSlots)..where(
-                  (t) =>
-                      t.courseId.equals(courseId) &
-                      t.source.equalsValue(SlotSource.auto),
-                ))
-                .get();
-        if (existing.isNotEmpty) continue;
         for (final slot in slots) {
           await _db
               .into(_db.classSlots)
