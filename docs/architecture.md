@@ -64,8 +64,9 @@ cnu-ai-assistant/
 │   ├── src/index.ts          함수 진입점(서울 리전, HTTPS 함수 api 하나)
 │   ├── src/app.ts            Express 앱(요청 로그 → 본문 읽기·크기 확인 → 경로 → 없는 경로 → 오류 응답). 경로는 src/routes.ts에서 붙임
 │   ├── src/params.ts         설정값·비밀값 선언
-│   ├── src/http/             오류 응답 형식(errors.ts), 요청마다 남기는 로그 한 줄(request-log.ts)
-│   ├── src/ai/               /v1/parse(parse.ts: 경로, provider.ts: 제공사 인터페이스, claude.ts: Claude 어댑터, prompts/: 프롬프트, convert.ts·validate.ts: 제공사용 응답 변환·검증, quota.ts: 호출 한도, app_check.ts, 요청·제공사용 스키마 JSON), /v1/extract(스토어 공개 뒤)
+│   ├── src/http/             오류 응답 형식(errors.ts), 요청마다 남기는 로그 한 줄(request-log.ts), App Check 검증(app_check.ts)
+│   ├── src/ai/               /v1/parse(parse.ts: 경로, provider.ts: 제공사 인터페이스, claude.ts: Claude 어댑터, prompts/: 프롬프트, convert.ts·validate.ts: 제공사용 응답 변환·검증, quota.ts: 호출 한도, 요청·제공사용 스키마 JSON), /v1/extract(스토어 공개 뒤)
+│   ├── src/metrics/          /v1/metrics(metrics.ts: 경로, report.ts: 본문 검증·합계 계산, store.ts: 날짜별 합계 문서, 요청 스키마 JSON)
 │   ├── scripts/              copy-schema.mjs(레포 루트 schema/*.schema.json을 src/schema/로 복사. build·lint·test 앞에 돎)
 │   ├── src/public/           학사일정·공휴일(R1)
 │   ├── src/push/             서버 신호 푸시(FCM, R1)
@@ -424,7 +425,22 @@ AI 경로(`/v1/parse`, `/v1/extract`(스토어 공개 뒤))는 `settings`의 `ai
 | Firestore `public/academic-calendar` | 학사일정·공휴일 (읽기 전용) | R1 |
 | `POST /v1/metrics` | 앱: 하루 1회 지표 집계값 | R1 |
 
-지표(R1): `/v1/metrics` 요청에는 App Check 토큰만 붙이고 설치 토큰은 붙이지 않습니다. 본문은 날짜와 지표별 정수(브리핑 열람 1/0, 오늘 제안 있음 1/0, 계획 확정(01 아침 브리핑의 'N개 확정하기', 09 일간의 '모두 확정', 근거 시트의 '확정'으로 오늘 블록을 하나 이상 확정) 1/0, 확정까지 걸린 초, 확정 전 수정 횟수, 놓친 마감 수, 동기화 시도·성공 수(종류별), 설치 후 며칠째(정수), 마지막 LMS 로그인 뒤 지난 날 수(정수))뿐입니다. 서버는 날짜별 합계 문서에 더하기만 하고 개별 요청은 저장하지 않습니다. 폰은 `metricsLastSentOn`으로 같은 날 두 번 보내지 않습니다. 횟수 지표는 합계에 더하고, 분포를 보는 지표(확정까지 걸린 초와 마지막 LMS 로그인 뒤 지난 날 수는 중앙값, 설치 후 며칠째는 1·7·30일 잔존율)는 합계 대신 값이나 구간마다 개수를 셉니다(예: `installAge.7 += 1`). 지표 전송은 AI 동의와 별개로 설정(`metricsEnabled`)에서 켜고 기본은 꺼짐입니다.
+지표(R1. 첫 테스터 빌드로 당김, decisions.md 2026-11-15 '스토어 1.0 범위와 배포 경로'): `/v1/metrics` 요청에는 App Check 토큰만 붙이고 설치 토큰은 붙이지 않습니다. 지표 전송은 AI 동의와 별개로 설정(`metricsEnabled`)에서 켜고 기본은 꺼짐이며, 폰은 `metricsLastSentOn`으로 같은 날 두 번 보내지 않습니다. 본문은 논리적 하루 하나의 숫자이고 키는 모두 늘 있습니다(decisions.md 2026-11-15 '사용 지표 본문과 합계 문서의 꼴'). 요청 스키마는 서버만 쓰므로 `functions/src/metrics/metrics_request.schema.json`에 둡니다.
+
+| 키 | 값 | 뜻 |
+|---|---|---|
+| `date` | `YYYY-MM-DD` | 이 숫자가 말하는 논리적 하루 |
+| `briefingOpened` | 0·1 | 그날 01 아침 브리핑을 봤는지(`briefings.openedAt`) |
+| `todaySuggested` | 0·1 | 그날 배치 엔진의 제안이 하나라도 있었는지 |
+| `planConfirmed` | 0·1 | 그날 블록을 하나 이상 확정했는지(01 아침 브리핑의 'N개 확정하기', 09 일간의 '모두 확정', 근거 시트의 '확정') |
+| `confirmSeconds` | 0–86400 또는 null | 01 아침 브리핑을 연 때부터 확정할 때까지의 초(`briefings.openedAt`부터 `confirmedAt`까지). 01에서 확정하지 않았으면 null |
+| `editsBeforeConfirm` | 0–1000 | 확정 전 수정 횟수(`briefings.editCount`) |
+| `missedDeadlines` | 0–1000 | 그날 마감이 지났는데 끝내지 않은 할 일 수 |
+| `syncAttempts`·`syncSuccesses` | 계기(`login`·`open`·`periodic`·`background`·`manual`)마다 0–1000인 객체 | 그날 `sync_runs`에서 `skipped`가 아닌 행 수와, 그 가운데 `normal`·`empty`·`partial`로 끝난 행 수 |
+| `installAgeDays` | 0–3650 | 설치(`installedAt`)한 논리적 하루부터 지난 날 수(설치한 날 0) |
+| `daysSinceLmsLogin` | 0–3650 또는 null | 마지막 LMS 로그인(`lmsLastConnectedAt`) 뒤 지난 날 수. 로그인한 적이 없으면 null |
+
+서버는 `date`가 서버의 오늘(한국 달력 날짜)에서 7일 전부터 하루 뒤까지일 때만 받고(아니면 400 `invalid_request`), 비공개 컬렉션 `metrics`의 `<date>` 문서에 더하기만 한 뒤(`FieldValue.increment`) 204(본문 없음)로 답합니다. 개별 요청과 본문은 저장하거나 로그에 남기지 않고, 모르는 키는 버립니다. 문서의 필드는 `reports`(받은 보고 수), 횟수 지표(`briefingOpened`, `todaySuggested`, `planConfirmed`, `editsBeforeConfirm`, `missedDeadlines`, `syncAttempts.<계기>`, `syncSuccesses.<계기>`)의 합, 분포를 보는 지표의 구간별 개수입니다. 확정까지 걸린 초는 `confirmSeconds.<구간>`(구간 아래 끝 0·10·30·60·120·300·600·1800초, null이면 세지 않음), 마지막 LMS 로그인 뒤 지난 날 수는 `daysSinceLmsLogin.<구간>`(0·1·2·3·7·14·30일, null이면 `none`)으로 세어 중앙값을 구간으로 읽고, 설치 후 날 수는 잔존율을 볼 날만 `installAge.<날>`(0·1·7·30. 0은 잔존율의 분모)로 셉니다. 합계에는 개인을 가리키는 값이 없어 지우는 기한(TTL)을 두지 않습니다.
 
 `POST /v1/parse`
 
