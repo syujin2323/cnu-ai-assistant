@@ -51,7 +51,7 @@ user 메시지는 JSON 하나입니다.
 - 마감이 자정·밤 12시·24시면 due는 다음 날, dueTime은 "00:00"입니다(dateExpression은 원래 말 그대로).
 
 # 의도별 항목(items)
-- create_event: kind "event". title은 일정을 가리키는 짧은 말(조사·어미 뺌). 한 번뿐이면 date, 반복이면 date는 비우고 repeat를 채웁니다. 반복은 "매주 X요일·X요일마다·주말마다(SA,SU)·평일마다(MO–FR)·매일(일곱 요일)"이면 freq "weekly"와 byDay, "격주"면 "biweekly", "매달"이면 "monthly"입니다. 반복 일정은 fixedBlockKind를 씁니다: 알바·근무·과외·인턴 "work", 운동·헬스·수영·러닝 "exercise", 아침·점심·저녁 식사 "meal", 통학·등교·출퇴근 "commute", 그 밖 "other". 장소는 place, 준비물은 prep, "N분 전에 알려 줘"는 reminderMinutes입니다. courses의 과목에 관한 일정이면 category "course"와 course, 아니면 category "personal"입니다.
+- create_event: kind "event". title은 일정을 가리키는 짧은 말(조사·어미 뺌). 한 번뿐이면 date, 반복이면 date와 weekday는 비우고 repeat를 채웁니다. 반복은 "매주 X요일·X요일마다·주말마다(SA,SU)·평일마다(MO–FR)·매일(일곱 요일)"이면 freq "weekly"와 byDay, "격주"면 "biweekly", "매달"이면 "monthly"입니다. 반복 일정은 fixedBlockKind를 씁니다: 알바·근무·과외·인턴 "work", 운동·헬스·수영·러닝 "exercise", 아침·점심·저녁 식사 "meal", 통학·등교·출퇴근 "commute", 그 밖 "other". 장소는 place, 준비물은 prep, "N분 전에 알려 줘"는 reminderMinutes입니다. courses의 과목에 관한 일정이면 category "course"와 course, 아니면 category "personal"입니다.
 - create_task: kind "task". 마감 날짜 due와 시각 dueTime(말했을 때만), 걸릴 시간을 말했으면 estimatedMinutes("두 시간쯤" "120", "한 시간 반" "90"). courses의 과목 과제·공부면 category "course"와 course, 아니면 "personal"입니다.
 - update: target에는 바꿀 대상을 가리킨 원래 말(예: "내일 스터디")을, targetDate에는 그 말이 대상의 날짜를 말했으면 그 날짜를 씁니다. date·weekday·dateExpression·start·end·place·title에는 새 값만 씁니다. 할 일의 새 마감은 due·dueTime입니다. "1시간 늦춰"처럼 상대로 옮기면 shiftMinutes(늦추면 양수, 당기면 음수)입니다. 대상이 일정인지 할 일인지 분명하면 kind도 씁니다.
 - delete: target과 targetDate만 씁니다(분명하면 kind도).
@@ -78,7 +78,7 @@ rules에 조건 하나마다 항목 하나를 씁니다. 정하면 action "set",
 
 # 되묻기
 needsClarification은 다음 둘일 때만 true입니다. 그 밖의 빠진 값(날짜, 시각 등)은 비워 두면 앱이 되묻습니다.
-- 한 문장에 의도가 둘 이상 섞였을 때: intent는 먼저 말한 의도, field "intent", items·rules는 빈 배열입니다.
+- 한 문장에 의도가 둘 이상 섞였을 때: intent는 other가 아니라 먼저 말한 의도, field "intent", items·rules는 빈 배열이고 question은 먼저 말한 것부터 할지 묻습니다(앱은 intent로 먼저 할 일을 압니다).
 - update·delete인데 대상을 전혀 알 수 없을 때("그거 지워 줘"): field "target".
 question은 차분한 존댓말 한 문장입니다(예: "두 가지를 한 번에 하기는 어려워요. 먼저 내일 스터디를 넣을까요?"). 되묻지 않으면 clarification의 두 값은 빈 문자열입니다.
 
@@ -92,4 +92,5 @@ question은 차분한 존댓말 한 문장입니다(예: "두 가지를 한 번�
 - "수요일 자구 휴강이래" → intent class_exception, items[0]: category "course", course "데이터구조", date "2026-10-14", weekday "수", dateExpression "수요일", exceptionType "cancelled"
 - "학교에서 집까지 한 시간 걸려. 첫 수업 전이랑 마지막 수업 끝나고 한 시간은 이동 시간으로 빼 줘" → intent set_rule, rules[0]: kind "travel", action "set", minutes "60", position "day_edges"
 - "시험 기간에는 알바 빼고 다 공부로 채워 줘" → intent set_rule, unsupportedRule "mode"
+- "목요일 저녁 7시 독서 모임 넣고 하루 공부는 3시간까지만 할래" → intent create_event, needsClarification true, clarification field "intent", question "두 가지를 한 번에 하기는 어려워요. 먼저 목요일 독서 모임을 넣을까요?", items·rules는 빈 배열
 - "고마워!" → intent other`;
