@@ -26,6 +26,7 @@ import 'package:cnu_ai_assistant/data/remote_config.dart';
 import 'package:cnu_ai_assistant/data/secure_storage.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/firebase_options.dart';
+import 'package:cnu_ai_assistant/lms/sync_triggers.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -161,6 +162,8 @@ Future<void> fetchRemoteConfigAfterLaunch(ProviderContainer container) async {
     );
   } finally {
     container.read(remoteConfigFetchProvider).markDone();
+    // 앱 열기·쓰는 동안 계기의 LMS 동기화는 Remote Config를 받은 뒤에 시작한다(docs/lms.md '원격 스위치').
+    container.read(lmsAutoSyncProvider).start();
   }
 }
 

@@ -50,6 +50,7 @@ void main() {
     FakeLmsServer server, {
     LmsConfig? config,
     FlutterSecureStorage storage = const FlutterSecureStorage(),
+    void Function(LoginMode mode)? onLoggedIn,
   }) => LmsLoginFlow(
     config: () async =>
         config ?? LmsConfig(enabled: true, requestParams: synthetic),
@@ -59,6 +60,7 @@ void main() {
     schoolDomain: syntheticSchoolDomain,
     createDio: () => createLmsDio(adapter: server),
     sleep: (duration) async => sleeps.add(duration),
+    onLoggedIn: onLoggedIn,
   );
 
   Future<(Result<void>, List<LoginStage>)> login(
@@ -468,5 +470,34 @@ void main() {
       );
       expect(await failing.savedStudentId(), isNull);
     });
+  });
+
+  test('로그인에 성공해 저장까지 마치면 그 모드로 로그인 직후 동기화를 부르고, 실패하면 부르지 않는다', () async {
+    final modes = <LoginMode>[];
+    final flow = flowWith(
+      FakeLmsServer(syntheticLoginRoutes()),
+      onLoggedIn: modes.add,
+    );
+
+    final (failed, _) = await login(flow, password: 'wrong-pw');
+    final (ok, _) = await login(flow, mode: LoginMode.relogin);
+
+    expect(failed, isA<Err<void>>());
+    expect(ok, isA<Ok<void>>());
+    expect(modes, [LoginMode.relogin]);
+  });
+
+  test('로그인은 됐지만 저장하지 못하면 로그인 직후 동기화를 부르지 않는다', () async {
+    final modes = <LoginMode>[];
+    final flow = flowWith(
+      FakeLmsServer(syntheticLoginRoutes()),
+      storage: FailingSecureStorage(failWrites: true),
+      onLoggedIn: modes.add,
+    );
+
+    final (result, _) = await login(flow);
+
+    expect(result, isA<Err<void>>());
+    expect(modes, isEmpty);
   });
 }

@@ -2,8 +2,9 @@
 //
 // Remote Config의 `lms_*` 값은 이 파일에서만 읽는다. 앱 열기 뒤의 `fetchAndActivate()`가 끝난 뒤에만
 // 읽는다(`remoteConfigFetchProvider`). 원격 스위치(`lms_enabled`), 요청 상수(`lms_request_params`,
-// `request_params.dart`가 해석), 호출 예산(`lms_sync_budget`, `sync_budget.dart`가 해석)을 내놓는다. 실행 중
-// 갱신(`onConfigUpdated`)은 동기화를 붙이는 PR이 이 파일에 더한다.
+// `request_params.dart`가 해석), 호출 예산(`lms_sync_budget`, `sync_budget.dart`가 해석)을 내놓는다. 그 뒤로는
+// 실행 중에 바뀐 값(`onConfigUpdated`)을 `activate()`한 뒤 다시 읽는다. Remote Config는 앱이 화면에 있는 동안만
+// 바뀐 값을 알려 준다.
 
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
@@ -81,7 +82,18 @@ final lmsRemoteValuesProvider = Provider<LmsRemoteValues Function()>(
   },
 );
 
-/// LMS 설정. `fetchAndActivate()`가 끝나기 전에는 불러오는 중이고, 그동안 로그인 버튼은 꺼져 있다.
+/// 실행 중에 Remote Config 값이 바뀌면 `activate()`까지 마친 뒤 내는 스트림. 테스트는 덮어쓰고, 화면 없이 도는
+/// 백그라운드 작업(R1)도 `fetchAndActivate()`만 쓰므로 빈 스트림으로 덮어쓴다.
+///
+/// `activate()`는 LMS 값만이 아니라 받은 모든 값을 적용한다.
+final lmsRemoteUpdatesProvider = Provider<Stream<void>>(
+  (ref) => FirebaseRemoteConfig.instance.onConfigUpdated.asyncMap(
+    (_) => FirebaseRemoteConfig.instance.activate(),
+  ),
+);
+
+/// LMS 설정. `fetchAndActivate()`가 끝나기 전에는 불러오는 중이고, 그동안 로그인 버튼은 꺼져 있다. 그 뒤로는
+/// 실행 중에 바뀐 값을 받아 새 설정을 낸다(값이 같으면 알리지 않음).
 final lmsConfigProvider = AsyncNotifierProvider<LmsConfigController, LmsConfig>(
   LmsConfigController.new,
 );
@@ -91,10 +103,45 @@ class LmsConfigController extends AsyncNotifier<LmsConfig> {
   @override
   Future<LmsConfig> build() async {
     await ref.watch(remoteConfigFetchProvider).done;
-    final values = ref.watch(lmsRemoteValuesProvider)();
+    final subscription = ref
+        .watch(lmsRemoteUpdatesProvider)
+        .listen(
+          (_) => _reread(),
+          onError: (Object error, StackTrace _) => appLog(
+            'lms_config_update_failed',
+            area: 'lms',
+            data: {'error': errorKind(error)},
+          ),
+        );
+    ref.onDispose(subscription.cancel);
+    return _parse(
+      ref.watch(lmsRemoteValuesProvider)(),
+      schoolDomain: ref.watch(lmsSchoolDomainProvider),
+    );
+  }
+
+  /// 실행 중에 바뀐 값을 다시 읽는다. 원격 스위치·요청 상수·호출 예산이 모두 같으면 알리지 않는다.
+  void _reread() {
+    final next = _parse(
+      ref.read(lmsRemoteValuesProvider)(),
+      schoolDomain: ref.read(lmsSchoolDomainProvider),
+    );
+    if (state.value == next) return;
+    state = AsyncData(next);
+    appLog(
+      'lms_config_updated',
+      area: 'lms',
+      data: {'enabled': next.enabled, 'requestParams': next.hasRequestParams},
+    );
+  }
+
+  static LmsConfig _parse(
+    LmsRemoteValues values, {
+    required String schoolDomain,
+  }) {
     final parsed = parseLmsRequestParams(
       values.requestParams,
-      schoolDomain: ref.watch(lmsSchoolDomainProvider),
+      schoolDomain: schoolDomain,
     );
     if (parsed.problem case final problem?) {
       appLog(
