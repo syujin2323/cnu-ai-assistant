@@ -1,12 +1,14 @@
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/lms_sync_repository.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
+import 'package:cnu_ai_assistant/domain/models/class_slot.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_item.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_item_change.dart';
 import 'package:cnu_ai_assistant/domain/models/task.dart';
 import 'package:cnu_ai_assistant/domain/models/value_codec.dart';
 import 'package:cnu_ai_assistant/lms/parsers/course_list_parser.dart';
+import 'package:cnu_ai_assistant/lms/parsers/timetable_parser.dart';
 import 'package:cnu_ai_assistant/lms/parsers/todo_list_parser.dart';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:flutter_test/flutter_test.dart';
@@ -61,6 +63,94 @@ void main() {
               semester: Value(semester),
             ),
           );
+
+  group('addImportedSlots', () {
+    Future<List<ClassSlot>> slots() => (db.select(
+      db.classSlots,
+    )..orderBy([(t) => OrderingTerm(expression: t.id)])).get();
+
+    test('불러온 수업으로 넣고 원래 값을 함께 적으며, 넣은 칸 수를 돌려준다', () async {
+      final a = await manualCourse('과목A', remoteId: 'A/1', semester: _semester);
+      final b = await manualCourse('과목B', remoteId: 'B/1', semester: _semester);
+
+      final added = await ok(
+        repo.addImportedSlots({
+          a: const [
+            LmsImportedSlot(
+              weekday: 1,
+              startMin: 540,
+              endMin: 615,
+              place: '합성관101',
+            ),
+            LmsImportedSlot(weekday: 3, startMin: 540, endMin: 615),
+          ],
+          b: const [],
+        }),
+      );
+
+      expect(added, 2);
+      final rows = await slots();
+      expect(rows.map((r) => (r.courseId, r.weekday, r.startMin, r.endMin)), [
+        (a, 1, 540, 615),
+        (a, 3, 540, 615),
+      ]);
+      final first = rows.first;
+      expect(first.source, SlotSource.auto);
+      expect(first.place, '합성관101');
+      expect(first.campus, Campus.daedeok);
+      expect(first.online, isFalse);
+      expect(
+        (
+          first.importedWeekday,
+          first.importedStartMin,
+          first.importedEndMin,
+          first.importedPlace,
+        ),
+        (1, 540, 615, '합성관101'),
+      );
+      expect((first.placeEdited, first.onlineEdited), (false, false));
+      expect(rows.last.importedPlace, isNull);
+    });
+
+    test('이미 불러온 수업이 있는 과목은 건드리지 않고, 직접 넣은 수업만 있으면 넣는다', () async {
+      final a = await manualCourse('과목A', remoteId: 'A/1', semester: _semester);
+      final b = await manualCourse('과목B', remoteId: 'B/1', semester: _semester);
+      const slot = LmsImportedSlot(weekday: 2, startMin: 600, endMin: 660);
+      await ok(
+        repo.addImportedSlots({
+          a: const [slot],
+        }),
+      );
+      await db
+          .into(db.classSlots)
+          .insert(
+            ClassSlotsCompanion.insert(
+              courseId: b,
+              weekday: 4,
+              startMin: 600,
+              endMin: 660,
+              campus: Campus.daedeok,
+              online: false,
+              source: SlotSource.manual,
+            ),
+          );
+
+      final added = await ok(
+        repo.addImportedSlots({
+          a: const [LmsImportedSlot(weekday: 5, startMin: 600, endMin: 660)],
+          b: const [slot],
+        }),
+      );
+
+      expect(added, 1);
+      final rows = await slots();
+      expect(rows.where((r) => r.courseId == a).map((r) => r.weekday), [2]);
+      expect(
+        rows.where((r) => r.courseId == b).map((r) => (r.weekday, r.source)),
+        [(4, SlotSource.manual), (2, SlotSource.auto)],
+      );
+    });
+  });
 
   group('upsertCourses', () {
     test('새 과목은 원본 ID·학기·본 때와 함께 만들고, 같은 과목은 이름과 본 때만 고친다', () async {
