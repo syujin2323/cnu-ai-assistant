@@ -595,3 +595,41 @@
 - 이유: 날짜 칸이 하나뿐이면 '내일 스터디 금요일로 옮겨 줘'에서 대상의 날짜(내일)와 새 날짜(금요일)를 함께 담을 수 없고, '1시간 늦춰'의 날짜가 옮길 날짜인지 대상의 날짜인지 앱이 가릴 수 없다. 첫 배포 전이라 필드를 더하는 비용이 작다.
 - 다른 후보: `target` 글만 받고 그 안의 날짜 표현은 앱이 읽기(앱에 한국어 날짜 해석이 하나 더 생김), 날짜 칸을 대상의 날짜로 보고 새 날짜는 받지 않기(옮기기를 말로 할 수 없음).
 - 영향: architecture.md 'POST /v1/parse', `schema/parse_result.schema.json`·`schema/samples/`(바꾸기·지우기 예시), `functions/src/ai/`의 제공사용 스키마·변환·프롬프트, 앱의 ParseResult 모델.
+
+## 2026-11-15 토스트·덮개 모션을 R0에 넣는다 (2026-11-05 'R0·R1 범위'의 단계 미정 바꿈)
+
+- 결정: 토스트 모션(`toast`)과 전체 화면 덮개 모션(`layer`)을 R0에 넣는다. 값은 최종 프로토타입의 CSS 그대로다. 토스트는 아래 16px에서 450ms에 올라오고 투명도는 300ms 동안 바뀌며, 덮개는 오른쪽에서 550ms에 들어온다.
+- 이유: R0의 되돌리기 토스트(10초)와 06 AI 비서의 직접 추가 폼(화면 위에 덮는 전체 화면)이 이 모션을 쓴다. 스토어 출시 계획에서 모션 위젯(W1)과 함께 만들기로 했다.
+- 다른 후보: 단계 미정으로 두고 토스트·덮개를 움직임 없이 띄우기.
+- 영향: architecture.md '모션 프리셋', `app/lib/design/motion/`.
+
+## 2026-11-15 첫 테스터 release에 네이티브 바닥을 미리 넣는다 (2026-11-15 '스토어 1.0 범위와 배포 경로'의 '네이티브 변경은 첫 테스터 release에 몰아 넣는다' 구체화)
+
+- 결정:
+  - R1 기능의 네이티브 부분을 첫 테스터 release에 미리 넣고, 쓰는 Dart 코드는 R1에 Shorebird 패치로 붙인다.
+    - 플러그인: `firebase_messaging`(서버 신호 푸시), `workmanager`(백그라운드 작업), `share_plus`(내보내기 파일 공유), `file_selector`(가져오기 파일 고르기)
+    - iOS: 백그라운드 작업 이름 `io.github.syujin2323.cnuaiassistant.backgroundSync`(다시 예약할 때 최소 3시간)와 백그라운드 모드(fetch·processing·remote-notification), Release 구성의 `aps-environment`(production), 앱 코드의 `PrivacyInfo.xcprivacy`, `ITSAppUsesNonExemptEncryption` false(App Store Connect에 처음 올리기 전에 관리자가 확인)
+    - 앱의 채널: 남은 저장 공간(`cnu_ai_assistant/storage_space`), 루팅·탈옥 흔적(`cnu_ai_assistant/device_integrity`), iOS 투명도 줄이기(`cnu_ai_assistant/accessibility`)
+  - FCM 자동 초기화는 꺼 둔다. 서버 신호 푸시를 쓰는 PR이 켜고 개인정보 처리 안내 시트에 적는다.
+  - 루팅·탈옥 판정은 플러그인 대신 앱의 채널로 한다. 흔한 su·탈옥 도구 경로와 테스트 키 빌드만 보는 가벼운 확인이다.
+  - 정확한 알람 권한(`USE_EXACT_ALARM`·`SCHEDULE_EXACT_ALARM`)을 매니페스트에서 뺀다.
+  - OS가 다크 모드면 시작 화면을 다크 토큰 `bg`(#0F1116)로 그린다(Android `values-night`, iOS 에셋 색 `LaunchBackground`).
+- 이유:
+  - 네이티브 변경은 Shorebird 패치로 낼 수 없어, 지금 넣지 않으면 R1 기능마다 새 release가 필요하다. iOS 백그라운드 작업은 앱 시작이 끝나기 전에 AppDelegate에서 등록해야 해서 이름과 최소 간격도 네이티브다. 시작 화면 색도 네이티브라 다크 모드(R1)가 붙은 뒤 맞으려면 지금 넣어야 한다.
+  - 루팅·탈옥 경고는 앱을 막지 않고 알리기만 하므로 가벼운 확인으로 충분하다. 살펴본 플러그인은 걸리는 점이 있었다.
+    - `flutter_jailbreak_detection`: 2023-01 뒤로 새 버전이 없고 CocoaPods만 지원한다(이 앱의 iOS는 Swift Package Manager만 씀).
+    - `safe_device`: 가짜 위치 확인 때문에 위치 권한을 매니페스트에 더한다.
+    - `jailbreak_root_detection`: iOS 탈옥 판정에 프록시 설정과 Frida·역공학 흔적까지 넣어 탈옥하지 않은 기기도 경고할 수 있고, 개인정보 매니페스트가 없다.
+  - `file_selector`는 Flutter 팀이 관리하는 공식 플러그인이고 시스템 문서 선택기만 써서 권한이 필요 없다.
+  - `USE_EXACT_ALARM`은 Play 정책상 신고와 심사가 필요하고 `SCHEDULE_EXACT_ALARM`은 Android 14부터 사용자가 따로 허용해야 한다. 지금 코드는 정확한 알람을 쓰지 않는다.
+  - FCM은 자동 초기화가 켜져 있으면 쓰는 코드가 없어도 앱을 켤 때 토큰을 만든다. 개인정보 처리 안내 시트에는 그 빌드가 하는 것만 적는다(2026-11-13 '개인정보 처리 안내 시트에는 그 빌드가 하는 것만 적는다').
+  - 투명도 줄이기는 Flutter의 손쉬운 사용 값에 없어 iOS에서 직접 읽어야 한다(architecture.md '모션 프리셋'의 R1 동작).
+- 받아들인 점:
+  - 다크 모드가 붙기 전에는 다크 모드 기기에서 시작 화면(다크)과 첫 화면(라이트)의 색이 한 번 바뀐다.
+  - 숨긴 루팅·탈옥은 찾지 못한다.
+  - iOS 백그라운드 작업의 최소 간격(3시간)을 바꾸려면 새 release가 필요하다.
+- 다른 후보: 위의 루팅·탈옥 판정 플러그인, `file_picker`, 기능마다 그때 네이티브를 넣고 새 release 내기, 정확한 알람 권한을 두고 Play에 신고하기, 다크 모드가 붙을 때까지 시작 화면을 라이트로 두기.
+- 영향:
+  - architecture.md '한눈에 보기'(플랫폼 코드, 패키지), '폴더 구조', '앱 코드 규약'(백그라운드 작업), '플랫폼 프로젝트 설정', '알림'
+  - `app/android/`, `app/ios/`, `app/lib/platform/`
+  - 관리자: Apple Developer의 App ID에 Push Notifications 기능을 켜고 프로비저닝 프로파일을 다시 받는다(켜지 않으면 iOS Release 빌드가 서명되지 않음). 서버 신호 푸시 PR 전에 Firebase 콘솔에 APNs 인증 키를 올린다. Play Console의 포그라운드 서비스 신고가 필요한지 본다(`workmanager`가 `FOREGROUND_SERVICE_SHORT_SERVICE` 권한을 더함).

@@ -13,6 +13,7 @@ import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/briefing_repository.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
+import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_tab_bar.dart';
 import 'package:cnu_ai_assistant/design/widgets/demo_band.dart';
@@ -105,6 +106,25 @@ void main() {
             .toList();
         expect(filters, hasLength(2));
         expect(filters, everyElement(AppGlass.filter));
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('앱 전체가 motionLevelProvider의 등급을 MotionScope로 내려 준다', (
+        tester,
+      ) async {
+        // 화면 테스트 도우미는 등급을 off로 덮어쓴다. 시트처럼 루트 Navigator에 뜨는 화면도 같은 등급을 본다.
+        final app = await pumpTestApp(tester, textScale: textScale);
+        expect(
+          MotionScope.of(tester.element(find.byType(AppTabBar))),
+          MotionLevel.off,
+        );
+        expect(
+          MotionScope.of(
+            tester.state<NavigatorState>(find.byType(Navigator).first).context,
+          ),
+          MotionLevel.off,
+        );
 
         await app.dispose(tester);
       });

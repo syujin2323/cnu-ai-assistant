@@ -28,7 +28,12 @@ const Map<String, List<Duration>> _durations = {
   'stagger.list': [AppMotion.staggerList, AppMotion.staggerListHomeCard],
   'stagger.word': [AppMotion.staggerWord, AppMotion.wordBlurIn],
   'layer': [AppMotion.layer],
-  'toast': [AppMotion.toastIn, AppMotion.toastWithUndo, AppMotion.toast],
+  'toast': [
+    AppMotion.toastIn,
+    AppMotion.toastFade,
+    AppMotion.toastWithUndo,
+    AppMotion.toast,
+  ],
 };
 
 /// 표의 곡선 이름 → 코드의 곡선.
@@ -37,6 +42,9 @@ const Map<String, Cubic> _curves = {
   'ease.standard': AppEase.standard,
   'ease.spring': AppEase.spring,
   'ease.morph': AppEase.morph,
+  'navDrop': AppEase.navDrop,
+  'navIconPop': AppEase.navIconPop,
+  'toast': AppEase.toast,
 };
 
 void main() {
@@ -70,16 +78,20 @@ void main() {
     }
   });
 
-  test('navDrop·navIconPop·pulse의 배율은 표와 같다', () {
+  test('navDrop·navIconPop·pulse·toast의 배율·때·거리는 표와 같다', () {
     expect(AppMotion.navDropScales, const [
       (1.07, 0.8),
       (0.97, 1.08),
       (1.01, 0.98),
       (1.0, 1.0),
     ]);
+    expect(AppMotion.navDropStops, const [0.3, 0.62, 0.84, 1.0]);
     expect(AppMotion.navIconPopScales, const [0.78, 1.14, 1.0]);
+    expect(AppMotion.navIconPopPeakAt, 0.55);
     expect(AppMotion.pulseScaleFrom, 0.6);
     expect(AppMotion.pulseScaleTo, 1.9);
+    expect(AppMotion.pulseOpacityFrom, 0.9);
+    expect(AppMotion.toastOffset, 16);
   });
 
   test('되돌리기 토스트는 저장소가 되돌리기를 받는 시간과 같은 10초다', () {

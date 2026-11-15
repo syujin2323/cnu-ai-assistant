@@ -2,11 +2,12 @@
 // docs/architecture.md '폴더 구조'의 schema/ 문단과 '앱과 서버 사이 약속 (API)'의 POST /v1/parse.
 //
 // flutter test는 app/에서 돌므로 경로는 app/ 기준이다. 스키마는 json_schema 패키지(draft-07)로 읽고, 날짜 형식도
-// 검사한다(validateFormats). 모델의 toJson() 결과 검증은 그 모델을 만드는 PR에서 더한다.
+// 검사한다(validateFormats). 앱 모델(domain/models/parse_result.dart)의 toJson() 결과도 검증한다.
 
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:cnu_ai_assistant/domain/models/parse_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:json_schema/json_schema.dart';
 
@@ -64,6 +65,14 @@ void main() {
       expect(samples, isNotEmpty);
       for (final MapEntry(key: name, value: sample) in samples.entries) {
         final result = validate(sample);
+        expect(result.isValid, isTrue, reason: '$name: ${result.errors}');
+      }
+    });
+
+    test('앱 모델로 읽고 toJson()으로 되돌린 것도 스키마를 따른다', () {
+      for (final MapEntry(key: name, value: sample) in samples.entries) {
+        final json = ParseResult.fromJson(sample).toJson();
+        final result = validate(json);
         expect(result.isValid, isTrue, reason: '$name: ${result.errors}');
       }
     });
