@@ -1,0 +1,9 @@
+{
+  "header": {"code": 200, "msg": "합성"},
+  "body": {
+    "course_list": [
+      {"course_id": "C1", "class_no": "1", "course_nm": "과목A", "credit": 3, "completion_list": []},
+      {"course_id": 2, "class_no": 2, "course_nm": " 과목B "}
+    ]
+  }
+}
