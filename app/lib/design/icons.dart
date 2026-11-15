@@ -73,7 +73,10 @@ enum AppIconName {
   info('assets/icons/info.svg'),
 
   /// 되돌리기(돌아가는 화살표).
-  undo('assets/icons/undo.svg');
+  undo('assets/icons/undo.svg'),
+
+  /// 경고(세모 안 느낌표). LMS 상태 줄의 연결 실패.
+  warning('assets/icons/warning.svg');
 
   const AppIconName(this.asset);
 
