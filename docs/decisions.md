@@ -633,3 +633,17 @@
   - architecture.md '한눈에 보기'(플랫폼 코드, 패키지), '폴더 구조', '앱 코드 규약'(백그라운드 작업), '플랫폼 프로젝트 설정', '알림'
   - `app/android/`, `app/ios/`, `app/lib/platform/`
   - 관리자: Apple Developer의 App ID에 Push Notifications 기능을 켜고 프로비저닝 프로파일을 다시 받는다(켜지 않으면 iOS Release 빌드가 서명되지 않음). 서버 신호 푸시 PR 전에 Firebase 콘솔에 APNs 인증 키를 올린다. Play Console의 포그라운드 서비스 신고가 필요한지 본다(`workmanager`가 `FOREGROUND_SERVICE_SHORT_SERVICE` 권한을 더함).
+
+## 2026-11-15 오류 보고는 개인정보 처리 안내에 넣고 동의한 뒤에만 보낸다 (2026-11-15 '스토어 1.0 범위와 배포 경로'의 Crashlytics 앞당김 구체화)
+
+- 결정:
+  - 첫 테스터 빌드부터 Firebase Crashlytics로 오류를 보고한다.
+  - 14 온보딩 1단계의 개인정보 처리 안내(필수 동의)에 오류 보고 줄을 넣는다: 앱이 멈추거나 오류가 나면 오류 종류와 코드 위치, 기기 모델·OS 버전, 설치마다 만든 무작위 값을 Google(Firebase Crashlytics)로 보내고 90일 동안 남으며, 할 일·일정·학번 같은 내용은 보내지 않는다.
+  - 그 안내에 동의한 뒤(실제 DB `settings`의 `privacyConsentAt`), release 빌드에서만 보낸다. 네이티브 SDK는 자동 수집을 꺼 둔 채 시작하고 앱이 동의를 따라 켜고 끈다. 동의하지 않은 데모 모드 사용자와 debug·profile 빌드는 보내지 않고, 데이터를 지우면 다시 끈다.
+  - 예외 메시지는 보내지 않고 오류의 종류(타입 이름)와 스택만 보낸다. 앱이 알아챈 비치명 오류는 이벤트 이름과 이름 꼴 값만 보낸다(로그 규칙과 같음).
+- 이유:
+  - 테스트 기간에 테스터 기기의 오류를 알아야 고치고 Shorebird 패치로 낼 수 있다.
+  - 개인정보 처리 안내에는 그 빌드가 하는 것만 적고(2026-11-13), 동의 전에는 보내지 않는다(AI 사용 동의와 같은 원칙).
+  - 예외 메시지에는 SQL과 바인딩 값, 요청 주소, 사용자가 쓴 문장이 들어갈 수 있다.
+- 다른 후보: 사용 지표처럼 선택(기본 꺼짐)으로 두기, 동의와 관계없이 앱을 켤 때부터 보내기.
+- 영향: architecture.md '한눈에 보기'(패키지), '앱 코드 규약'(로그), '플랫폼 프로젝트 설정', screens.md '개인정보 처리 안내 시트', `app/lib/app/crash_reports.dart`, `app/lib/app/logging.dart`, `app/lib/app/bootstrap.dart`, `app/lib/features/lms_connect/privacy_sheet.dart`, Android Gradle 설정과 매니페스트, iOS Info.plist와 빌드 단계. 개인정보 처리방침(R4)과 스토어의 Data safety·App Privacy에도 같은 내용을 적는다.
