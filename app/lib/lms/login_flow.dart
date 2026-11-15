@@ -16,6 +16,8 @@
 // 진행 줄은 지금 로그인 단계만 지난다. 처음 로그인의 이번 학기 시간표와 LMS 할 일 불러오기는 시간표·동기화 PR이 이
 // 흐름에 더한다.
 
+import 'dart:async';
+
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
@@ -23,6 +25,7 @@ import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
+import 'package:cnu_ai_assistant/domain/models/sync_run.dart';
 import 'package:cnu_ai_assistant/lms/cookie_vault.dart';
 import 'package:cnu_ai_assistant/lms/lms_client.dart';
 import 'package:cnu_ai_assistant/lms/lms_config.dart';
@@ -30,6 +33,7 @@ import 'package:cnu_ai_assistant/lms/request_params.dart';
 import 'package:cnu_ai_assistant/lms/request_runner.dart';
 import 'package:cnu_ai_assistant/lms/response_classifier.dart';
 import 'package:cnu_ai_assistant/lms/session_state.dart';
+import 'package:cnu_ai_assistant/lms/sync_coordinator.dart';
 import 'package:dio/dio.dart' show Dio;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -90,6 +94,15 @@ final loginFlowProvider = Provider<LoginFlow>((ref) {
     schoolDomain: ref.watch(lmsSchoolDomainProvider),
     createDio: () => createLmsDio(adapter: ref.read(lmsHttpAdapterProvider)),
     sleep: ref.watch(lmsSleepProvider),
+    // 로그인 직후 동기화(docs/lms.md '동기화'): 처음 로그인은 전체, 다시 로그인은 갱신. 화면은 기다리지 않는다.
+    onLoggedIn: (mode) => unawaited(
+      ref
+          .read(syncCoordinatorProvider)
+          .run(
+            trigger: SyncTrigger.login,
+            scope: mode == LoginMode.first ? SyncScope.full : SyncScope.list,
+          ),
+    ),
   );
 });
 
@@ -103,7 +116,11 @@ class LmsLoginFlow implements LoginFlow {
     required this._schoolDomain,
     required this._createDio,
     required this._sleep,
+    this._onLoggedIn,
   });
+
+  /// 로그인에 성공해 저장까지 마친 뒤 부른다(로그인 직후 동기화).
+  final void Function(LoginMode mode)? _onLoggedIn;
 
   final Future<LmsConfig> Function() _config;
 
@@ -178,7 +195,9 @@ class LmsLoginFlow implements LoginFlow {
         return Err(outcome);
       case LmsLoginSucceeded():
         appLog('lms_login', area: 'lms', data: {...log, 'kind': 'success'});
-        return _save(params, jar, studentId, password);
+        final saved = await _save(params, jar, studentId, password);
+        if (saved is Ok) _onLoggedIn?.call(mode);
+        return saved;
     }
   }
 
