@@ -32,6 +32,10 @@ void main() {
         find.textContaining('PC·웹에서 쓰던 LMS 세션', skipOffstage: false),
         findsOneWidget,
       );
+      expect(
+        find.textContaining('Firebase Crashlytics', skipOffstage: false),
+        findsOneWidget,
+      );
       for (final notYet in ['알림 감지', '지표', '알림 접근', '처리방침']) {
         expect(
           find.textContaining(notYet, skipOffstage: false),
