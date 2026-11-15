@@ -737,3 +737,17 @@
   - LMS 상태 줄과 호출 예산은 할 일 동기화의 기록을 보므로, 시간표 불러오기가 섞이면 상태 줄이 할 일과 관계없는 실패를 보인다.
 - 다른 후보: 숨은 WebView로 통합정보시스템을 열어 세션 값 읽기, 불러오기에 실패하면 온보딩 1단계에서 멈추고 다시 시도하게 하기, 불러오기를 `sync_runs`에 남기고 상태 줄이 범위를 거르게 하기.
 - 영향: lms.md '시간표 (통합정보시스템)'·'동기화'·'원격 스위치', architecture.md '폴더 구조'·'폰 DB'(`sync_runs.scope`), screens.md '14 온보딩', `app/lib/lms/request_spec.dart`·`request_runner.dart`·`request_params.dart`·`parsers/parse_config.dart`·`parsers/timetable_parser.dart`·`sync_coordinator.dart`·`login_flow.dart`, `app/lib/data/repositories/lms_sync_repository.dart`. 13의 새로 고침(비교·반영)은 다음 PR에서 한다. 관리자는 콘솔의 `lms_request_params`에 `timetable`·`parse.timetable`과 그 요청의 암호를 넣는다.
+
+## 2026-11-15 13 새로 고침은 새 수업을 바로 넣고 바뀌거나 없어진 수업은 묻는다 (2026-11-04 '시간표는 처음 로그인할 때 학기 전체를 불러오고 바뀐 수업은 새로 고침으로 받는다'에서 정하지 않은 새로 생기거나 없어진 수업 정함)
+
+- 결정:
+  - 13 시간표·고정 일정의 '새로 고침'과 처음 불러오기는 받은 시간표를 폰 DB의 불러온 수업과 같은 규칙으로 견준다. 원래 요일·시각이 같은 칸은 같은 수업이고, 남은 칸은 과목 안에서 요일·시작 순서로 짝지어 학교 쪽 시간이 바뀐 것으로 본다.
+  - 짝이 없는 받은 칸(새로 생긴 수업)은 묻지 않고 바로 넣는다(관리자 결정). 짝이 없는 옛 칸(없어진 수업)과 과목 목록에서 빠진 이번 학기 과목의 불러온 수업은 바뀐 수업처럼 지울지 묻는다. 받지 못한(실패한) 과목의 수업은 견주지 않는다.
+  - 반영은 13 화면이 고른 것만 한 트랜잭션에서 하고 되돌리기 한 번으로 돌린다. 견준 뒤 사용자가 고쳤거나 지운 칸은 반영하지 않는다.
+  - 마지막으로 불러온 시각을 `settings`의 `lmsTimetableImportedAt`에 적어 13의 '{날짜} 불러옴'에 쓴다.
+- 이유:
+  - 수강 정정으로 생긴 수업은 넣는 편이 거의 늘 맞고, 넣은 뒤에도 13에서 지울 수 있다.
+  - 없어진 수업을 말없이 지우면 사용자가 넣은 수업 예외(휴강·시험 등)도 함께 사라지고, 일시적인 조회 이상으로 수업이 지워질 수 있다.
+  - 학교 시간표에는 수업 칸을 가리키는 값이 없어 처음 불러온 원래 값으로 맞춘다.
+- 다른 후보: 새 수업도 반영할지 묻기, 없어진 수업도 바로 지우기, 과목마다 불러온 수업을 통째로 바꿔 끼우기(사용자가 고친 장소와 수업 예외가 사라짐).
+- 영향: lms.md '시간표 (통합정보시스템)', screens.md '13 시간표·고정 일정', architecture.md '폴더 구조'·'폰 DB'(`settings`의 `lmsTimetableImportedAt`, 새로 필요한 저장 자리에서 불러온 시각을 뺌), `app/lib/domain/timetable_refresh.dart`·`models/imported_class_slot.dart`, `app/lib/data/repositories/timetable_refresh_repository.dart`·`lms_sync_repository.dart`, `app/lib/lms/sync_coordinator.dart`, `app/lib/domain/models/app_settings.dart`. 13의 새로 고침 칩·전후 보기·[반영하기]의 화면 연결은 세션 A의 화면 PR이 한다.
