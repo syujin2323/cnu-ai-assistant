@@ -30,6 +30,7 @@ dependencies:
   material_ui: ^1.8.0
   package_info_plus: ^10.2.2
   path_provider: ^2.1.6
+  pointycastle: ^4.0.0
   share_plus: ^13.3.1
   shared_preferences: ^2.5.6
   timezone: ^0.11.2

@@ -16,9 +16,6 @@ abstract final class RemoteConfigKeys {
   /// LMS·통합정보시스템 요청 상수(JSON 문자열). 값은 레포에 두지 않는다.
   static const lmsRequestParams = 'lms_request_params';
 
-  /// 로그인 성공 판정 패턴(Dart `RegExp` 문자열). 앱 화면 로그인에서 쓸지는 LMS 연동 때 확인한다.
-  static const lmsLoginSuccessPattern = 'lms_login_success_pattern';
-
   /// 조회 간격·하루 최대 횟수·조회하지 않는 시간(JSON 문자열).
   static const lmsSyncBudget = 'lms_sync_budget';
 
@@ -45,12 +42,12 @@ const Map<String, Object> lmsSyncBudgetDefaults = {
 
 /// 앱 안 기본값. 가져온 값이 없을 때(첫 실행, 오프라인) 이 값으로 동작한다.
 ///
-/// 요청 상수와 로그인 성공 패턴은 빈 문자열이다. 요청 상수가 비어 있는 동안 로그인 버튼은
-/// 비활성이고 '설정을 받는 중이에요'를 보인다(docs/lms.md '원격 스위치'의 '설정 없음').
+/// 요청 상수는 빈 문자열이다. 요청 상수가 비어 있는 동안 로그인 버튼은 비활성이고 '설정을 받는
+/// 중이에요'를 보인다(docs/lms.md '원격 스위치'의 '설정 없음'). 로그인 결과는 요청 상수의 결과 규칙으로
+/// 나누므로 로그인 성공 패턴(`lms_login_success_pattern`)은 두지 않는다.
 final Map<String, Object> remoteConfigDefaults = {
   RemoteConfigKeys.lmsEnabled: true,
   RemoteConfigKeys.lmsRequestParams: '',
-  RemoteConfigKeys.lmsLoginSuccessPattern: '',
   RemoteConfigKeys.lmsSyncBudget: jsonEncode(lmsSyncBudgetDefaults),
   RemoteConfigKeys.minAppVersion: '0.0.0',
   RemoteConfigKeys.aiOpen: false,
