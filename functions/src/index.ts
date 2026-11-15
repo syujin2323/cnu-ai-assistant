@@ -7,11 +7,11 @@ import { getFirestore } from "firebase-admin/firestore";
 import { setGlobalOptions } from "firebase-functions";
 import { onRequest } from "firebase-functions/https";
 
-import { adminAppCheckVerifier } from "./ai/app_check.js";
 import { ClaudeProvider } from "./ai/claude.js";
 import type { ParseDeps } from "./ai/parse.js";
 import { FirestoreQuotaStore } from "./ai/quota.js";
 import { createApp } from "./app.js";
+import { adminAppCheckVerifier } from "./http/app_check.js";
 import {
   aiDailyLimitPerInstall,
   aiDailyLimitTotal,

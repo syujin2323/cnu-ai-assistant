@@ -64,8 +64,8 @@ cnu-ai-assistant/
 │   ├── src/index.ts          함수 진입점(서울 리전, HTTPS 함수 api 하나)
 │   ├── src/app.ts            Express 앱(요청 로그 → 본문 읽기·크기 확인 → 경로 → 없는 경로 → 오류 응답). 경로는 src/routes.ts에서 붙임
 │   ├── src/params.ts         설정값·비밀값 선언
-│   ├── src/http/             오류 응답 형식(errors.ts), 요청마다 남기는 로그 한 줄(request-log.ts)
-│   ├── src/ai/               /v1/parse(parse.ts: 경로, provider.ts: 제공사 인터페이스, claude.ts: Claude 어댑터, prompts/: 프롬프트, convert.ts·validate.ts: 제공사용 응답 변환·검증, quota.ts: 호출 한도, app_check.ts, 요청·제공사용 스키마 JSON), /v1/extract(스토어 공개 뒤)
+│   ├── src/http/             오류 응답 형식(errors.ts), 요청마다 남기는 로그 한 줄(request-log.ts), App Check 검증(app_check.ts)
+│   ├── src/ai/               /v1/parse(parse.ts: 경로, provider.ts: 제공사 인터페이스, claude.ts: Claude 어댑터, prompts/: 프롬프트, convert.ts·validate.ts: 제공사용 응답 변환·검증, quota.ts: 호출 한도, 요청·제공사용 스키마 JSON), /v1/extract(스토어 공개 뒤)
 │   ├── scripts/              copy-schema.mjs(레포 루트 schema/*.schema.json을 src/schema/로 복사. build·lint·test 앞에 돎)
 │   ├── src/public/           학사일정·공휴일(R1)
 │   ├── src/push/             서버 신호 푸시(FCM, R1)
