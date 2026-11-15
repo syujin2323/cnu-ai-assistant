@@ -4,7 +4,8 @@
 // 받고, 다른 isolate(R1의 백그라운드 작업)와는 폰 DB의 `sync_lease`로 가린다. 차례는 이렇다.
 //
 // 1. 데모 모드·원격 스위치 꺼짐·설정 없음이면 LMS를 부르지 않고 `skipped`로 남긴다. 업데이트가 필요하거나, 로그인한
-//    세션이 없거나, LMS 상태가 `active`·`restoring`이 아니면 기록 없이 끝낸다.
+//    세션이 없거나, LMS 상태가 `active`·`restoring`이 아니면 기록 없이 끝낸다. 다만 `reconnectRequired`라도 보안
+//    저장소에 학번·비밀번호가 있고 거절 표시(`lmsCredentialRejected`)가 없으면 복원으로 간다.
 // 2. 자동 계기(앱 열기·쓰는 동안·백그라운드)는 호출 예산을 본다. 조용한 시간이면 `skipped`(`quiet_hours`), 마지막
 //    성공이 간격 안이면 기록 없이 끝내고, 자동 조회가 실패한 뒤 최소 간격 안이거나 오늘 횟수를 다 썼으면
 //    `skipped`(`budget`)다. 사용자 새로 고침과 로그인 직후는 예산을 보지 않는다.
@@ -12,9 +13,11 @@
 //    목록을 묻고 판별해 [LmsSyncRepository]로 쓴다. 도중에 데모 모드에 들어가거나 원격 스위치가 꺼지면 다음 조회
 //    앞에서 멈추고 `cancelled`(이유 코드)로 남긴다.
 // 4. '재로그인 필요'·'복원 필요'면 `restoring`으로 바꾸고 세션 복원 1단계(홈 요청)를 한 뒤 그 조회를 한 번 다시
-//    한다. 시작할 때 이미 `restoring`이면 복원부터 한다. 다시 받은 조회가 정상·빈 목록이면 `active`, 또
-//    '재로그인 필요'·'복원 필요'면 `reconnectRequired`다(저장된 비밀번호로 다시 로그인하는 3단계는 조용한 재로그인
-//    PR이 그 앞에 더한다). 네트워크 실패·서버 오류면 상태를 두고 다음 계기에 다시 한다.
+//    한다. 그래도 끊겨 있으면 3단계로 저장된 학번·비밀번호로 화면 없이 한 번 다시 로그인하고, 새 쿠키로 준비 요청부터
+//    다시 해 묻는다. 시작할 때 `restoring`이거나 위의 `reconnectRequired`면 복원부터 한다. 다시 받은 조회가 정상·빈
+//    목록이면 `active`다. 저장된 값이 없거나, 거절 표시가 있거나, 다시 로그인이 '학번·비밀번호 틀림'(거절 표시를
+//    남김)·'해석 실패'이거나, 다시 로그인한 뒤에도 끊겨 있으면 `reconnectRequired`다. 네트워크 실패·서버 오류면
+//    `restoring`에 두고 다음 계기에 1단계부터 다시 한다(숨은 WebView 2단계는 L0 실험 뒤).
 // 5. 범위마다 `sync_runs`에 한 줄을 남기고, 정상·빈 목록이면 `lmsLastSuccessAt`을 올리며, 요청에서 받은 쿠키를 금고에
 //    다시 쓴다. 해석 실패는 필드 이름만 담아 오류 보고(Crashlytics 비치명)로도 보낸다.
 //
@@ -40,6 +43,7 @@ import 'package:cnu_ai_assistant/domain/models/sync_run.dart';
 import 'package:cnu_ai_assistant/lms/cookie_vault.dart';
 import 'package:cnu_ai_assistant/lms/lms_client.dart';
 import 'package:cnu_ai_assistant/lms/lms_config.dart';
+import 'package:cnu_ai_assistant/lms/login_request.dart';
 import 'package:cnu_ai_assistant/lms/parsers/course_list_parser.dart';
 import 'package:cnu_ai_assistant/lms/parsers/parse_config.dart';
 import 'package:cnu_ai_assistant/lms/parsers/todo_list_parser.dart';
@@ -212,8 +216,17 @@ class SyncCoordinator {
         return const SyncResult(SyncResultKind.skipped);
     }
     final state = settings.lmsSessionState;
-    if (state != LmsSessionState.active && state != LmsSessionState.restoring) {
-      return const SyncResult(SyncResultKind.skipped);
+    switch (state) {
+      case LmsSessionState.active || LmsSessionState.restoring:
+        break;
+      case LmsSessionState.reconnectRequired
+          when !settings.lmsCredentialRejected:
+        // 저장된 학번·비밀번호가 있고 거절되지 않았으면 다음 계기에 복원한다(docs/lms.md '세션 상태' 3번).
+        if (!await _hasCredential()) {
+          return const SyncResult(SyncResultKind.skipped);
+        }
+      default:
+        return const SyncResult(SyncResultKind.skipped);
     }
 
     if (SyncRunRepository.autoTriggers.contains(trigger)) {
@@ -269,32 +282,24 @@ class SyncCoordinator {
         return finish(SyncResultKind.skipped, detail: SyncRunDetail.lease);
     }
 
-    final jar = LmsCookieJar(
-      schoolDomain: _schoolDomain,
-      cookies: session.cookies,
-    );
     final dio = _createDio();
+    final connection = _connect(
+      dio,
+      params,
+      LmsCookieJar(schoolDomain: _schoolDomain, cookies: session.cookies),
+      session.userAgent,
+    );
     try {
-      final runner = LmsRequestRunner(
-        client: LmsClient(
-          dio: dio,
-          jar: jar,
-          userAgent: session.userAgent,
-          schoolDomain: _schoolDomain,
-          clock: _clock,
-          sleep: _sleep,
-        ),
-        ciphers: params.ciphers,
-        schoolDomain: _schoolDomain,
-      );
       final attempt = await _fetch(
-        runner: runner,
+        connection: connection,
+        dio: dio,
         params: params,
         sync: sync,
         parse: parse,
         scope: scope,
         startedAt: startedAt,
-        restoreFirst: state == LmsSessionState.restoring,
+        state: state,
+        credentialRejected: settings.lmsCredentialRejected,
       );
       if (attempt.kind == SyncResultKind.parseFailure) {
         _reportEvent('lms_parse_failure', {
@@ -319,7 +324,7 @@ class SyncCoordinator {
         detail: attempt.field,
       );
     } finally {
-      await _saveCookies(jar, session, params);
+      await _saveCookies(connection.jar, connection.userAgent, params);
       dio.close(force: true);
       final released = await _leases.release(token);
       if (released case Err(:final error)) {
@@ -332,42 +337,30 @@ class SyncCoordinator {
     }
   }
 
-  /// 준비 요청 뒤 조회를 하고, 세션이 끊겼으면 복원해 한 번 다시 한다. 상태 전이도 여기서 쓴다.
+  /// 준비 요청 뒤 조회를 하고, 세션이 끊겼으면 복원한다(docs/lms.md '세션 복원': 1단계 홈 요청 → 다시 묻기, 그래도
+  /// 끊겨 있으면 3단계 저장된 학번·비밀번호로 다시 로그인 → 다시 묻기). 상태 전이도 여기서 쓴다.
   Future<_Attempt> _fetch({
-    required LmsRequestRunner runner,
+    required _Connection connection,
+    required Dio dio,
     required LmsRequestParams params,
     required LmsSyncSpec sync,
     required LmsParseConfig parse,
     required SyncScope scope,
     required DateTime startedAt,
-    required bool restoreFirst,
+    required LmsSessionState state,
+    required bool credentialRejected,
   }) async {
-    final vars = {...sync.vars};
-    Uri? base;
-    for (final step in sync.steps) {
-      switch (await runner.run(step, vars, base: base)) {
-        case LmsStepNotSent(:final field):
-          return _Attempt(SyncResultKind.parseFailure, field: field);
-        case final LmsStepSent sent:
-          if (lmsTransportFailure(sent.response, params.markers)
-              case final kind?) {
-            return _Attempt(_kindOf(kind));
-          }
-          final status = sent.response.statusCode!;
-          if (status < 200 || status >= 300) {
-            return const _Attempt(SyncResultKind.parseFailure, field: 'status');
-          }
-          if (sent.missing case final missing?) {
-            return _Attempt(SyncResultKind.parseFailure, field: missing);
-          }
-          vars.addAll(sent.values);
-          base = sent.response.finalUrl;
-      }
+    // 다시 로그인 필요에서 온 계기(저장된 값이 있고 거절되지 않음)는 복원부터 한다.
+    if (state == LmsSessionState.reconnectRequired) {
+      await _writeState(LmsSessionState.restoring);
     }
+    final prepared = await _prepare(connection.runner, params, sync);
+    if (prepared.failure case final failure?) return failure;
+    var vars = prepared.vars;
 
     final classifier = LmsResponseClassifier.of(params);
     Future<_Attempt> query() => _query(
-      runner: runner,
+      runner: connection.runner,
       classifier: classifier,
       sync: sync,
       parse: parse,
@@ -376,23 +369,203 @@ class SyncCoordinator {
       startedAt: startedAt,
     );
 
-    var restored = restoreFirst;
-    if (restoreFirst) await _restoreViaHome(runner, params);
+    var restoring = state != LmsSessionState.active;
+    if (restoring) await _restoreViaHome(connection.runner, params);
     var attempt = await query();
-    if (attempt.sessionLost && !restored) {
+    if (attempt.sessionLost && !restoring) {
       await _writeState(LmsSessionState.restoring);
-      restored = true;
-      await _restoreViaHome(runner, params);
+      restoring = true;
+      await _restoreViaHome(connection.runner, params);
       attempt = await query();
+    }
+    if (!restoring) return attempt;
+
+    var stopped = false;
+    if (attempt.sessionLost) {
+      switch (await _reloginWithSaved(
+        dio: dio,
+        params: params,
+        connection: connection,
+        rejected: credentialRejected,
+      )) {
+        case _ReloginSucceeded():
+          final again = await _prepare(connection.runner, params, sync);
+          if (again.failure case final failure?) {
+            attempt = failure;
+          } else {
+            vars = again.vars;
+            attempt = await query();
+          }
+        case _ReloginStopped(:final result):
+          stopped = true;
+          attempt = result ?? attempt;
+        case _ReloginPostponed(:final result):
+          attempt = result;
+      }
     }
     if (attempt.kind == SyncResultKind.normal ||
         attempt.kind == SyncResultKind.empty) {
-      if (restored) await _writeState(LmsSessionState.active);
-    } else if (attempt.sessionLost) {
+      await _writeState(LmsSessionState.active);
+    } else if (stopped || attempt.sessionLost) {
       await _writeState(LmsSessionState.reconnectRequired);
     }
     return attempt;
   }
+
+  /// 준비 요청(`sync.steps`, 요청 본문 암호화에 쓰는 키 받기 등)을 보내 변수를 채운다. 실패하면 `failure`가 그
+  /// 시도다.
+  Future<({Map<String, String> vars, _Attempt? failure})> _prepare(
+    LmsRequestRunner runner,
+    LmsRequestParams params,
+    LmsSyncSpec sync,
+  ) async {
+    final vars = {...sync.vars};
+    Uri? base;
+    for (final step in sync.steps) {
+      switch (await runner.run(step, vars, base: base)) {
+        case LmsStepNotSent(:final field):
+          return (
+            vars: vars,
+            failure: _Attempt(SyncResultKind.parseFailure, field: field),
+          );
+        case final LmsStepSent sent:
+          if (lmsTransportFailure(sent.response, params.markers)
+              case final kind?) {
+            return (vars: vars, failure: _Attempt(_kindOf(kind)));
+          }
+          final status = sent.response.statusCode!;
+          if (status < 200 || status >= 300) {
+            return (
+              vars: vars,
+              failure: const _Attempt(
+                SyncResultKind.parseFailure,
+                field: 'status',
+              ),
+            );
+          }
+          if (sent.missing case final missing?) {
+            return (
+              vars: vars,
+              failure: _Attempt(SyncResultKind.parseFailure, field: missing),
+            );
+          }
+          vars.addAll(sent.values);
+          base = sent.response.finalUrl;
+      }
+    }
+    return (vars: vars, failure: null);
+  }
+
+  /// 세션 복원 3단계(docs/lms.md '세션 복원'): 보안 저장소의 학번·비밀번호로 화면 없이 한 번 로그인한다. 저장된 값이
+  /// 없거나 거절 표시가 있으면 하지 않는다. 성공하면 [connection]을 새 쿠키 상자로 바꾸고, '학번·비밀번호 틀림'이면
+  /// 거절 표시를 남긴다. 학번·비밀번호는 로그인 요청의 변수로만 쓰고 로그에 남기지 않는다.
+  Future<_Relogin> _reloginWithSaved({
+    required Dio dio,
+    required LmsRequestParams params,
+    required _Connection connection,
+    required bool rejected,
+  }) async {
+    if (rejected) return const _ReloginStopped();
+    final LmsCredential credential;
+    switch (await _vault.readCredential()) {
+      case Ok(value: final value?):
+        credential = value;
+      case Ok():
+        return const _ReloginStopped();
+      case Err(:final error):
+        appLog(
+          'lms_relogin_vault_failed',
+          area: 'lms',
+          data: errorLogData(error),
+        );
+        return const _ReloginPostponed(
+          _Attempt(SyncResultKind.parseFailure, field: 'storage'),
+        );
+    }
+    final fresh = _connect(
+      dio,
+      params,
+      LmsCookieJar(schoolDomain: _schoolDomain),
+      params.userAgent,
+    );
+    final stopwatch = Stopwatch()..start();
+    final attempt = await performLmsLogin(
+      params: params,
+      runner: fresh.runner,
+      studentId: credential.studentId,
+      password: credential.password,
+    );
+    final log = {'ms': stopwatch.elapsedMilliseconds};
+    switch (attempt) {
+      case LmsLoginSucceeded():
+        appLog('lms_relogin', area: 'lms', data: {...log, 'kind': 'success'});
+        // 새 쿠키와 요청 상수의 User-Agent는 이번 동기화가 끝날 때 금고에 쓴다.
+        connection.replaceWith(fresh);
+        return const _ReloginSucceeded();
+      case LmsLoginFailed(:final outcome, :final field):
+        appLog(
+          'lms_relogin',
+          area: 'lms',
+          data: {...log, ...errorLogData(outcome), 'field': ?field},
+        );
+        switch (outcome.kind) {
+          case LmsOutcomeKind.wrongCredentials:
+            final written = await _settings.write(
+              SettingKeys.lmsCredentialRejected,
+              true,
+            );
+            if (written case Err(:final error)) {
+              appLog(
+                'lms_relogin_reject_write_failed',
+                area: 'lms',
+                data: errorLogData(error),
+              );
+            }
+            return const _ReloginStopped(
+              _Attempt(SyncResultKind.reloginRequired),
+            );
+          case LmsOutcomeKind.networkFailure || LmsOutcomeKind.serverError:
+            return _ReloginPostponed(_Attempt(_kindOf(outcome.kind)));
+          default:
+            return _ReloginStopped(
+              _Attempt(
+                SyncResultKind.parseFailure,
+                field: field == null ? 'relogin' : 'relogin.$field',
+              ),
+            );
+        }
+    }
+  }
+
+  /// 보안 저장소에 학번·비밀번호가 있는지. 읽지 못하면 없는 것으로 본다.
+  Future<bool> _hasCredential() async =>
+      switch (await _vault.readCredential()) {
+        Ok(value: _?) => true,
+        _ => false,
+      };
+
+  /// [jar]와 [userAgent]로 요청하는 실행기를 만든다.
+  _Connection _connect(
+    Dio dio,
+    LmsRequestParams params,
+    LmsCookieJar jar,
+    String userAgent,
+  ) => _Connection(
+    jar,
+    userAgent,
+    LmsRequestRunner(
+      client: LmsClient(
+        dio: dio,
+        jar: jar,
+        userAgent: userAgent,
+        schoolDomain: _schoolDomain,
+        clock: _clock,
+        sleep: _sleep,
+      ),
+      ciphers: params.ciphers,
+      schoolDomain: _schoolDomain,
+    ),
+  );
 
   /// 진행 중인 동기화를 멈출 까닭. 데모 모드에 들어갔으면 `demo_mode`, 원격 스위치가 꺼졌으면(실행 중에 바뀐 값)
   /// `switch_off`이고, 둘 다 아니면 null이다.
@@ -510,7 +683,7 @@ class SyncCoordinator {
   /// 이번 동기화에서 받은 쿠키를 금고에 다시 쓴다. 그사이 로그아웃했으면(금고가 비었으면) 쓰지 않는다.
   Future<void> _saveCookies(
     LmsCookieJar jar,
-    LmsSession session,
+    String userAgent,
     LmsRequestParams params,
   ) async {
     if (await _vault.readSession() case Ok(value: null) || Err()) return;
@@ -518,7 +691,7 @@ class SyncCoordinator {
     final written = await _vault.writeSession(
       LmsSession(
         savedAt: nowUtc,
-        userAgent: session.userAgent,
+        userAgent: userAgent,
         cookies: jar.cookiesFor(params.cookieDomains, nowUtc),
       ),
     );
@@ -563,6 +736,47 @@ final class _Attempt {
   bool get sessionLost =>
       kind == SyncResultKind.reloginRequired ||
       kind == SyncResultKind.restoreRequired;
+}
+
+/// 동기화 한 번이 LMS에 보내는 요청의 쿠키 상자·User-Agent·실행기. 세션 복원 3단계에서 다시 로그인하면 새것으로
+/// 바뀐다.
+final class _Connection {
+  _Connection(this.jar, this.userAgent, this.runner);
+
+  LmsCookieJar jar;
+  String userAgent;
+  LmsRequestRunner runner;
+
+  void replaceWith(_Connection other) {
+    jar = other.jar;
+    userAgent = other.userAgent;
+    runner = other.runner;
+  }
+}
+
+/// 세션 복원 3단계(저장된 학번·비밀번호로 다시 로그인)의 결과.
+sealed class _Relogin {
+  const _Relogin();
+}
+
+/// 다시 로그인했다. 이어서 준비 요청부터 다시 해 묻는다.
+final class _ReloginSucceeded extends _Relogin {
+  const _ReloginSucceeded();
+}
+
+/// 복원을 멈추고 `reconnectRequired`로 둔다(저장된 값이 없음·거절됨·재로그인 응답 해석 실패). [result]가 있으면
+/// 이번 동기화의 결과를 그것으로 남긴다.
+final class _ReloginStopped extends _Relogin {
+  const _ReloginStopped([this.result]);
+
+  final _Attempt? result;
+}
+
+/// 지금은 못 했다(네트워크 실패·서버 오류·보안 저장소 읽기 실패). `restoring`에 두고 다음 계기에 다시 한다.
+final class _ReloginPostponed extends _Relogin {
+  const _ReloginPostponed(this.result);
+
+  final _Attempt result;
 }
 
 /// 앱의 LMS 동기화. LMS 데이터와 상태는 앱 모드와 관계없이 실제 DB에 쓴다.
