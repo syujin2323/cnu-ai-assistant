@@ -162,6 +162,39 @@ void main() {
       },
     );
 
+    test('잡히지 않은 오류와 프레임워크 오류는 오류 보고에도 치명 오류로 넘긴다', () {
+      final presentError = FlutterError.presentError;
+      addTearDown(() {
+        FlutterError.presentError = presentError;
+        crashReporter = null;
+      });
+      FlutterError.presentError = (_) {};
+      final reported = <(Object, StackTrace, bool)>[];
+      crashReporter = (error, stack, {required fatal}) =>
+          reported.add((error, stack, fatal));
+
+      final uncaught = StateError('원문');
+      final stack = StackTrace.current;
+      handleUncaughtError(uncaught, stack);
+      final framework = ArgumentError('원문');
+      handleFlutterError(FlutterErrorDetails(exception: framework));
+
+      expect(reported, hasLength(2));
+      expect(reported[0], (uncaught, stack, true));
+      expect(reported[1].$1, framework);
+      expect(reported[1].$2, StackTrace.empty);
+      expect(reported[1].$3, isTrue);
+    });
+
+    test('오류 보고를 걸지 않았으면(Firebase 전, 테스트) 넘기지 않고 그대로 처리한다', () {
+      crashReporter = null;
+
+      expect(
+        handleUncaughtError(StateError('원문'), StackTrace.current),
+        kReleaseMode,
+      );
+    });
+
     test('프레임워크 오류는 debug에서 개발자가 보도록 기본 표시도 한다', () {
       final presentError = FlutterError.presentError;
       addTearDown(() => FlutterError.presentError = presentError);
