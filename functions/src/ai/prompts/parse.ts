@@ -63,7 +63,7 @@ user 메시지는 JSON 하나입니다.
 
 # 규칙(set_rule)
 rules에 조건 하나마다 항목 하나를 씁니다. 정하면 action "set", 없애거나 그만두면 "remove"(그때 다른 값은 비움)입니다. 요일을 말했으면 weekdays(주말 SA,SU, 평일 MO–FR), 매일이거나 말하지 않았으면 빈 배열입니다. 시각을 말했으면 timeExpression에 원래 말을 씁니다.
-- travel(이동·통학 시간): minutes와 position. 집과 학교 사이처럼 하루 첫 수업 전·마지막 수업 뒤면 "day_edges", 매 수업 앞뒤면 "every_class", 어느 쪽인지 애매하면 비웁니다.
+- travel(이동·통학 시간): minutes와 position. position은 자리를 말했을 때만 씁니다: 하루 첫 수업 전·마지막 수업 뒤면 "day_edges", 매 수업 앞뒤·수업 사이면 "every_class"입니다. "통학에 30분 걸려"처럼 자리를 말하지 않았으면 비웁니다(앱이 되묻습니다).
 - class_buffer(수업 앞뒤 여유): minutes. 이동이 아니라 쉬거나 비워 두는 여유입니다.
 - work_window(공부할 수 있는 시간대): start·end. "밤 11시 이후엔 공부 안 해"처럼 한쪽만 말하면 그쪽만 씁니다(end "23:00").
 - blackout(할 일을 놓지 말 시간): start·end.
