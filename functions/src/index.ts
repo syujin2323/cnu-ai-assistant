@@ -12,6 +12,8 @@ import type { ParseDeps } from "./ai/parse.js";
 import { FirestoreQuotaStore } from "./ai/quota.js";
 import { createApp } from "./app.js";
 import { adminAppCheckVerifier } from "./http/app_check.js";
+import type { MetricsDeps } from "./metrics/metrics.js";
+import { FirestoreMetricsStore } from "./metrics/store.js";
 import {
   aiDailyLimitPerInstall,
   aiDailyLimitTotal,
@@ -22,6 +24,11 @@ import { apiRoutes } from "./routes.js";
 
 setGlobalOptions({ region: "asia-northeast3" });
 initializeApp();
+
+/** 에뮬레이터가 켜는 환경 변수. 에뮬레이터에서는 App Check 검증을 건너뛴다(docs/architecture.md '실행 방법'). */
+function isEmulator(): boolean {
+  return process.env.FUNCTIONS_EMULATOR === "true";
+}
 
 /** 제공사 클라이언트. 비밀값은 요청을 처리할 때 처음 읽고, 인스턴스가 사는 동안 연결을 다시 쓴다. */
 let claude: ClaudeProvider | undefined;
@@ -36,8 +43,16 @@ const parseDeps: ParseDeps = {
       total: aiDailyLimitTotal.value(),
     },
     enforceAppCheck: appCheckEnforce.value(),
-    // 에뮬레이터가 켜는 환경 변수. 에뮬레이터에서는 App Check 검증을 건너뛴다(docs/architecture.md '실행 방법').
-    skipAppCheck: process.env.FUNCTIONS_EMULATOR === "true",
+    skipAppCheck: isEmulator(),
+  }),
+};
+
+const metricsDeps: MetricsDeps = {
+  store: new FirestoreMetricsStore(() => getFirestore()),
+  verifyAppCheck: adminAppCheckVerifier,
+  config: () => ({
+    enforceAppCheck: appCheckEnforce.value(),
+    skipAppCheck: isEmulator(),
   }),
 };
 
@@ -51,5 +66,5 @@ export const api = onRequest(
     cors: false,
     secrets: [llmApiKey],
   },
-  createApp({ routes: apiRoutes({ parse: parseDeps }) }),
+  createApp({ routes: apiRoutes({ parse: parseDeps, metrics: metricsDeps }) }),
 );

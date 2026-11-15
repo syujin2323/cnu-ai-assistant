@@ -1,0 +1,52 @@
+{
+  "type": "object",
+  "required": [
+    "date",
+    "briefingOpened",
+    "todaySuggested",
+    "planConfirmed",
+    "confirmSeconds",
+    "editsBeforeConfirm",
+    "missedDeadlines",
+    "syncAttempts",
+    "syncSuccesses",
+    "installAgeDays",
+    "daysSinceLmsLogin"
+  ],
+  "properties": {
+    "date": { "type": "string", "format": "date" },
+    "briefingOpened": { "$ref": "#/definitions/flag" },
+    "todaySuggested": { "$ref": "#/definitions/flag" },
+    "planConfirmed": { "$ref": "#/definitions/flag" },
+    "confirmSeconds": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 86400
+    },
+    "editsBeforeConfirm": { "$ref": "#/definitions/count" },
+    "missedDeadlines": { "$ref": "#/definitions/count" },
+    "syncAttempts": { "$ref": "#/definitions/syncCounts" },
+    "syncSuccesses": { "$ref": "#/definitions/syncCounts" },
+    "installAgeDays": { "type": "integer", "minimum": 0, "maximum": 3650 },
+    "daysSinceLmsLogin": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 3650
+    }
+  },
+  "definitions": {
+    "flag": { "type": "integer", "enum": [0, 1] },
+    "count": { "type": "integer", "minimum": 0, "maximum": 1000 },
+    "syncCounts": {
+      "type": "object",
+      "required": ["login", "open", "periodic", "background", "manual"],
+      "properties": {
+        "login": { "$ref": "#/definitions/count" },
+        "open": { "$ref": "#/definitions/count" },
+        "periodic": { "$ref": "#/definitions/count" },
+        "background": { "$ref": "#/definitions/count" },
+        "manual": { "$ref": "#/definitions/count" }
+      }
+    }
+  }
+}
