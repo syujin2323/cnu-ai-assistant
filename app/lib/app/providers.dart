@@ -508,6 +508,7 @@ final lmsStatusProvider = Provider<LmsStatus?>((ref) {
     enabled: ref.watch(lmsConfigProvider).value?.enabled ?? true,
     session: settings.lmsSessionState,
     lastAttempt: attempt.value?.result,
+    lastAttemptOffline: attempt.value?.detail == SyncRunDetail.offline,
     lastSuccessAt: lastSuccessAt,
     // '방금'은 마지막 확인을 남긴 동기화가 사용자 새로 고침일 때만이다.
     byUserRefresh:

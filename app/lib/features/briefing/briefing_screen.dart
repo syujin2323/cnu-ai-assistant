@@ -42,6 +42,7 @@ import 'package:cnu_ai_assistant/features/tasks/task_list_screen.dart';
 import 'package:cnu_ai_assistant/features/today/block_actions.dart';
 import 'package:cnu_ai_assistant/features/today/today_controller.dart';
 import 'package:cnu_ai_assistant/lms/sync_coordinator.dart';
+import 'package:cnu_ai_assistant/features/lms_connect/lms_system_band_slot.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -147,6 +148,7 @@ class _BriefingBodyState extends ConsumerState<_BriefingBody> {
             ),
             children: [
               _Header(day: day, onClose: _leave),
+              const LmsSystemBandSlot(),
               if (value != null && selection.ready)
                 ..._sections(context, value, selection)
               else if (data.hasError)

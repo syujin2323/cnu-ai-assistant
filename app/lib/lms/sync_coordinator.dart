@@ -487,7 +487,13 @@ class SyncCoordinator {
         case final LmsStepSent sent:
           if (lmsTransportFailure(sent.response, params.markers)
               case final kind?) {
-            return (vars: vars, failure: _Attempt(_kindOf(kind)));
+            return (
+              vars: vars,
+              failure: _Attempt(
+                _kindOf(kind),
+                field: _offlineField(sent.response.offline),
+              ),
+            );
           }
           final status = sent.response.statusCode!;
           if (status < 200 || status >= 300) {
@@ -581,7 +587,12 @@ class SyncCoordinator {
               _Attempt(SyncResultKind.reloginRequired),
             );
           case LmsOutcomeKind.networkFailure || LmsOutcomeKind.serverError:
-            return _ReloginPostponed(_Attempt(_kindOf(outcome.kind)));
+            return _ReloginPostponed(
+              _Attempt(
+                _kindOf(outcome.kind),
+                field: _offlineField(outcome.offline),
+              ),
+            );
           default:
             return _ReloginStopped(
               _Attempt(
@@ -831,13 +842,12 @@ class SyncCoordinator {
       case LmsStepNotSent(:final field):
         return failure(field);
       case final LmsStepSent sent:
-        final kind = _kindOf(
-          classifier.classify(sent.response, _anyJson).outcome.kind,
-        );
+        final outcome = classifier.classify(sent.response, _anyJson).outcome;
+        final kind = _kindOf(outcome.kind);
         if (kind != SyncResultKind.normal) {
           return kind == SyncResultKind.parseFailure
               ? failure('course_info')
-              : _Attempt(kind);
+              : _Attempt(kind, field: _offlineField(outcome.offline));
         }
         if (sent.missing case final missing?) return failure(missing);
         vars.addAll(sent.values);
@@ -850,7 +860,10 @@ class SyncCoordinator {
         case final LmsStepSent sent:
           if (lmsTransportFailure(sent.response, params.markers)
               case final kind?) {
-            return _Attempt(_kindOf(kind));
+            return _Attempt(
+              _kindOf(kind),
+              field: _offlineField(sent.response.offline),
+            );
           }
           final status = sent.response.statusCode!;
           if (status < 200 || status >= 300) return failure('status');
@@ -890,7 +903,9 @@ class SyncCoordinator {
         return (
           kind: kind,
           records: ok ? classified.value ?? <T>[] : null,
-          field: classified.failedField,
+          field:
+              _offlineField(classified.outcome.offline) ??
+              classified.failedField,
         );
     }
   }
@@ -947,6 +962,11 @@ class SyncCoordinator {
       );
     }
   }
+
+  /// 오프라인(연결 없음·주소 해석 실패)으로 응답을 받지 못했으면 `sync_runs.detail`에 남길 [SyncRunDetail.offline]이고,
+  /// 아니면 null이다. 상태 줄과 01·02·03의 띠가 이것으로 오프라인과 연결 실패를 가른다.
+  static String? _offlineField(bool offline) =>
+      offline ? SyncRunDetail.offline : null;
 
   static SyncResultKind _kindOf(LmsOutcomeKind kind) => switch (kind) {
     LmsOutcomeKind.normal => SyncResultKind.normal,
