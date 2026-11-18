@@ -1,15 +1,11 @@
 rules_version = '2';
 
-// 앱은 Firestore에 직접 쓰지 않는다. 모두 거부하고 공개 데이터(public/{doc}: 학사일정·공휴일)만 읽게 둔다.
+// 앱은 Firestore를 직접 읽거나 쓰지 않는다(공휴일은 앱 안 표이고 학사일정은 두지 않음). 모두 거부한다.
 // Functions는 Admin SDK로 접근하므로 이 규칙의 영향을 받지 않는다(docs/architecture.md '앱과 서버 사이 약속 (API)').
 service cloud.firestore {
   match /databases/{database}/documents {
     match /{document=**} {
       allow read, write: if false;
-    }
-
-    match /public/{doc} {
-      allow read: if true;
     }
   }
 }
