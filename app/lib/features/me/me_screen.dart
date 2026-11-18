@@ -2,10 +2,10 @@
 //
 // 위에서부터 앱 이름과 '충남대 비공식 앱', 학기 카드(과목 수·이번 주 할 일 수, 누르면 03 할 일), LMS 계정(가린 학번,
 // 상태, 상태별 줄, 로그아웃, PC·웹 세션이 끊길 수 있다는 한 줄), 일정(시간표·고정 일정·내 규칙·하루 경계·이동·점심
-// 시간 표시), 알림(아침 브리핑 시각), AI(사용 스위치와 상태, 동의 문구 다시 보기), 화면(글자 크기), 데이터(데모
-// 모드, 데이터 삭제), 앱 정보(처리방침·이용약관·오픈소스 라이선스·문의 메일·버전)다. 사용 지표 보내기는 지표를
-// 보내는 PR에서 붙인다. 데모 모드에서는 LMS 계정 동작과 데이터 삭제를 두지 않는다(데모를 끝내면 샘플이 지워짐).
-// 데모를 끝내는 곳은 데이터의 '데모 모드 끝내기' 하나이고, 끝내는 중과 끝내지 못했음도 그 줄이 보인다.
+// 시간 표시), 알림(아침 브리핑 시각), AI(사용 스위치와 상태, 동의 문구 다시 보기, 사용 지표 보내기), 화면(글자 크기),
+// 데이터(데모 모드, 데이터 삭제), 앱 정보(처리방침·이용약관·오픈소스 라이선스·문의 메일·버전)다. 데모 모드에서는 LMS
+// 계정 동작과 데이터 삭제, 사용 지표 보내기를 두지 않는다(데모를 끝내면 샘플이 지워지고, 지표는 실제 모드의 숫자만
+// 보냄). 데모를 끝내는 곳은 데이터의 '데모 모드 끝내기' 하나이고, 끝내는 중과 끝내지 못했음도 그 줄이 보인다.
 // 하루 경계·이동·점심 시간 표시·브리핑 시각·AI는 그 모드의 폰 DB에 쓴다(데모에서는 데모 DB).
 
 import 'dart:async';
@@ -13,6 +13,7 @@ import 'dart:async';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/app/update_required.dart';
+import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
 import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/legal_texts.dart';
 import 'package:cnu_ai_assistant/design/motion/press.dart';
@@ -24,6 +25,7 @@ import 'package:cnu_ai_assistant/design/widgets/external_link.dart';
 import 'package:cnu_ai_assistant/design/widgets/legal_document.dart';
 import 'package:cnu_ai_assistant/design/widgets/lms_status_line.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
+import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/lms_status.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
@@ -376,8 +378,9 @@ class _BriefingGroup extends ConsumerWidget {
   }
 }
 
-/// AI: 사용 스위치와 상태(켜짐/꺼짐/오늘 사용량 다 씀, [aiStatusOf]), 동의 문구 다시 보기. 켜면 AI 사용 동의를
-/// 묻고 동의하면 `aiEnabled`를 켜고 `aiConsentAt`을 적는다. 끄면 바로 끈다.
+/// AI: 사용 스위치와 상태(켜짐/꺼짐/오늘 사용량 다 씀, [aiStatusOf]), 동의 문구 다시 보기, 사용 지표 보내기. 켜면
+/// AI 사용 동의를 묻고 동의하면 `aiEnabled`를 켜고 `aiConsentAt`을 적는다. 끄면 바로 끈다. 사용 지표는 AI와
+/// 따로이고 실제 모드의 숫자만 보내므로 데모 모드에서는 두지 않는다(실제 DB에 씀, data/metrics_reporter.dart).
 class _AiGroup extends ConsumerWidget {
   const _AiGroup();
 
@@ -386,6 +389,7 @@ class _AiGroup extends ConsumerWidget {
     final colors = AppColors.of(context);
     final settings = ref.watch(settingsProvider).value;
     final now = ref.watch(minuteClockProvider);
+    final demo = ref.watch(appModeProvider) == AppMode.demo;
     final state = settings == null ? null : aiStatusOf(settings, now: now);
     final note = switch (state) {
       AiStatus.off => 'AI를 끄면 AI 비서는 직접 추가 폼으로 열고, 내 규칙은 폼으로 정해요',
@@ -426,8 +430,44 @@ class _AiGroup extends ConsumerWidget {
             },
           ),
         ),
+        if (!demo)
+          MeSwitchRow(
+            icon: AppIconName.send,
+            label: '사용 지표 보내기',
+            sub: 'AI와 따로 정해요. 날짜별 숫자만 보내고 내용은 보내지 않아요',
+            value: settings?.metricsEnabled ?? false,
+            onChanged: settings == null
+                ? null
+                : (on) => _setMetrics(ref, on, settings.dayBoundaryMin),
+          ),
       ],
     );
+  }
+
+  /// 사용 지표 보내기를 켜고 끈다. 켤 때는 어제를 보낸 날로 적어 켠 날부터의 숫자만 보내고, 끌 때는 적어 둔 제안
+  /// 날짜를 비운다.
+  Future<void> _setMetrics(WidgetRef ref, bool on, int dayBoundaryMin) async {
+    final repository = SettingsRepository(ref.read(realDatabaseProvider));
+    final yesterday = logicalDate(
+      ref.read(clockProvider).now(),
+      dayBoundaryMin: dayBoundaryMin,
+    ).subtract(const Duration(days: 1));
+    final saved = await repository.writeAll(
+      on
+          ? {
+              SettingKeys.metricsEnabled: true,
+              SettingKeys.metricsLastSentOn: isoDate(yesterday),
+            }
+          : {
+              SettingKeys.metricsEnabled: false,
+              SettingKeys.metricsSuggestedDays: const <String>[],
+            },
+    );
+    ref.read(toastControllerProvider.notifier).show(switch (saved) {
+      Ok() when on => '사용 지표를 보내요 · 하루 한 번 날짜별 숫자만 보내요',
+      Ok() => '사용 지표를 보내지 않아요',
+      Err() => _saveFailedText,
+    });
   }
 
   Future<void> _setAi(BuildContext context, WidgetRef ref, bool on) async {
