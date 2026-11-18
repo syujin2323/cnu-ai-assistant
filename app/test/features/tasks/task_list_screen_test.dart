@@ -2,10 +2,12 @@
 
 import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
+import 'package:cnu_ai_assistant/data/repositories/rules_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/task_repository.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
+import 'package:cnu_ai_assistant/domain/task_took.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_screen.dart';
 import 'package:cnu_ai_assistant/features/tasks/task_list_screen.dart';
 import 'package:drift/drift.dart' show Value;
@@ -115,6 +117,14 @@ Future<TestApp> _open(
   return app;
 }
 
+/// 제목이 [title]인 할 일(저장된 값).
+Future<Task> _task(TestApp app, String title) async =>
+    switch (await TaskRepository(app.db).read()) {
+      Ok(:final value) =>
+        value.firstWhere((entry) => entry.task.title == title).task,
+      Err(:final error) => fail('할 일을 읽지 못했다: $error'),
+    };
+
 /// [text]가 보이고 누를 수 있는지(접히지 않음).
 bool _shown(String text) => find.text(text).hitTestable().evaluate().isNotEmpty;
 
@@ -214,35 +224,118 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets('동그라미를 누르면 줄을 접고 완료로 저장하며 되돌릴 수 있다', (tester) async {
+  testWidgets('동그라미를 누르면 줄을 접고 완료로 저장한 뒤 걸린 시간을 묻고, 함께 되돌린다', (tester) async {
     final app = await _open(tester);
     await tester.tap(find.bySemanticsLabel('연결 리스트 과제 공부 완료로 표시'));
     await tester.pumpAndSettle();
-    expect(find.text('연결 리스트 과제 · 공부 완료로 옮겼어요'), findsOneWidget);
+    expect(find.text('얼마나 걸렸어요?'), findsOneWidget);
+    expect(find.text('공부 완료로 옮겼어요'), findsOneWidget);
+    expect(find.text('연결 리스트 과제 · 예상 1시간이었어요. 다음 예상에 써요'), findsOneWidget);
+    expect((await _task(app, '연결 리스트 과제')).status, TaskStatus.done);
+
+    // 예상(1시간)과 같으면 묻지 않고 기록한다.
+    await tapText(tester, '1시간');
+    expect(find.text('얼마나 걸렸어요?'), findsNothing);
+    expect(find.text('연결 리스트 과제 · 공부 완료 · 1시간 걸렸다고 기록했어요'), findsOneWidget);
     expect(find.text('연결 리스트 과제'), findsNothing);
     expect(find.bySemanticsLabel('주간 할 일 2개'), findsOneWidget);
-    final tasks = await TaskRepository(app.db).read();
-    final done = switch (tasks) {
-      Ok(:final value) => value.firstWhere(
-        (entry) => entry.task.title == '연결 리스트 과제',
-      ),
-      Err(:final error) => fail('할 일을 읽지 못했다: $error'),
-    };
-    expect(done.task.status, TaskStatus.done);
-    expect(done.task.completedAt, _now);
+    final done = await _task(app, '연결 리스트 과제');
+    expect(done.status, TaskStatus.done);
+    expect(done.completedAt, _now);
+    expect(done.actualMin, 60);
 
+    // 되돌리면 끝내기와 걸린 시간을 함께 되돌린다.
     await tapText(tester, '되돌리기');
-    expect(find.text('연결 리스트 과제'), findsOneWidget);
     expect(_shown('연결 리스트 과제'), isTrue);
     expect(find.bySemanticsLabel('주간 할 일 3개'), findsOneWidget);
+    final back = await _task(app, '연결 리스트 과제');
+    expect(back.status, TaskStatus.todo);
+    expect(back.actualMin, isNull);
     await app.dispose(tester);
   });
 
-  testWidgets('개인 할 일을 끝내면 완료로 옮겼다고 알린다', (tester) async {
+  testWidgets('예상과 크게 다르면 다음 예상을 묻고, 그렇게 할게요면 예상 시간 규칙으로 저장한다', (tester) async {
+    final app = await _open(tester);
+    await tester.tap(find.bySemanticsLabel('연결 리스트 과제 공부 완료로 표시'));
+    await tester.pumpAndSettle();
+    await tapText(tester, '3시간 이상');
+    expect(find.text('3시간 넘게 걸렸다고 기록했어요'), findsOneWidget);
+    expect(find.text('다음 자료구조 과제는 4시간으로 잡을까요?'), findsOneWidget);
+    expect(find.text('자료구조 과제는 보통 4시간으로 잡아요'), findsOneWidget);
+    await tapText(tester, '그렇게 할게요');
+    expect(find.text('다음 자료구조 과제는 4시간으로 잡을게요'), findsOneWidget);
+    expect((await _task(app, '연결 리스트 과제')).actualMin, tookLongMin);
+    final rules = switch (await RulesRepository(app.db).read()) {
+      Ok(:final value) => value,
+      Err(:final error) => fail('규칙을 읽지 못했다: $error'),
+    };
+    final rule = rules.single;
+    expect(rule.kind, RuleKind.estimate);
+    expect(rule.params.taskKind, TaskKind.assignment);
+    expect(rule.params.minutes, tookLongMin);
+    expect(rule.params.courseId, isNotNull);
+
+    // 이 토스트의 되돌리기는 규칙만 되돌린다.
+    await tapText(tester, '되돌리기');
+    expect(switch (await RulesRepository(app.db).read()) {
+      Ok(:final value) => value,
+      Err(:final error) => fail('$error'),
+    }, isEmpty);
+    expect((await _task(app, '연결 리스트 과제')).status, TaskStatus.done);
+    await app.dispose(tester);
+  });
+
+  testWidgets('이번만이에요면 걸린 시간만 기록한다', (tester) async {
+    final app = await _open(tester);
+    await tester.tap(find.bySemanticsLabel('연결 리스트 과제 공부 완료로 표시'));
+    await tester.pumpAndSettle();
+    await tapText(tester, '3시간 이상');
+    await tapText(tester, '이번만이에요');
+    expect(find.text('연결 리스트 과제 · 공부 완료 · 3시간 넘게 걸렸다고 기록했어요'), findsOneWidget);
+    expect(switch (await RulesRepository(app.db).read()) {
+      Ok(:final value) => value,
+      Err(:final error) => fail('$error'),
+    }, isEmpty);
+    await app.dispose(tester);
+  });
+
+  testWidgets('건너뛰거나 시트를 닫으면 걸린 시간 없이 옮겼다고 알린다', (tester) async {
     final app = await _open(tester);
     await tester.tap(find.bySemanticsLabel('장학금 서류 완료로 표시'));
     await tester.pumpAndSettle();
+    expect(find.text('장학금 서류 · 예상 1시간이었어요. 기록만 해 둘게요'), findsOneWidget);
+    expect(find.text('10분'), findsOneWidget);
+    await tapText(tester, '건너뛰기');
     expect(find.text('장학금 서류 · 완료로 옮겼어요'), findsOneWidget);
+    expect((await _task(app, '장학금 서류')).actualMin, isNull);
+
+    await tester.tap(find.bySemanticsLabel('고윳값 퀴즈 공부 완료로 표시'));
+    await tester.pumpAndSettle();
+    // 시트 바깥(어두운 곳)을 눌러 닫는다.
+    await tester.tapAt(const Offset(20, 20));
+    await tester.pumpAndSettle();
+    expect(find.text('얼마나 걸렸어요?'), findsNothing);
+    expect(find.text('고윳값 퀴즈 · 공부 완료로 옮겼어요'), findsOneWidget);
+    expect((await _task(app, '고윳값 퀴즈')).status, TaskStatus.done);
+    await app.dispose(tester);
+  });
+
+  testWidgets('영상은 걸린 시간을 묻지 않는다', (tester) async {
+    final app = await _open(tester, seed: false);
+    final course = await _course(app.db, '확률과 통계');
+    await _lmsTask(
+      app.db,
+      '조건부 확률',
+      course: course,
+      courseName: '확률과 통계',
+      due: _at(18),
+      kind: TaskKind.video,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('조건부 확률 다 봤어요로 표시'));
+    await tester.pumpAndSettle();
+    expect(find.text('얼마나 걸렸어요?'), findsNothing);
+    expect(find.text('조건부 확률 · 다 봤어요로 옮겼어요'), findsOneWidget);
     await app.dispose(tester);
   });
 
@@ -303,6 +396,17 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.bySemanticsLabel('과목별'));
     await tester.pumpAndSettle();
+    await app.dispose(tester);
+  });
+
+  testWidgets('글자 2.0에서도 걸린 시간 시트의 두 화면이 넘치지 않는다', (tester) async {
+    final app = await _open(tester, textScale: 2.0);
+    await tester.tap(find.bySemanticsLabel('연결 리스트 과제 공부 완료로 표시'));
+    await tester.pumpAndSettle();
+    expect(find.text('얼마나 걸렸어요?'), findsOneWidget);
+    await tapText(tester, '3시간 이상');
+    expect(find.text('다음 자료구조 과제는 4시간으로 잡을까요?'), findsOneWidget);
+    await tapText(tester, '이번만이에요');
     await app.dispose(tester);
   });
 
