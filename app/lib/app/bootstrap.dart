@@ -30,9 +30,11 @@ import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/firebase_options.dart';
 import 'package:cnu_ai_assistant/lms/sync_triggers.dart';
 import 'package:cnu_ai_assistant/platform/background.dart';
+import 'package:cnu_ai_assistant/platform/push.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart'
     show LicenseEntryWithLineBreaks, LicenseRegistry, kReleaseMode;
@@ -90,6 +92,8 @@ Future<BootOutcome> bootstrap() async {
         options: DefaultFirebaseOptions.currentPlatform,
       );
     }
+    // 서버 신호 푸시(FCM)를 받는 진입점. 토픽을 구독하기 전에는 FCM 토큰이 없어 받을 것이 없다(platform/push.dart).
+    FirebaseMessaging.onBackgroundMessage(handleBackgroundPush);
     await _activateAppCheck();
     await configureRemoteConfig(FirebaseRemoteConfig.instance);
 
@@ -152,7 +156,7 @@ Future<void> runDeferredStartupTasksAfterLaunch(ProviderContainer container) =>
     runDeferredStartupTasks(realDb: container.read(realDatabaseProvider));
 
 /// runApp 뒤에 부른다. Remote Config 값을 받아 적용하고, 끝나면(실패·시간 초과 포함) 알린 뒤 LMS 자동 계기를 걸고
-/// 백그라운드 동기화 작업을 등록한다.
+/// 백그라운드 동기화 작업을 등록하며 서버 신호 푸시의 구독을 맞춘다.
 ///
 /// 오프라인이거나 시간 초과(5초)면 마지막으로 활성화된 값, 그것도 없으면 `setDefaults` 값으로 동작한다.
 Future<void> fetchRemoteConfigAfterLaunch(ProviderContainer container) async {
@@ -170,6 +174,8 @@ Future<void> fetchRemoteConfigAfterLaunch(ProviderContainer container) async {
     container.read(lmsAutoSyncProvider).start();
     // 켤 때마다 등록해 작업 설정을 맞춘다. 던지지 않고, 화면은 기다리지 않는다(platform/background.dart).
     unawaited(scheduleBackgroundSync());
+    // 서버 신호 푸시의 토픽 구독을 지금 상태(원격 스위치, 앱 모드, LMS 상태)에 맞추고, 바뀔 때마다 다시 맞춘다.
+    listenSyncSignalSubscription(container);
   }
 }
 
