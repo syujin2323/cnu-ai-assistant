@@ -56,6 +56,32 @@ Future<SheetHarness> pumpSheetHarness(
   double textScale = 1,
   Size size = phonePortrait,
 }) async {
+  late SheetHarness harness;
+  harness = await pumpProviderHarness(
+    tester,
+    Consumer(
+      builder: (context, ref, _) => Center(
+        child: FilledButton(
+          onPressed: () async => harness.result = await open(context, ref),
+          child: const Text('열기'),
+        ),
+      ),
+    ),
+    seed: seed,
+    textScale: textScale,
+    size: size,
+  );
+  return harness;
+}
+
+/// [body]를 메모리 DB·모션 끔·멈춘 시계의 ProviderScope 안 Scaffold에 띄운다. [seed]는 띄우기 전에 DB에 넣는다.
+Future<SheetHarness> pumpProviderHarness(
+  WidgetTester tester,
+  Widget body, {
+  Future<void> Function(AppDatabase db)? seed,
+  double textScale = 1,
+  Size size = phonePortrait,
+}) async {
   tester.view.physicalSize = size * 3;
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
@@ -64,7 +90,6 @@ Future<SheetHarness> pumpSheetHarness(
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   final db = AppDatabase.memory();
   await seed?.call(db);
-  late SheetHarness harness;
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -79,21 +104,11 @@ Future<SheetHarness> pumpSheetHarness(
         home: MediaQuery.withClampedTextScaling(
           minScaleFactor: textScale,
           maxScaleFactor: textScale,
-          child: Scaffold(
-            body: Consumer(
-              builder: (context, ref, _) => Center(
-                child: FilledButton(
-                  onPressed: () async =>
-                      harness.result = await open(context, ref),
-                  child: const Text('열기'),
-                ),
-              ),
-            ),
-          ),
+          child: Scaffold(body: body),
         ),
       ),
     ),
   );
-  harness = SheetHarness._(db, tester);
-  return harness;
+  await tester.pumpAndSettle();
+  return SheetHarness._(db, tester);
 }
