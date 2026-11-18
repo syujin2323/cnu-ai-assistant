@@ -1,8 +1,10 @@
 // 로그인 흐름 테스트. docs/lms.md '로그인'·'학번·비밀번호와 자동 재로그인'·'쿠키 금고'·'세션 상태'.
 //
 // 가짜 LMS 서버(합성 로그인 경로)와 합성 요청 상수로 준비 요청 → 암호화한 로그인 요청 → 결과 규칙 → 세션 넘기기와,
-// 성공·실패 때 저장하는 것(학번·비밀번호, 쿠키 금고, LMS 상태)을 본다. 학번·비밀번호·키는 모두 합성 값이다.
+// 성공·실패 때 저장하는 것(학번·비밀번호, 쿠키 금고, LMS 상태)과 로그인 뒤 진행 줄의 불러오기 차례를 본다.
+// 학번·비밀번호·키는 모두 합성 값이다.
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:cnu_ai_assistant/data/db/database.dart';
@@ -12,6 +14,7 @@ import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
+import 'package:cnu_ai_assistant/domain/models/sync_run.dart';
 import 'package:cnu_ai_assistant/lms/cookie_vault.dart';
 import 'package:cnu_ai_assistant/lms/lms_client.dart';
 import 'package:cnu_ai_assistant/lms/lms_config.dart';
@@ -50,7 +53,8 @@ void main() {
     FakeLmsServer server, {
     LmsConfig? config,
     FlutterSecureStorage storage = const FlutterSecureStorage(),
-    void Function(LoginMode mode)? onLoggedIn,
+    Future<void> Function(SyncScope scope)? syncAfterLogin,
+    Duration stageWait = lmsLoginStageWait,
   }) => LmsLoginFlow(
     config: () async =>
         config ?? LmsConfig(enabled: true, requestParams: synthetic),
@@ -60,7 +64,8 @@ void main() {
     schoolDomain: syntheticSchoolDomain,
     createDio: () => createLmsDio(adapter: server),
     sleep: (duration) async => sleeps.add(duration),
-    onLoggedIn: onLoggedIn,
+    syncAfterLogin: syncAfterLogin,
+    stageWait: stageWait,
   );
 
   Future<(Result<void>, List<LoginStage>)> login(
@@ -474,32 +479,118 @@ void main() {
     });
   });
 
-  test('로그인에 성공해 저장까지 마치면 그 모드로 로그인 직후 동기화를 부르고, 실패하면 부르지 않는다', () async {
-    final modes = <LoginMode>[];
-    final flow = flowWith(
-      FakeLmsServer(syntheticLoginRoutes()),
-      onLoggedIn: modes.add,
-    );
+  group('로그인 뒤 진행 줄', () {
+    test('처음 로그인은 시간표 → 전체 동기화, 다시 로그인은 갱신을 차례로 부르고 단계마다 진행 줄을 넘긴다', () async {
+      final calls = <SyncScope>[];
+      final flow = flowWith(
+        FakeLmsServer(syntheticLoginRoutes()),
+        syncAfterLogin: (scope) async => calls.add(scope),
+      );
 
-    final (failed, _) = await login(flow, password: 'wrong-pw');
-    final (ok, _) = await login(flow, mode: LoginMode.relogin);
+      final (first, firstStages) = await login(flow);
+      expect(first, const Ok<void>(null));
+      expect(firstStages, [
+        LoginStage.login,
+        LoginStage.timetable,
+        LoginStage.tasks,
+      ]);
+      expect(calls, [SyncScope.timetable, SyncScope.full]);
 
-    expect(failed, isA<Err<void>>());
-    expect(ok, isA<Ok<void>>());
-    expect(modes, [LoginMode.relogin]);
-  });
+      calls.clear();
+      final (again, againStages) = await login(flow, mode: LoginMode.relogin);
+      expect(again, const Ok<void>(null));
+      expect(againStages, [LoginStage.login, LoginStage.tasks]);
+      expect(calls, [SyncScope.list]);
+    });
 
-  test('로그인은 됐지만 저장하지 못하면 로그인 직후 동기화를 부르지 않는다', () async {
-    final modes = <LoginMode>[];
-    final flow = flowWith(
-      FakeLmsServer(syntheticLoginRoutes()),
-      storage: FailingSecureStorage(failWrites: true),
-      onLoggedIn: modes.add,
-    );
+    test('저장을 마친 뒤 불러오고, 앞 단계가 끝나야 다음 단계로 가며, 마지막 단계가 끝나야 성공으로 끝난다', () async {
+      final started = {
+        for (final scope in [SyncScope.timetable, SyncScope.full])
+          scope: Completer<void>(),
+      };
+      final finish = {
+        for (final scope in [SyncScope.timetable, SyncScope.full])
+          scope: Completer<void>(),
+      };
+      final flow = flowWith(
+        FakeLmsServer(syntheticLoginRoutes()),
+        syncAfterLogin: (scope) {
+          started[scope]!.complete();
+          return finish[scope]!.future;
+        },
+      );
+      final stages = <LoginStage>[];
+      var done = false;
+      final running = flow
+          .run(
+            mode: LoginMode.first,
+            studentId: syntheticStudentId,
+            password: syntheticPassword,
+            onStage: stages.add,
+          )
+          .whenComplete(() => done = true);
 
-    final (result, _) = await login(flow);
+      await started[SyncScope.timetable]!.future;
+      expect(stages, [LoginStage.login, LoginStage.timetable]);
+      expect((await readSettings()).lmsSessionState, LmsSessionState.active);
+      expect(await savedCredential(), isNotNull);
+      await pumpEventQueue();
+      expect(started[SyncScope.full]!.isCompleted, isFalse);
 
-    expect(result, isA<Err<void>>());
-    expect(modes, isEmpty);
+      finish[SyncScope.timetable]!.complete();
+      await started[SyncScope.full]!.future;
+      expect(stages.last, LoginStage.tasks);
+      await pumpEventQueue();
+      expect(done, isFalse);
+
+      finish[SyncScope.full]!.complete();
+      expect(await running, const Ok<void>(null));
+    });
+
+    test('단계가 기다림 상한을 넘으면 그 불러오기를 두고 다음 단계로 넘어가 성공으로 끝난다', () async {
+      final calls = <SyncScope>[];
+      final flow = flowWith(
+        FakeLmsServer(syntheticLoginRoutes()),
+        // 끝나지 않는 불러오기.
+        syncAfterLogin: (scope) {
+          calls.add(scope);
+          return Completer<void>().future;
+        },
+        stageWait: const Duration(milliseconds: 20),
+      );
+
+      final (result, stages) = await login(flow);
+
+      expect(result, const Ok<void>(null));
+      expect(stages, [
+        LoginStage.login,
+        LoginStage.timetable,
+        LoginStage.tasks,
+      ]);
+      expect(calls, [SyncScope.timetable, SyncScope.full]);
+    });
+
+    test('로그인에 실패하거나 저장하지 못하면 불러오지 않는다', () async {
+      final calls = <SyncScope>[];
+      Future<void> record(SyncScope scope) async => calls.add(scope);
+
+      final (failed, failedStages) = await login(
+        flowWith(FakeLmsServer(syntheticLoginRoutes()), syncAfterLogin: record),
+        password: 'wrong-pw',
+      );
+      final (unsaved, unsavedStages) = await login(
+        flowWith(
+          FakeLmsServer(syntheticLoginRoutes()),
+          storage: FailingSecureStorage(failWrites: true),
+          syncAfterLogin: record,
+        ),
+      );
+
+      expect(failed, isA<Err<void>>());
+      expect(unsaved, isA<Err<void>>());
+      expect(failedStages, [LoginStage.login]);
+      expect(unsavedStages, [LoginStage.login]);
+      expect(calls, isEmpty);
+    });
   });
 }
