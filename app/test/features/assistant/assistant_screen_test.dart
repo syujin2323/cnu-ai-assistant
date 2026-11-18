@@ -295,6 +295,9 @@ void main() {
     expect((block.startMin, block.endMin), (14 * 60, 17 * 60));
     expect(block.kind, FixedBlockKind.work);
     expect(block.source, EntrySource.ai);
+    // 고정 일정 시트의 알바 처음 값(앞뒤 여유 20분, 임시)이다.
+    expect(block.bufferMin, 20);
+    expect(block.prep, isNull);
     expect(find.text('알바를 주말마다 14:00에 넣었어요'), findsOneWidget);
     await app.dispose(tester);
   });
@@ -1230,6 +1233,39 @@ void main() {
     day = DateTime(start.year, start.month, start.day);
     await _say(tester, '그날 뭐 해?');
     expect(find.text('보고서 · 제안'), findsOneWidget);
+    await app.dispose(tester);
+  });
+
+  testWidgets('말로 넣은 운동 반복 일정은 준비물 운동복과 앞뒤 여유를 처음 값으로 쓴다', (tester) async {
+    final (app, _) = await _open(
+      tester,
+      reply: (_) => const Ok(
+        ParseResult(
+          intent: ParseIntent.createEvent,
+          items: [
+            ParseItem(
+              title: '헬스',
+              kind: ParseItemKind.event,
+              category: ParseCategory.personal,
+              dateExpression: '화목마다',
+              timeExpression: '저녁 7시',
+              startMin: 19 * 60,
+              repeat: ParseRepeat(
+                freq: ParseRepeatFreq.weekly,
+                weekdays: [DateTime.tuesday, DateTime.thursday],
+              ),
+              fixedBlockKind: FixedBlockKind.exercise,
+            ),
+          ],
+        ),
+      ),
+    );
+    await _say(tester, '화목마다 저녁 7시 헬스');
+    await tapText(tester, '캘린더에 추가');
+    final block = (await app.db.select(app.db.fixedBlocks).get()).single;
+    expect(block.kind, FixedBlockKind.exercise);
+    expect(block.prep, '운동복');
+    expect(block.bufferMin, 10);
     await app.dispose(tester);
   });
 }

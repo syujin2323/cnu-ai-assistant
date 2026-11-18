@@ -29,6 +29,7 @@ import 'package:cnu_ai_assistant/domain/assistant/assistant_text.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
+import 'package:cnu_ai_assistant/domain/fixed_block_templates.dart';
 import 'package:cnu_ai_assistant/domain/free_slots.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/domain/models/parse_result.dart';
@@ -90,11 +91,6 @@ final assistantControllerProvider =
     NotifierProvider.autoDispose<AssistantController, AssistantState>(
       AssistantController.new,
     );
-
-/// 06 AI 비서가 고를 수 있는 과목(직접 만든 과목과 가장 최근 학기의 LMS 과목). 할 일 카드의 예상 시간 규칙에 쓴다.
-final assistantCoursesProvider = StreamProvider.autoDispose<List<Course>>(
-  (ref) => ref.watch(courseRepositoryProvider).watchSelectable(),
-);
 
 class AssistantController extends Notifier<AssistantState> {
   /// 데모 응답을 보이기 전에 기다리는 시간(답을 읽는 것처럼 보이게, 임시).
@@ -433,6 +429,8 @@ class AssistantController extends Notifier<AssistantState> {
   Future<Result<int>> _saveDraft(EventDraft draft, DateTime now) async {
     try {
       if (draft.weekdays case final weekdays?) {
+        final kind = draft.fixedKind ?? FixedBlockKind.other;
+        final template = fixedBlockTemplate(kind);
         return await ref
             .read(fixedBlockRepositoryProvider)
             .add(
@@ -440,9 +438,11 @@ class AssistantController extends Notifier<AssistantState> {
               weekdays: weekdays,
               startMin: draft.startMin!,
               endMin: draft.endMin!,
-              bufferMin: 0,
-              kind: draft.fixedKind ?? FixedBlockKind.other,
-              prep: draft.prep,
+              // 고정 일정 시트의 종류별 처음 값(앞뒤 여유, 운동이면 준비물)을 쓴다.
+              bufferMin: template.bufferMin,
+              kind: kind,
+              prep:
+                  draft.prep ?? (template.prep.isEmpty ? null : template.prep),
               place: draft.place,
               source: EntrySource.ai,
               now: now,

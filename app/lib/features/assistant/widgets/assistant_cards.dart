@@ -230,7 +230,7 @@ class TaskCardView extends ConsumerWidget {
     final courseId = courseName == null
         ? null
         : ref
-              .watch(assistantCoursesProvider)
+              .watch(selectableCoursesProvider)
               .value
               ?.where((course) => course.name == courseName)
               .firstOrNull
