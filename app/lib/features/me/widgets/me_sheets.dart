@@ -1,5 +1,5 @@
 // 10 나의 시트: 로그아웃(지우는 것과 두는 것)과 데이터 삭제(되돌릴 수 없음)의 확인, 하루 경계와 아침 브리핑 시각
-// 고르기. docs/screens.md '10 나', docs/lms.md '로그아웃, 데이터 삭제, 내보내기'. 문구는 디자인 전 임시 문구다.
+// 고르기. docs/screens.md '10 나', docs/lms.md '로그아웃, 데이터 삭제'. 문구는 디자인 전 임시 문구다.
 
 import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
