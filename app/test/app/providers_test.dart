@@ -10,6 +10,10 @@ import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/class_slot.dart';
+import 'package:cnu_ai_assistant/domain/models/entry_source.dart';
+import 'package:cnu_ai_assistant/domain/models/plan_block.dart';
+import 'package:cnu_ai_assistant/domain/models/rule.dart';
+import 'package:cnu_ai_assistant/domain/models/task.dart';
 import 'package:cnu_ai_assistant/data/repositories/sync_run_repository.dart';
 import 'package:cnu_ai_assistant/domain/lms_status.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
@@ -453,6 +457,102 @@ void main() {
         isA<Ok<void>>(),
       );
       expect(await textOf(loading), 'LMS 정보 받기 전');
+    });
+  });
+
+  group('dayScheduleProvider·plannerConfigProvider', () {
+    test('하루 경계로 그날의 범위를 정하고, 규칙을 읽어 배치 설정을 낸다', () async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      final db = AppDatabase.memory();
+      addTearDown(db.close);
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          databaseProvider.overrideWithValue(db),
+        ],
+      );
+      addTearDown(container.dispose);
+      final monday = DateTime(2026, 11, 16);
+      container
+        ..listen(dayScheduleProvider(monday), (_, _) {})
+        ..listen(plannerConfigProvider, (_, _) {});
+
+      // 화요일 03:30 블록은 하루 경계 04:00(기본)이면 월요일의 논리적 하루다.
+      final taskId = await db
+          .into(db.tasks)
+          .insert(
+            TasksCompanion.insert(
+              title: '과제',
+              kind: TaskKind.assignment,
+              dueTimeUnknown: false,
+              status: TaskStatus.todo,
+            ),
+          );
+      await db
+          .into(db.planBlocks)
+          .insert(
+            PlanBlocksCompanion.insert(
+              taskId: taskId,
+              startAt: DateTime(2026, 11, 17, 3, 30),
+              endAt: DateTime(2026, 11, 17, 3, 50),
+              status: PlanBlockStatus.confirmed,
+              source: BlockSource.manual,
+            ),
+          );
+      Future<int> blocks() async {
+        for (var i = 0; i < 200; i++) {
+          if (container.read(dayScheduleProvider(monday)) case AsyncData(
+            :final value,
+          )) {
+            return value.planBlocks.length;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        fail('일정을 기다리다 끝남');
+      }
+
+      expect(await blocks(), 1);
+      // 하루 경계를 03:00으로 바꾸면 화요일 03:30은 화요일의 논리적 하루다.
+      expect(
+        await SettingsRepository(db).write(SettingKeys.dayBoundaryMin, 180),
+        isA<Ok<void>>(),
+      );
+      for (var i = 0; i < 200 && await blocks() != 0; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(await blocks(), 0);
+
+      // 규칙이 없으면 기본값, 규칙을 넣으면 그 값이다.
+      for (
+        var i = 0;
+        i < 200 && container.read(plannerConfigProvider) == null;
+        i++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(container.read(plannerConfigProvider)?.maxBlockMin, 120);
+      final when = DateTime(2026, 11, 1);
+      await db
+          .into(db.rules)
+          .insert(
+            RulesCompanion.insert(
+              kind: RuleKind.maxBlock,
+              params: const RuleParams(minutes: 90),
+              active: true,
+              source: EntrySource.manual,
+              createdAt: when,
+              updatedAt: when,
+            ),
+          );
+      for (
+        var i = 0;
+        i < 200 && container.read(plannerConfigProvider)?.maxBlockMin != 90;
+        i++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(container.read(plannerConfigProvider)?.maxBlockMin, 90);
     });
   });
 }
