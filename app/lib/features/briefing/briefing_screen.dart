@@ -1,8 +1,10 @@
-// 01 아침 브리핑(셸 밖 전체 화면 `/briefing`). docs/screens.md '01 아침 브리핑',
-// docs/architecture.md '아침 브리핑'.
+// 01 계획(셸 밖 전체 화면 `/briefing`. 코드 이름은 briefing 그대로). docs/screens.md '01 계획',
+// docs/architecture.md '계획 화면'. 예전 이름은 '아침 브리핑'이다(docs/decisions.md 2026-11-19 ''아침 브리핑'을
+// '계획'으로 부르고 02 홈에서도 연다').
 //
-// 그날(논리적 하루) 브리핑을 아직 보지 않았으면 앱을 열 때 먼저 뜨고, 뜨는 순간 그날을 본 것으로 기록한다
-// (어느 길로 떠나든 그날은 다시 자동으로 띄우지 않음). 들어오는 길은 앱 열기, 14 온보딩, 데모 진입이다.
+// 그날(논리적 하루) 아직 보지 않았으면 앱을 열 때 먼저 뜨고, 뜨는 순간 그날을 본 것으로 기록한다
+// (어느 길로 떠나든 그날은 다시 자동으로 띄우지 않음). 들어오는 길은 앱 열기, 14 온보딩, 데모 진입, 02 홈 머리의
+// [계획]이다. 02 홈에서 열었으면(push) 닫을 때 02 홈으로 돌아가고, 자동으로 떴으면 02 홈(`/today`)으로 간다.
 // 01을 띄운 채 하루가 바뀌어 앱으로 돌아오면 새 날을 본 것으로 적고 그날로 다시 그린다. 돌아올 때 01은 미루는
 // 화면이라 시작 위치 규칙이 새로 띄우지 않으므로, 그대로 두면 어제 화면이 남고 새 날은 적히지 않는다.
 //
@@ -144,14 +146,14 @@ class _BriefingBodyState extends ConsumerState<_BriefingBody> {
               MediaQuery.paddingOf(context).bottom + 120,
             ),
             children: [
-              _Header(day: day, onClose: () => context.go(Routes.today)),
+              _Header(day: day, onClose: _leave),
               if (value != null && selection.ready)
                 ..._sections(context, value, selection)
               else if (data.hasError)
                 Padding(
                   padding: const EdgeInsets.only(top: AppSpace.s24),
                   child: Text(
-                    '브리핑을 불러오지 못했어요',
+                    '계획을 불러오지 못했어요',
                     style: AppText.body.copyWith(color: colors.muted),
                   ),
                 ),
@@ -173,9 +175,18 @@ class _BriefingBodyState extends ConsumerState<_BriefingBody> {
     );
   }
 
+  /// 이 화면을 떠난다. 02 홈에서 열었으면 돌아가고, 자동으로 떴으면(시작 위치) 02 홈으로 간다.
+  void _leave() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(Routes.today);
+    }
+  }
+
   Future<void> _press(BriefingActionKind action) async {
     if (action == BriefingActionKind.start) {
-      context.go(Routes.today);
+      _leave();
       return;
     }
     setState(() => _saving = true);
@@ -259,7 +270,7 @@ class _Header extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        '아침 브리핑',
+                        '계획',
                         style: AppText.small.copyWith(
                           fontWeight: AppText.semibold,
                           color: colors.accent,
@@ -294,7 +305,7 @@ class _Header extends StatelessWidget {
         const SizedBox(width: AppSpace.s12),
         Press(
           child: IconButton(
-            tooltip: '브리핑 닫고 오늘 화면으로 가기',
+            tooltip: '계획 닫기',
             onPressed: onClose,
             style: IconButton.styleFrom(
               backgroundColor: colors.tint,

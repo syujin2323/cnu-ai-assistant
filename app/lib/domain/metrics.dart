@@ -38,7 +38,7 @@ final class MetricsReport {
   /// 이 숫자가 말하는 논리적 하루(`YYYY-MM-DD`).
   final String date;
 
-  /// 그날 01 아침 브리핑을 봤는지.
+  /// 그날 01 계획을 봤는지(서버 키 이름은 예전 이름 그대로 `briefingOpened`).
   final bool briefingOpened;
 
   /// 그날 배치 엔진의 제안이 하나라도 있었는지.

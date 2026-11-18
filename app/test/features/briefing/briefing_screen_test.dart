@@ -6,6 +6,8 @@
 // - 배치 엔진의 마지막 결과(덮어씀)는 급한 순서 [D, B, A]와 근거를 낸다.
 // 02 홈에서 띄운 뒤 데이터를 넣고 /briefing으로 간다(브리핑이 처음 읽을 때 데이터가 있게).
 
+import 'dart:async';
+
 import 'package:cnu_ai_assistant/app/plan_controller.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
@@ -162,7 +164,7 @@ final _plan = PlanResult(
   ranked: const [4, 2, 1],
 );
 
-/// 02 홈에서 띄우고, 데이터를 넣은 뒤 01 아침 브리핑을 연다.
+/// 02 홈에서 띄우고, 데이터를 넣은 뒤 01 계획을 연다(시작 위치처럼 go로).
 Future<(TestApp, Ids)> pumpBriefing(
   WidgetTester tester, {
   double textScale = 1.0,
@@ -225,7 +227,7 @@ void main() {
       ) async {
         final (app, _) = await pumpBriefing(tester, textScale: textScale);
 
-        expect(find.text('아침 브리핑'), findsOneWidget);
+        expect(find.text('계획'), findsOneWidget);
         expect(find.textContaining('11월 16일'), findsOneWidget);
         expect(
           find.bySemanticsLabel(RegExp('^오늘 일정\\. 수업 0개')),
@@ -380,10 +382,33 @@ void main() {
         await app.dispose(tester);
       });
 
+      testWidgets('다른 화면에서 push로 열었으면 닫기·오늘 시작하기가 연 화면으로 돌아간다', (tester) async {
+        // 02 홈의 [계획]처럼 push로 열면 닫을 때 연 곳으로 돌아간다(go로 02 홈에 가지 않음). 연 곳이
+        // 02 홈이 아니어도 돌아가는지 09 일간에서 본다.
+        final (app, _) = await pumpBriefing(tester, textScale: textScale);
+        final day = Routes.day(DateTime(2026, 11, 16));
+        for (final leave in [
+          () => tapFinder(tester, find.byTooltip('계획 닫기')),
+          () => tapFinder(tester, find.text('오늘 시작하기')),
+        ]) {
+          app.router.go(day);
+          await tester.pumpAndSettle();
+          unawaited(app.router.push(Routes.briefing));
+          await tester.pumpAndSettle();
+          expect(find.byType(BriefingScreen), findsOneWidget);
+
+          await leave();
+          expect(find.byType(BriefingScreen), findsNothing);
+          expect(app.router.state.uri.path, day);
+        }
+
+        await app.dispose(tester);
+      });
+
       testWidgets('닫기·오늘 시작하기는 02 홈, 할 일 전체 보기는 03 전체 할 일로 간다', (tester) async {
         final (app, _) = await pumpBriefing(tester, textScale: textScale);
 
-        await tapFinder(tester, find.byTooltip('브리핑 닫고 오늘 화면으로 가기'));
+        await tapFinder(tester, find.byTooltip('계획 닫기'));
         expect(find.byType(TodayScreen), findsOneWidget);
 
         app.router.go(Routes.briefing);
