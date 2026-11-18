@@ -3,7 +3,7 @@
 # .github/workflows/functions-check.yml(functions/)도 같은 PR에서 고친다.
 
 .DEFAULT_GOAL := check
-.PHONY: check lint test format gen gen-check db-schema legal-sync functions-check functions-lint functions-test functions-format
+.PHONY: check lint test format gen gen-check db-schema legal-sync release-android release-ios patch-android patch-ios functions-check functions-lint functions-test functions-format
 
 # PR 전에 돌리는 확인(lint + test). 처음 실패한 단계에서 멈춘다.
 check: lint test
@@ -47,6 +47,25 @@ db-schema:
 # 다시 만든다. 그 레포에 바뀐 글을 병합한 뒤 돌리고, 만든 파일을 함께 커밋한다(docs/architecture.md '테스트 배포').
 legal-sync:
 	cd app && dart run tool/legal_sync.dart && dart format lib/design/legal_texts.dart
+
+# 테스터·스토어에 내는 빌드(Shorebird release)와 Dart만 고친 패치(docs/architecture.md '테스트 배포'). 관리자 Shorebird
+# 계정으로 `shorebird login`한 Mac에서 돌린다. Flutter는 app/pubspec.yaml의 environment.flutter와 같은 버전으로
+# 빌드한다(Shorebird의 기본값은 가장 새 Flutter라 늘 넘긴다). 패치는 VERSION에 대상 release의 버전(X.Y.Z+N)을 준다.
+FLUTTER_VERSION := $(shell sed -n 's/^  flutter: *\([0-9][0-9.]*\)$$/\1/p' app/pubspec.yaml)
+
+release-android:
+	cd app && shorebird release android --flutter-version=$(FLUTTER_VERSION)
+
+release-ios:
+	cd app && shorebird release ios --flutter-version=$(FLUTTER_VERSION) --export-method=ad-hoc
+
+patch-android:
+	@test -n "$(VERSION)" || { echo "make patch-android VERSION=X.Y.Z+N 처럼 대상 release의 버전을 주세요."; exit 1; }
+	cd app && shorebird patch android --release-version=$(VERSION) --track=stable
+
+patch-ios:
+	@test -n "$(VERSION)" || { echo "make patch-ios VERSION=X.Y.Z+N 처럼 대상 release의 버전을 주세요."; exit 1; }
+	cd app && shorebird patch ios --release-version=$(VERSION) --track=stable
 
 # functions/(서버)를 바꿨으면 PR 전에 돌리는 확인(lint + test). CI의 functions-check와 같다.
 # 처음 한 번 functions/에서 npm ci로 패키지를 받아 둔다.

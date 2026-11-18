@@ -52,6 +52,7 @@ flutter:
   assets:
     - assets/icons/
     - assets/fonts/OFL.txt
+    - shorebird.yaml
 
   fonts:
     - family: Pretendard

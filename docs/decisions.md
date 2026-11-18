@@ -809,3 +809,16 @@
   - 3시간은 LMS 자동 갱신 간격(마지막 성공 뒤 3시간, 임시)과 같다. Apple은 배경 푸시를 시간당 두세 번보다 자주 보내지 말라고 안내하고, FCM은 알림을 띄우지 않는 high 우선순위 메시지를 낮출 수 있다. 조용한 시간은 LMS 호출 예산의 기본값(01:00–06:00)과 같다.
 - 다른 후보: 토픽 하나로 3시간마다 보내기(가장 간단하지만 LMS에 요청이 몰림), `POST /v1/push/register`로 토큰을 받아 서버가 나눠 보내기(서버에 기기 식별자가 남아 보관 기한·지우는 경로·처리방침 항목이 늘어남).
 - 영향: architecture.md '한눈에 보기'(서버)·'폴더 구조'·'앱 코드 규약'(백그라운드 작업)·'테스트 배포'·'앱과 서버 사이 약속 (API)'·'환경 변수', `functions/src/push/sync_signal.ts`, `functions/src/index.ts`(예약 함수 `syncSignal`), `functions/src/params.ts`(`SYNC_SIGNAL_ENABLED`). 앱 쪽(토픽 구독, `platform/push.dart`, FCM 자동 초기화 켜기)과 개인정보 처리 안내 시트·처리방침의 FCM 줄은 FCM을 켜는 앱 PR에서 한다.
+
+## 2026-11-18 Shorebird release와 패치는 레포의 Flutter 버전으로 Makefile에서 낸다 (2026-11-15 '스토어 1.0 범위와 배포 경로'의 Shorebird release 구체화)
+
+- 결정:
+  - Shorebird 앱은 관리자 계정에 하나 만들고, 앱 ID는 `app/shorebird.yaml`에 두어 커밋한다.
+  - release와 패치는 레포 루트의 `make release-android`·`release-ios`·`patch-android`·`patch-ios`로 낸다. Makefile이 `app/pubspec.yaml`의 Flutter 버전을 읽어 `--flutter-version`으로 넘긴다.
+  - iOS 테스터 release는 ad hoc으로 만든다. App Store에 낼 때는 `app-store`로 만든다.
+  - 패치는 `stable` 트랙으로 바로 낸다. 앱은 켤 때 패치를 받는다(`auto_update` 기본값).
+- 이유:
+  - Shorebird는 `--flutter-version`을 주지 않으면 가장 새 Flutter(지금 3.47.9)로 빌드한다. 레포는 팀과 CI가 같은 정확한 버전(3.47.8)을 쓰므로, 손으로 적다 틀리지 않게 pubspec에서 읽는다. Shorebird는 3.47.8을 지원한다.
+  - 테스터가 적고 테스트 기간에 빨리 고쳐 내는 것이 목적이라 단계적 배포를 두지 않는다. 대신 올리기 전에 `--dry-run`으로 검사할 수 있다.
+- 다른 후보: Shorebird 기본 Flutter 버전으로 빌드하기(레포·CI와 다른 버전이 나감), 명령을 문서에만 적기, `staging` 트랙에서 먼저 확인한 뒤 `stable`로 올리기.
+- 영향: architecture.md '앱 식별자와 버전'·'테스트 배포', `Makefile`, `app/shorebird.yaml`, `app/pubspec.yaml`(에셋).
