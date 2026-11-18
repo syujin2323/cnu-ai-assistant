@@ -178,7 +178,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
+              // 두 링크가 한 줄에 들어가지 않으면(글자를 키운 경우) '일간 보기'가 다음 줄로 내려간다. 지난 일정이
+              // 없을 때도 '일간 보기'가 오른쪽에 오도록 빈 자리를 앞에 둔다.
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   if (pastCount > 0 || _showPast)
                     _TextLink(
@@ -187,8 +191,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       text: _showPast ? '지난 일정 접기' : '지난 일정 $pastCount개 보기',
                       onTap: () => setState(() => _showPast = !_showPast),
                       leading: true,
-                    ),
-                  const Spacer(),
+                    )
+                  else
+                    const SizedBox.shrink(),
                   _TextLink(
                     icon: AppIconName.chevronRight,
                     text: '일간 보기',
