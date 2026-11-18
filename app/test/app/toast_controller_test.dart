@@ -165,6 +165,49 @@ void main() {
     await toasts.dispose();
   });
 
+  testWidgets('되돌린 뒤에만 그 토스트의 onUndone을 한 번 부른다', (tester) async {
+    final toasts = await _start();
+    var undone = 0;
+    var replaced = 0;
+
+    // 다른 토스트로 바뀌면 앞 토스트의 것은 부르지 않는다.
+    await toasts.addEvent();
+    toasts.controller.show(
+      '일정을 넣었어요',
+      undoable: true,
+      onUndone: () => replaced++,
+    );
+    toasts.controller.show(
+      '일정을 넣었어요',
+      undoable: true,
+      onUndone: () => undone++,
+    );
+    await toasts.controller.undo();
+    await toasts.controller.undo();
+    expect(await toasts.events(), isEmpty);
+    expect(undone, 1);
+    expect(replaced, 0);
+
+    // 되돌리지 못하면 부르지 않는다(되돌릴 기록이 없음).
+    toasts.controller.show(
+      '일정을 넣었어요',
+      undoable: true,
+      onUndone: () => undone++,
+    );
+    await toasts.controller.undo();
+    expect(undone, 1);
+    expect(toasts.state, _toast(ToastController.undoFailedText, visible: true));
+
+    // 되돌리기가 없는 토스트에는 달지 않는다.
+    await toasts.addEvent();
+    toasts.controller.show('기록했어요', onUndone: () => undone++);
+    toasts.controller.show('일정을 넣었어요', undoable: true);
+    await toasts.controller.undo();
+    expect(undone, 1);
+
+    await toasts.dispose();
+  });
+
   testWidgets('되돌리기 토스트가 보이지 않으면 되돌리지 않는다', (tester) async {
     final toasts = await _start();
     await toasts.addEvent();
