@@ -42,7 +42,7 @@ class _FakePushClient implements PushClient {
   Future<void> unsubscribe(String topic) => _record('unsubscribe:$topic');
 
   @override
-  Future<void> unregister() => _record('unregister');
+  Future<void> deleteToken() => _record('deleteToken');
 }
 
 void main() {
@@ -117,7 +117,7 @@ void main() {
       expect(preferences.getBool(syncSignalSubscribedKey), isTrue);
     });
 
-    test('구독을 풀면 같은 토픽을 풀고 FCM 등록을 지운 뒤 자동 초기화를 끈다', () async {
+    test('구독을 풀면 같은 토픽을 풀고 자동 초기화를 끈 뒤 FCM 토큰을 지운다', () async {
       final sub = subscription();
       await sub.apply(true);
       final topic = client.calls[2].substring('subscribe:'.length);
@@ -127,8 +127,8 @@ void main() {
 
       expect(client.calls, [
         'unsubscribe:$topic',
-        'unregister',
         'autoInit:false',
+        'deleteToken',
       ]);
       expect(preferences.getBool(syncSignalSubscribedKey), isFalse);
     });
@@ -185,8 +185,8 @@ void main() {
         'ready',
         'subscribe',
         'unsubscribe',
-        'unregister',
         'autoInit',
+        'deleteToken',
       ]);
     });
   });
@@ -328,7 +328,7 @@ void main() {
     // 로그아웃으로 로그인 전이 되면 푼다.
     settings.add(AppSettings.defaults);
     await pumpEventQueue();
-    expect(client.calls.last, 'autoInit:false');
+    expect(client.calls.last, 'deleteToken');
     expect(preferences.getBool(syncSignalSubscribedKey), isFalse);
   });
 }

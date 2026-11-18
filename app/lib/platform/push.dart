@@ -105,8 +105,8 @@ abstract interface class PushClient {
 
   Future<void> unsubscribe(String topic);
 
-  /// 이 앱 인스턴스의 FCM 등록을 푼다(토큰을 지움).
-  Future<void> unregister();
+  /// 이 앱 인스턴스의 FCM 토큰을 지운다(그 토큰으로 보낸 메시지는 더 오지 않음).
+  Future<void> deleteToken();
 }
 
 /// [FirebaseMessaging]을 쓰는 [PushClient].
@@ -139,8 +139,12 @@ class FirebasePushClient implements PushClient {
   Future<void> unsubscribe(String topic) =>
       _messaging.unsubscribeFromTopic(topic);
 
+  // `unregister()`는 설치 ID(FID)로 직접 보내는 새 방식의 짝이다. Android는 매니페스트에서 그 방식을 따로 켜야 해서,
+  // 켜지 않은 이 앱에서는 'API disabled'로 실패한다(2026-11-18 에뮬레이터에서 확인). 이 앱은 토큰으로 토픽을 구독하므로
+  // 그 토큰을 지우는 `deleteToken()`을 쓴다. 플러그인이 이것을 빼면 그때 다시 본다.
   @override
-  Future<void> unregister() => _messaging.unregister();
+  // ignore: deprecated_member_use
+  Future<void> deleteToken() => _messaging.deleteToken();
 }
 
 /// 토픽 구독을 원하는 상태에 맞춘다. 부를 때마다 차례로 처리하고 던지지 않는다.
@@ -176,8 +180,9 @@ class SyncSignalSubscription {
         await _preferences.setBool(syncSignalSubscribedKey, true);
       } else {
         await _client.unsubscribe(topic);
-        await _client.unregister();
+        // 자동 초기화를 먼저 끈다. 켜 둔 채 토큰을 지우면 다음 실행에서 FCM이 토큰을 다시 만든다.
         await _client.setAutoInitEnabled(false);
+        await _client.deleteToken();
         await _preferences.setBool(syncSignalSubscribedKey, false);
       }
       appLog(
