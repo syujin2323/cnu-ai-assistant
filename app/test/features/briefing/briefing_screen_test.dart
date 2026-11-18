@@ -304,6 +304,33 @@ void main() {
         await app.dispose(tester);
       });
 
+      testWidgets('마감이 지난 어제 일은 오늘에 넣을 수 없고 [했어요]만 된다', (tester) async {
+        final (app, ids) = await pumpBriefing(tester, textScale: textScale);
+        await (app.db.update(app.db.tasks)
+              ..where((task) => task.id.equals(ids.a)))
+            .write(TasksCompanion(dueAt: Value(at(sun, 23, 59))));
+        await tester.pumpAndSettle();
+
+        final title = find.descendant(
+          of: find.byType(BriefingMissedRow),
+          matching: find.text('어제 일'),
+        );
+        await scrollTo(tester, title);
+        await tester.tap(title, warnIfMissed: false);
+        await tester.pumpAndSettle();
+        expect(find.textContaining('어제 10:00–11:00'), findsOneWidget);
+        expect(find.text('오늘은 빈 시간이 없어요'), findsNothing);
+        expect(
+          find.bySemanticsLabel(RegExp('마감이 지나 오늘 일정에 넣을 수 없음')),
+          findsOneWidget,
+        );
+
+        await tapFinder(tester, find.text('했어요'));
+        expect(find.text('어제 일을 어제 한 것으로 기록했어요'), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
       testWidgets('시간순은 시각 순서이고 시각이 없는 줄은 뒤다', (tester) async {
         final (app, _) = await pumpBriefing(tester, textScale: textScale);
 

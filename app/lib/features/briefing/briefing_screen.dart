@@ -490,7 +490,11 @@ class _Yesterday extends ConsumerWidget {
     final when = pick == null
         ? '어제 $yesterdayRange'
         : '오늘 ${_range(pick.startAt, pick.endAt)}';
+    // 마감이 지났으면 오늘에 넣을 수 없다([했어요]만 됨).
+    final due = task.dueAt;
+    final canPlace = due == null || due.isAfter(data.now);
     return BriefingMissedRow(
+      canPlace: canPlace,
       title: task.title,
       when: when,
       whenPlaced: pick != null,
@@ -502,7 +506,11 @@ class _Yesterday extends ConsumerWidget {
       toggleLabel:
           '${task.title}, 어제 ${_hhmm(missed.block.startAt)}부터 '
           '${_hhmm(missed.block.endAt)}, 못 한 일, '
-          '${pick == null ? '오늘 일정에 넣기' : '오늘 ${_range(pick.startAt, pick.endAt)}에 넣음, 빼기'}',
+          '${!canPlace
+              ? '마감이 지나 오늘 일정에 넣을 수 없음'
+              : pick == null
+              ? '오늘 일정에 넣기'
+              : '오늘 ${_range(pick.startAt, pick.endAt)}에 넣음, 빼기'}',
       doneLabel: '${task.title} 어제 했어요로 기록하기',
     );
   }

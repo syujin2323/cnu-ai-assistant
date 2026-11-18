@@ -133,86 +133,91 @@ class BriefingTaskRow extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 56),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        child: Row(
-          children: [
-            BriefingCheck(on: on, faded: locked),
-            const SizedBox(width: AppSpace.s12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.body.copyWith(
-                      fontWeight: AppText.semibold,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 1),
-                  Text.rich(
-                    TextSpan(
-                      text: meta,
-                      children: [
-                        TextSpan(
-                          text: due,
-                          style: dueSoon
-                              ? TextStyle(
-                                  color: colors.alert,
-                                  fontWeight: AppText.semibold,
-                                )
-                              : null,
-                        ),
-                        TextSpan(text: tail),
-                      ],
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.caption.copyWith(color: colors.muted),
-                  ),
-                ],
-              ),
-            ),
-            if (time != null || tag != null) ...[
-              const SizedBox(width: AppSpace.s8),
-              // 글자를 키워 좁으면 제목과 반씩 나눠 줄임표로 줄인다.
-              Flexible(
+        child: LayoutBuilder(
+          builder: (context, constraints) => Row(
+            children: [
+              BriefingCheck(on: on, faded: locked),
+              const SizedBox(width: AppSpace.s12),
+              Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (time case final value?)
-                      Text(
-                        value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppText.small.copyWith(
-                          fontSize: 13,
-                          height: 18 / 13,
-                          fontWeight: timeMuted
-                              ? AppText.medium
-                              : AppText.semibold,
-                          color: timeMuted ? colors.muted : colors.ink2,
-                        ),
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.body.copyWith(
+                        fontWeight: AppText.semibold,
+                        height: 1.4,
                       ),
-                    if (tag case final value?)
-                      Text(
-                        value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppText.caption.copyWith(
-                          fontWeight: AppText.semibold,
-                          height: 16 / 12,
-                          color: tagColor ?? colors.accent,
-                        ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text.rich(
+                      TextSpan(
+                        text: meta,
+                        children: [
+                          TextSpan(
+                            text: due,
+                            style: dueSoon
+                                ? TextStyle(
+                                    color: colors.alert,
+                                    fontWeight: AppText.semibold,
+                                  )
+                                : null,
+                          ),
+                          TextSpan(text: tail),
+                        ],
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.caption.copyWith(color: colors.muted),
+                    ),
                   ],
                 ),
               ),
+              if (time != null || tag != null) ...[
+                const SizedBox(width: AppSpace.s8),
+                // 오른쪽은 필요한 만큼만 쓰되 줄의 40%를 넘지 않는다(글자를 키우면 줄임표).
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: constraints.maxWidth * 0.4,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (time case final value?)
+                        Text(
+                          value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.small.copyWith(
+                            fontSize: 13,
+                            height: 18 / 13,
+                            fontWeight: timeMuted
+                                ? AppText.medium
+                                : AppText.semibold,
+                            color: timeMuted ? colors.muted : colors.ink2,
+                          ),
+                        ),
+                      if (tag case final value?)
+                        Text(
+                          value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.caption.copyWith(
+                            fontWeight: AppText.semibold,
+                            height: 16 / 12,
+                            color: tagColor ?? colors.accent,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -243,6 +248,7 @@ class BriefingMissedRow extends StatelessWidget {
     required this.onDone,
     required this.toggleLabel,
     required this.doneLabel,
+    this.canPlace = true,
   });
 
   final String title;
@@ -259,6 +265,9 @@ class BriefingMissedRow extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback onDone;
 
+  /// 오늘에 넣을 수 있는지. 마감이 지났으면 false이고 체크가 흐리며 누를 수 없다([했어요]만 됨).
+  final bool canPlace;
+
   /// 체크 쪽과 [했어요]의 읽기 도구 문구.
   final String toggleLabel;
   final String doneLabel;
@@ -273,18 +282,22 @@ class BriefingMissedRow extends StatelessWidget {
         children: [
           Expanded(
             child: Semantics(
-              button: true,
-              toggled: on,
+              button: canPlace,
+              toggled: canPlace ? on : null,
               label: toggleLabel,
               excludeSemantics: true,
               child: Press(
+                enabled: canPlace,
                 child: InkWell(
-                  onTap: onToggle,
+                  onTap: canPlace ? onToggle : null,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
                     child: Row(
                       children: [
-                        BriefingCheck(on: on),
+                        Opacity(
+                          opacity: canPlace ? 1 : 0.35,
+                          child: BriefingCheck(on: on),
+                        ),
                         const SizedBox(width: AppSpace.s12),
                         Expanded(
                           child: Column(
