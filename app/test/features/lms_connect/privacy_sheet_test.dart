@@ -2,11 +2,11 @@
 // '개인정보 처리 안내 시트에는 그 빌드가 하는 것만 적는다'.
 //
 // 세 묶음(이 폰에만 두는 것, 서버를 거치는 것, 알아 둘 것)을 보이고, 아직 들어가지 않은 기능(07 알림 감지 조각, 사용
-// 지표, 07의 알림 접근)은 없는지, '처리방침 전체 보기'가 공개한 처리방침을 여는지, '확인했어요'만 동의로 돌려주는지
-// 본다.
+// 지표, 07의 알림 접근)은 없는지, '처리방침 전체 보기'가 처리방침을 앱 안 화면으로 여는지, '확인했어요'만 동의로
+// 돌려주는지 본다.
 
-import 'package:cnu_ai_assistant/app/config.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
+import 'package:cnu_ai_assistant/design/widgets/legal_document.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/privacy_sheet.dart';
 import 'package:cnu_ai_assistant/features/today/today_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,26 +63,23 @@ void main() {
     });
   }
 
-  testWidgets("'처리방침 전체 보기'는 공개한 처리방침을 열고 시트는 그대로 둔다", (tester) async {
+  testWidgets("'처리방침 전체 보기'는 처리방침을 앱 안에서 열고, 닫으면 시트로 돌아온다", (tester) async {
     final app = await pumpTestApp(tester);
     final context = tester.element(find.byType(TodayScreen));
-    final opened = <Uri>[];
 
-    final result = showPrivacySheet(
-      context,
-      motion: MotionLevel.off,
-      launcher: (uri) async {
-        opened.add(uri);
-        return true;
-      },
-    );
+    final result = showPrivacySheet(context, motion: MotionLevel.off);
     await tester.pumpAndSettle();
     await tapText(tester, '처리방침 전체 보기');
 
-    expect(opened, [Uri.parse(AppConfig.privacyPolicyUrl)]);
+    expect(find.byType(LegalDocumentPage), findsOneWidget);
+    expect(find.text('개인정보 처리방침'), findsOneWidget);
+
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await tester.pumpAndSettle();
+    expect(find.byType(LegalDocumentPage), findsNothing);
     expect(find.text('개인정보 처리 안내', skipOffstage: false), findsOneWidget);
 
-    // 링크를 연 것은 동의가 아니다. '확인했어요'를 눌러야 동의로 돌려준다.
+    // 처리방침을 본 것은 동의가 아니다. '확인했어요'를 눌러야 동의로 돌려준다.
     await tapText(tester, '확인했어요');
     expect(await result, isTrue);
 

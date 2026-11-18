@@ -44,17 +44,4 @@ void main() {
     // 테스트는 --dart-define 없이 돌므로 AppConfig.apiBase는 코드의 기본값이다.
     expect(isAllowedApiBase(AppConfig.apiBase, release: true), isTrue);
   });
-
-  test('처리방침·이용약관 주소는 공개 레포 GitHub Pages의 https 주소다', () {
-    // docs/decisions.md 2026-11-18 '처리방침·이용약관은 별도 공개 레포의 GitHub Pages에 둔다'.
-    for (final (url, path) in [
-      (AppConfig.privacyPolicyUrl, '/cnu-planner-docs/privacy'),
-      (AppConfig.termsUrl, '/cnu-planner-docs/terms'),
-    ]) {
-      final uri = Uri.parse(url);
-      expect(uri.scheme, 'https', reason: url);
-      expect(uri.host, 'syujin2323.github.io', reason: url);
-      expect(uri.path, path, reason: url);
-    }
-  });
 }

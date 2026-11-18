@@ -21,15 +21,6 @@ abstract final class AppConfig {
   /// '업데이트 필요 화면을 첫 테스터 빌드에 넣는다').
   static const String iosUpdateUrl =
       'https://appdistribution.firebase.google.com/testerapps';
-
-  /// 개인정보 처리방침. 공개 레포 syujin2323/cnu-planner-docs의 GitHub Pages이고, 개인정보 처리 안내 시트와
-  /// 10 나가 연다(docs/decisions.md 2026-11-18 '처리방침·이용약관은 별도 공개 레포의 GitHub Pages에 둔다').
-  static const String privacyPolicyUrl =
-      'https://syujin2323.github.io/cnu-planner-docs/privacy';
-
-  /// 이용약관. [privacyPolicyUrl]과 같은 곳에 있고 10 나가 연다.
-  static const String termsUrl =
-      'https://syujin2323.github.io/cnu-planner-docs/terms';
 }
 
 /// [baseUrl]을 서버 주소로 써도 되는지. release 빌드는 https 주소만 받는다(Android 네트워크 보안 설정과

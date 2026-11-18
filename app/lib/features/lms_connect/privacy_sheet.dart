@@ -2,38 +2,32 @@
 //
 // 그 빌드가 실제로 하는 처리만 적는다(docs/decisions.md 2026-11-13 '개인정보 처리 안내 시트에는 그 빌드가
 // 하는 것만 적는다'). 사용 지표(R1)와 07 알림 감지 조각·07의 알림 접근 권한(스토어 공개 뒤)은
-// 그 기능이 들어가는 빌드부터 넣는다. '처리방침 전체 보기'는 공개한 처리방침(`AppConfig.privacyPolicyUrl`)을
-// 외부 브라우저로 열고, 열지 못하면 주소를 보이고 복사하게 한다(`design/widgets/external_link.dart`).
-// '확인했어요'를 누르면 시트는 true를 돌려주고 폼이 동의를 체크한다.
+// 그 기능이 들어가는 빌드부터 넣는다. '처리방침 전체 보기'는 처리방침 전문을 외부 브라우저가 아니라 앱 안의 덮개
+// 화면으로 연다(`design/widgets/legal_document.dart`). '확인했어요'를 누르면 시트는 true를 돌려주고 폼이 동의를
+// 체크한다(폼의 동의 칸은 이 시트를 열지 않아도 바로 체크된다).
 
-import 'package:cnu_ai_assistant/app/config.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_sheet.dart';
-import 'package:cnu_ai_assistant/design/widgets/external_link.dart';
+import 'package:cnu_ai_assistant/design/widgets/legal_document.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// 개인정보 처리 안내 시트를 연다. '확인했어요'를 누르면 true, 그냥 닫으면 false다. [launcher]는 처리방침
-/// 링크를 여는 함수이고 테스트가 바꾼다.
+/// 개인정보 처리 안내 시트를 연다. '확인했어요'를 누르면 true, 그냥 닫으면 false다.
 Future<bool> showPrivacySheet(
   BuildContext context, {
   MotionLevel motion = MotionLevel.full,
-  Future<bool> Function(Uri uri)? launcher,
 }) async {
   final confirmed = await showAppSheet<bool>(
     context: context,
     motion: motion,
-    builder: (context) => PrivacySheet(launcher: launcher),
+    builder: (context) => const PrivacySheet(),
   );
   return confirmed ?? false;
 }
 
 /// 개인정보 처리 안내.
 class PrivacySheet extends StatelessWidget {
-  const PrivacySheet({super.key, this.launcher});
-
-  /// 처리방침 링크를 여는 함수. null이면 외부 브라우저로 연다.
-  final Future<bool> Function(Uri uri)? launcher;
+  const PrivacySheet({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -94,11 +88,8 @@ class PrivacySheet extends StatelessWidget {
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: TextButton(
-              onPressed: () => openExternalLink(
-                context,
-                Uri.parse(AppConfig.privacyPolicyUrl),
-                launcher: launcher,
-              ),
+              onPressed: () =>
+                  showLegalDocument(context, LegalDocument.privacy),
               child: const Text('처리방침 전체 보기'),
             ),
           ),
