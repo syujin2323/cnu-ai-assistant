@@ -108,6 +108,32 @@ void main() {
       expect(row.openedAt, later);
       expect(row.confirmedAt, later);
     });
+
+    test('확정하기 전에 체크를 바꾼 횟수를 더해 둔다(사용 지표)', () async {
+      await repo.markConfirmed(day, at: later, edits: 4);
+      var [row] = await rows();
+      expect(row.editCount, 4);
+
+      await repo.markConfirmed(day, at: later, edits: 3);
+      [row] = await rows();
+      expect(row.editCount, 7);
+
+      await repo.markConfirmed(day, at: later);
+      [row] = await rows();
+      expect(row.editCount, 7);
+    });
+
+    test('본 것만 적힌 날에도 수정 횟수를 더하고, 음수면 ArgumentError다', () async {
+      await repo.markSeen(day, at: at);
+      await repo.markConfirmed(day, at: later, edits: 2);
+      final [row] = await rows();
+      expect(row.editCount, 2);
+
+      expect(
+        () => repo.markConfirmed(day, at: later, edits: -1),
+        throwsArgumentError,
+      );
+    });
   });
 
   test('폰 DB를 읽거나 쓰지 못하면 예외 대신 Err다', () async {
