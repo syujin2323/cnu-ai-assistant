@@ -10,10 +10,11 @@
 // `connecting`에 둔다. 로그인 화면을 성공 없이 떠나면 [LoginFlow.abandon]이 시작 전 상태로 돌린다. LMS 상태는 앱
 // 모드와 관계없이 실제 모드의 폰 DB에 쓴다.
 //
-// 진행 줄은 지금 로그인 단계만 지난다. 처음 로그인의 이번 학기 시간표와 LMS 할 일 불러오기는 시간표·동기화 PR이 이
-// 흐름에 더한다.
-
-import 'dart:async';
+// 저장까지 마치면 진행 줄의 뒤 단계를 차례로 기다린다. 처음 로그인은 이번 학기 시간표 → LMS 할 일(전체 동기화),
+// 다시 로그인은 할 일 새로 불러오기(갱신)다(docs/lms.md '로그인'·'동기화'). 단계마다 [lmsLoginStageWait]까지만
+// 기다리고, 넘으면 그 불러오기는 화면 뒤에서 이어 가며 다음 단계로 넘어간다. 뒤 단계의 결과와 관계없이 성공이다
+// (불러오지 못하거나 수업이 0개여도 다음 화면으로 감, docs/decisions.md 2026-11-18 '온보딩 진행 줄은 불러오기를
+// 단계마다 20초까지 기다린다').
 
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
@@ -61,13 +62,18 @@ enum LoginStage {
   };
 }
 
+/// 로그인 뒤 진행 줄의 단계 하나(시간표·할 일)를 기다리는 최대 시간(임시). 넘으면 그 불러오기는 화면 뒤에서 이어
+/// 가고 다음 단계로 넘어간다(docs/decisions.md 2026-11-18 '온보딩 진행 줄은 불러오기를 단계마다 20초까지 기다린다').
+const lmsLoginStageWait = Duration(seconds: 20);
+
 /// 로그인 흐름.
 abstract interface class LoginFlow {
   /// 저장된 학번. 없으면 null이고, 다시 로그인 화면은 학번 칸도 받는다.
   Future<String?> savedStudentId();
 
   /// [studentId]·[password]로 로그인하고 [mode]의 단계를 차례로 지나며, 단계를 시작할 때마다
-  /// [onStage]를 부른다. 성공이면 [Ok], 실패면 판별 결과([LmsOutcome])나 저장 실패([StorageError])를 담은 [Err]다.
+  /// [onStage]를 부른다. 로그인과 저장에 성공하면 뒤 단계(시간표·할 일)가 끝나거나 기다림 상한을 넘은 뒤 [Ok]이고,
+  /// 실패면 판별 결과([LmsOutcome])나 저장 실패([StorageError])를 담은 [Err]다(뒤 단계는 부르지 않음).
   Future<Result<void>> run({
     required LoginMode mode,
     required String studentId,
@@ -91,28 +97,11 @@ final loginFlowProvider = Provider<LoginFlow>((ref) {
     schoolDomain: ref.watch(lmsSchoolDomainProvider),
     createDio: () => createLmsDio(adapter: ref.read(lmsHttpAdapterProvider)),
     sleep: ref.watch(lmsSleepProvider),
-    // 로그인 직후(docs/lms.md '동기화'·'시간표 (통합정보시스템)'): 처음 로그인(14 온보딩 1단계. 로그아웃 뒤 로그인
-    // 포함)은 이번 학기 시간표를 불러온 뒤 전체 동기화(온보딩 진행 줄의 차례, docs/screens.md '14 온보딩'), 다시 로그인은
-    // 갱신이다. 화면은 기다리지 않는다.
-    onLoggedIn: (mode) {
-      final coordinator = ref.read(syncCoordinatorProvider);
-      if (mode == LoginMode.first) {
-        unawaited(
-          coordinator
-              .run(trigger: SyncTrigger.login, scope: SyncScope.timetable)
-              .then(
-                (_) => coordinator.run(
-                  trigger: SyncTrigger.login,
-                  scope: SyncScope.full,
-                ),
-              ),
-        );
-      } else {
-        unawaited(
-          coordinator.run(trigger: SyncTrigger.login, scope: SyncScope.list),
-        );
-      }
-    },
+    // 로그인 직후의 불러오기(docs/lms.md '동기화'·'시간표 (통합정보시스템)'). 무엇을 어떤 차례로 기다릴지는 로그인
+    // 흐름이 정한다.
+    syncAfterLogin: (scope) => ref
+        .read(syncCoordinatorProvider)
+        .run(trigger: SyncTrigger.login, scope: scope),
   );
 });
 
@@ -126,11 +115,16 @@ class LmsLoginFlow implements LoginFlow {
     required this._schoolDomain,
     required this._createDio,
     required this._sleep,
-    this._onLoggedIn,
+    this._syncAfterLogin,
+    this._stageWait = lmsLoginStageWait,
   });
 
-  /// 로그인에 성공해 저장까지 마친 뒤 부른다(로그인 직후 동기화).
-  final void Function(LoginMode mode)? _onLoggedIn;
+  /// 로그인에 성공해 저장까지 마친 뒤 진행 줄의 뒤 단계로 [SyncScope] 범위의 동기화를 부른다. 그 동기화가 끝나면
+  /// 끝난다. null이면 뒤 단계 없이 끝난다(테스트).
+  final Future<void> Function(SyncScope scope)? _syncAfterLogin;
+
+  /// 진행 줄의 뒤 단계 하나를 기다리는 최대 시간.
+  final Duration _stageWait;
 
   final Future<LmsConfig> Function() _config;
 
@@ -206,8 +200,42 @@ class LmsLoginFlow implements LoginFlow {
       case LmsLoginSucceeded():
         appLog('lms_login', area: 'lms', data: {...log, 'kind': 'success'});
         final saved = await _save(params, jar, studentId, password);
-        if (saved is Ok) _onLoggedIn?.call(mode);
+        if (saved is Ok) await _loadAfterLogin(mode, onStage);
         return saved;
+    }
+  }
+
+  /// 진행 줄의 뒤 단계를 차례로 부르고 단계마다 [_stageWait]까지 기다린다. 넘으면 그 동기화는 화면 뒤에서 이어 가고
+  /// 다음 단계로 넘어간다(다음 동기화는 코디네이터가 앞 동기화가 끝난 뒤에 함). 결과는 보지 않는다.
+  Future<void> _loadAfterLogin(
+    LoginMode mode,
+    void Function(LoginStage stage) onStage,
+  ) async {
+    final sync = _syncAfterLogin;
+    if (sync == null) return;
+    final stages = switch (mode) {
+      LoginMode.first => const [
+        (LoginStage.timetable, SyncScope.timetable),
+        (LoginStage.tasks, SyncScope.full),
+      ],
+      LoginMode.relogin => const [(LoginStage.tasks, SyncScope.list)],
+    };
+    for (final (stage, scope) in stages) {
+      onStage(stage);
+      var finished = true;
+      await sync(scope).timeout(
+        _stageWait,
+        onTimeout: () {
+          finished = false;
+        },
+      );
+      if (!finished) {
+        appLog(
+          'lms_login_stage_timeout',
+          area: 'lms',
+          data: {'stage': stage.name},
+        );
+      }
     }
   }
 
