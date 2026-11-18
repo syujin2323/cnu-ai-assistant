@@ -190,6 +190,60 @@ void main() {
       expect(await taskById(id), isNull);
     });
 
+    test('넣은 뒤 재계산이 만든 제안·지운 블록이 있어도 되돌리면 블록과 함께 지운다', () async {
+      final other = await addTask(title: '다른 일');
+      final otherBlock = await addBlock(
+        other,
+        now.add(const Duration(hours: 5)),
+        status: PlanBlockStatus.suggested,
+      );
+      final id = _ok(
+        await repository.add(
+          title: '보고서',
+          kind: TaskKind.personal,
+          source: EntrySource.ai,
+          now: now,
+        ),
+      );
+      // 재계산은 되돌리기 기록을 남기지 않으므로 넣기의 기록이 그대로 마지막 동작이다.
+      await addBlock(
+        id,
+        now.add(const Duration(hours: 1)),
+        status: PlanBlockStatus.suggested,
+      );
+      await addBlock(
+        id,
+        now.add(const Duration(hours: 3)),
+        status: PlanBlockStatus.dismissed,
+      );
+
+      expect(_ok(await undo.undoLast(now: now)), isTrue);
+      expect(await taskById(id), isNull);
+      // 다른 할 일의 블록은 그대로다.
+      expect(await blockIds(), {otherBlock});
+    });
+
+    test('넣은 할 일에 확정 블록이 생겼으면 되돌리지 못하고 아무것도 지우지 않는다', () async {
+      final id = _ok(
+        await repository.add(
+          title: '보고서',
+          kind: TaskKind.personal,
+          source: EntrySource.ai,
+          now: now,
+        ),
+      );
+      final suggested = await addBlock(
+        id,
+        now.add(const Duration(hours: 1)),
+        status: PlanBlockStatus.suggested,
+      );
+      final confirmed = await addBlock(id, now.add(const Duration(hours: 3)));
+
+      expect(await undo.undoLast(now: now), isA<Err<bool>>());
+      expect(await taskById(id), isNotNull);
+      expect(await blockIds(), {suggested, confirmed});
+    });
+
     test('빈 제목·자료·0 이하 예상 시간·과목 있는 개인 할 일은 ArgumentError다', () async {
       Future<Result<int>> add({
         String title = '할 일',
