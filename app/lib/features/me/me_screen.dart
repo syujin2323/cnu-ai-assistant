@@ -5,7 +5,8 @@
 // 시간 표시), 알림(아침 브리핑 시각), AI(사용 스위치와 상태, 동의 문구 다시 보기, 사용 지표 보내기), 화면(글자 크기),
 // 데이터(데모 모드, 데이터 삭제), 앱 정보(처리방침·이용약관·오픈소스 라이선스·문의 메일·버전)다. 데모 모드에서는 LMS
 // 계정 동작과 데이터 삭제, 사용 지표 보내기를 두지 않는다(데모를 끝내면 샘플이 지워지고, 지표는 실제 모드의 숫자만
-// 보냄). 하루 경계·이동·점심 시간 표시·브리핑 시각·AI는 그 모드의 폰 DB에 쓴다(데모에서는 데모 DB).
+// 보냄). 데모를 끝내는 곳은 데이터의 '데모 모드 끝내기' 하나이고, 끝내는 중과 끝내지 못했음도 그 줄이 보인다.
+// 하루 경계·이동·점심 시간 표시·브리핑 시각·AI는 그 모드의 폰 DB에 쓴다(데모에서는 데모 DB).
 
 import 'dart:async';
 
@@ -49,7 +50,7 @@ class MeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = AppColors.of(context);
     final demo = ref.watch(appModeProvider) == AppMode.demo;
-    final exiting = ref.watch(demoExitProvider) == DemoExitState.exiting;
+    final exit = ref.watch(demoExitProvider);
     final version = ref.watch(appVersionProvider).value;
     final contact = contactEmailFrom(privacyPolicyMarkdown);
     return Scaffold(
@@ -120,12 +121,20 @@ class MeScreen extends ConsumerWidget {
                 title: '데이터',
                 children: [
                   if (demo)
+                    // 데모를 끝내는 곳은 여기 하나다(docs/decisions.md 2026-11-18 '데모 띠를 없앤다').
                     MeRow(
                       icon: AppIconName.demo,
                       label: '데모 모드 끝내기',
-                      sub: '샘플을 지우고 내 데이터로 돌아가요',
+                      sub: switch (exit) {
+                        DemoExitState.idle => '샘플을 지우고 내 데이터로 돌아가요',
+                        DemoExitState.exiting => '끝내는 중이에요',
+                        DemoExitState.failed => '데모를 끝내지 못했어요. 다시 눌러 주세요',
+                      },
+                      subColor: exit == DemoExitState.failed
+                          ? colors.alert
+                          : null,
                       chevron: false,
-                      onTap: exiting
+                      onTap: exit == DemoExitState.exiting
                           ? null
                           : () => ref.read(demoExitProvider.notifier).exit(),
                     )

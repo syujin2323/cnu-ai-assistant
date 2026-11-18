@@ -70,7 +70,7 @@ abstract final class PrefKeys {
   static const String demoEntry = 'demo_entry';
 }
 
-/// 데모 모드에 들어온 곳. 데모 띠의 '끝내기'는 여기로 돌아간다.
+/// 데모 모드에 들어온 곳. 데모를 끝내면 여기로 돌아간다.
 enum DemoEntry {
   /// 14 온보딩 1단계(로그인 화면)의 '로그인 없이 둘러보기'. 끝내면 1단계로 돌아간다.
   onboarding,
@@ -134,7 +134,7 @@ class AppModeController extends Notifier<AppMode> {
   }
 
   /// 데모 모드를 끝낸다. 데모 DB를 비우고 실제 DB로 돌아간 뒤, 들어온 곳을 돌려준다. 데모 DB를 비우지
-  /// 못하면 모드를 바꾸지 않고 [Err]다(데모 띠가 안내한다).
+  /// 못하면 모드를 바꾸지 않고 [Err]다(10 나의 '데모 모드 끝내기'가 안내한다).
   ///
   /// [demoDatabase]는 부르는 쪽이 `databaseProvider`에서 읽어 넘긴 지금의 데모 DB다. 데모 모드가 아니면
   /// 비우지 않는다.
