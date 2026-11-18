@@ -8,38 +8,89 @@
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
+import 'package:cnu_ai_assistant/app/toast_controller.dart';
+import 'package:cnu_ai_assistant/data/repositories/plan_block_repository.dart';
+import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/widgets/free_slot_sheet.dart';
-import 'package:cnu_ai_assistant/domain/defaults.dart';
+import 'package:cnu_ai_assistant/domain/clock.dart';
+import 'package:cnu_ai_assistant/domain/models/rule.dart';
+import 'package:cnu_ai_assistant/domain/models/task_entry.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/move_sheet.dart';
 import 'package:cnu_ai_assistant/domain/planner/time_span.dart';
+import 'package:cnu_ai_assistant/domain/rules.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_args.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// [gap] 빈 시간에 놓기 시트를 연다. 할 일이나 규칙을 읽지 못했으면 열지 않고, 빈 시간이 이미 지났으면 알린다.
-/// 09 일간에서 열 때 [일정은 말로 추가하기]가 06 AI 비서에 날짜·시각을 채우는 것은 09 일간 PR에서 더한다.
+/// [gap] 빈 시간에 놓기 시트를 연다. 할 일·규칙·설정은 열 때 저장소에서 읽고(그 값을 지켜보지 않는 화면에서
+/// 불러도 열리게. 듣는 쪽이 없는 provider는 Riverpod이 멈춰 둠), 읽지 못하면 알린다. 빈 시간이 이미 지났으면 알린다.
+/// [speech]가 false면 [일정은 말로 추가하기]를 두지 않는다(06 AI 비서 안에서 열 때). 09 일간에서 열 때 그 버튼이
+/// 06 AI 비서에 날짜·시각을 채우는 것은 09 일간 PR에서 더한다.
 Future<void> openFreeSlotSheet(
   BuildContext context,
   WidgetRef ref,
-  TimeSpan gap,
-) async {
-  final entries = ref.read(taskEntriesProvider).value;
-  final config = ref.read(plannerConfigProvider);
-  if (entries == null || config == null) return;
+  TimeSpan gap, {
+  bool speech = true,
+}) async {
   final clock = ref.read(clockProvider);
-  final boundary =
-      ref.read(settingsProvider).value?.dayBoundaryMin ??
-      Defaults.dayBoundaryMin;
   final repository = ref.read(planBlockRepositoryProvider);
   final toast = ref.read(toastControllerProvider.notifier);
+  final motion = ref.read(motionLevelProvider);
+  final ranked = ref.read(planControllerProvider)?.ranked ?? const <int>[];
+  final entriesRead = ref.read(taskRepositoryProvider).read();
+  final rulesRead = ref.read(rulesRepositoryProvider).read();
+  final settingsRead = ref.read(settingsRepositoryProvider).read();
+  final read = (await entriesRead, await rulesRead, await settingsRead);
+  if (read case (
+    Ok(value: final entries),
+    Ok(value: final rules),
+    Ok(value: final settings),
+  )) {
+    if (!context.mounted) return;
+    await _open(
+      context,
+      gap,
+      speech: speech,
+      entries: entries,
+      rules: rules,
+      boundary: settings.dayBoundaryMin,
+      ranked: ranked,
+      clock: clock,
+      motion: motion,
+      repository: repository,
+      toast: toast,
+    );
+    return;
+  }
+  for (final result in [read.$1, read.$2, read.$3]) {
+    if (result case Err(:final error)) {
+      appLog('free_slot_read_failed', area: 'today', data: errorLogData(error));
+    }
+  }
+  toast.show('할 일을 읽지 못했어요. 다시 해 주세요');
+}
 
+/// 읽은 값으로 시트를 열고 고른 동작을 한다.
+Future<void> _open(
+  BuildContext context,
+  TimeSpan gap, {
+  required bool speech,
+  required List<TaskEntry> entries,
+  required List<Rule> rules,
+  required int boundary,
+  required List<int> ranked,
+  required Clock clock,
+  required MotionLevel motion,
+  required PlanBlockRepository repository,
+  required ToastController toast,
+}) async {
   final content = freeSlotContent(
     gap: gap,
     entries: entries,
-    ranked: ref.read(planControllerProvider)?.ranked ?? const [],
-    config: config,
+    ranked: ranked,
+    config: PlannerConfig.from(rules),
     now: clock.now(),
     dayBoundaryMin: boundary,
   );
@@ -49,8 +100,9 @@ Future<void> openFreeSlotSheet(
   }
   final pick = await showFreeSlotSheet(
     context,
-    ref.read(motionLevelProvider),
+    motion,
     content,
+    speech: speech,
   );
   switch (pick) {
     case null:
