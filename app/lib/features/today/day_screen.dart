@@ -127,8 +127,8 @@ class DayScreen extends ConsumerWidget {
     final layout = layoutDayTimeline(
       day: home.date,
       items: home.items,
-      // 지난 날에는 빈 시간 카드를 그리지 않는다(할 일은 오늘부터 놓음).
-      free: past ? const <TimeSpan>[] : home.free,
+      // 제안 자리를 뺀 빈 시간이다(지난 날은 비어 있음).
+      free: view.free,
       now: home.now,
       today: isToday,
       windowEndMin: home.windowEndMin,
@@ -282,17 +282,20 @@ class _TopBar extends StatelessWidget {
       children: [
         const BackButton(),
         Expanded(
-          child: Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 2,
+          // 주 범위가 길면 줄임표로 줄이고 '오늘' 알약은 같은 줄 끝에 둔다(최종 프로토타입).
+          child: Row(
             children: [
-              Semantics(
-                liveRegion: true,
-                child: Text(
-                  view.weekLabel,
-                  style: AppText.body.copyWith(
-                    fontWeight: AppText.semibold,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+              Flexible(
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    view.weekLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.body.copyWith(
+                      fontWeight: AppText.semibold,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
                   ),
                 ),
               ),
@@ -370,16 +373,19 @@ class _TodayPill extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 height: 28,
-                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: colors.tint,
                   borderRadius: BorderRadius.circular(AppRadius.pill),
                 ),
-                child: Text(
-                  '오늘',
-                  style: AppText.caption.copyWith(
-                    fontWeight: AppText.semibold,
-                    color: colors.accent,
+                // 알약은 글자 너비만큼이다(Container의 alignment는 가로를 다 차지하므로 쓰지 않음).
+                child: Center(
+                  widthFactor: 1,
+                  child: Text(
+                    '오늘',
+                    style: AppText.caption.copyWith(
+                      fontWeight: AppText.semibold,
+                      color: colors.accent,
+                    ),
                   ),
                 ),
               ),

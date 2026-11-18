@@ -96,6 +96,7 @@ final class DayView {
     required this.confirmable,
     required this.confirmedToast,
     required this.dues,
+    required this.free,
     this.empty,
   });
 
@@ -126,6 +127,10 @@ final class DayView {
   final String confirmedToast;
 
   final List<DayDueRow> dues;
+
+  /// 시간표의 빈 시간 카드에 쓸 빈 구간: 그날의 빈 시간에서 제안 자리를 뺀 것(09는 제안을 그리므로 겹치지 않게).
+  /// 지난 날은 비어 있다(할 일은 오늘부터 놓음).
+  final List<TimeSpan> free;
 
   final DayEmptyCard? empty;
 
@@ -172,15 +177,16 @@ DayView dayView({
       if (offset != 0 || block.endAt.isAfter(now)) block,
   ];
 
-  final freeMin = offset < 0
-      ? 0
-      : [
-          for (final span in offset == 0 ? spansFrom(free, now) : free)
-            ...subtractSpans(span, [
-              for (final block in suggested)
-                TimeSpan(block.startAt, block.endAt),
-            ]),
-        ].fold<int>(0, (sum, span) => sum + span.minutes);
+  final suggestedSpans = [
+    for (final block in suggested) TimeSpan(block.startAt, block.endAt),
+  ];
+  final open = offset < 0
+      ? const <TimeSpan>[]
+      : [for (final span in free) ...subtractSpans(span, suggestedSpans)];
+  final freeMin = (offset == 0 ? spansFrom(open, now) : open).fold<int>(
+    0,
+    (sum, span) => sum + span.minutes,
+  );
 
   final sub = [
     ?switch (offset) {
@@ -227,6 +233,7 @@ DayView dayView({
         : '${dayWord(confirmable.first.startAt, now: now, dayBoundaryMin: dayBoundaryMin)} '
               '제안 ${confirmable.length}개를 확정했어요',
     dues: _dues(day, entries, now: now, offset: offset),
+    free: open,
     empty: classes > 0 || events > 0
         ? null
         : DayEmptyCard(

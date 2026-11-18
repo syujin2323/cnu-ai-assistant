@@ -182,6 +182,34 @@ void main() {
     expect(view(DateTime(2026, 11, 23)).sub, '일정 없음');
   });
 
+  test('빈 시간 카드에 쓸 빈 구간은 제안 자리를 빼고, 지난 날은 비어 있다', () {
+    final free = [TimeSpan(at(20, 9), at(20, 12))];
+    final items = [
+      block(1, at(20, 9), at(20, 10), status: PlanBlockStatus.suggested),
+      block(2, at(20, 11), at(20, 11, 30)),
+    ];
+
+    // 확정 블록은 이미 빈 시간에서 빠져 있으므로 제안만 뺀다.
+    expect(view(DateTime(2026, 11, 20), items: items, free: free).free, [
+      TimeSpan(at(20, 10), at(20, 12)),
+    ]);
+    expect(
+      view(
+        DateTime(2026, 11, 18),
+        free: [TimeSpan(at(18, 9), at(18, 12))],
+      ).free,
+      isEmpty,
+    );
+    // 오늘은 지금 전 빈 시간도 그대로 넘긴다(시간표가 지금부터 그림).
+    expect(
+      view(
+        DateTime(2026, 11, 19),
+        free: [TimeSpan(at(19, 9), at(19, 12))],
+      ).free,
+      [TimeSpan(at(19, 9), at(19, 12))],
+    );
+  });
+
   test('모두 확정은 그날 제안만이고 오늘은 지금 뒤에 끝나는 것만이다', () {
     final today = view(
       DateTime(2026, 11, 19),

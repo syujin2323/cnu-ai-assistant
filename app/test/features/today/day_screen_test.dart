@@ -171,6 +171,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(shown(tester), DateTime(2026, 11, 18));
     expect(app.router.state.uri.path, Routes.day(DateTime(2026, 11, 18)));
+    // 다른 날이면 주 범위 옆에 작은 '오늘' 알약이 생긴다(같은 줄, 글자 너비).
+    final pill = tester.getRect(find.bySemanticsLabel('오늘로 가기'));
+    final label = tester.getRect(find.text('11월 16일 – 22일'));
+    expect(pill.width, lessThan(100));
+    expect(pill.left, greaterThan(label.right - 1));
 
     await tester.tap(find.byTooltip('다음 주 같은 요일 보기'));
     await tester.pumpAndSettle();
