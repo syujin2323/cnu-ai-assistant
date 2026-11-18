@@ -9,6 +9,7 @@ import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/widgets/legal_document.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/privacy_sheet.dart';
 import 'package:cnu_ai_assistant/features/today/today_screen.dart';
+import 'package:cnu_ai_assistant/platform/push.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -39,7 +40,13 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('처리방침 전체 보기', skipOffstage: false), findsOneWidget);
-      for (final notYet in ['알림 감지', '지표', '알림 접근']) {
+      // 서버 신호 푸시 줄은 원격 스위치가 켜졌을 때만이다(기본은 꺼짐).
+      for (final notYet in [
+        '알림 감지',
+        '지표',
+        '알림 접근',
+        'Firebase Cloud Messaging',
+      ]) {
         expect(
           find.textContaining(notYet, skipOffstage: false),
           findsNothing,
@@ -62,6 +69,26 @@ void main() {
       await app.dispose(tester);
     });
   }
+
+  testWidgets('서버 신호 푸시 스위치가 켜져 있으면 서버를 거치는 것에 FCM 줄을 더한다', (tester) async {
+    final app = await pumpTestApp(
+      tester,
+      overrides: [pushSignalEnabledProvider.overrideWith((ref) async => true)],
+    );
+    final context = tester.element(find.byType(TodayScreen));
+
+    final result = showPrivacySheet(context, motion: MotionLevel.off);
+    await tester.pumpAndSettle();
+    expect(
+      find.text(syncSignalPrivacyLine, skipOffstage: false),
+      findsOneWidget,
+    );
+
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await tester.pumpAndSettle();
+    expect(await result, isFalse);
+    await app.dispose(tester);
+  });
 
   testWidgets("'처리방침 전체 보기'는 처리방침을 앱 안에서 열고, 닫으면 시트로 돌아온다", (tester) async {
     final app = await pumpTestApp(tester);

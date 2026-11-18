@@ -1,7 +1,7 @@
 // Remote Config 설정과 앱 기본값. docs/architecture.md '환경 변수'와 '실행 방법'.
 //
 // 값을 읽는 곳은 따로 있다. LMS 값(`lms_*`)은 `lms/lms_config.dart` 하나에서만, `ai_open`은
-// `data/api/parse_client.dart`의 [ParseClient]가 요청마다 읽는다.
+// `data/api/parse_client.dart`의 [ParseClient]가 요청마다 읽고, `push_signal_enabled`는 `platform/push.dart`가 읽는다.
 
 import 'dart:convert';
 
@@ -25,6 +25,10 @@ abstract final class RemoteConfigKeys {
   /// AI 경로(`/v1/parse`)를 사용자에게 여는 스위치. 평가 기준을 통과한 뒤 켠다. 꺼져 있으면 앱은 문장을 보내지
   /// 않고 06 AI 비서를 직접 추가 폼으로 연다(docs/architecture.md '환경 변수').
   static const aiOpen = 'ai_open';
+
+  /// 서버 신호 푸시(FCM 토픽 구독)를 쓰는 스위치. 켜는 때는 관리자가 콘솔에서 정한다(2026-11-18에 켬). 꺼져 있으면
+  /// 앱은 FCM 토큰을 만들지 않고 토픽을 구독하지 않는다(docs/architecture.md '환경 변수').
+  static const pushSignalEnabled = 'push_signal_enabled';
 }
 
 /// `lms_sync_budget`의 앱 기본값(임시값). docs/architecture.md '환경 변수'의 JSON과 같다.
@@ -51,6 +55,7 @@ final Map<String, Object> remoteConfigDefaults = {
   RemoteConfigKeys.lmsSyncBudget: jsonEncode(lmsSyncBudgetDefaults),
   RemoteConfigKeys.minAppVersion: '0.0.0',
   RemoteConfigKeys.aiOpen: false,
+  RemoteConfigKeys.pushSignalEnabled: false,
 };
 
 /// 앱 시작 때 `runApp` 전에 한 번 부른다.
