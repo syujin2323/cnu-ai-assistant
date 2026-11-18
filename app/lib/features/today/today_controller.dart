@@ -1,7 +1,7 @@
 // 02 홈의 provider. docs/screens.md '02 홈', docs/architecture.md '화면과 기능 폴더'.
 //
 // [todayHomeProvider]는 오늘(논리적 하루)의 일정·규칙·할 일·수업 과목과 지금 시각을 묶어 시간표 항목과 머리
-// 숫자를 낸다. [homeAnswerProvider]는 피드백 카드에서 방금 한 답을 들고 카드의 동작(답하기, 카드 안 되돌리기,
+// 숫자를 낸다. 09 일간은 같은 계산을 그 날짜로 하는 [dayHomeProvider]를 쓴다(제안 블록 포함). [homeAnswerProvider]는 피드백 카드에서 방금 한 답을 들고 카드의 동작(답하기, 카드 안 되돌리기,
 // 다시 놓기)을 한다. 답은 되돌리기 기록과 함께 남고, 화면을 떠나면 둘 다 버린다(docs/screens.md '되돌리기').
 // 시간표의 블록 체크도 여기서 한다(토스트와 10초 되돌리기).
 
@@ -16,6 +16,7 @@ import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/free_slots.dart';
 import 'package:cnu_ai_assistant/domain/home_feedback.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
+import 'package:cnu_ai_assistant/domain/models/event.dart';
 import 'package:cnu_ai_assistant/domain/models/plan_block.dart';
 import 'package:cnu_ai_assistant/domain/planner/day_items.dart';
 import 'package:cnu_ai_assistant/domain/planner/suggest_slots.dart';
@@ -36,9 +37,10 @@ final class TodayHome {
     required this.windowEndMin,
     required this.courseNames,
     this.showTravelMeal = true,
+    this.allDay = const [],
   });
 
-  /// 오늘(논리적 하루)의 날짜.
+  /// 오늘(논리적 하루)의 날짜. 09 일간은 그 날짜다.
   final DateTime date;
 
   /// 지금(분 단위로 바뀜, [minuteClockProvider]).
@@ -61,6 +63,9 @@ final class TodayHome {
   /// 10 나의 '이동·점심 시간 표시'(`settings`의 `showTravelMeal`). false면 시간표가 이동·점심 카드를 그리지 않는다
   /// ([items]에는 그대로 있다. 빈 시간은 그 시간을 이미 뺀 값이다).
   final bool showTravelMeal;
+
+  /// 그날에 걸친 종일 일정(시간표에는 그리지 않음. 09 일간이 위에 따로 보임).
+  final List<Event> allDay;
 
   /// 오늘의 블록(확정·완료·놓침).
   List<BlockItem> get blocks => [
@@ -93,15 +98,29 @@ final class TodayHome {
 
 /// 오늘의 02 홈. 일정·규칙·할 일·수업을 아직 읽지 못했으면 불러오는 중이고, 읽지 못했으면 오류다(전에 읽은
 /// 값이 있으면 그 값으로 계산함). 설정을 읽지 못하면 기본 하루 경계로 본다.
-final todayHomeProvider = Provider<AsyncValue<TodayHome>>((ref) {
+final todayHomeProvider = Provider<AsyncValue<TodayHome>>(
+  (ref) => _home(ref, includeSuggested: false),
+);
+
+/// 논리적 하루 [date](그날 0시)의 시간표. 09 일간이 쓰고 제안 블록도 넣는다. 읽기는 [todayHomeProvider]와 같다.
+final dayHomeProvider = Provider.family<AsyncValue<TodayHome>, DateTime>(
+  (ref, date) => _home(ref, date: date, includeSuggested: true),
+);
+
+/// [date](없으면 오늘)의 시간표. [includeSuggested]면 제안 블록도 넣는다.
+AsyncValue<TodayHome> _home(
+  Ref ref, {
+  DateTime? date,
+  required bool includeSuggested,
+}) {
   final now = ref.watch(minuteClockProvider);
   final settings = ref.watch(settingsProvider);
   final boundary =
       settings.value?.dayBoundaryMin ??
       (settings.hasError ? Defaults.dayBoundaryMin : null);
   if (boundary == null) return const AsyncLoading();
-  final date = logicalDate(now, dayBoundaryMin: boundary);
-  final schedule = ref.watch(dayScheduleProvider(date));
+  final day = date ?? logicalDate(now, dayBoundaryMin: boundary);
+  final schedule = ref.watch(dayScheduleProvider(day));
   final rules = ref.watch(rulesProvider);
   final tasks = ref.watch(taskEntriesProvider);
   final slots = ref.watch(classSlotEntriesProvider);
@@ -122,36 +141,45 @@ final todayHomeProvider = Provider<AsyncValue<TodayHome>>((ref) {
   }
   final config = PlannerConfig.from(rulesValue);
   final availability = dayAvailability(
-    date,
+    day,
     schedule: scheduleValue,
     config: config,
     dayBoundaryMin: boundary,
   );
   final windows = availability.windows;
+  final next = DateTime(day.year, day.month, day.day + 1);
   return AsyncData(
     TodayHome(
-      date: date,
+      date: day,
       now: now,
       dayBoundaryMin: boundary,
       items: dayItems(
-        date,
+        day,
         schedule: scheduleValue,
         availability: availability,
         tasks: tasksValue,
         dayBoundaryMin: boundary,
+        includeSuggested: includeSuggested,
       ),
       free: availability.free,
       windowEndMin: windows.isEmpty
           ? Defaults.dayWindowEndMin
-          : windows.last.end.difference(date).inMinutes,
+          : windows.last.end.difference(day).inMinutes,
       courseNames: {
         for (final entry in slotsValue) entry.course.id: entry.course.name,
       },
       showTravelMeal:
           settings.value?.showTravelMeal ?? AppSettings.defaults.showTravelMeal,
+      allDay: [
+        for (final event in scheduleValue.events)
+          if (event.allDay &&
+              event.startAt.isBefore(next) &&
+              event.endAt.isAfter(day))
+            event,
+      ],
     ),
   );
-});
+}
 
 /// 피드백 카드에서 방금 한 답과 그 되돌리기 기록.
 final class HomeAnswerState {
