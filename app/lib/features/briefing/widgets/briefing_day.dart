@@ -89,7 +89,9 @@ class BriefingDay extends StatelessWidget {
         ? 8
         : math.max(8, ([...live, nowMin].reduce(math.min)) ~/ 60);
     final top = startHour * 60;
-    final end = math.max(1380, windowEndMin);
+    // 자정이 지나 하루 경계 전(논리적 하루의 끝, 그날 0시부터 1440분 넘음)에는 남은 일정이 없으면 위가 지금
+    // 시각까지 내려오므로, 아래 끝을 늘 위보다 한 시간 뒤로 둔다(그러지 않으면 높이가 음수).
+    final end = math.max(math.max(1380, windowEndMin), top + 60);
     double toY(int minute) => (minute - top) / 60 * hourHeight;
     final showNow = nowMin >= top && nowMin <= end;
 
