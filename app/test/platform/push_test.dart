@@ -117,7 +117,7 @@ void main() {
       expect(preferences.getBool(syncSignalSubscribedKey), isTrue);
     });
 
-    test('구독을 풀면 같은 토픽을 풀고 자동 초기화를 끈 뒤 FCM 토큰을 지운다', () async {
+    test('구독을 풀면 자동 초기화를 끄고 같은 토픽을 푼 뒤 FCM 토큰을 지운다', () async {
       final sub = subscription();
       await sub.apply(true);
       final topic = client.calls[2].substring('subscribe:'.length);
@@ -126,8 +126,8 @@ void main() {
       await sub.apply(false);
 
       expect(client.calls, [
-        'unsubscribe:$topic',
         'autoInit:false',
+        'unsubscribe:$topic',
         'deleteToken',
       ]);
       expect(preferences.getBool(syncSignalSubscribedKey), isFalse);
@@ -144,25 +144,46 @@ void main() {
 
       await sub.apply(true);
       expect(client.calls, ['autoInit:true', 'ready']);
-      expect(preferences.getBool(syncSignalSubscribedKey), isNull);
+      // 자동 초기화는 켰으므로 풀 때 정리하도록 표시를 켜 둔다.
+      expect(preferences.getBool(syncSignalSubscribedKey), isTrue);
 
       client.isReady = true;
       await sub.apply(true);
       expect(client.calls.last, startsWith('subscribe:sync-'));
-      expect(preferences.getBool(syncSignalSubscribedKey), isTrue);
     });
 
-    test('FCM이 실패해도 던지지 않고 구독 표시를 바꾸지 않는다', () async {
+    test('구독하지 못한 채 풀어도 자동 초기화를 끄고 토큰을 지운다', () async {
       final sub = subscription();
       client.failOn = 'subscribe';
       await sub.apply(true);
-      expect(preferences.getBool(syncSignalSubscribedKey), isNull);
+      expect(preferences.getBool(syncSignalSubscribedKey), isTrue);
 
-      client.failOn = null;
-      await sub.apply(true);
       client.failOn = 'unsubscribe';
+      client.calls.clear();
+      await sub.apply(false);
+
+      // 구독 해지가 실패해도 토큰을 지우면 그 토큰의 구독도 끝난다.
+      expect(client.calls.map((call) => call.split(':').first), [
+        'autoInit',
+        'unsubscribe',
+        'deleteToken',
+      ]);
+      expect(preferences.getBool(syncSignalSubscribedKey), isFalse);
+    });
+
+    test('토큰을 지우지 못하면 던지지 않고 표시를 켜 둔 채 다음에 다시 한다', () async {
+      final sub = subscription();
+      await sub.apply(true);
+
+      client.failOn = 'deleteToken';
       await sub.apply(false);
       expect(preferences.getBool(syncSignalSubscribedKey), isTrue);
+
+      client.failOn = null;
+      client.calls.clear();
+      await sub.apply(false);
+      expect(client.calls.last, 'deleteToken');
+      expect(preferences.getBool(syncSignalSubscribedKey), isFalse);
     });
 
     test('저장된 토픽 번호가 범위 밖이면 다시 고른다', () async {
@@ -184,8 +205,8 @@ void main() {
         'autoInit',
         'ready',
         'subscribe',
-        'unsubscribe',
         'autoInit',
+        'unsubscribe',
         'deleteToken',
       ]);
     });

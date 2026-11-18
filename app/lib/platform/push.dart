@@ -33,7 +33,8 @@ const syncSignalTopicCount = 12;
 /// 고른 토픽 번호(int, 0–11)를 두는 shared_preferences 키. 데이터 삭제로 지우지 않는다(다시 로그인해도 같은 칸).
 const syncSignalTopicKey = 'sync_signal_topic';
 
-/// 지금 토픽을 구독했는지(bool)를 두는 shared_preferences 키. 구독을 풀 때까지 지우지 않는다.
+/// FCM을 켰는지(bool)를 두는 shared_preferences 키. 구독하려고 자동 초기화를 켜기 전에 true로 적고, 자동 초기화를 끄고
+/// 토큰까지 지운 뒤에 false로 적는다(구독이 실패하거나 iOS에서 준비가 안 됐어도, 풀 때 정리할 것이 남았음을 알게).
 const syncSignalSubscribedKey = 'sync_signal_subscribed';
 
 /// FCM 백그라운드 메시지 진입점. bootstrap이 Firebase를 연 뒤 `FirebaseMessaging.onBackgroundMessage`에 건다. 최상위
@@ -160,28 +161,38 @@ class SyncSignalSubscription {
   final Random _random;
   Future<void> _queue = Future.value();
 
-  /// [wanted]면 토픽을 구독하고(켤 때마다 다시 구독해 백업 복원·기기 이전에도 맞음), 아니면 구독했던 것만 풀고 FCM
-  /// 토큰을 지운다. 실패하면 기록만 남기고, 다음에 부를 때(상태가 바뀌거나 다음 실행) 다시 한다.
+  /// [wanted]면 토픽을 구독하고(켤 때마다 다시 구독해 백업 복원·기기 이전에도 맞음), 아니면 FCM을 켰던 때만 자동
+  /// 초기화를 끄고 구독을 푼 뒤 FCM 토큰을 지운다. 실패하면 기록만 남기고, 다음에 부를 때(상태가 바뀌거나 다음 실행)
+  /// 다시 한다.
   Future<void> apply(bool wanted) =>
       _queue = _queue.then((_) => _apply(wanted));
 
   Future<void> _apply(bool wanted) async {
-    final subscribed = _preferences.getBool(syncSignalSubscribedKey) ?? false;
-    if (!wanted && !subscribed) return;
+    final active = _preferences.getBool(syncSignalSubscribedKey) ?? false;
+    if (!wanted && !active) return;
     try {
       final topic = await _topic();
       if (wanted) {
+        await _preferences.setBool(syncSignalSubscribedKey, true);
         await _client.setAutoInitEnabled(true);
         if (!await _client.ready()) {
           appLog('sync_signal_not_ready', area: 'push');
           return;
         }
         await _client.subscribe(topic);
-        await _preferences.setBool(syncSignalSubscribedKey, true);
       } else {
-        await _client.unsubscribe(topic);
         // 자동 초기화를 먼저 끈다. 켜 둔 채 토큰을 지우면 다음 실행에서 FCM이 토큰을 다시 만든다.
         await _client.setAutoInitEnabled(false);
+        try {
+          await _client.unsubscribe(topic);
+        } catch (error) {
+          // 토큰을 지우면 그 토큰의 구독도 끝나므로 이어서 지운다(구독하지 못했던 때, iOS APNs 토큰이 없을 때 등).
+          appLog(
+            'sync_signal_unsubscribe_failed',
+            area: 'push',
+            data: {'error': errorKind(error)},
+          );
+        }
         await _client.deleteToken();
         await _preferences.setBool(syncSignalSubscribedKey, false);
       }
