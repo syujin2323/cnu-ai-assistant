@@ -2,8 +2,10 @@
 // '개인정보 처리 안내 시트에는 그 빌드가 하는 것만 적는다'.
 //
 // 세 묶음(이 폰에만 두는 것, 서버를 거치는 것, 알아 둘 것)을 보이고, 아직 들어가지 않은 기능(07 알림 감지 조각, 사용
-// 지표, 07의 알림 접근)과 아직 주소가 없는 처리방침 링크는 없는지, '확인했어요'만 동의로 돌려주는지 본다.
+// 지표, 07의 알림 접근)은 없는지, '처리방침 전체 보기'가 공개한 처리방침을 여는지, '확인했어요'만 동의로 돌려주는지
+// 본다.
 
+import 'package:cnu_ai_assistant/app/config.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/privacy_sheet.dart';
 import 'package:cnu_ai_assistant/features/today/today_screen.dart';
@@ -14,7 +16,7 @@ import '../../helpers/pump_app.dart';
 
 void main() {
   for (final textScale in [1.0, 2.0]) {
-    testWidgets('글자 배율 $textScale: 세 묶음을 보이고 R1 기능 줄과 처리방침 링크는 없다. '
+    testWidgets('글자 배율 $textScale: 세 묶음과 처리방침 링크를 보이고 R1 기능 줄은 없다. '
         "'확인했어요'는 true, 그냥 닫으면 false다", (tester) async {
       final app = await pumpTestApp(tester, textScale: textScale);
       final context = tester.element(find.byType(TodayScreen));
@@ -36,7 +38,8 @@ void main() {
         find.textContaining('Firebase Crashlytics', skipOffstage: false),
         findsOneWidget,
       );
-      for (final notYet in ['알림 감지', '지표', '알림 접근', '처리방침']) {
+      expect(find.text('처리방침 전체 보기', skipOffstage: false), findsOneWidget);
+      for (final notYet in ['알림 감지', '지표', '알림 접근']) {
         expect(
           find.textContaining(notYet, skipOffstage: false),
           findsNothing,
@@ -59,6 +62,32 @@ void main() {
       await app.dispose(tester);
     });
   }
+
+  testWidgets("'처리방침 전체 보기'는 공개한 처리방침을 열고 시트는 그대로 둔다", (tester) async {
+    final app = await pumpTestApp(tester);
+    final context = tester.element(find.byType(TodayScreen));
+    final opened = <Uri>[];
+
+    final result = showPrivacySheet(
+      context,
+      motion: MotionLevel.off,
+      launcher: (uri) async {
+        opened.add(uri);
+        return true;
+      },
+    );
+    await tester.pumpAndSettle();
+    await tapText(tester, '처리방침 전체 보기');
+
+    expect(opened, [Uri.parse(AppConfig.privacyPolicyUrl)]);
+    expect(find.text('개인정보 처리 안내', skipOffstage: false), findsOneWidget);
+
+    // 링크를 연 것은 동의가 아니다. '확인했어요'를 눌러야 동의로 돌려준다.
+    await tapText(tester, '확인했어요');
+    expect(await result, isTrue);
+
+    await app.dispose(tester);
+  });
 
   testWidgets('글자 배율 2.0의 iPhone에서 시트가 화면을 덮어도 위 끌기 손잡이로 닫으면 동의하지 않은 것이다', (
     tester,

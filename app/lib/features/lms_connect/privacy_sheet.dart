@@ -2,30 +2,38 @@
 //
 // 그 빌드가 실제로 하는 처리만 적는다(docs/decisions.md 2026-11-13 '개인정보 처리 안내 시트에는 그 빌드가
 // 하는 것만 적는다'). 사용 지표(R1)와 07 알림 감지 조각·07의 알림 접근 권한(스토어 공개 뒤)은
-// 그 기능이 들어가는 빌드부터 넣는다. 처리방침 전체 보기 링크는 처리방침을 공개해 주소가 생기면 붙인다
-// (`design/widgets/external_link.dart`). '확인했어요'를 누르면 시트는 true를 돌려주고 폼이 동의를 체크한다.
+// 그 기능이 들어가는 빌드부터 넣는다. '처리방침 전체 보기'는 공개한 처리방침(`AppConfig.privacyPolicyUrl`)을
+// 외부 브라우저로 열고, 열지 못하면 주소를 보이고 복사하게 한다(`design/widgets/external_link.dart`).
+// '확인했어요'를 누르면 시트는 true를 돌려주고 폼이 동의를 체크한다.
 
+import 'package:cnu_ai_assistant/app/config.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_sheet.dart';
+import 'package:cnu_ai_assistant/design/widgets/external_link.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// 개인정보 처리 안내 시트를 연다. '확인했어요'를 누르면 true, 그냥 닫으면 false다.
+/// 개인정보 처리 안내 시트를 연다. '확인했어요'를 누르면 true, 그냥 닫으면 false다. [launcher]는 처리방침
+/// 링크를 여는 함수이고 테스트가 바꾼다.
 Future<bool> showPrivacySheet(
   BuildContext context, {
   MotionLevel motion = MotionLevel.full,
+  Future<bool> Function(Uri uri)? launcher,
 }) async {
   final confirmed = await showAppSheet<bool>(
     context: context,
     motion: motion,
-    builder: (context) => const PrivacySheet(),
+    builder: (context) => PrivacySheet(launcher: launcher),
   );
   return confirmed ?? false;
 }
 
 /// 개인정보 처리 안내.
 class PrivacySheet extends StatelessWidget {
-  const PrivacySheet({super.key});
+  const PrivacySheet({super.key, this.launcher});
+
+  /// 처리방침 링크를 여는 함수. null이면 외부 브라우저로 연다.
+  final Future<bool> Function(Uri uri)? launcher;
 
   @override
   Widget build(BuildContext context) {
@@ -82,7 +90,19 @@ class PrivacySheet extends StatelessWidget {
             '로그인하거나 앱이 자동으로 다시 로그인하면 같은 계정으로 PC·웹에서 쓰던 LMS 세션이 끊길 수 있어요.',
             '로그아웃하면 학번·비밀번호와 LMS 로그인 정보, 불러온 시간표와 LMS 할 일을 지워요.',
           ]),
-          const SizedBox(height: AppSpace.s24),
+          const SizedBox(height: AppSpace.s16),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton(
+              onPressed: () => openExternalLink(
+                context,
+                Uri.parse(AppConfig.privacyPolicyUrl),
+                launcher: launcher,
+              ),
+              child: const Text('처리방침 전체 보기'),
+            ),
+          ),
+          const SizedBox(height: AppSpace.s16),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('확인했어요'),
