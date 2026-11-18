@@ -45,6 +45,7 @@ import 'package:cnu_ai_assistant/features/lms_connect/lms_actions.dart';
 import 'package:cnu_ai_assistant/features/tasks/task_actions.dart';
 import 'package:cnu_ai_assistant/features/tasks/task_list_controller.dart';
 import 'package:cnu_ai_assistant/lms/sync_coordinator.dart';
+import 'package:cnu_ai_assistant/features/lms_connect/lms_system_band_slot.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -235,6 +236,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                   child: _LmsLine(status: status),
                 ),
               ),
+            _padded(const LmsSystemBandSlot(directAdd: DirectAddKind.task)),
             if (value == null)
               if (content.hasError)
                 _padded(

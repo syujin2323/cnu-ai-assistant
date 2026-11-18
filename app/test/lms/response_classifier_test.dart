@@ -70,6 +70,21 @@ void main() {
 
   test('① 응답을 받지 못하면 네트워크 실패이고 상태 코드가 없다', () {
     expectKind(classify(null), LmsOutcomeKind.networkFailure);
+    expect(classify(null).outcome.offline, isFalse);
+    // 연결 없음·주소 해석 실패로 받지 못했으면 오프라인을 함께 담는다.
+    final offline = classifier.classify(
+      const LmsRawResponse.noResponse(offline: true),
+      todoList,
+    );
+    expect(
+      offline.outcome,
+      const LmsOutcome(LmsOutcomeKind.networkFailure, offline: true),
+    );
+    expect(
+      offline.outcome,
+      isNot(const LmsOutcome(LmsOutcomeKind.networkFailure)),
+    );
+    expect(offline.outcome.toString(), contains('offline'));
   });
 
   test('② 5xx·429와 점검 페이지는 서버 오류·점검이다', () {

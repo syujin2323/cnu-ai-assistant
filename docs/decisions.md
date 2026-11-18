@@ -969,3 +969,19 @@
 - 이유: 질문은 '먼저 독서 모임을 넣을까요?'처럼 이어서 답하게 묻는데, 답만 따로 보내면 AI가 무엇에 대한 답인지 모른다. 고쳐 말하기와 같은 장치로 받으면 서버 변경이 한 번이다(관리자 결정).
 - 다른 후보: 질문 대신 '하나씩 말해 주세요' 같은 안내로 끝내고 처음부터 다시 말하게 하기.
 - 영향: screens.md '06 AI 비서'(되묻기), K2 PR(요청 선택 필드, 프롬프트, 평가 세트, AI 동의 문구·처리방침 점검), `app/lib/domain/assistant/assistant_reply.dart`.
+
+## 2026-11-19 점검·오프라인 안내는 01·02·03 맨 위의 띠이고 연결 없음·주소 해석 실패를 오프라인으로 본다
+
+- 결정:
+  - 20 시스템의 점검·오프라인 안내는 01 계획·02 홈·03 할 일 맨 위의 띠다. LMS 상태가 점검 중·연결 실패·오프라인일 때만 보이고, 받아 둔 정보로 그대로 쓴다고 알린다.
+    - [다시 확인]은 할 일 목록을 지금 다시 받고(사용자 새로 고침) 결과를 토스트로 알린다.
+    - 오프라인이면 [직접 입력하기]로 06 AI 비서의 직접 추가 폼을 연다(03 할 일은 할 일, 01·02는 일정).
+  - LMS 네트워크 실패 가운데 연결 없음과 주소 해석 실패(dio가 받은 `SocketException`의 주소 해석 실패, OS 오류 ENETDOWN·ENETUNREACH)는 '오프라인', 시간 초과·연결 거부·보안 연결 오류와 그 밖의 실패는 '연결 실패'다.
+  - 동기화 기록의 결과는 둘 다 `network_failure`이고, 오프라인이면 `sync_runs.detail`에 `offline`을 남긴다. 상태 줄은 '· 오프라인'과 '· 연결할 수 없어요'로 가른다.
+  - 연결 상태 감지 라이브러리는 쓰지 않는다(lms.md '응답 판별' 그대로). 실패한 요청의 원인만 본다.
+- 이유:
+  - 오프라인이면 폰의 정보로 쓰고 직접 입력을 권하면 되지만, 연결 실패는 학교 서버 쪽 문제일 수 있어 사용자에게 할 일이 다르다.
+  - 오프라인을 새 결과 값으로 두지 않고 `detail`에 적으면 폰 DB의 열거값이 늘지 않는다. 옛 빌드가 모르는 값을 읽지 않고, Shorebird 패치로도 낼 수 있다.
+  - 하루 루프의 세 화면 맨 위에 두면 받아 둔 정보를 보고 있다는 것을 바로 안다.
+- 다른 후보: 연결 상태 감지 플러그인(네이티브가 늘어 새 release가 필요함), `sync_runs.result`에 `offline` 값을 더하기(새 열거값이라 패치로 낼 수 없음), 02 홈에만 띠 두기.
+- 영향: screens.md 'LMS 상태 줄과 다시 로그인'·'20 시스템', lms.md '응답 판별', architecture.md '폴더 구조'·'화면과 기능 폴더'·'폰 DB'(`sync_runs.detail`), `app/lib/lms/lms_client.dart`(`isOfflineFailure`)·`response_classifier.dart`·`sync_coordinator.dart`, `app/lib/domain/errors.dart`(`LmsOutcome.offline`)·`lms_status.dart`(`LmsStatusKind.offline`, `lmsBand`, `lmsRetryMessage`)·`models/sync_run.dart`(`SyncRunDetail.offline`), `app/lib/design/widgets/lms_system_band.dart`, `app/lib/features/lms_connect/lms_system_band_slot.dart`, 01·02·03 화면.

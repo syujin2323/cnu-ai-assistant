@@ -46,7 +46,8 @@ void main() {
   test('실패와 건너뜀은 이유를 알린다', () {
     for (final (kind, detail, text) in [
       (SyncResultKind.reloginRequired, null, 'LMS에 다시 로그인한 뒤 새로 고쳐 주세요'),
-      (SyncResultKind.networkFailure, null, '인터넷에 연결되지 않았어요'),
+      (SyncResultKind.networkFailure, SyncRunDetail.offline, '인터넷에 연결되지 않았어요'),
+      (SyncResultKind.networkFailure, null, '학교 서버에 연결할 수 없어요'),
       (SyncResultKind.serverError, null, 'LMS가 점검 중이거나 응답하지 않아요'),
       (SyncResultKind.parseFailure, null, '지금은 시간표를 불러올 수 없어요'),
       (SyncResultKind.skipped, SyncRunDetail.switchOff, 'LMS 연동을 잠시 멈췄어요'),

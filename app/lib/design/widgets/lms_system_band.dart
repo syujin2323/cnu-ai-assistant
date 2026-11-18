@@ -138,6 +138,7 @@ class _BandAction extends StatelessWidget {
     final colors = AppColors.of(context);
     final ink = onTap == null ? colors.muted : colors.accent;
     return Semantics(
+      container: true,
       button: true,
       enabled: onTap != null,
       label: label,

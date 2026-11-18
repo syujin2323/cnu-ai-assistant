@@ -13,7 +13,8 @@ import 'package:cnu_ai_assistant/design/widgets/lms_system_band.dart';
 import 'package:cnu_ai_assistant/domain/lms_status.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_args.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/lms_actions.dart';
-import 'package:cnu_ai_assistant/lms/sync_coordinator.dart' show lmsSyncingProvider;
+import 'package:cnu_ai_assistant/lms/sync_coordinator.dart'
+    show lmsSyncingProvider;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
