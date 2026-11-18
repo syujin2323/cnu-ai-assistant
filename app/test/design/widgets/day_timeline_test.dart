@@ -140,7 +140,8 @@ void main() {
     expect(find.text('동아리 회의'), findsOneWidget);
     expect(find.text('점심 · 40분 비워 뒀어요'), findsOneWidget);
     expect(find.text('빈 시간 1시간 30분'), findsOneWidget);
-    expect(find.text('놓기'), findsOneWidget);
+    // 빈 시간을 누를 수 없으면 '놓기'를 붙이지 않는다(눌러도 반응 없는 자리를 두지 않음).
+    expect(find.text('놓기'), findsNothing);
     // 수업은 '수업 · 장소 · 시각', 제안은 '제안 · 종류 · 마감'을 덧붙인다.
     expect(find.text('수업 · 자연과학관 105 · 10:30–11:45'), findsOneWidget);
     // 1시간 카드는 짧은 모양이라 오른쪽에 '종류 · 시각'만 보인다.
@@ -158,6 +159,7 @@ void main() {
       onBlockCheck: tapped.add,
       onFreeTap: tapped.add,
     );
+    expect(find.text('놓기'), findsOneWidget);
     await tester.tap(find.text('선형대수'));
     await tester.tap(find.text('퀴즈'));
     await tester.tap(find.bySemanticsLabel('퀴즈 완료로 표시'));
@@ -188,6 +190,15 @@ void main() {
       find.bySemanticsLabel('17:15부터 1시간 30분 빈 시간, 할 일 놓기'),
       findsOneWidget,
     );
+    handle.dispose();
+  });
+
+  testWidgets('누를 수 없는 카드와 빈 시간은 할 수 있는 일을 읽지 않는다', (tester) async {
+    final handle = tester.ensureSemantics();
+    await pump(tester);
+    expect(find.bySemanticsLabel('선형대수, 10:30부터 11:45, 수업'), findsOneWidget);
+    expect(find.bySemanticsLabel('영상, 16:00부터 17:00, 제안'), findsOneWidget);
+    expect(find.bySemanticsLabel('17:15부터 1시간 30분 빈 시간'), findsOneWidget);
     handle.dispose();
   });
 

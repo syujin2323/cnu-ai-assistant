@@ -224,10 +224,8 @@ void main() {
       testWidgets('지난 일정을 펼치고 접는다', (tester) async {
         final (app, _) = await pumpHome(tester, textScale: textScale);
 
-        // 놓친 블록은 흐리게 '놓침'으로 그리고 체크가 없다.
-        final pastBlock = find.bySemanticsLabel(
-          '과제 1, 09:00부터 10:00, 놓침, 근거 보기',
-        );
+        // 놓친 블록은 흐리게 '놓침'으로 그리고 체크가 없다(근거 시트는 W5 PR에서 붙어 아직 누를 수 없음).
+        final pastBlock = find.bySemanticsLabel('과제 1, 09:00부터 10:00, 놓침');
         expect(pastBlock, findsNothing);
 
         await tapText(tester, '지난 일정 1개 보기');
