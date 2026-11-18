@@ -322,31 +322,13 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('아침 브리핑 시각은 시트에서 고르면 내 규칙에 저장하고, 되돌리기로 돌린다', (tester) async {
+      testWidgets('알림 묶음(아침 브리핑 시각)은 두지 않는다', (tester) async {
+        // docs/decisions.md 2026-11-19 '온보딩은 네 단계이고 브리핑 시각은 정하지 않는다'.
         final app = await pumpMe(tester, textScale: textScale);
-        await scrollTo(tester, find.text('아침 브리핑'));
-        expect(rowValue('아침 브리핑', '08:00'), findsOneWidget);
+        await scrollTo(tester, find.text('AI 사용'));
 
-        // 지금 시각 그대로 [확인]하면 아무것도 쓰지 않는다.
-        await tapFinder(tester, find.text('아침 브리핑'));
-        expect(find.text('아침 브리핑을 몇 시에 받을까요?'), findsOneWidget);
-        await tapFinder(tester, find.widgetWithText(FilledButton, '확인'));
-        expect(await app.db.select(app.db.rules).get(), isEmpty);
-
-        await tapFinder(tester, find.text('아침 브리핑'));
-        await tapFinder(tester, find.text('오전 9:00'));
-        await tapFinder(tester, find.widgetWithText(FilledButton, '확인'));
-        final rule = (await app.db.select(app.db.rules).get()).single;
-        expect(rule.kind, RuleKind.notify);
-        expect(rule.params.briefingMin, 540);
-        expect(rule.source, EntrySource.manual);
-        expect(rowValue('아침 브리핑', '09:00'), findsOneWidget);
-        expect(find.text('아침 브리핑을 09:00으로 바꿨어요'), findsOneWidget);
-
-        await tester.tap(find.text('되돌리기'));
-        await tester.pumpAndSettle();
-        expect(await app.db.select(app.db.rules).get(), isEmpty);
-        expect(rowValue('아침 브리핑', '08:00'), findsOneWidget);
+        expect(find.text('알림'), findsNothing);
+        expect(find.text('아침 브리핑'), findsNothing);
 
         await app.dispose(tester);
       });

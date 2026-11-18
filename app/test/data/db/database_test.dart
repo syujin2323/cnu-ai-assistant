@@ -130,7 +130,6 @@ void main() {
             weekday: 4,
             startMin: 1320,
             endMin: 1560,
-            campus: Campus.daedeok,
             online: false,
             source: SlotSource.auto,
           ),
@@ -243,7 +242,6 @@ void main() {
 
     final slot = await db.select(db.classSlots).getSingle();
     expect(slot.endMin, greaterThan(slot.startMin));
-    expect(slot.campus, Campus.daedeok);
 
     final exception = await db.select(db.classExceptions).getSingle();
     expect(exception.kind, ClassExceptionKind.placeChange);
@@ -376,7 +374,6 @@ void main() {
               weekday: 1,
               startMin: 540,
               endMin: 600,
-              campus: Campus.boun,
               online: true,
               source: SlotSource.manual,
             ),
@@ -701,7 +698,6 @@ void main() {
             weekday: 1,
             startMin: 540,
             endMin: 600,
-            campus: Campus.boun,
             online: false,
             source: SlotSource.manual,
           ),
@@ -716,7 +712,6 @@ void main() {
             startMin: 600,
             endMin: 690,
             place: const Value('강의실B'),
-            campus: Campus.daedeok,
             online: true,
             source: SlotSource.auto,
             importedWeekday: const Value(2),
@@ -785,7 +780,6 @@ void main() {
               weekday: 1,
               startMin: 540,
               endMin: 600,
-              campus: Campus.daedeok,
               online: false,
               source: SlotSource.auto,
             ),
@@ -1020,7 +1014,6 @@ void main() {
                     weekday: weekday,
                     startMin: startMin,
                     endMin: endMin,
-                    campus: Campus.boun,
                     online: false,
                     source: SlotSource.manual,
                   ),
@@ -1041,7 +1034,6 @@ void main() {
               weekday: 1,
               startMin: 540,
               endMin: 600,
-              campus: Campus.boun,
               online: false,
               source: SlotSource.auto,
               importedWeekday: Value(weekday),
@@ -1083,7 +1075,6 @@ void main() {
                 weekday: 1,
                 startMin: 540,
                 endMin: 600,
-                campus: Campus.boun,
                 online: false,
                 source: SlotSource.auto,
               ),
@@ -1295,7 +1286,6 @@ void main() {
                 weekday: 8,
                 startMin: 540,
                 endMin: 600,
-                campus: Campus.boun,
                 online: false,
                 source: SlotSource.manual,
               ),

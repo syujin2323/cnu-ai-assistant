@@ -60,9 +60,11 @@ class ScheduleRepository {
     final to = kstToUtc(end);
     final firstDate = isoDate(DateTime(start.year, start.month, start.day - 1));
     final lastDate = isoDate(end);
-    final classSlots = await (_db.select(
-      _db.classSlots,
-    )..orderBy([(t) => OrderingTerm(expression: t.id)])).get();
+    final classSlots =
+        await (_db.select(_db.classSlots)
+              ..where((t) => t.hidden.equals(false))
+              ..orderBy([(t) => OrderingTerm(expression: t.id)]))
+            .get();
     final classExceptions =
         await (_db.select(_db.classExceptions)
               ..where((t) => t.date.isBetweenValues(firstDate, lastDate))

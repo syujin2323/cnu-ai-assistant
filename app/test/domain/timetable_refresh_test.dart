@@ -19,6 +19,7 @@ ClassSlot _slot(
   String? importedPlace = '합성관101',
   bool placeEdited = false,
   bool online = false,
+  bool hidden = false,
   SlotSource source = SlotSource.auto,
 }) => ClassSlot(
   id: id,
@@ -27,7 +28,6 @@ ClassSlot _slot(
   startMin: start,
   endMin: end,
   place: place,
-  campus: Campus.daedeok,
   online: online,
   source: source,
   importedWeekday: source == SlotSource.auto
@@ -37,6 +37,7 @@ ClassSlot _slot(
   importedEndMin: source == SlotSource.auto ? importedEnd ?? end : null,
   importedPlace: source == SlotSource.auto ? importedPlace : null,
   placeEdited: placeEdited,
+  hidden: hidden,
 );
 
 ImportedClassSlot _at(
@@ -209,7 +210,6 @@ void main() {
       startMin: 540,
       endMin: 615,
       place: '합성관101',
-      campus: Campus.daedeok,
       online: false,
       source: SlotSource.auto,
     );
@@ -223,5 +223,59 @@ void main() {
       ).changes,
       isEmpty,
     );
+  });
+
+  test('뺀(숨긴) 불러온 수업은 받은 칸과 짝지어 다시 넣지 않고, 고칠지·지울지 묻지 않는다', () {
+    // 같은 수업: 학교 쪽 강의실이 바뀌었어도 숨긴 수업은 묻지 않는다.
+    final same = compareTimetable(
+      existing: [_slot(1, hidden: true)],
+      fetched: {
+        1: [_at(1, place: '합성관202')],
+      },
+    );
+    expect(same.added, isEmpty);
+    expect(same.changes, isEmpty);
+
+    // 시간이 바뀐 수업: 숨긴 수업과 짝지어 넣지도 묻지도 않고, 다른 수업은 그대로 묻는다.
+    final moved = compareTimetable(
+      existing: [_slot(1, hidden: true), _slot(2, weekday: 3)],
+      fetched: {
+        1: [_at(2), _at(4)],
+      },
+    );
+    expect(moved.added, isEmpty);
+    expect(moved.changes, hasLength(1));
+    final update = moved.changes.single as TimetableSlotUpdate;
+    expect(update.slot.id, 2);
+    expect(update.to.weekday, 4);
+
+    // 없어진 수업과 과목 목록에서 빠진 과목: 숨긴 수업은 지울지 묻지 않는다.
+    final gone = compareTimetable(
+      existing: [
+        _slot(1, hidden: true),
+        _slot(2, course: 2, hidden: true),
+        _slot(3, course: 2, weekday: 3),
+      ],
+      fetched: {1: const []},
+      dropped: {2},
+    );
+    expect(gone.added, isEmpty);
+    expect(gone.changes.map((c) => (c is TimetableSlotRemoval, c.slot.id)), [
+      (true, 3),
+    ]);
+  });
+
+  test('숨긴 수업만 있는 과목은 처음 불러오는 과목으로 보지 않는다', () {
+    final diff = compareTimetable(
+      existing: [_slot(1, hidden: true)],
+      fetched: {
+        1: [_at(1), _at(3)],
+      },
+    );
+
+    expect(diff.added, {
+      1: [_at(3)],
+    });
+    expect(diff.changes, isEmpty);
   });
 }

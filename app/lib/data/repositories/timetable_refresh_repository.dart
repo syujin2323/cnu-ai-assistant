@@ -2,8 +2,8 @@
 //
 // 13 시간표·고정 일정의 '새로 고침'이 보인 바뀜(`domain/timetable_refresh.dart`의 [TimetableChange]) 가운데 사용자가
 // [반영하기]로 고른 것을 한 트랜잭션에서 쓰고 되돌리기를 한 번에 남긴다. 고치는 칸은 요일·시각·장소와 불러온 원래 값을
-// 바꾸고(출처·장소를 고친 표시·캠퍼스·실시간 온라인은 그대로), 지우는 칸은 그 수업 예외부터 지운다(외래 키). 견준 뒤
-// 사용자가 그 칸을 고쳤거나 지웠으면 그 바뀜은 건너뛴다. 빈 시간 재계산은 재계산 서비스가 표가 바뀐 것을 보고 한다
+// 바꾸고(출처·장소를 고친 표시·실시간 온라인은 그대로), 지우는 칸은 그 수업 예외부터 지운다(외래 키). 견준 뒤
+// 사용자가 그 칸을 고쳤거나 지웠거나 숨겼으면 그 바뀜은 건너뛴다. 빈 시간 재계산은 재계산 서비스가 표가 바뀐 것을 보고 한다
 // (확정 블록은 그대로). 폰 DB를 읽거나 쓰지 못하면 [StorageError]를 담은 [Err]다.
 
 import 'package:cnu_ai_assistant/data/db/database.dart';
@@ -94,6 +94,7 @@ class TimetableRefreshRepository {
       now.place == before.place &&
       now.online == before.online &&
       now.placeEdited == before.placeEdited &&
+      now.hidden == before.hidden &&
       now.source == before.source &&
       now.importedWeekday == before.importedWeekday &&
       now.importedStartMin == before.importedStartMin &&

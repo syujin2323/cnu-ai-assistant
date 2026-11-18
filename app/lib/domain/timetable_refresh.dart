@@ -10,6 +10,8 @@
 // - 그래도 남은 받은 칸은 새 수업이라 바로 넣고, 남은 옛 칸은 없어진 수업이라 지울지 묻는다. 과목 목록에서 빠진 이번
 //   학기 과목의 수업도 지울지 묻는다.
 // - 불러온 수업이 없는 과목(처음 불러오는 과목)은 받은 칸을 모두 넣는다.
+// - 사용자가 뺀(숨긴) 불러온 수업도 위처럼 받은 칸과 짝지어, 그 칸을 새 수업으로 다시 넣지 않는다. 숨긴 수업은 고칠지·
+//   지울지 묻지 않는다(docs/decisions.md 2026-11-19 '뺀 불러온 수업은 숨겨 두고 새로 고침이 다시 넣지 않는다').
 //
 // 받지 못한(실패한) 과목의 수업은 견주지 않는다. 같은 입력이면 늘 같은 결과다.
 
@@ -71,8 +73,8 @@ final class TimetableDiff {
       added.values.fold(0, (count, slots) => count + slots.length);
 }
 
-/// [fetched](`courses.id` → 이번에 받은 칸. 받지 못한 과목은 없음)를 [existing](폰 DB의 수업 칸)과 견준다. [dropped]는
-/// 과목 목록에서 빠진 이번 학기 과목이다. [existing]에서 불러온 수업(`source` `auto`)만 본다.
+/// [fetched](`courses.id` → 이번에 받은 칸. 받지 못한 과목은 없음)를 [existing](폰 DB의 수업 칸. 숨긴 수업 포함)과
+/// 견준다. [dropped]는 과목 목록에서 빠진 이번 학기 과목이다. [existing]에서 불러온 수업(`source` `auto`)만 본다.
 TimetableDiff compareTimetable({
   required List<ClassSlot> existing,
   required Map<int, List<ImportedClassSlot>> fetched,
@@ -105,6 +107,7 @@ TimetableDiff compareTimetable({
         continue;
       }
       final school = news.removeAt(at);
+      if (old.hidden) continue;
       final reasons = <TimetableUpdateReason>{};
       if (!_currentOf(old).sameTime(original)) {
         reasons.add(TimetableUpdateReason.userTime);
@@ -135,6 +138,7 @@ TimetableDiff compareTimetable({
         : news.length;
     for (var i = 0; i < paired; i++) {
       final old = unmatchedOld[i];
+      if (old.hidden) continue;
       final school = news[i];
       final placeFollows = !old.placeEdited && !old.online;
       changes.add(
@@ -157,13 +161,14 @@ TimetableDiff compareTimetable({
     }
     if (news.length > paired) added[courseId] = news.sublist(paired);
     for (final old in unmatchedOld.skip(paired)) {
-      changes.add(TimetableSlotRemoval(old));
+      if (!old.hidden) changes.add(TimetableSlotRemoval(old));
     }
   }
 
   for (final slot in imported) {
     if (dropped.contains(slot.courseId) &&
-        !fetched.containsKey(slot.courseId)) {
+        !fetched.containsKey(slot.courseId) &&
+        !slot.hidden) {
       changes.add(TimetableSlotRemoval(slot));
     }
   }

@@ -21,7 +21,6 @@ ClassSlot slot(int id, int courseId) => ClassSlot(
   startMin: 540,
   endMin: 600,
   place: '공학관 201',
-  campus: Campus.daedeok,
   online: false,
   source: SlotSource.manual,
 );

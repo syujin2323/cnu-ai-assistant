@@ -58,7 +58,6 @@ void main() {
           startMin: 540,
           endMin: 615,
           place: const Value('공대 5호관 101'),
-          campus: Campus.daedeok,
           online: false,
           source: SlotSource.auto,
           importedWeekday: const Value(1),
@@ -81,7 +80,6 @@ void main() {
     startMin: startMin,
     endMin: endMin,
     place: place,
-    campus: Campus.daedeok,
     online: online,
     now: now,
   );
@@ -93,7 +91,6 @@ void main() {
     expect(saved.courseId, courseId);
     expect((saved.weekday, saved.startMin, saved.endMin), (3, 780, 870));
     expect(saved.place, '인문대 201');
-    expect(saved.campus, Campus.daedeok);
     expect(saved.source, SlotSource.manual);
     expect(saved.importedWeekday, isNull);
 
@@ -177,7 +174,6 @@ void main() {
           weekday: 5,
           startMin: 1320,
           endMin: 1500,
-          campus: Campus.boun,
           online: true,
           now: now,
         ),
@@ -191,7 +187,6 @@ void main() {
       (5, 1320, 1500),
     );
     expect(changed.place, isNull);
-    expect(changed.campus, Campus.boun);
     expect(changed.online, isTrue);
     expect(changed.source, SlotSource.manual);
     expect((changed.placeEdited, changed.onlineEdited), (false, false));
@@ -211,7 +206,6 @@ void main() {
           weekday: 1,
           startMin: 540,
           endMin: 600,
-          campus: Campus.daedeok,
           online: false,
           now: now,
         ),
@@ -233,7 +227,6 @@ void main() {
               startMin: 570,
               endMin: 645,
               place: place,
-              campus: Campus.daedeok,
               online: online,
               now: now,
             ),
@@ -273,30 +266,29 @@ void main() {
     expect(current.importedPlace, '공대 5호관 101');
   });
 
-  test('지우면 수업 예외도 함께 지우고, 되돌리면 함께 되살리며, 과목은 남긴다', () async {
+  Future<void> cancel(int slotId, String date) => db
+      .into(db.classExceptions)
+      .insert(
+        ClassExceptionsCompanion.insert(
+          date: date,
+          classSlotId: slotId,
+          kind: ClassExceptionKind.cancelled,
+          source: EntrySource.manual,
+        ),
+      );
+
+  Future<List<(int, String)>> exceptions() async => [
+    for (final e in await db.select(db.classExceptions).get())
+      (e.classSlotId, e.date),
+  ];
+
+  test('직접 넣은 수업을 빼면 행과 수업 예외를 지우고, 되돌리면 함께 되살리며, 과목은 남긴다', () async {
     final math = await course('선형대수', remoteId: 'c1', semester: '2026-2');
-    final id = await importedSlot(math);
+    final id = _ok(await add(ChosenCourse(math)));
     final other = await importedSlot(math);
-    for (final (slotId, date) in [
-      (id, '2026-11-16'),
-      (id, '2026-11-23'),
-      (other, '2026-11-16'),
-    ]) {
-      await db
-          .into(db.classExceptions)
-          .insert(
-            ClassExceptionsCompanion.insert(
-              date: date,
-              classSlotId: slotId,
-              kind: ClassExceptionKind.cancelled,
-              source: EntrySource.manual,
-            ),
-          );
-    }
-    Future<List<(int, String)>> exceptions() async => [
-      for (final e in await db.select(db.classExceptions).get())
-        (e.classSlotId, e.date),
-    ];
+    await cancel(id, '2026-11-18');
+    await cancel(id, '2026-11-25');
+    await cancel(other, '2026-11-16');
 
     expect(_ok(await repository.delete(id, now: now)), isTrue);
     expect(await slot(id), isNull);
@@ -305,14 +297,62 @@ void main() {
     expect(_ok(await repository.delete(id, now: now)), isFalse);
 
     expect(_ok(await undo.undoLast(now: now)), isTrue);
-    expect((await slot(id))!.source, SlotSource.auto);
+    expect((await slot(id))!.source, SlotSource.manual);
     expect(
       await exceptions(),
       unorderedEquals([
-        (id, '2026-11-16'),
-        (id, '2026-11-23'),
+        (id, '2026-11-18'),
+        (id, '2026-11-25'),
         (other, '2026-11-16'),
       ]),
+    );
+  });
+
+  test('불러온 수업을 빼면 행을 남겨 숨기고 수업 예외를 지우며, 되돌리면 되살린다', () async {
+    final math = await course('선형대수', remoteId: 'c1', semester: '2026-2');
+    final id = await importedSlot(math);
+    final other = await importedSlot(math);
+    await cancel(id, '2026-11-16');
+    await cancel(other, '2026-11-23');
+
+    expect(_ok(await repository.delete(id, now: now)), isTrue);
+    final hidden = (await slot(id))!;
+    expect(hidden.hidden, isTrue);
+    expect(hidden.source, SlotSource.auto);
+    expect(
+      (hidden.weekday, hidden.startMin, hidden.importedWeekday),
+      (1, 540, 1),
+    );
+    expect(await exceptions(), [(other, '2026-11-23')]);
+    expect(_ok(await repository.read()).map((e) => e.slot.id), [other]);
+
+    // 숨긴 수업은 다시 빼거나 고칠 수 없다.
+    expect(_ok(await repository.delete(id, now: now)), isFalse);
+    expect(
+      _ok(
+        await repository.update(
+          id,
+          course: ChosenCourse(math),
+          weekday: 2,
+          startMin: 540,
+          endMin: 615,
+          online: false,
+          now: now,
+        ),
+      ),
+      isFalse,
+    );
+    expect((await slot(id))!.weekday, 1);
+
+    expect(_ok(await undo.undoLast(now: now)), isTrue);
+    expect((await slot(id))!.hidden, isFalse);
+    expect(
+      await exceptions(),
+      unorderedEquals([(id, '2026-11-16'), (other, '2026-11-23')]),
+    );
+    expect(
+      _ok(await repository.read()).map((e) => e.slot.id),
+      unorderedEquals([id, other]),
     );
   });
 
