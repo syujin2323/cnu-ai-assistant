@@ -8,6 +8,8 @@
 // 카드 위의 한 줄과 카드 문구는 `assistant_reply.dart`가 만든다. 겹치는 일정처럼 폰 DB를 봐야 아는 것은
 // 화면 쪽이 계산한다.
 
+import 'package:cnu_ai_assistant/domain/assistant/assistant_targets.dart';
+import 'package:cnu_ai_assistant/domain/models/class_exception.dart';
 import 'package:cnu_ai_assistant/domain/models/fixed_block.dart';
 import 'package:cnu_ai_assistant/domain/models/parse_result.dart';
 import 'package:cnu_ai_assistant/domain/models/task.dart';
@@ -46,6 +48,9 @@ enum CardStatus {
 
   /// 저장함.
   saved,
+
+  /// 그대로 두기로 했다(수업 변경의 [취소], 바꾸기·지우기의 [그대로 두기]).
+  declined,
 }
 
 /// 새 일정 카드(screens.md '06 AI 비서'의 카드 1). 한 번뿐인 일정은 `events`, 매주 반복이면 `fixed_blocks`에
@@ -159,6 +164,9 @@ enum AskTopic {
 
   /// 오늘인데 지난 시각이다.
   pastTime,
+
+  /// 수업 변경의 날짜가 없거나 그날 그 과목 수업이 없다(2주 안의 수업에서 고름).
+  session,
 }
 
 /// 되묻기 카드의 고를 것 하나.
@@ -228,8 +236,26 @@ enum InfoKind {
   /// 규칙 모드(12 '말로 정하기')에서 규칙이 아닌 것을 말했다.
   ruleOnly,
 
-  /// 이 화면이 아직 처리하지 않는 의도(수업 변경·바꾸기·지우기·질문·내 규칙).
+  /// 이 화면이 아직 처리하지 않는 의도(내 규칙).
   notYet,
+
+  /// 수업 변경의 과목을 모르거나 2주 안에 그 과목 수업이 없다.
+  noClass,
+
+  /// 보강인데 날짜나 시각이 없다.
+  makeupNeedsWhen,
+
+  /// 강의실 변경인데 바뀐 강의실이 없다.
+  placeNeeded,
+
+  /// 바꾸거나 지울 일정을 찾지 못했다. 찾던 말은 [InfoCard.question]이다.
+  targetNotFound,
+
+  /// 바꾸기인데 어떻게 바꿀지(날짜·시각·옮길 분·요일)가 없다. 대상을 가리킨 말은 [InfoCard.question]이다.
+  changeNeedsHow,
+
+  /// 할 일을 바꾸거나 지우려 했다(할 일은 03 할 일에서 바꿈).
+  taskChange,
 
   /// AI 사용에 동의하지 않아 보내지 않았다.
   aiDeclined,
@@ -247,8 +273,148 @@ final class InfoCard extends AssistantMessage {
 
   final InfoKind kind;
 
-  /// [InfoKind.serverQuestion]의 질문(AI가 쓴 문장).
+  /// [InfoKind.serverQuestion]의 질문(AI가 쓴 문장), [InfoKind.targetNotFound]·[InfoKind.changeNeedsHow]의
+  /// 대상을 가리킨 말.
   final String? question;
+}
+
+/// 수업 변경 카드(screens.md '06 AI 비서'의 카드 3). 그날 하루만 휴강·시험·강의실 변경·보강으로 바꾼다.
+final class ExceptionCard extends AssistantMessage {
+  const ExceptionCard(
+    super.id, {
+    required this.draft,
+    this.say,
+    this.status = CardStatus.pending,
+    this.planNote,
+  });
+
+  final ExceptionDraft draft;
+  final String? say;
+  final CardStatus status;
+
+  /// 적용한 뒤 다시 계산한 것('빈 시간 1시간 40분이 생겼어요'). 없으면 null이다.
+  final String? planNote;
+
+  ExceptionCard copyWith({CardStatus? status, String? Function()? planNote}) =>
+      ExceptionCard(
+        id,
+        draft: draft,
+        say: say,
+        status: status ?? this.status,
+        planNote: planNote == null ? this.planNote : planNote(),
+      );
+}
+
+/// 저장 전 수업 변경.
+final class ExceptionDraft {
+  const ExceptionDraft({
+    required this.kind,
+    required this.slotId,
+    required this.courseName,
+    required this.date,
+    required this.startMin,
+    required this.endMin,
+    this.originalPlace,
+    this.place,
+  });
+
+  final ClassExceptionKind kind;
+  final int slotId;
+  final String courseName;
+
+  /// 그 날짜(0시).
+  final DateTime date;
+
+  /// 그날의 수업 시각(보강이면 보강 시각, 그 날짜 0시 기준 분).
+  final int startMin;
+  final int endMin;
+
+  /// 그날 원래 강의실.
+  final String? originalPlace;
+
+  /// 바뀐 강의실·시험 장소·보강 장소.
+  final String? place;
+}
+
+/// 바꾸기·지우기 카드(screens.md '06 AI 비서'의 카드 5).
+final class ChangeCard extends AssistantMessage {
+  const ChangeCard(
+    super.id, {
+    required this.delete,
+    required this.target,
+    this.after,
+    this.say,
+    this.status = CardStatus.pending,
+  }) : assert(delete || after != null, '바꾸기에는 바꾼 뒤의 값이 있다');
+
+  /// 지우기인지(아니면 바꾸기).
+  final bool delete;
+  final ChangeTarget target;
+
+  /// 바꾼 뒤의 값(바꾸기만).
+  final ChangeAfter? after;
+  final String? say;
+  final CardStatus status;
+
+  ChangeCard copyWith({CardStatus? status}) => ChangeCard(
+    id,
+    delete: delete,
+    target: target,
+    after: after,
+    say: say,
+    status: status ?? this.status,
+  );
+}
+
+/// 바꾸거나 지울 일정이 여럿이면 고르는 카드. 고르면 [ChangeCard]를 만든다.
+final class TargetPickCard extends AssistantMessage {
+  const TargetPickCard(
+    super.id, {
+    required this.delete,
+    required this.item,
+    required this.candidates,
+    this.say,
+    this.picked,
+  });
+
+  final bool delete;
+
+  /// 새 값이 든 항목(바꾸기).
+  final ParseItem item;
+  final List<ChangeTarget> candidates;
+  final String? say;
+  final int? picked;
+
+  TargetPickCard pick(int index) => TargetPickCard(
+    id,
+    delete: delete,
+    item: item,
+    candidates: candidates,
+    say: say,
+    picked: index,
+  );
+}
+
+/// 질문 답 카드(screens.md '06 AI 비서'의 카드 6). 폰 안 데이터로 답하므로 내용은 화면이 그때그때 계산한다.
+final class AnswerCard extends AssistantMessage {
+  const AnswerCard(
+    super.id, {
+    required this.type,
+    required this.from,
+    required this.to,
+    this.courseName,
+    this.say,
+  });
+
+  final ParseQueryType type;
+
+  /// 질문이 말한 기간(그날 0시, 그날 포함). 하루 계획·빈 시간은 [from] 하루만 본다.
+  final DateTime from;
+  final DateTime to;
+
+  /// 마감 질문의 과목.
+  final String? courseName;
+  final String? say;
 }
 
 /// 보내지 못한 까닭.

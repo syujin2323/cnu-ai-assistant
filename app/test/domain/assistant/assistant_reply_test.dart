@@ -5,6 +5,7 @@
 
 import 'package:cnu_ai_assistant/domain/assistant/assistant_message.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_reply.dart';
+import 'package:cnu_ai_assistant/domain/assistant/assistant_targets.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/domain/models/parse_result.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,16 +62,150 @@ ParseItem _task({
 );
 
 /// 카드 번호를 1부터 주는 [replyCards].
-List<AssistantMessage> _reply(ParseResult result, {bool ruleMode = false}) {
+List<AssistantMessage> _reply(
+  ParseResult result, {
+  bool ruleMode = false,
+  AssistantSnapshot snapshot = const AssistantSnapshot(),
+}) {
   var id = 0;
-  return replyCards(result, now: _now, ruleMode: ruleMode, nextId: () => ++id);
+  return replyCards(
+    result,
+    now: _now,
+    ruleMode: ruleMode,
+    nextId: () => ++id,
+    snapshot: snapshot,
+  );
 }
 
 /// [card]의 [index]번째를 고른 뒤의 카드(번호는 100부터).
-List<AssistantMessage> _pick(AssistantMessage card, int index) {
+List<AssistantMessage> _pick(
+  AssistantMessage card,
+  int index, {
+  AssistantSnapshot snapshot = const AssistantSnapshot(),
+}) {
   var id = 99;
-  return afterPick(card as AskCard, index, now: _now, nextId: () => ++id);
+  return afterPick(
+    card as AskCard,
+    index,
+    now: _now,
+    nextId: () => ++id,
+    snapshot: snapshot,
+  );
 }
+
+const _ds = Course(id: 1, name: '데이터구조');
+const _design = Course(id: 2, name: '공학설계');
+
+ClassSlotEntry _slot(
+  int id,
+  Course course,
+  int weekday,
+  int start,
+  int end, {
+  String? place,
+}) => ClassSlotEntry(
+  slot: ClassSlot(
+    id: id,
+    courseId: course.id,
+    weekday: weekday,
+    startMin: start,
+    endMin: end,
+    place: place,
+    online: false,
+    source: SlotSource.auto,
+  ),
+  course: course,
+);
+
+/// 데이터구조는 화 10:30–12:00·목 13:00–14:30, 공학설계는 금 09:00–10:30.
+final _classes = AssistantSnapshot(
+  courses: const [_ds, _design],
+  slots: [
+    _slot(11, _ds, DateTime.tuesday, 630, 720, place: '공대 5호관 204'),
+    _slot(12, _ds, DateTime.thursday, 780, 870, place: '공대 5호관 204'),
+    _slot(21, _design, DateTime.friday, 540, 630, place: '공대 1호관'),
+  ],
+);
+
+ParseResult _exception(
+  ClassExceptionKind? kind, {
+  String? course = '공학설계',
+  DateTime? date,
+  int? weekday,
+  int? start,
+  String? timeExpression,
+  String? place,
+}) => ParseResult(
+  intent: ParseIntent.classException,
+  items: [
+    ParseItem(
+      title: '수업',
+      course: course,
+      date: date,
+      weekday: weekday ?? date?.weekday,
+      startMin: start,
+      timeExpression: timeExpression,
+      place: place,
+      exceptionType: kind,
+    ),
+  ],
+);
+
+/// 알바(토·일 14:00–17:00), 스터디 둘(11/20·11/27 15:00–16:00), 동아리 회의(11/21 종일).
+final _plans = AssistantSnapshot(
+  fixedBlocks: const [
+    FixedBlock(
+      id: 5,
+      name: '알바',
+      weekdays: [DateTime.saturday, DateTime.sunday],
+      startMin: 840,
+      endMin: 1020,
+      bufferMin: 0,
+      kind: FixedBlockKind.work,
+      source: EntrySource.manual,
+    ),
+  ],
+  events: [
+    Event(
+      id: 7,
+      title: '스터디',
+      startAt: DateTime(2026, 11, 20, 15),
+      endAt: DateTime(2026, 11, 20, 16),
+      allDay: false,
+      source: EventSource.manual,
+    ),
+    Event(
+      id: 8,
+      title: '스터디',
+      startAt: DateTime(2026, 11, 27, 15),
+      endAt: DateTime(2026, 11, 27, 16),
+      allDay: false,
+      source: EventSource.manual,
+    ),
+  ],
+);
+
+ParseResult _change(
+  ParseIntent intent, {
+  String? target,
+  DateTime? targetDate,
+  int? shift,
+  int? start,
+  String? timeExpression,
+  ParseItemKind? kind,
+}) => ParseResult(
+  intent: intent,
+  items: [
+    ParseItem(
+      kind: kind,
+      target: target,
+      targetDate: targetDate,
+      shiftMinutes: shift,
+      startMin: start,
+      timeExpression: timeExpression,
+    ),
+  ],
+);
 
 EventDraft _draftOf(AssistantMessage message) => (message as EventCard).draft;
 
@@ -581,6 +716,445 @@ void main() {
     });
   });
 
+  group('수업 변경', () {
+    test('날짜를 말하면 그날 수업 카드이고, 휴강에는 장소를 두지 않는다', () {
+      final card =
+          _reply(
+                _exception(
+                  ClassExceptionKind.cancelled,
+                  date: _day(11, 20),
+                  place: '어딘가',
+                ),
+                snapshot: _classes,
+              ).single
+              as ExceptionCard;
+      final draft = card.draft;
+      expect(draft.kind, ClassExceptionKind.cancelled);
+      expect(draft.slotId, 21);
+      expect(draft.courseName, '공학설계');
+      expect(draft.date, _day(11, 20));
+      expect((draft.startMin, draft.endMin), (540, 630));
+      expect(draft.originalPlace, '공대 1호관');
+      expect(draft.place, isNull);
+      expect(card.say, '이번 주 금요일 공학설계 수업만 휴강으로 바꿀게요.');
+    });
+
+    test('날짜가 없고 이번 주에 그 과목 수업이 하나면 그 수업이다', () {
+      final card =
+          _reply(
+                _exception(ClassExceptionKind.exam, place: '공대 3호관'),
+                snapshot: _classes,
+              ).single
+              as ExceptionCard;
+      expect(card.draft.date, _day(11, 20));
+      expect(card.draft.place, '공대 3호관');
+      expect(card.say, '이번 주 금요일 공학설계 수업만 시험으로 바꿀게요.');
+    });
+
+    test('이번 주에 여럿이면 2주 안 수업을 넷까지 고르게 하고, 고르면 그 수업이다', () {
+      final ask =
+          _reply(
+                _exception(ClassExceptionKind.cancelled, course: '데이터구조'),
+                snapshot: _classes,
+              ).single
+              as AskCard;
+      expect(ask.topic, AskTopic.session);
+      expect(ask.question, '어느 날 데이터구조 수업인가요?');
+      expect(ask.sub, '이번 주와 다음 주 수업이에요');
+      expect(
+        [for (final option in ask.options) option.label],
+        [
+          '11월 19일 (목) 13:00–14:30',
+          '11월 24일 (화) 10:30–12:00',
+          '11월 26일 (목) 13:00–14:30',
+          '12월 1일 (화) 10:30–12:00',
+        ],
+      );
+      expect(ask.options.first.sub, '공대 5호관 204');
+
+      final card = _pick(ask, 1, snapshot: _classes).single as ExceptionCard;
+      expect(card.draft.slotId, 11);
+      expect(card.draft.date, _day(11, 24));
+      expect(card.say, '다음 주 화요일 데이터구조 수업만 휴강으로 바꿀게요.');
+    });
+
+    test('고를 수업은 넷까지다', () {
+      final busy = AssistantSnapshot(
+        courses: const [_ds],
+        slots: [
+          _slot(11, _ds, DateTime.monday, 540, 600),
+          _slot(12, _ds, DateTime.wednesday, 540, 600),
+          _slot(13, _ds, DateTime.friday, 540, 600),
+        ],
+      );
+      final ask =
+          _reply(
+                _exception(ClassExceptionKind.cancelled, course: '데이터구조'),
+                snapshot: busy,
+              ).single
+              as AskCard;
+      expect(ask.options, hasLength(4));
+    });
+
+    test('2주 뒤의 수업은 날짜를 적는다', () {
+      final card =
+          _reply(
+                _exception(
+                  ClassExceptionKind.cancelled,
+                  course: '데이터구조',
+                  date: _day(12, 1),
+                ),
+                snapshot: _classes,
+              ).single
+              as ExceptionCard;
+      expect(card.say, '12월 1일 화요일 데이터구조 수업만 휴강으로 바꿀게요.');
+    });
+
+    test('말한 날짜에 그 과목 수업이 없으면 2주 안 수업을 고르게 한다', () {
+      final ask =
+          _reply(
+                _exception(
+                  ClassExceptionKind.cancelled,
+                  course: '데이터구조',
+                  date: _day(11, 20),
+                ),
+                snapshot: _classes,
+              ).single
+              as AskCard;
+      expect(ask.question, '11월 20일 금요일에는 데이터구조 수업이 없어요');
+      expect(ask.sub, '어느 수업인가요?');
+    });
+
+    test('그날 시각을 말하면 그 시각의 수업만 그날 수업으로 본다', () {
+      final ask =
+          _reply(
+                _exception(
+                  ClassExceptionKind.cancelled,
+                  course: '데이터구조',
+                  date: _day(11, 19),
+                  start: 630,
+                  timeExpression: '오전 10시 반',
+                ),
+                snapshot: _classes,
+              ).single
+              as AskCard;
+      expect(ask.topic, AskTopic.session);
+    });
+
+    test('휴강한 수업은 빼고, 강의실 변경이 있으면 바뀐 강의실을 원래 강의실로 본다', () {
+      final snapshot = AssistantSnapshot(
+        courses: _classes.courses,
+        slots: _classes.slots,
+        exceptions: const [
+          ClassException(
+            id: 1,
+            date: '2026-11-19',
+            classSlotId: 12,
+            kind: ClassExceptionKind.cancelled,
+            source: EntrySource.manual,
+          ),
+          ClassException(
+            id: 2,
+            date: '2026-11-24',
+            classSlotId: 11,
+            kind: ClassExceptionKind.placeChange,
+            place: '공대 2호관',
+            source: EntrySource.manual,
+          ),
+        ],
+      );
+      final card =
+          _reply(
+                _exception(ClassExceptionKind.exam, course: '데이터구조'),
+                snapshot: snapshot,
+              ).single
+              as ExceptionCard;
+      expect(card.draft.date, _day(11, 24));
+      expect(card.draft.originalPlace, '공대 2호관');
+    });
+
+    test('강의실 변경은 바뀐 강의실이 있어야 한다', () {
+      expect(
+        (_reply(
+                  _exception(ClassExceptionKind.placeChange),
+                  snapshot: _classes,
+                ).single
+                as InfoCard)
+            .kind,
+        InfoKind.placeNeeded,
+      );
+      final card =
+          _reply(
+                _exception(ClassExceptionKind.placeChange, place: ' 공대 2호관 '),
+                snapshot: _classes,
+              ).single
+              as ExceptionCard;
+      expect(card.draft.place, '공대 2호관');
+      expect(card.say, '이번 주 금요일 공학설계 수업만 강의실 변경으로 바꿀게요.');
+    });
+
+    test('보강은 날짜와 시각이 있어야 하고, 그 과목의 가장 이른 수업 칸에 그 시각으로 넣는다', () {
+      for (final date in [null, _day(11, 21)]) {
+        expect(
+          (_reply(
+                    _exception(
+                      ClassExceptionKind.makeup,
+                      course: '데이터구조',
+                      date: date,
+                    ),
+                    snapshot: _classes,
+                  ).single
+                  as InfoCard)
+              .kind,
+          InfoKind.makeupNeedsWhen,
+        );
+      }
+      final card =
+          _reply(
+                _exception(
+                  ClassExceptionKind.makeup,
+                  course: '데이터구조',
+                  date: _day(11, 21),
+                  start: 600,
+                  timeExpression: '오전 10시',
+                  place: '공대 7호관',
+                ),
+                snapshot: _classes,
+              ).single
+              as ExceptionCard;
+      expect(card.draft.slotId, 11);
+      expect(card.draft.date, _day(11, 21));
+      expect((card.draft.startMin, card.draft.endMin), (600, 690));
+      expect(card.draft.place, '공대 7호관');
+      expect(card.say, '데이터구조는 그날만 보강을 넣을게요.');
+    });
+
+    test('과목이 없거나 시간표에 없거나 종류가 없으면 안내한다', () {
+      for (final result in [
+        _exception(ClassExceptionKind.cancelled, course: null),
+        _exception(ClassExceptionKind.cancelled, course: '운영체제'),
+        _exception(
+          ClassExceptionKind.makeup,
+          course: '운영체제',
+          date: _day(11, 21),
+          start: 600,
+          timeExpression: '오전 10시',
+        ),
+      ]) {
+        expect(
+          (_reply(result, snapshot: _classes).single as InfoCard).kind,
+          InfoKind.noClass,
+        );
+      }
+      expect(
+        (_reply(_exception(null), snapshot: _classes).single as InfoCard).kind,
+        InfoKind.notUnderstood,
+      );
+    });
+  });
+
+  group('바꾸기·지우기', () {
+    test('대상을 찾지 못하면 찾던 말과 함께 안내한다', () {
+      final info =
+          _reply(
+                _change(ParseIntent.delete, target: ' 독서 모임 '),
+                snapshot: _plans,
+              ).single
+              as InfoCard;
+      expect(info.kind, InfoKind.targetNotFound);
+      expect(info.question, '독서 모임');
+    });
+
+    test('하나면 지우기 카드다', () {
+      final card =
+          _reply(
+                _change(ParseIntent.delete, target: '주말 알바'),
+                snapshot: _plans,
+              ).single
+              as ChangeCard;
+      expect(card.delete, isTrue);
+      expect((card.target as FixedTarget).block.id, 5);
+      expect(card.after, isNull);
+      expect(card.say, '지우기 전에 확인해 주세요.');
+    });
+
+    test('바꾸기는 바꾼 뒤를 담는다', () {
+      final card =
+          _reply(
+                _change(
+                  ParseIntent.update,
+                  target: '알바',
+                  start: 900,
+                  timeExpression: '오후 3시',
+                ),
+                snapshot: _plans,
+              ).single
+              as ChangeCard;
+      expect(card.delete, isFalse);
+      final after = card.after! as FixedAfter;
+      expect(after.weekdays, [DateTime.saturday, DateTime.sunday]);
+      expect((after.startMin, after.endMin), (900, 1080));
+      expect(card.say, '바꾸기 전에 확인해 주세요.');
+    });
+
+    test('여럿이면 고르게 하고, 고르면 그 일정의 카드다', () {
+      final pick =
+          _reply(
+                _change(ParseIntent.update, target: '스터디', shift: 60),
+                snapshot: _plans,
+              ).single
+              as TargetPickCard;
+      expect(pick.say, '「스터디」 일정이 2개 있어요.');
+      expect(
+        [
+          for (final target in pick.candidates)
+            (target as EventTarget).event.id,
+        ],
+        [7, 8],
+      );
+
+      var id = 99;
+      final card = afterTargetPick(pick, 1, nextId: () => ++id) as ChangeCard;
+      expect(card.id, 100);
+      expect((card.target as EventTarget).event.id, 8);
+      final after = card.after! as EventAfter;
+      expect(after.startAt, DateTime(2026, 11, 27, 16));
+      expect(after.endAt, DateTime(2026, 11, 27, 17));
+      expect(card.say, isNull);
+    });
+
+    test('대상의 날짜를 말하면 그날 것만 본다', () {
+      final card =
+          _reply(
+                _change(
+                  ParseIntent.delete,
+                  target: '내일 스터디',
+                  targetDate: _day(11, 20),
+                ),
+                snapshot: _plans,
+              ).single
+              as ChangeCard;
+      expect((card.target as EventTarget).event.id, 7);
+    });
+
+    test('어떻게 바꿀지 없으면 대상의 말과 함께 묻는다', () {
+      final info =
+          _reply(
+                _change(ParseIntent.update, target: '알바'),
+                snapshot: _plans,
+              ).single
+              as InfoCard;
+      expect(info.kind, InfoKind.changeNeedsHow);
+      expect(info.question, '알바');
+    });
+
+    test('고른 일정에 바꿀 값이 없으면 어떻게 바꿀지 묻는다', () {
+      final pick = TargetPickCard(
+        1,
+        delete: false,
+        item: const ParseItem(target: '스터디', shiftMinutes: 60),
+        candidates: [
+          FixedTarget(_plans.fixedBlocks.single),
+          EventTarget(_plans.events.first),
+        ],
+      );
+      final noChange = TargetPickCard(
+        2,
+        delete: false,
+        item: const ParseItem(target: '스터디', weekday: DateTime.monday),
+        candidates: pick.candidates,
+      );
+      var id = 0;
+      final info = afterTargetPick(noChange, 1, nextId: () => ++id) as InfoCard;
+      expect(info.kind, InfoKind.changeNeedsHow);
+      expect(info.question, '스터디');
+    });
+
+    test('할 일을 바꾸거나 지우려 하면 안내한다', () {
+      for (final intent in [ParseIntent.update, ParseIntent.delete]) {
+        expect(
+          (_reply(
+                    _change(intent, target: '과제', kind: ParseItemKind.task),
+                    snapshot: _plans,
+                  ).single
+                  as InfoCard)
+              .kind,
+          InfoKind.taskChange,
+        );
+      }
+    });
+  });
+
+  group('질문', () {
+    test('마감은 기간을 말하지 않으면 오늘부터 이번 주 일요일까지다', () {
+      final card =
+          _reply(
+                const ParseResult(
+                  intent: ParseIntent.query,
+                  queryType: ParseQueryType.deadlinesThisWeek,
+                  queryCourse: ' 데이터구조 ',
+                ),
+              ).single
+              as AnswerCard;
+      expect(card.type, ParseQueryType.deadlinesThisWeek);
+      expect((card.from, card.to), (_day(11, 19), _day(11, 22)));
+      expect(card.courseName, '데이터구조');
+      expect(card.say, '폰에 저장된 마감으로 정리했어요.');
+    });
+
+    test('기간을 말하면 그 기간이고, 끝이 시작보다 이르면 시작 하루다', () {
+      final card =
+          _reply(
+                ParseResult(
+                  intent: ParseIntent.query,
+                  queryType: ParseQueryType.deadlinesThisWeek,
+                  queryFrom: _day(11, 23),
+                  queryTo: _day(11, 29),
+                ),
+              ).single
+              as AnswerCard;
+      expect((card.from, card.to), (_day(11, 23), _day(11, 29)));
+      final backwards =
+          _reply(
+                ParseResult(
+                  intent: ParseIntent.query,
+                  queryType: ParseQueryType.deadlinesThisWeek,
+                  queryFrom: _day(11, 25),
+                  queryTo: _day(11, 24),
+                ),
+              ).single
+              as AnswerCard;
+      expect((backwards.from, backwards.to), (_day(11, 25), _day(11, 25)));
+    });
+
+    test('하루 계획·빈 시간은 그 하루만 보고, 말하지 않으면 오늘이다', () {
+      final plan =
+          _reply(
+                ParseResult(
+                  intent: ParseIntent.query,
+                  queryType: ParseQueryType.todayPlan,
+                  queryFrom: _day(11, 20),
+                  queryTo: _day(11, 22),
+                  queryCourse: ' ',
+                ),
+              ).single
+              as AnswerCard;
+      expect((plan.from, plan.to), (_day(11, 20), _day(11, 20)));
+      expect(plan.courseName, isNull);
+      expect(plan.say, '홈에 보이는 계획을 그대로 정리했어요.');
+      final free =
+          _reply(
+                const ParseResult(
+                  intent: ParseIntent.query,
+                  queryType: ParseQueryType.freeTime,
+                ),
+              ).single
+              as AnswerCard;
+      expect((free.from, free.to), (_day(11, 19), _day(11, 19)));
+      expect(free.say, '시간표와 일정을 빼고 남은 시간을 찾았어요.');
+    });
+  });
+
   group('그 밖의 응답', () {
     test('AI가 되물으면 그 질문을 안내 카드로 보이고, 질문이 비면 못 알아들은 것이다', () {
       final question =
@@ -613,7 +1187,7 @@ void main() {
       expect(empty.kind, InfoKind.notUnderstood);
     });
 
-    test('일정을 찾지 못하면 못 알아들은 것이고, 아직 처리하지 않는 의도는 안내한다', () {
+    test('항목이나 질문 종류가 없으면 못 알아들은 것이고, 내 규칙은 아직 안내만 한다', () {
       expect(
         (_reply(const ParseResult(intent: ParseIntent.other)).single
                 as InfoCard)
@@ -631,14 +1205,19 @@ void main() {
         ParseIntent.delete,
         ParseIntent.query,
         ParseIntent.classException,
-        ParseIntent.setRule,
       ]) {
         expect(
           (_reply(ParseResult(intent: intent)).single as InfoCard).kind,
-          InfoKind.notYet,
+          InfoKind.notUnderstood,
           reason: '$intent',
         );
       }
+      expect(
+        (_reply(const ParseResult(intent: ParseIntent.setRule)).single
+                as InfoCard)
+            .kind,
+        InfoKind.notYet,
+      );
     });
 
     test('규칙 모드에서는 일정·할 일·바꾸기를 받지 않는다(질문·수업 변경·규칙은 받음)', () {
