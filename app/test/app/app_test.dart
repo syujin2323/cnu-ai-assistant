@@ -815,6 +815,9 @@ void main() {
           await tester.pumpAndSettle();
           expect(args(), fromBriefing);
           expect(app.router.state.uri.toString(), Routes.assistant);
+          // AI 사용이 꺼져 있어 보내기 전에 AI 사용 동의 시트가 뜬다(동의하지 않으면 보내지 않음).
+          expect(find.text('동의하면 보낼 문장'), findsOneWidget);
+          await tapText(tester, '동의하지 않음');
           await tester.tap(find.byType(BackButton));
           await tester.pumpAndSettle();
           expect(find.byType(AssistantScreen), findsNothing);
