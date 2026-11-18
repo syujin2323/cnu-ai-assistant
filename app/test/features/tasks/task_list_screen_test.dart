@@ -129,6 +129,26 @@ Future<Task> _task(TestApp app, String title) async =>
       Err(:final error) => fail('할 일을 읽지 못했다: $error'),
     };
 
+/// 할 일 동기화 기록 하나를 [result]로 남긴다(실패한 과목 [failed], 시작 [at]. 없으면 지금).
+Future<void> _syncRun(
+  TestApp app,
+  SyncResultKind result, {
+  List<int>? failed,
+  DateTime? at,
+}) => app.db
+    .into(app.db.syncRuns)
+    .insert(
+      SyncRunsCompanion.insert(
+        startedAt: at ?? app.clock.now(),
+        trigger: SyncTrigger.periodic,
+        scope: SyncScope.list,
+        result: result,
+        changedCount: 0,
+        failedCourseIds: Value(failed),
+        elapsedMs: 10,
+      ),
+    );
+
 /// [text]가 보이고 누를 수 있는지(접히지 않음).
 bool _shown(String text) => find.text(text).hitTestable().evaluate().isNotEmpty;
 
@@ -439,19 +459,12 @@ void main() {
       final la = (await (app.db.select(
         app.db.courses,
       )..where((course) => course.name.equals('선형대수'))).getSingle()).id;
-      await app.db
-          .into(app.db.syncRuns)
-          .insert(
-            SyncRunsCompanion.insert(
-              startedAt: _now.subtract(const Duration(minutes: 12)),
-              trigger: SyncTrigger.periodic,
-              scope: SyncScope.list,
-              result: SyncResultKind.partial,
-              changedCount: 0,
-              failedCourseIds: Value([la]),
-              elapsedMs: 10,
-            ),
-          );
+      await _syncRun(
+        app,
+        SyncResultKind.partial,
+        failed: [la],
+        at: _now.subtract(const Duration(minutes: 12)),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('선형대수는 확인하지 못했어요'), findsOneWidget);
@@ -471,6 +484,34 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text(' · 확인 못 함'), findsNothing);
       expect(find.text('확인 못 함'), findsOneWidget);
+
+      // 마지막 성공이 일부 과목 실패가 아니면(실패 과목이 적혀 있어도) 알리지 않는다.
+      await _syncRun(app, SyncResultKind.normal, failed: [la]);
+      await tester.pumpAndSettle();
+      expect(find.text('선형대수는 확인하지 못했어요'), findsNothing);
+      expect(find.text('확인 못 함'), findsNothing);
+      await app.dispose(tester);
+    });
+
+    testWidgets('글자 2.0에서도 안내 칸이 넘치지 않는다', (tester) async {
+      final app = await pumpTestApp(tester, now: _now, textScale: 2.0);
+      await writeLmsSessionState(app, LmsSessionState.disconnected);
+      await _seed(app.db);
+      app.router.go(Routes.tasks);
+      await tester.pumpAndSettle();
+      expect(find.text('LMS에 로그인하면 마감을 모아 와요'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, '로그인'), findsOneWidget);
+
+      await writeLmsSessionState(app, LmsSessionState.active);
+      final courses = await app.db.select(app.db.courses).get();
+      await _syncRun(
+        app,
+        SyncResultKind.partial,
+        failed: [for (final course in courses) course.id],
+      );
+      await tester.pumpAndSettle();
+      // 과목 이름은 고를 수 있는 과목의 순서(이름순)다.
+      expect(find.text('선형대수·자료구조는 확인하지 못했어요'), findsOneWidget);
       await app.dispose(tester);
     });
   });

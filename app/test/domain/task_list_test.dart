@@ -622,6 +622,17 @@ void main() {
       lms(2, due: at(11, 18), courseName: '운영체제'),
       lms(3, due: at(11, 19), courseName: '운영체제'),
       personal(4, due: at(11, 18)),
+      // 지난 마감과 공개 전 안내가 붙는 줄도 표시한다.
+      lms(5, due: at(11, 14), courseName: '운영체제'),
+      lms(6, due: at(11, 20), courseName: '운영체제', openAt: at(11, 17, 9)),
+      // 06 AI 비서로 그 과목을 정해 만든 할 일은 LMS에서 받지 않으므로 표시하지 않는다.
+      personal(
+        7,
+        due: at(11, 21),
+        kind: TaskKind.quiz,
+        source: EntrySource.ai,
+        course: Course(id: os, name: '운영체제'),
+      ),
     ];
 
     test('마감순에서는 받지 못한 과목의 LMS 할 일 줄에 표시한다', () {
@@ -629,10 +640,12 @@ void main() {
 
       expect(
         [
-          for (final id in [1, 2, 3, 4]) rowOf(list, id).unchecked,
+          for (final id in [1, 2, 3, 4, 5, 6, 7]) rowOf(list, id).unchecked,
         ],
-        [false, true, true, false],
+        [false, true, true, false, true, true, false],
       );
+      expect(rowOf(list, 5).note?.kind, TaskNoteKind.overdue);
+      expect(rowOf(list, 6).note?.kind, TaskNoteKind.opens);
       expect(list.groups.every((group) => !group.unchecked), isTrue);
       expect(
         content(entries).groups.single.rows.any((r) => r.unchecked),
