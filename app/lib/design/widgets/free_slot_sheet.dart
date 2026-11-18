@@ -3,7 +3,7 @@
 // 02 홈의 빈 시간 카드와 피드백 카드 [빈 시간에 할 일 놓기]가 연다(09 일간과 06 AI 비서의 빈 시간 답도 같은 것을
 // 쓴다). 보일 것은 `domain/move_sheet.dart`의 [freeSlotContent]가 정하고, 이 시트는 할 일 줄을 누르거나
 // [일정은 말로 추가하기]를 누르면 그것을 돌려주고 닫는다. 저장과 되돌리기 토스트, 06 AI 비서 열기는 부르는 쪽이
-// 한다. 모양은 최종 프로토타입을 따른다: 제목('15:00–16:30 · 1시간 30분 비어 있어요')과 안내 한 줄, 할 일 줄(점,
+// 한다. 06 AI 비서 안에서 열면 [일정은 말로 추가하기]를 두지 않는다([FreeSlotSheet.speech]). 모양은 최종 프로토타입을 따른다: 제목('15:00–16:30 · 1시간 30분 비어 있어요')과 안내 한 줄, 할 일 줄(점,
 // 이름과 종류·마감, 오른쪽에 놓을 길이), 보조 버튼. 놓을 할 일이 없을 때의 안내는 디자인 전 임시 문구다.
 
 import 'package:cnu_ai_assistant/design/icons.dart';
@@ -33,22 +33,26 @@ final class FreeSlotSpeak extends FreeSlotPick {
   const FreeSlotSpeak();
 }
 
-/// 빈 시간에 놓기 시트를 연다. 닫으면 null이다.
+/// 빈 시간에 놓기 시트를 연다. [speech]가 false면 [일정은 말로 추가하기]를 두지 않는다. 닫으면 null이다.
 Future<FreeSlotPick?> showFreeSlotSheet(
   BuildContext context,
   MotionLevel motion,
-  FreeSlotContent content,
-) => showAppSheet<FreeSlotPick>(
+  FreeSlotContent content, {
+  bool speech = true,
+}) => showAppSheet<FreeSlotPick>(
   context: context,
   motion: motion,
-  builder: (context) => FreeSlotSheet(content: content),
+  builder: (context) => FreeSlotSheet(content: content, speech: speech),
 );
 
 /// 빈 시간에 놓기 시트의 몸통.
 class FreeSlotSheet extends StatelessWidget {
-  const FreeSlotSheet({super.key, required this.content});
+  const FreeSlotSheet({super.key, required this.content, this.speech = true});
 
   final FreeSlotContent content;
+
+  /// [일정은 말로 추가하기]를 둘지. 06 AI 비서 안에서 열면 false다(06 위에 06을 또 열지 않게).
+  final bool speech;
 
   @override
   Widget build(BuildContext context) {
@@ -98,17 +102,20 @@ class FreeSlotSheet extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: AppSpace.s12),
-          Press(
-            child: OutlinedButton.icon(
-              onPressed: () => Navigator.of(context).pop(const FreeSlotSpeak()),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(AppSize.minTouch),
+          if (speech) ...[
+            const SizedBox(height: AppSpace.s12),
+            Press(
+              child: OutlinedButton.icon(
+                onPressed: () =>
+                    Navigator.of(context).pop(const FreeSlotSpeak()),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(AppSize.minTouch),
+                ),
+                icon: const AppIcon(AppIconName.assistant, size: 17),
+                label: const Text('일정은 말로 추가하기', textAlign: TextAlign.center),
               ),
-              icon: const AppIcon(AppIconName.assistant, size: 17),
-              label: const Text('일정은 말로 추가하기', textAlign: TextAlign.center),
             ),
-          ),
+          ],
         ],
       ),
     );
