@@ -1,5 +1,6 @@
-// 옮기기 시트의 다른 시간(suggestSlots)과 02 홈 [다시 놓기]의 자리(retrySlot) 테스트.
-// docs/architecture.md '도메인 기본값과 배치 엔진' 4단계, docs/screens.md '옮기기 시트'·'02 홈'.
+// 옮기기 시트의 다른 시간(suggestSlots), 02 홈 [다시 놓기]의 자리(retrySlot), 01 아침 브리핑에서 체크한 할
+// 일의 자리(briefingSlot) 테스트. docs/architecture.md '도메인 기본값과 배치 엔진' 4단계, docs/screens.md
+// '옮기기 시트'·'02 홈'·'01 아침 브리핑'.
 //
 // 기본값(임시값)이 바뀌어도 기대값이 그대로이도록 하루 창 09:00–18:00, 수업 여유 10분, 점심 0분을 규칙으로
 // 둔다. 2026-11-16은 월요일이고, 지금은 그날 08:00이다(다시 놓기는 따로 정함).
@@ -815,6 +816,173 @@ void main() {
           now: at(mon, 11),
         ),
         TimeSpan(at(mon, 15), at(mon, 15, 30)),
+      );
+    });
+  });
+
+  group('briefingSlot', () {
+    PlanBlock auto(int id, int taskId, DateTime start, DateTime end) =>
+        PlanBlock(
+          id: id,
+          taskId: taskId,
+          startAt: start,
+          endAt: end,
+          status: PlanBlockStatus.confirmed,
+          source: BlockSource.auto,
+        );
+
+    SlotOption? find(
+      TaskEntry task, {
+      int minutes = 60,
+      TimeSpan? preferred,
+      List<Event> events = const [],
+      List<PlanBlock> blocks = const [],
+      Set<int> replaced = const {},
+      List<TimeSpan> taken = const [],
+      DateTime? now,
+    }) => briefingSlot(
+      now: now ?? at(mon, 8),
+      entry: task,
+      minutes: minutes,
+      preferred: preferred,
+      schedule: scheduleOf(events: events, blocks: blocks),
+      replaced: replaced,
+      taken: taken,
+      config: configOf(),
+      dayBoundaryMin: Defaults.dayBoundaryMin,
+    );
+
+    test('제안 시각이 비었으면 그 자리이고, 빈 시간 길이와 이유를 낸다', () {
+      final found = find(
+        entry(1, due: at(fri, 18)),
+        preferred: TimeSpan(at(mon, 10), at(mon, 11)),
+      );
+      expect(found!.span, TimeSpan(at(mon, 10), at(mon, 11)));
+      expect(found.gapMin, 540);
+      expect(found.factor, BlockFactor.unsplit);
+    });
+
+    test('제안 시각이 막혔으면 지금 뒤 한 번에 들어가는 가장 이른 자리이고, 남은 확정 블록과 15분 띄운다', () {
+      final found = find(
+        entry(1, due: at(fri, 18)),
+        preferred: TimeSpan(at(mon, 9, 30), at(mon, 10, 30)),
+        blocks: [block(10, 2, at(mon, 9), at(mon, 10))],
+      );
+      expect(found!.span, TimeSpan(at(mon, 10, 15), at(mon, 11, 15)));
+      expect(found.gapMin, 465);
+    });
+
+    test('확정하면 지울 블록의 자리는 비어 있고, 완료 블록은 막는다', () {
+      expect(
+        find(
+          entry(1, due: at(fri, 18)),
+          preferred: TimeSpan(at(mon, 9), at(mon, 10)),
+          blocks: [auto(10, 1, at(mon, 9), at(mon, 10))],
+          replaced: {10},
+        )!.span,
+        TimeSpan(at(mon, 9), at(mon, 10)),
+      );
+      expect(
+        find(
+          entry(1, due: at(fri, 18)),
+          blocks: [
+            block(11, 2, at(mon, 9), at(mon, 10), status: PlanBlockStatus.done),
+          ],
+        )!.span,
+        TimeSpan(at(mon, 10, 15), at(mon, 11, 15)),
+      );
+    });
+
+    test('이 브리핑에서 이미 체크한 자리와 15분 띄우고, 제안 블록은 막지 않는다', () {
+      expect(
+        find(
+          entry(1, due: at(fri, 18)),
+          taken: [TimeSpan(at(mon, 9), at(mon, 10))],
+        )!.span,
+        TimeSpan(at(mon, 10, 15), at(mon, 11, 15)),
+      );
+      expect(
+        find(
+          entry(1, due: at(fri, 18)),
+          blocks: [
+            block(
+              12,
+              2,
+              at(mon, 9),
+              at(mon, 10),
+              status: PlanBlockStatus.suggested,
+            ),
+          ],
+        )!.span,
+        TimeSpan(at(mon, 9), at(mon, 10)),
+      );
+    });
+
+    test('그 할 일의 지운 자리는 빼고(띄우지 않음), 지금 뒤 5분 단위로 올린다', () {
+      expect(
+        find(
+          entry(1, due: at(fri, 18)),
+          blocks: [
+            block(
+              13,
+              1,
+              at(mon, 9),
+              at(mon, 10),
+              status: PlanBlockStatus.dismissed,
+            ),
+          ],
+        )!.span,
+        TimeSpan(at(mon, 10), at(mon, 11)),
+      );
+      expect(
+        find(entry(1, due: at(fri, 18)), now: at(mon, 9, 2))!.span,
+        TimeSpan(at(mon, 9, 5), at(mon, 10, 5)),
+      );
+    });
+
+    test('길이는 2시간까지이고, 한 번에 들어가는 자리가 없으면 최소 조각 이상 들어가는 만큼이다', () {
+      expect(
+        find(entry(1, due: at(fri, 18)), minutes: 180)!.span,
+        TimeSpan(at(mon, 9), at(mon, 11)),
+      );
+      final partial = find(
+        entry(1, due: at(fri, 18)),
+        events: [
+          event(1, at(mon, 9), at(mon, 10)),
+          event(2, at(mon, 10, 40), at(mon, 18)),
+        ],
+      );
+      expect(partial!.span, TimeSpan(at(mon, 10), at(mon, 10, 40)));
+      expect(partial.factor, BlockFactor.fit);
+    });
+
+    test('최소 조각(25분, 영상·퀴즈 10분)도 들어가지 않으면 null이다', () {
+      final events = [
+        event(1, at(mon, 9), at(mon, 10)),
+        event(2, at(mon, 10, 20), at(mon, 18)),
+      ];
+      expect(find(entry(1, due: at(fri, 18)), events: events), isNull);
+      expect(
+        find(
+          entry(1, kind: TaskKind.quiz, due: at(fri, 18)),
+          events: events,
+        )!.span,
+        TimeSpan(at(mon, 10), at(mon, 10, 20)),
+      );
+    });
+
+    test('마감 전에 끝나야 하고, 그날 시작 전에 마감이 지났으면 null이다', () {
+      expect(
+        find(entry(1, due: at(mon, 10)))!.span,
+        TimeSpan(at(mon, 9), at(mon, 10)),
+      );
+      expect(find(entry(1, due: at(mon, 3))), isNull);
+    });
+
+    test('길이가 0 이하면 ArgumentError다', () {
+      expect(
+        () => find(entry(1, due: at(fri, 18)), minutes: 0),
+        throwsArgumentError,
       );
     });
   });
