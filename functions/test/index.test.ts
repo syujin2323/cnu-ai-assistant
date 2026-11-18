@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { api } from "../src/index.js";
+import { api, syncSignal } from "../src/index.js";
 
 describe("api", () => {
   it("is deployed in Seoul with the documented options", () => {
@@ -20,5 +20,27 @@ describe("api", () => {
     expect(api.__endpoint.secretEnvironmentVariables).toEqual([
       { key: "LLM_API_KEY" },
     ]);
+  });
+});
+
+describe("syncSignal", () => {
+  it("runs in Seoul every 15 minutes without retries", () => {
+    // 놓친 신호는 다시 보내지 않는다. 그 토픽에는 3시간 뒤 다음 신호가 간다.
+    expect(syncSignal.__endpoint).toMatchObject({
+      platform: "gcfv2",
+      region: ["asia-northeast3"],
+      timeoutSeconds: 30,
+      availableMemoryMb: 256,
+      maxInstances: 1,
+      scheduleTrigger: {
+        schedule: "*/15 * * * *",
+        timeZone: "Asia/Seoul",
+        retryConfig: { retryCount: 0 },
+      },
+    });
+  });
+
+  it("binds no secrets", () => {
+    expect(syncSignal.__endpoint.secretEnvironmentVariables ?? []).toEqual([]);
   });
 });

@@ -25,5 +25,12 @@ export const appCheckEnforce = defineBoolean("APP_CHECK_ENFORCE", {
   default: false,
 });
 
+/**
+ * false면 서버 신호 푸시(예약 함수 syncSignal)를 보내지 않는다. 구독한 앱이 없는 토픽에 보내도 해가 없어 켜 둔다.
+ */
+export const syncSignalEnabled = defineBoolean("SYNC_SIGNAL_ENABLED", {
+  default: true,
+});
+
 /** AI 게이트웨이의 제공사 API 키. 모델을 바꿔도 이름은 그대로 둔다. */
 export const llmApiKey = defineSecret("LLM_API_KEY");
