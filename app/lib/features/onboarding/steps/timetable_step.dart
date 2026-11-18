@@ -18,6 +18,7 @@ import 'package:cnu_ai_assistant/domain/class_groups.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/models/class_slot_entry.dart';
+import 'package:cnu_ai_assistant/features/onboarding/onboarding_controller.dart';
 import 'package:cnu_ai_assistant/features/onboarding/widgets/onboarding_step_layout.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -57,7 +58,10 @@ class TimetableStep extends ConsumerWidget {
     return OnboardingStepLayout(
       actions: [FilledButton(onPressed: onConfirm, child: const Text('맞아요'))],
       content: [
-        OnboardingKicker(icon: AppIconName.calendar, text: '시간표'),
+        OnboardingKicker(
+          icon: AppIconName.calendar,
+          text: OnboardingStep.timetable.title,
+        ),
         const SizedBox(height: AppSpace.s8),
         Semantics(
           header: true,

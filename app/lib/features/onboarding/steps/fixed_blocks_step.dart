@@ -22,6 +22,7 @@ import 'package:cnu_ai_assistant/domain/models/fixed_block.dart';
 import 'package:cnu_ai_assistant/domain/models/rule.dart';
 import 'package:cnu_ai_assistant/domain/text/josa.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
+import 'package:cnu_ai_assistant/features/onboarding/onboarding_controller.dart';
 import 'package:cnu_ai_assistant/features/onboarding/widgets/onboarding_step_layout.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -187,7 +188,10 @@ class _FixedBlocksStepState extends ConsumerState<FixedBlocksStep> {
         ),
       ],
       content: [
-        const OnboardingKicker(icon: AppIconName.calendar, text: '고정 일정'),
+        OnboardingKicker(
+          icon: AppIconName.calendar,
+          text: OnboardingStep.fixedBlocks.title,
+        ),
         const SizedBox(height: AppSpace.s8),
         Semantics(
           header: true,
