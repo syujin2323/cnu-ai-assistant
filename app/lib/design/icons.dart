@@ -83,8 +83,34 @@ enum AppIconName {
   /// 닫기(X).
   close('assets/icons/close.svg'),
 
-  /// 보내기(위 화살표). 말로 추가 칸.
-  send('assets/icons/send.svg');
+  /// 보내기(위 화살표). 말로 추가 칸, 10 나의 사용 지표 보내기.
+  send('assets/icons/send.svg'),
+
+  // 10 나.
+
+  /// LMS에 로그인(열쇠).
+  key('assets/icons/key.svg'),
+
+  /// 데모 모드(재생 화면).
+  demo('assets/icons/demo.svg'),
+
+  /// 데이터 삭제(휴지통).
+  trash('assets/icons/trash.svg'),
+
+  /// 개인정보 처리방침(방패).
+  shield('assets/icons/shield.svg'),
+
+  /// 문서(이용약관·동의 문구).
+  doc('assets/icons/doc.svg'),
+
+  /// 목록(오픈소스 라이선스).
+  list('assets/icons/list.svg'),
+
+  /// 문의 메일(봉투).
+  mail('assets/icons/mail.svg'),
+
+  /// 학기 카드(학사모).
+  school('assets/icons/school.svg');
 
   const AppIconName(this.asset);
 
