@@ -25,10 +25,10 @@ final class LmsRawResponse {
     this.finalUrl,
     this.contentType,
     this.body = '',
-  });
+  }) : offline = false;
 
-  /// 응답을 받지 못했다(연결 실패, 시간 초과).
-  const LmsRawResponse.noResponse()
+  /// 응답을 받지 못했다(연결 실패, 시간 초과). [offline]은 그 까닭이 연결 없음·주소 해석 실패인지다.
+  const LmsRawResponse.noResponse({this.offline = false})
     : statusCode = null,
       finalUrl = null,
       contentType = null,
@@ -36,6 +36,9 @@ final class LmsRawResponse {
 
   /// HTTP 상태 코드. 응답을 받지 못했으면 null.
   final int? statusCode;
+
+  /// 응답을 받지 못한 까닭이 오프라인(연결 없음·주소 해석 실패)인지. 응답을 받았으면 늘 false다.
+  final bool offline;
 
   /// 리다이렉트를 따라간 뒤의 최종 주소.
   final Uri? finalUrl;
@@ -112,8 +115,9 @@ final class LmsResponseClassifier {
     LmsSchema<T> schema,
   ) {
     final status = response.statusCode;
-    LmsClassification<T> result(LmsOutcomeKind kind) =>
-        LmsClassification._(LmsOutcome(kind, statusCode: status));
+    LmsClassification<T> result(LmsOutcomeKind kind) => LmsClassification._(
+      LmsOutcome(kind, statusCode: status, offline: response.offline),
+    );
 
     if (lmsTransportFailure(response, markers) case final kind?) {
       return result(kind);

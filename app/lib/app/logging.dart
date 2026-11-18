@@ -52,9 +52,10 @@ Map<String, Object> errorLogData(AppError error) => switch (error) {
     'cause': causeType?.replaceAll(_notName, '_') ?? 'none',
     'code': ?code,
   },
-  LmsOutcome(:final kind, :final statusCode) => {
+  LmsOutcome(:final kind, :final statusCode, :final offline) => {
     'kind': kind.name,
     'status': ?statusCode,
+    if (offline) 'offline': true,
   },
   ApiError(:final status, :final code) => {
     'status': ?status,

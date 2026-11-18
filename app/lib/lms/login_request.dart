@@ -53,7 +53,11 @@ Future<LmsLoginAttempt> performLmsLogin({
       switch (lmsTransportFailure(sent.response, params.markers)) {
         null => null,
         final kind => LmsLoginFailed(
-          LmsOutcome(kind, statusCode: sent.response.statusCode),
+          LmsOutcome(
+            kind,
+            statusCode: sent.response.statusCode,
+            offline: sent.response.offline,
+          ),
         ),
       };
 

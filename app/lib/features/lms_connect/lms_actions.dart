@@ -13,6 +13,7 @@ import 'package:cnu_ai_assistant/design/widgets/app_sheet.dart';
 import 'package:cnu_ai_assistant/design/widgets/lms_info_sheet.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/lms_status.dart';
+import 'package:cnu_ai_assistant/domain/models/sync_run.dart';
 import 'package:cnu_ai_assistant/lms/sync_coordinator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -87,4 +88,22 @@ Future<void> openLmsInfoSheet(
       },
     ),
   );
+}
+
+/// 01 계획·02 홈·03 할 일 위 띠의 [다시 확인]. 할 일 목록을 지금 다시 받고(사용자 새로 고침이라 호출 예산을 보지 않음)
+/// 결과를 토스트로 알린다(`lmsRetryMessage`). 데모 모드에서는 받지 않는다.
+Future<void> retryLmsSync(WidgetRef ref) async {
+  if (_demoOnly(ref)) return;
+  // 받는 동안 화면이 내려가도 알릴 수 있게 미리 읽어 둔다(둘 다 앱 전체의 provider).
+  final toast = ref.read(toastControllerProvider.notifier);
+  final coordinator = ref.read(syncCoordinatorProvider);
+  final result = await coordinator.run(
+    trigger: SyncTrigger.manual,
+    scope: SyncScope.list,
+  );
+  final message = lmsRetryMessage(
+    result.kind,
+    offline: result.detail == SyncRunDetail.offline,
+  );
+  if (message != null) toast.show(message);
 }

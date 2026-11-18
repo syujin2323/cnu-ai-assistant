@@ -5,10 +5,12 @@
 //   리다이렉트는 따라가지 않고 그 응답을 그대로 돌려준다.
 // - 요청마다 상자의 쿠키(`Cookie` 헤더)와 금고의 User-Agent를 붙인다.
 // - 모든 상태 코드를 판별기에 넘기고(`validateStatus`), 연결 실패·시간 초과(연결 10초, 수신 20초)는 3초 뒤 한 번만
-//   다시 보낸다. 그래도 실패하면 응답 없음([LmsRawResponse.noResponse])이다.
+//   다시 보낸다. 그래도 실패하면 응답 없음([LmsRawResponse.noResponse])이고, 마지막 실패가 연결 없음·주소 해석
+//   실패였으면 오프라인으로 적는다([isOfflineFailure]).
 // - 주소·헤더·본문·쿠키를 로그에 남기지 않고 dio `LogInterceptor`를 쓰지 않는다.
 
 import 'dart:convert';
+import 'dart:io' show SocketException;
 import 'dart:typed_data';
 
 import 'package:cnu_ai_assistant/domain/clock.dart';
@@ -25,6 +27,23 @@ const lmsMaxRedirects = 5;
 
 /// 연결 실패 뒤 다시 보내기까지 기다리는 시간.
 const lmsRetryDelay = Duration(seconds: 3);
+
+/// [error]가 오프라인(연결 없음·주소 해석 실패)으로 응답을 받지 못한 것인지. 시간 초과·연결 거부·보안 연결 오류와 그
+/// 밖의 실패는 연결 실패라 false다(docs/lms.md '응답 판별'). 연결 상태 감지 라이브러리 없이 실패의 원인만 본다.
+bool isOfflineFailure(DioException error) {
+  if (error.type != DioExceptionType.connectionError &&
+      error.type != DioExceptionType.unknown) {
+    return false;
+  }
+  final cause = error.error;
+  if (cause is! SocketException) return false;
+  // 주소 해석 실패. dart:io가 이 문구로 메시지를 쓴다(연결이 없으면 대개 여기서 실패함).
+  if (cause.message.startsWith('Failed host lookup')) return true;
+  return _offlineErrnos.contains(cause.osError?.errorCode);
+}
+
+/// 연결 없음의 OS 오류 번호. ENETDOWN·ENETUNREACH이고 iOS·macOS는 50·51, Android·Linux는 100·101이다.
+const _offlineErrnos = {50, 51, 100, 101};
 
 /// LMS 요청에 쓰는 dio. [adapter]가 있으면 그 연결을 쓴다(테스트).
 Dio createLmsDio({HttpClientAdapter? adapter}) {
@@ -102,20 +121,20 @@ class LmsClient {
       throw ArgumentError.value(request.url.host, 'request.url', 'not school');
     }
     final first = await _follow(request);
-    if (first != null) return first;
+    if (first.statusCode != null) return first;
     await _sleep(lmsRetryDelay);
-    return await _follow(request) ?? const LmsRawResponse.noResponse();
+    return _follow(request);
   }
 
-  /// 리다이렉트를 따라간다. 연결에 실패하면 null이다.
-  Future<LmsRawResponse?> _follow(LmsHttpRequest request) async {
+  /// 리다이렉트를 따라간다. 연결에 실패하면 [LmsRawResponse.noResponse]다.
+  Future<LmsRawResponse> _follow(LmsHttpRequest request) async {
     var method = request.method;
     var url = request.url;
     var headers = request.headers;
     var body = request.body;
     for (var hop = 0; ; hop++) {
-      final response = await _once(method, url, headers, body);
-      if (response == null) return null;
+      final (:response, :offline) = await _once(method, url, headers, body);
+      if (response == null) return LmsRawResponse.noResponse(offline: offline);
       final status = response.statusCode ?? 0;
       jar.storeFrom(
         url,
@@ -148,7 +167,8 @@ class LmsClient {
     }
   }
 
-  Future<Response<List<int>>?> _once(
+  /// 한 번 보낸다. 응답을 받지 못하면 `response`가 null이고, `offline`은 그 까닭이 오프라인인지다.
+  Future<({Response<List<int>>? response, bool offline})> _once(
     LmsMethod method,
     Uri url,
     Map<String, String> headers,
@@ -156,7 +176,7 @@ class LmsClient {
   ) async {
     final cookieHeader = jar.headerFor(url, kstToUtc(_clock.now()));
     try {
-      return await _dio.requestUri<List<int>>(
+      final response = await _dio.requestUri<List<int>>(
         url,
         data: body,
         options: Options(
@@ -168,8 +188,9 @@ class LmsClient {
           },
         ),
       );
-    } on DioException {
-      return null;
+      return (response: response, offline: false);
+    } on DioException catch (error) {
+      return (response: null, offline: isOfflineFailure(error));
     }
   }
 

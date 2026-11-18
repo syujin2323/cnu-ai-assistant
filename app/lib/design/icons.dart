@@ -80,6 +80,9 @@ enum AppIconName {
   /// 경고(세모 안 느낌표). LMS 상태 줄의 연결 실패.
   warning(IconSvgs.warning),
 
+  /// 오프라인(빗금 친 와이파이). LMS 상태 줄과 01·02·03 위 띠의 오프라인.
+  offline(IconSvgs.offline),
+
   // 01 계획.
 
   /// 닫기(X).
