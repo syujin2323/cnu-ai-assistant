@@ -76,6 +76,8 @@ void main() {
         find.text('CNU PLANNER 개인정보 처리방침', skipOffstage: false),
         findsNothing,
       );
+      // 시행일과 바뀐 점 줄 아래라, 글자를 키우면 첫 화면 밖에 있을 수 있다.
+      await _scrollToText(tester, find.text('1. 한눈에 보기'));
       expect(find.text('1. 한눈에 보기'), findsOneWidget);
       // 표는 줄마다 카드이고, 머리 칸 이름(저장하는 곳·보유 기간)이 값 위에 붙는다.
       await _scrollToText(
