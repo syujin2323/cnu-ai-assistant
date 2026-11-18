@@ -171,7 +171,7 @@ class OnboardingController extends AsyncNotifier<OnboardingState> {
   Future<bool> loggedIn() => _whileBusy(_afterLogin);
 
   /// '로그인 없이 둘러보기 · 샘플 학생의 하루': 데모 모드로 들어간다. 시작 위치로 가면 데모 DB를 보고
-  /// 01 아침 브리핑이나 02 홈을 연다.
+  /// 01 계획이나 02 홈을 연다.
   Future<bool> browseDemo() => _whileBusy(() async {
     await ref.read(appModeProvider.notifier).enterDemo(DemoEntry.onboarding);
     return true;

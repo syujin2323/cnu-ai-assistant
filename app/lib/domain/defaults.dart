@@ -126,7 +126,7 @@ abstract final class Defaults {
   /// 브리핑 시각 08:00(`notify` 규칙).
   static const int briefingMin = 480;
 
-  /// 01 아침 브리핑 '오늘 할 일'에 보이는 최대 수.
+  /// 01 계획 '오늘 할 일'에 보이는 최대 수.
   static const int briefingTodayTaskMax = 5;
 
   // 저녁 체크인(임시로 뺌. docs/decisions.md 2026-11-15 'R1·R2 범위를 줄인다')

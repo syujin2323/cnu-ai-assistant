@@ -1,7 +1,7 @@
 /// 하루의 아침 브리핑 기록. `briefings` 표의 한 행.
 ///
 /// 브리핑 내용은 열 때 폰 DB와 배치 엔진으로 계산하므로 저장하지 않는다
-/// (docs/architecture.md '아침 브리핑'). 이 행은 본 것과 확정한 것만 기록한다.
+/// (docs/architecture.md '계획 화면'). 이 행은 본 것과 확정한 것만 기록한다.
 class Briefing {
   const Briefing({
     required this.id,

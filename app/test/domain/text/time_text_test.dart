@@ -166,7 +166,7 @@ void main() {
       // 24:00 마감(다음 날 00:00)도 전날 날짜로 센다.
       expect(far(DateTime(2026, 10, 20)), '10월 19일 (월) 24:00 마감');
       expect(far(DateTime(2026, 10, 19)), '일요일 24:00 마감');
-      // 기본(farAsDate false)은 같은 날도 날짜 말로 쓴다(01 아침 브리핑·02 홈·09 일간).
+      // 기본(farAsDate false)은 같은 날도 날짜 말로 쓴다(01 계획·02 홈·09 일간).
       expect(due(DateTime(2026, 10, 19, 18)), '7일 뒤 18:00 마감');
       expect(
         due(DateTime(2026, 10, 10, 23, 59), unknown: true),
