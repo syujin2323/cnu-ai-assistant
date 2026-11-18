@@ -75,6 +75,17 @@ class AppDatabase extends _$AppDatabase {
   /// 메모리에만 있는 DB(테스트용).
   factory AppDatabase.memory() => AppDatabase(NativeDatabase.memory());
 
+  /// 백그라운드 작업 엔진(다른 연결)이 썼을 수 있는 표의 스트림을 다시 읽게 한다. 다른 연결의 쓰기는 이 연결의
+  /// 스트림에 전해지지 않으므로 앱으로 돌아올 때 부른다(docs/architecture.md '앱 코드 규약'의 백그라운드 작업).
+  void markBackgroundWritesUpdated() => markTablesUpdated([
+    lmsItems,
+    lmsItemChanges,
+    courses,
+    syncRuns,
+    tasks,
+    settings,
+  ]);
+
   Future<void>? _closing;
 
   /// 연결을 닫는다. 여러 곳이 불러도(데모 끝내기와 `databaseProvider`의 정리 등) 한 번만 닫고 모두 같은 끝을

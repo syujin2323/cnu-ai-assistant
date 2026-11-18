@@ -9,7 +9,12 @@ import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/domain/timetable_checks.dart';
 import 'package:drift/drift.dart'
-    show ComparableExpr, OrderingTerm, Value, driftRuntimeOptions;
+    show
+        ComparableExpr,
+        OrderingTerm,
+        TableUpdateQuery,
+        Value,
+        driftRuntimeOptions;
 import 'package:drift/native.dart' show NativeDatabase, SqliteException;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -28,6 +33,21 @@ void main() {
 
   Future<String?> rawText(String sql) async =>
       (await db.customSelect(sql).getSingle()).data.values.single as String?;
+
+  test('markBackgroundWritesUpdated는 백그라운드 동기화가 쓰는 표의 스트림을 다시 읽게 한다', () async {
+    final updates = db.tableUpdates(const TableUpdateQuery.any()).first;
+
+    db.markBackgroundWritesUpdated();
+
+    expect((await updates).map((update) => update.table), {
+      'lms_items',
+      'lms_item_changes',
+      'courses',
+      'sync_runs',
+      'tasks',
+      'settings',
+    });
+  });
 
   Future<int> addCourse() =>
       db.into(db.courses).insert(CoursesCompanion.insert(name: '과목A'));
