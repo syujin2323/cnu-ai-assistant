@@ -86,7 +86,9 @@ void main() {
   });
 
   group('markConfirmed', () {
-    test('확정한 시각을 적고, 다시 확정하면 마지막 시각으로 바꾸되 처음 본 시각은 둔다', () async {
+    test('확정한 시각을 적고, 다시 확정해도 처음 확정한 시각과 처음 본 시각을 둔다', () async {
+      // 계획 화면은 하루에 여러 번 들어와 다시 확정하므로, 사용 지표의 '확정까지 걸린 초'는 처음 확정까지다
+      // (docs/decisions.md 2026-11-19 ''아침 브리핑'을 '계획'으로 부르고 02 홈에서도 연다').
       await repo.markSeen(day, at: at);
 
       await repo.markConfirmed(day, at: later);
@@ -98,7 +100,7 @@ void main() {
       await repo.markConfirmed(day, at: last);
       [row] = await rows();
       expect(row.openedAt, at);
-      expect(row.confirmedAt, last);
+      expect(row.confirmedAt, later);
     });
 
     test('본 것으로 적지 않았으면 함께 적는다', () async {

@@ -46,8 +46,9 @@ class BriefingRepository {
         }),
       );
 
-  /// [day]의 브리핑에서 'N개 확정하기'·'확정한 할 일 빼기'를 [at]에 눌렀다고 기록한다. 다시 확정하면 마지막
-  /// 시각으로 바꾸고, 본 것으로 기록하지 않았으면 함께 기록한다. [edits]는 이번에 확정하기 전에 체크를 켜고 끈
+  /// [day]의 브리핑에서 'N개 확정하기'·'확정한 할 일 빼기'를 [at]에 눌렀다고 기록한다. 계획 화면은 하루에 여러 번
+  /// 들어와 다시 확정하므로 처음 확정한 시각을 두고(사용 지표의 '확정까지 걸린 초', docs/decisions.md 2026-11-19
+  /// ''아침 브리핑'을 '계획'으로 부르고 02 홈에서도 연다'), 본 것으로 기록하지 않았으면 함께 기록한다. [edits]는 이번에 확정하기 전에 체크를 켜고 끈
   /// 횟수이고 `editCount`에 더한다(사용 지표의 확정 전 수정 횟수). 음수면 [ArgumentError]다.
   Future<Result<void>> markConfirmed(
     DateTime day, {
@@ -76,7 +77,7 @@ class BriefingRepository {
             row.id,
             BriefingsCompanion(
               openedAt: Value(row.openedAt ?? at),
-              confirmedAt: Value(at),
+              confirmedAt: Value(row.confirmedAt ?? at),
               editCount: Value(row.editCount + edits),
             ),
           );
