@@ -96,7 +96,7 @@ void main() {
 
         // 4단계가 마지막이다. 브리핑 시각을 묻는 단계는 없다(docs/decisions.md 2026-11-19 '온보딩은 네
         // 단계이고 브리핑 시각은 정하지 않는다').
-        await _tapInStep(tester, find.text('동의하지 않고 계속'));
+        await _declineAi(tester);
         expect(app.preferences.getBool(PrefKeys.onboardingDone), isTrue);
         expect(await _skipped(app), isEmpty);
         // 동의하지 않았으므로 AI는 꺼져 있고, 내 규칙에는 아무것도 저장하지 않았다.
@@ -200,12 +200,60 @@ void main() {
           findsOneWidget,
         );
 
-        await _tapInStep(tester, find.text('동의하고 계속'));
+        await _tapInStep(tester, _stepButton('동의하고 계속'));
         final settings = await _settings(app);
         expect(settings.aiEnabled, isTrue);
         expect(settings.aiConsentAt, _now);
         expect(app.preferences.getBool(PrefKeys.onboardingDone), isTrue);
         expect(find.byType(BriefingScreen), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('4단계에서 동의하지 않으면 한 번 더 묻고, 닫으면 그대로 4단계이며 시트에서 동의할 수도 있다', (
+        tester,
+      ) async {
+        // docs/decisions.md 2026-11-19 '온보딩에서 AI 사용에 동의하지 않으면 한 번 더 묻는다'.
+        final app = await pumpTestApp(
+          tester,
+          start: TestStart.fresh,
+          now: _now,
+          textScale: textScale,
+        );
+        await _goToStep(tester, OnboardingStep.aiConsent);
+
+        await _tapInStep(tester, _stepButton('동의하지 않고 계속'));
+        expect(find.text('AI 없이 시작할까요?'), findsOneWidget);
+        expect(
+          find.textContaining('AI 비서에게 말로 일정·할 일·규칙을 넣을 수 없어요'),
+          findsOneWidget,
+        );
+        // 주 버튼은 동의 쪽이다.
+        expect(_sheetButton<FilledButton>('동의하고 계속'), findsOneWidget);
+        expect(_sheetButton<OutlinedButton>('동의하지 않고 계속'), findsOneWidget);
+
+        // 닫으면(뒤로 가기) 아무것도 쓰지 않고 4단계에 남는다.
+        expect(await tester.binding.handlePopRoute(), isTrue);
+        await tester.pumpAndSettle();
+        expect(find.text('AI 없이 시작할까요?'), findsNothing);
+        // 글자가 크면 단계 이름은 위로 밀려 그려지지 않을 수 있어 컨트롤러의 단계로 본다.
+        expect(
+          app.container.read(onboardingControllerProvider).value?.step,
+          OnboardingStep.aiConsent,
+        );
+        expect(_stepButton('동의하지 않고 계속'), findsOneWidget);
+        expect(app.preferences.getBool(PrefKeys.onboardingDone), isNull);
+        expect((await _settings(app)).aiConsentAt, isNull);
+
+        // 시트에서 [동의하고 계속]이면 동의한 것으로 끝낸다.
+        await _tapInStep(tester, _stepButton('동의하지 않고 계속'));
+        await tester.tap(_sheetButton<FilledButton>('동의하고 계속'));
+        await tester.pumpAndSettle();
+        final settings = await _settings(app);
+        expect(settings.aiEnabled, isTrue);
+        expect(settings.aiConsentAt, _now);
+        expect(app.preferences.getBool(PrefKeys.onboardingDone), isTrue);
+        expect(find.byType(OnboardingScreen), findsNothing);
 
         await app.dispose(tester);
       });
@@ -267,7 +315,7 @@ void main() {
         await _goToStep(tester, OnboardingStep.aiConsent);
         expect((await _settings(app)).aiEnabled, isTrue);
 
-        await _tapInStep(tester, find.text('동의하지 않고 계속'));
+        await _declineAi(tester);
 
         expect(app.preferences.getBool(PrefKeys.onboardingDone), isTrue);
         expect((await _settings(app)).aiEnabled, isFalse);
@@ -311,7 +359,7 @@ void main() {
         _expectStep(OnboardingStep.aiConsent);
         expect(await _skipped(app), isEmpty);
 
-        await _tapInStep(tester, find.text('동의하지 않고 계속'));
+        await _declineAi(tester);
         expect(find.byType(BriefingScreen), findsOneWidget);
 
         await app.dispose(tester);
@@ -468,6 +516,25 @@ Future<void> _goToStep(WidgetTester tester, OnboardingStep step) async {
   await _tapInStep(tester, find.text('맞아요'));
   if (step == OnboardingStep.fixedBlocks) return;
   await _tapInStep(tester, find.text('다음'));
+}
+
+/// 지금 단계의 버튼(같은 문구의 버튼이 시트에도 있으므로 단계 안에서만 찾는다).
+Finder _stepButton(String label) => find.descendant(
+  of: find.byType(OnboardingStepLayout),
+  matching: find.text(label),
+);
+
+/// 열린 시트의 [T] 버튼.
+Finder _sheetButton<T extends Widget>(String label) => find.descendant(
+  of: find.byType(BottomSheet),
+  matching: find.widgetWithText(T, label),
+);
+
+/// 4단계에서 '동의하지 않고 계속'을 누르고, 다시 묻는 시트에서도 '동의하지 않고 계속'을 고른다.
+Future<void> _declineAi(WidgetTester tester) async {
+  await _tapInStep(tester, _stepButton('동의하지 않고 계속'));
+  await tester.tap(_sheetButton<OutlinedButton>('동의하지 않고 계속'));
+  await tester.pumpAndSettle();
 }
 
 /// 건너뛴 단계 목록만 쓰지 못하는 저장소(폰 DB 쓰기 실패 흉내).
