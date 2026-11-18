@@ -1,13 +1,16 @@
 // 03 할 일의 데이터. docs/screens.md '03 할 일'.
 //
 // 보일 것은 `domain/task_list.dart`의 [taskListContent]가 정하고, 여기서는 그 입력(할 일, 앞으로의 블록, 마감 변경,
-// 배치 엔진의 시간 부족, 규칙, 지금 시각과 하루 경계)을 모은다. 블록은 오늘부터 [taskListBlockDays]일의 일정에서
-// 읽는다(배치 지평 14일보다 넉넉히. 직접 멀리 놓은 확정 블록도 보이게).
+// 배치 엔진의 시간 부족, 규칙, 지금 시각과 하루 경계, 마지막 LMS 동기화가 받지 못한 과목)을 모은다. 블록은 오늘부터
+// [taskListBlockDays]일의 일정에서 읽는다(배치 지평 14일보다 넉넉히. 직접 멀리 놓은 확정 블록도 보이게). 머리 아래
+// 안내 칸은 [taskListNoticeProvider]가 내놓는다.
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
+import 'package:cnu_ai_assistant/domain/models/course.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_item_change.dart';
+import 'package:cnu_ai_assistant/domain/models/sync_run.dart';
 import 'package:cnu_ai_assistant/domain/planner/schedule.dart';
 import 'package:cnu_ai_assistant/domain/rules.dart';
 import 'package:cnu_ai_assistant/domain/task_list.dart';
@@ -90,6 +93,34 @@ final taskListProvider =
           weekly: view.weekly,
           lmsOnly: view.lmsOnly,
           sort: view.sort,
+          uncheckedCourseIds: ref.watch(taskUncheckedCoursesProvider),
         ),
       );
     });
+
+/// 마지막으로 성공한 LMS 동기화가 받지 못한 과목(`courses.id`, 일부 과목 실패). 그 동기화가 일부 과목 실패로 끝나지
+/// 않았거나 기록을 읽지 못하면 빈 집합이다.
+final taskUncheckedCoursesProvider = Provider<Set<int>>((ref) {
+  final run = ref.watch(latestSyncSuccessProvider).value;
+  if (run == null || run.result != SyncResultKind.partial) return const {};
+  return {...?run.failedCourseIds};
+});
+
+/// 03 할 일 머리 아래 안내 칸(`taskListNotice`). 받지 못한 과목의 이름은 고를 수 있는 과목(이번 학기 LMS 과목)에서
+/// 찾고, 없는 과목은 뺀다. 보일 것이 없으면 null이다.
+final taskListNoticeProvider = Provider<TaskListNotice?>((ref) {
+  final status = ref.watch(lmsStatusProvider);
+  final unchecked = ref.watch(taskUncheckedCoursesProvider);
+  final courses = unchecked.isEmpty
+      ? const <Course>[]
+      : ref.watch(selectableCoursesProvider).value ?? const <Course>[];
+  return taskListNotice(
+    status: status?.kind,
+    unchecked: [
+      for (final course in courses)
+        if (unchecked.contains(course.id)) course.name.trim(),
+    ],
+    checkedAt: ref.watch(latestSyncSuccessProvider).value?.startedAt,
+    now: ref.watch(minuteClockProvider),
+  );
+});
