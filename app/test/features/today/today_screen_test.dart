@@ -328,7 +328,7 @@ void main() {
         expect(find.text('과제 1을 11:05–12:05에 놓았어요'), findsOneWidget);
         final placed = await (app.db.select(
           app.db.planBlocks,
-        )..where((block) => block.startAt.equals(at(11, 5)))).getSingle();
+        )..where((block) => block.startAt.equalsValue(at(11, 5)))).getSingle();
         expect(placed.endAt, at(12, 5));
         expect(placed.status, PlanBlockStatus.confirmed);
         expect(placed.source, BlockSource.manual);
