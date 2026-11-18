@@ -20,7 +20,7 @@ import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_sheet.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_tab_bar.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_toast.dart';
-import 'package:cnu_ai_assistant/design/widgets/demo_band.dart';
+import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
@@ -49,6 +49,17 @@ import '../helpers/pump_app.dart';
 
 /// 14 온보딩 1단계 아래의 데모 들어가기 문구(docs/screens.md '1단계 · LMS 로그인').
 const _browseDemo = '로그인 없이 둘러보기 · 샘플 학생의 하루';
+
+/// 지금 데모 모드인지.
+bool inDemo(TestApp app) => app.container.read(appModeProvider) == AppMode.demo;
+
+/// 데모를 끝내는 곳은 10 나의 '데모 모드 끝내기' 하나다(docs/decisions.md 2026-11-18 '데모 띠를 없앤다').
+/// 10 나로 가서 그 줄을 누른다.
+Future<void> exitDemo(WidgetTester tester, TestApp app) async {
+  app.router.go(Routes.me);
+  await tester.pumpAndSettle();
+  await tapText(tester, '데모 모드 끝내기');
+}
 
 /// 하단 탭 라벨(docs/screens.md '하단 탭과 AI 비서 버튼'의 순서).
 const _tabLabels = ['오늘', '캘린더', '할 일', '나'];
@@ -423,7 +434,7 @@ void main() {
               await readLmsSessionState(app),
               LmsSessionState.disconnected,
             );
-            expect(find.byType(DemoBand), findsOneWidget);
+            expect(inDemo(app), isTrue);
             expect(find.byType(BriefingScreen), findsOneWidget);
             expect(find.byType(TaskDetailScreen), findsNothing);
             expect(find.byType(OnboardingScreen), findsNothing);
@@ -649,7 +660,7 @@ void main() {
             await sendAppToBackgroundAndBack(tester);
             expect(find.byType(BriefingScreen), findsOneWidget);
             await tapText(tester, '오늘 시작하기');
-            await tapText(tester, '끝내기');
+            await exitDemo(tester, app);
             expect(find.byType(MeScreen), findsOneWidget);
             final real = BriefingRepository(app.db);
             expect(await real.isSeen(DateTime(2026, 11, 14)), const Ok(false));
@@ -1180,7 +1191,7 @@ void main() {
           const Ok(true),
         );
 
-        await tapText(tester, '끝내기');
+        await exitDemo(tester, app);
         app.router.go(Routes.root);
         await tester.pumpAndSettle();
 
@@ -1191,21 +1202,26 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('나 탭에서 데모 모드에 들어가면 데모 띠가 보이고 끝내기로 /me에 돌아온다', (tester) async {
+      testWidgets('나 탭에서 데모 모드에 들어가면 화면 위를 비우지 않고, 데모 모드 끝내기로 /me에 돌아온다', (
+        tester,
+      ) async {
         final app = await pumpTestApp(tester, textScale: textScale);
 
         await tapTab(tester, '나');
         await tapText(tester, '데모 모드 들어가기');
 
-        expect(find.byType(DemoBand), findsOneWidget);
         expect(find.byType(TodayScreen), findsOneWidget);
         expect(app.preferences.getString('app_mode'), 'demo');
         expect(app.preferences.getString('demo_entry'), 'me');
         expect(app.container.read(databaseProvider), same(app.demoDb));
+        // 데모 띠가 없어 화면이 맨 위부터 그려지고 위 시스템 여백도 화면이 받는다.
+        expect(find.text('데모 · 샘플 학생의 하루'), findsNothing);
+        expect(tester.getTopLeft(find.byType(TodayScreen)).dy, 0);
 
-        await tapText(tester, '끝내기');
+        await tapTab(tester, '나');
+        await tapText(tester, '데모 모드 끝내기');
 
-        expect(find.byType(DemoBand), findsNothing);
+        expect(inDemo(app), isFalse);
         expect(find.byType(MeScreen), findsOneWidget);
         expect(app.preferences.getString('app_mode'), 'real');
         expect(app.preferences.containsKey('demo_entry'), isFalse);
@@ -1214,7 +1230,7 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('온보딩 1단계의 둘러보기로 데모 01 아침 브리핑에 들어가면 끝내기로 1단계에 돌아온다', (
+      testWidgets('온보딩 1단계의 둘러보기로 데모 01 아침 브리핑에 들어가면 데모 모드 끝내기로 1단계에 돌아온다', (
         tester,
       ) async {
         final app = await pumpTestApp(
@@ -1227,13 +1243,13 @@ void main() {
         await tapText(tester, _browseDemo);
 
         // 데모 모드는 onboarding_done을 보지 않고, 그날 브리핑을 아직 보지 않았으면 01부터 연다.
-        expect(find.byType(DemoBand), findsOneWidget);
+        expect(inDemo(app), isTrue);
         expect(find.byType(BriefingScreen), findsOneWidget);
         expect(app.preferences.getString('demo_entry'), 'onboarding');
 
-        await tapText(tester, '끝내기');
+        await exitDemo(tester, app);
 
-        expect(find.byType(DemoBand), findsNothing);
+        expect(inDemo(app), isFalse);
         expect(find.byType(OnboardingScreen), findsOneWidget);
         expect(find.text(OnboardingStep.login.title), findsOneWidget);
         await scrollTo(tester, find.text(_browseDemo));
@@ -1252,12 +1268,12 @@ void main() {
         );
 
         await tapText(tester, _browseDemo);
-        expect(find.byType(DemoBand), findsOneWidget);
+        expect(inDemo(app), isTrue);
         expect(find.byType(TodayScreen), findsOneWidget);
 
         // 온보딩을 끝냈어도 LMS 상태가 disconnected라 데모 밖에서는 로그인할 때까지 온보딩이다.
-        await tapText(tester, '끝내기');
-        expect(find.byType(DemoBand), findsNothing);
+        await exitDemo(tester, app);
+        expect(inDemo(app), isFalse);
         expect(find.byType(OnboardingScreen), findsOneWidget);
         expect(find.byType(TodayScreen), findsNothing);
         expect(app.router.state.uri.path, Routes.onboarding);
@@ -1266,7 +1282,7 @@ void main() {
       });
 
       testWidgets(
-        '로그인에 실패해 connecting으로 남은 채 둘러보기 → 끝내기를 해도 로그인 없이 실제 모드로 가지 않고 1단계다',
+        '로그인에 실패해 connecting으로 남은 채 둘러보기 → 데모 모드 끝내기를 해도 로그인 없이 실제 모드로 가지 않고 1단계다',
         (tester) async {
           // docs/decisions.md 2026-11-14 '로그인하는 중은 로그인 전으로 본다'. 처음 사용자는 2단계로, 로그아웃했던
           // 사용자는 /briefing·/today로 가던 길이다.
@@ -1280,10 +1296,10 @@ void main() {
             await writeLmsSessionState(app, LmsSessionState.connecting);
 
             await tapText(tester, _browseDemo);
-            expect(find.byType(DemoBand), findsOneWidget, reason: start.name);
-            await tapText(tester, '끝내기');
+            expect(inDemo(app), isTrue, reason: start.name);
+            await exitDemo(tester, app);
 
-            expect(find.byType(DemoBand), findsNothing, reason: start.name);
+            expect(inDemo(app), isFalse, reason: start.name);
             expect(
               find.byType(OnboardingScreen),
               findsOneWidget,
@@ -1310,7 +1326,7 @@ void main() {
         expect(find.text('데모 모드 들어가기'), findsNothing);
         await tapText(tester, '데모 모드 끝내기');
 
-        expect(find.byType(DemoBand), findsNothing);
+        expect(inDemo(app), isFalse);
         expect(find.byType(MeScreen), findsOneWidget);
         expect(find.text('데모 모드 끝내기'), findsNothing);
         expect(app.preferences.getString('app_mode'), 'real');
@@ -1327,37 +1343,37 @@ void main() {
           textScale: textScale,
         );
         await tapText(tester, _browseDemo);
-        expect(find.byType(DemoBand), findsOneWidget);
+        expect(inDemo(app), isTrue);
 
         await tapTab(tester, '나');
         await tapText(tester, '데모 모드 끝내기');
 
-        expect(find.byType(DemoBand), findsNothing);
+        expect(inDemo(app), isFalse);
         expect(find.byType(OnboardingScreen), findsOneWidget);
         expect(app.router.state.uri.path, Routes.onboarding);
         expect(app.preferences.getString('app_mode'), 'real');
 
         // 같은 앱 실행 안에서 다시 들어갈 수 있다(들어가기의 진행 중 표시가 남지 않는다).
         await tapText(tester, _browseDemo);
-        expect(find.byType(DemoBand), findsOneWidget);
+        expect(inDemo(app), isTrue);
         expect(app.preferences.getString('app_mode'), 'demo');
 
         // 끝내기 상태도 대기로 돌아와 있어, 두 번째 데모도 끝낼 수 있다.
         expect(app.container.read(demoExitProvider), DemoExitState.idle);
-        expect(
-          tester
-              .widget<TextButton>(find.widgetWithText(TextButton, '끝내기'))
-              .onPressed,
-          isNotNull,
-        );
-        await tapText(tester, '끝내기');
-        expect(find.byType(DemoBand), findsNothing);
+        await tapTab(tester, '나');
+        final exitRow = find.widgetWithText(MeRow, '데모 모드 끝내기');
+        await scrollTo(tester, exitRow);
+        expect(tester.widget<MeRow>(exitRow).onTap, isNotNull);
+        await tapText(tester, '데모 모드 끝내기');
+        expect(inDemo(app), isFalse);
         expect(find.byType(OnboardingScreen), findsOneWidget);
 
         await app.dispose(tester);
       });
 
-      testWidgets('데모 DB를 비우지 못하면 띠가 안내하고 데모에 남으며, 다시 시도로 끝낸다', (tester) async {
+      testWidgets('데모 DB를 비우지 못하면 10 나의 끝내기 줄이 안내하고 데모에 남으며, 다시 누르면 끝낸다', (
+        tester,
+      ) async {
         final app = await pumpTestApp(
           tester,
           start: TestStart.demo,
@@ -1372,17 +1388,18 @@ void main() {
           "BEGIN SELECT RAISE(ABORT, 'test'); END",
         );
 
-        await tapText(tester, '끝내기');
+        await exitDemo(tester, app);
 
-        expect(find.byType(DemoBand), findsOneWidget);
-        expect(find.text('데모를 끝내지 못했어요'), findsOneWidget);
+        expect(inDemo(app), isTrue);
+        expect(find.byType(MeScreen), findsOneWidget);
+        expect(find.text('데모를 끝내지 못했어요. 다시 눌러 주세요'), findsOneWidget);
         expect(app.preferences.getString('app_mode'), 'demo');
         expect(app.container.read(databaseProvider), same(demoDb));
 
         await demoDb.customStatement('DROP TRIGGER keep_courses');
-        await tapText(tester, '다시 시도');
+        await tapText(tester, '데모 모드 끝내기');
 
-        expect(find.byType(DemoBand), findsNothing);
+        expect(inDemo(app), isFalse);
         expect(find.byType(OnboardingScreen), findsOneWidget);
         expect(app.preferences.getString('app_mode'), 'real');
         // 다시 시도로 끝낸 뒤에도 끝내기 상태는 대기다(다음 데모에서 끝내기가 막히지 않게).
@@ -1391,7 +1408,7 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('데모를 끝내는 동안 띠와 10 나의 끝내기를 막고, 거듭 불러도 한 번만 끝낸다', (
+      testWidgets('데모를 끝내는 동안 10 나의 끝내기 줄을 막고, 거듭 불러도 한 번만 끝낸다', (
         tester,
       ) async {
         final controller = _GatedAppMode();
@@ -1402,21 +1419,14 @@ void main() {
           overrides: [appModeProvider.overrideWith(() => controller)],
         );
 
-        await tester.tap(find.text('끝내기'));
+        await tapTab(tester, '나');
+        final exitRow = find.widgetWithText(MeRow, '데모 모드 끝내기');
+        await scrollTo(tester, exitRow);
+        await tester.tap(exitRow);
         await tester.pump();
         expect(controller.exits, 1);
-        expect(
-          tester
-              .widget<TextButton>(find.widgetWithText(TextButton, '끝내기'))
-              .onPressed,
-          isNull,
-        );
-        await tapTab(tester, '나');
-        await scrollTo(tester, find.text('데모 모드 끝내기'));
-        expect(
-          tester.widget<MeRow>(find.widgetWithText(MeRow, '데모 모드 끝내기')).onTap,
-          isNull,
-        );
+        expect(tester.widget<MeRow>(exitRow).onTap, isNull);
+        expect(find.text('끝내는 중이에요'), findsOneWidget);
         // 끝내는 중에 다시 불러도 끝내기를 또 부르지 않는다(기다리지 않고 바로 센다).
         final again = app.container.read(demoExitProvider.notifier).exit();
         expect(controller.exits, 1);
@@ -1425,7 +1435,7 @@ void main() {
         await again;
         await tester.pumpAndSettle();
 
-        expect(find.byType(DemoBand), findsNothing);
+        expect(inDemo(app), isFalse);
         expect(find.byType(OnboardingScreen), findsOneWidget);
         expect(controller.exits, 1);
 

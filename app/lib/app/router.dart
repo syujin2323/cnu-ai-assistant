@@ -18,7 +18,7 @@
 // `route` 값과 딥링크)는 받지 않는다(`overridePlatformDefaultLocation`과 AndroidManifest의
 // `flutter_deeplinking_enabled` false). 뒤로 가기 제어는 `PopScope`만 쓴다. 탭 전환에는
 // 화면 전환 애니메이션을 쓰지 않는다(indexedStack).
-// 데모 끝내기(띠와 10 나)는 [demoExitProvider]가 데모 DB를 비운 뒤 들어온 곳으로 보낸다.
+// 데모 끝내기(10 나의 '데모 모드 끝내기')는 [demoExitProvider]가 데모 DB를 비운 뒤 들어온 곳으로 보낸다.
 
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
@@ -534,20 +534,20 @@ class StartRules {
   }
 }
 
-/// 데모 끝내기의 상태. 데모 띠와 10 나가 함께 본다.
+/// 데모 끝내기의 상태. 10 나의 '데모 모드 끝내기'가 본다.
 enum DemoExitState {
   /// 끝내는 중이 아님.
   idle,
 
-  /// 끝내는 중. 띠의 '끝내기'와 10 나의 '데모 모드 끝내기'를 막는다.
+  /// 끝내는 중. 10 나의 '데모 모드 끝내기'를 막는다.
   exiting,
 
-  /// 데모 DB를 비우지 못해 데모 모드 그대로다. 띠가 안내와 '다시 시도'를 보인다.
+  /// 데모 DB를 비우지 못해 데모 모드 그대로다. 10 나의 '데모 모드 끝내기'가 안내하고, 다시 누르면 다시 시도한다.
   failed,
 }
 
 /// 데모를 끝내고 들어온 곳(14 온보딩 1단계나 10 나)으로 간다(docs/architecture.md '데모 모드').
-/// 데모 띠의 '끝내기'와 10 나의 '데모 모드 끝내기'가 함께 쓴다.
+/// 10 나의 '데모 모드 끝내기'가 쓴다.
 final demoExitProvider = NotifierProvider<DemoExit, DemoExitState>(
   DemoExit.new,
 );
