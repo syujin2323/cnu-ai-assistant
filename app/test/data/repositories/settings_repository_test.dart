@@ -60,6 +60,7 @@ void main() {
       expect(settings.privacyConsentAt, isNull);
       expect(settings.metricsEnabled, isFalse);
       expect(settings.metricsLastSentOn, isNull);
+      expect(settings.metricsSuggestedDays, isEmpty);
       expect(settings.lmsSessionState, LmsSessionState.disconnected);
       expect(settings.lmsLastSuccessAt, isNull);
       expect(settings.lmsLastConnectedAt, isNull);
@@ -82,6 +83,7 @@ void main() {
         'privacyConsentAt': null,
         'metricsEnabled': false,
         'metricsLastSentOn': null,
+        'metricsSuggestedDays': <String>[],
         'lmsSessionState': 'disconnected',
         'lmsLastSuccessAt': null,
         'lmsLastConnectedAt': null,
@@ -107,6 +109,10 @@ void main() {
       final privacyAt = DateTime(2026, 10, 29, 9);
       await writeOk(SettingKeys.privacyConsentAt, privacyAt);
       await writeOk(SettingKeys.metricsLastSentOn, '2026-10-28');
+      await writeOk(SettingKeys.metricsSuggestedDays, [
+        '2026-10-27',
+        '2026-10-28',
+      ]);
       await writeOk(
         SettingKeys.lmsSessionState,
         LmsSessionState.reconnectRequired,
@@ -128,6 +134,7 @@ void main() {
           aiLimitReachedOn: '2026-10-29',
           privacyConsentAt: privacyAt,
           metricsLastSentOn: '2026-10-28',
+          metricsSuggestedDays: ['2026-10-27', '2026-10-28'],
           lmsSessionState: LmsSessionState.reconnectRequired,
           lmsCredentialRejected: true,
           lmsTimetableImportedAt: importedAt,
@@ -211,6 +218,11 @@ void main() {
         (SettingKeys.privacyConsentAt, true),
         (SettingKeys.metricsLastSentOn, '2026-10-32'),
         (SettingKeys.aiLimitReachedOn, '2026-11-18T00:00'),
+        // 제안이 있던 날은 YYYY-MM-DD의 중복 없는 오름차순 목록만 쓴다.
+        (SettingKeys.metricsSuggestedDays, ['2026-11-18', '2026-11-17']),
+        (SettingKeys.metricsSuggestedDays, ['2026-11-18', '2026-11-18']),
+        (SettingKeys.metricsSuggestedDays, ['2026-11-31']),
+        (SettingKeys.metricsSuggestedDays, null),
         (SettingKeys.showTravelMeal, null),
         (SettingKeys.onboardingSkipped, null),
         // 건너뛴 온보딩 단계는 1–5의 중복 없는 오름차순 목록만 쓴다.
@@ -300,6 +312,23 @@ void main() {
       await putRaw(SettingKeys.onboardingSkipped, '[5, 2, 5]');
       expect((await readOk()).onboardingSkipped, [2, 5]);
     });
+
+    test(
+      '제안이 있던 날은 꼴이 맞지 않는 날짜와 중복을 버리고 오름차순으로 읽고, 문자열이 아닌 값이 섞이면 기본값이다',
+      () async {
+        await putRaw(
+          SettingKeys.metricsSuggestedDays,
+          '["2026-11-18", "2026-11-31", "2026-11-17", "2026-11-18"]',
+        );
+        expect((await readOk()).metricsSuggestedDays, [
+          '2026-11-17',
+          '2026-11-18',
+        ]);
+
+        await putRaw(SettingKeys.metricsSuggestedDays, '["2026-11-18", 1]');
+        expect((await readOk()).metricsSuggestedDays, isEmpty);
+      },
+    );
 
     test('저장된 값이 깨졌거나 형이 다르면 그 키만 기본값으로 읽는다', () async {
       await writeOk(SettingKeys.metricsEnabled, true);
