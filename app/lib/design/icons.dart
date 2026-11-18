@@ -121,7 +121,21 @@ enum AppIconName {
   sun(IconSvgs.sun),
 
   /// 글자 크기(눈).
-  eye(IconSvgs.eye);
+  eye(IconSvgs.eye),
+
+  // 03 할 일 줄 머리의 할 일 종류.
+
+  /// 영상(재생 화면).
+  video(IconSvgs.video),
+
+  /// 퀴즈(동그라미 안 물음표).
+  quiz(IconSvgs.quiz),
+
+  /// 팀플(두 사람).
+  team(IconSvgs.team),
+
+  /// 토론(말풍선 둘).
+  discussion(IconSvgs.discussion);
 
   const AppIconName(this.svg);
 

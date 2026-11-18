@@ -117,4 +117,18 @@ abstract final class IconSvgs {
 
   static const eye =
       r'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 12S6.2 5.5 12 5.5 21.2 12 21.2 12 17.8 18.5 12 18.5 2.8 12 2.8 12Z"/><circle cx="12" cy="12" r="2.8"/></svg>''';
+
+  // 03 할 일 줄 머리의 할 일 종류(캔버스 03 할 일). 과제·자료는 [doc], 시험은 [flag], 개인은 [person]이다.
+
+  /// 영상(재생 화면). 데모 모드 아이콘과 같은 그림이다.
+  static const video = demo;
+
+  static const quiz =
+      r'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.6M12 16.8v.1"/></svg>''';
+
+  static const team =
+      r'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="3.2"/><path d="M3.5 19c.9-3 3-4.5 5.5-4.5s4.6 1.5 5.5 4.5"/><circle cx="16.8" cy="9.6" r="2.6"/><path d="M16.5 14.3c2 .2 3.4 1.5 4 4"/></svg>''';
+
+  static const discussion =
+      r'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h8A2.5 2.5 0 0 1 17 6.5v5a2.5 2.5 0 0 1-2.5 2.5H9l-4 3v-3.3a2.5 2.5 0 0 1-1-2Z"/><path d="M17 9h.5A2.5 2.5 0 0 1 20 11.5v4.3a2.5 2.5 0 0 1-1 2V21l-3-2.4h-4.5a2.5 2.5 0 0 1-2.4-1.9"/></svg>''';
 }
