@@ -27,7 +27,6 @@ abstract final class SettingKeys {
   static const lmsLastConnectedAt = 'lmsLastConnectedAt';
   static const lmsCredentialRejected = 'lmsCredentialRejected';
   static const lmsTimetableImportedAt = 'lmsTimetableImportedAt';
-  static const checkinMin = 'checkinMin';
   static const dueTodayTimeSensitive = 'dueTodayTimeSensitive';
   static const showTravelMeal = 'showTravelMeal';
   static const onboardingSkipped = 'onboardingSkipped';
@@ -48,7 +47,6 @@ abstract final class SettingKeys {
     lmsLastConnectedAt,
     lmsCredentialRejected,
     lmsTimetableImportedAt,
-    checkinMin,
     dueTodayTimeSensitive,
     showTravelMeal,
     onboardingSkipped,
@@ -72,7 +70,6 @@ class AppSettings {
     required this.lmsLastConnectedAt,
     required this.lmsCredentialRejected,
     required this.lmsTimetableImportedAt,
-    required this.checkinMin,
     required this.dueTodayTimeSensitive,
     required this.showTravelMeal,
     required this.onboardingSkipped,
@@ -94,7 +91,6 @@ class AppSettings {
     lmsLastConnectedAt: null,
     lmsCredentialRejected: false,
     lmsTimetableImportedAt: null,
-    checkinMin: null,
     dueTodayTimeSensitive: false,
     showTravelMeal: true,
     onboardingSkipped: [],
@@ -144,8 +140,6 @@ class AppSettings {
       lmsTimetableImportedAt:
           tryDecodeDateTime(values[SettingKeys.lmsTimetableImportedAt]) ??
           d.lmsTimetableImportedAt,
-      checkinMin:
-          _minuteOfDayOrNull(values[SettingKeys.checkinMin]) ?? d.checkinMin,
       dueTodayTimeSensitive:
           _boolOrNull(values[SettingKeys.dueTodayTimeSensitive]) ??
           d.dueTodayTimeSensitive,
@@ -212,10 +206,6 @@ class AppSettings {
   /// '{날짜} 불러옴'에 쓴다. 불러온 적이 없으면 null이다.
   final DateTime? lmsTimetableImportedAt;
 
-  /// 저녁 체크인 시각(자정 기준 분). null이면 [Defaults.checkinMin]. 저녁 체크인은 임시로 뺐고
-  /// (docs/decisions.md 2026-11-15) 이 키는 기능을 다시 정할 때 함께 본다.
-  final int? checkinMin;
-
   /// (R1) 마감 당일 알림을 '시간 민감' 알림으로 보낼지.
   final bool dueTodayTimeSensitive;
 
@@ -235,13 +225,11 @@ class AppSettings {
   ///
   /// 값의 형은 그 키의 필드와 같아야 한다. 예를 들어 `lmsSessionState`에는
   /// [LmsSessionState], `aiConsentAt`에는 `DateTime` 또는 null을 넘긴다. 모르는 키,
-  /// 맞지 않는 형, null을 받지 않는 키의 null, 하루 밖의 분, 고를 수 없는 하루 경계, 1–4의 중복 없는
+  /// 맞지 않는 형, null을 받지 않는 키의 null, 고를 수 없는 하루 경계, 1–4의 중복 없는
   /// 오름차순 목록이 아닌 건너뛴 온보딩 단계는 프로그래밍 오류로 보고 [ArgumentError]를 던진다.
   static Object? encodeValue(String key, Object? value) {
     return switch (key) {
       SettingKeys.dayBoundaryMin => _requireDayBoundary(key, value),
-      SettingKeys.checkinMin =>
-        value == null ? null : _requireMinuteOfDay(key, value),
       SettingKeys.aiEnabled ||
       SettingKeys.metricsEnabled ||
       SettingKeys.lmsCredentialRejected ||
@@ -284,7 +272,6 @@ class AppSettings {
     SettingKeys.lmsLastConnectedAt => lmsLastConnectedAt,
     SettingKeys.lmsCredentialRejected => lmsCredentialRejected,
     SettingKeys.lmsTimetableImportedAt => lmsTimetableImportedAt,
-    SettingKeys.checkinMin => checkinMin,
     SettingKeys.dueTodayTimeSensitive => dueTodayTimeSensitive,
     SettingKeys.showTravelMeal => showTravelMeal,
     SettingKeys.onboardingSkipped => onboardingSkipped,
@@ -307,7 +294,6 @@ class AppSettings {
     Object? lmsLastConnectedAt = _keep,
     bool? lmsCredentialRejected,
     Object? lmsTimetableImportedAt = _keep,
-    Object? checkinMin = _keep,
     bool? dueTodayTimeSensitive,
     bool? showTravelMeal,
     List<int>? onboardingSkipped,
@@ -342,9 +328,6 @@ class AppSettings {
       lmsTimetableImportedAt: identical(lmsTimetableImportedAt, _keep)
           ? this.lmsTimetableImportedAt
           : lmsTimetableImportedAt as DateTime?,
-      checkinMin: identical(checkinMin, _keep)
-          ? this.checkinMin
-          : checkinMin as int?,
       dueTodayTimeSensitive:
           dueTodayTimeSensitive ?? this.dueTodayTimeSensitive,
       showTravelMeal: showTravelMeal ?? this.showTravelMeal,
@@ -371,7 +354,6 @@ class AppSettings {
       other.lmsLastConnectedAt == lmsLastConnectedAt &&
       other.lmsCredentialRejected == lmsCredentialRejected &&
       other.lmsTimetableImportedAt == lmsTimetableImportedAt &&
-      other.checkinMin == checkinMin &&
       other.dueTodayTimeSensitive == dueTodayTimeSensitive &&
       other.showTravelMeal == showTravelMeal &&
       _sameInts(other.onboardingSkipped, onboardingSkipped) &&
@@ -392,7 +374,6 @@ class AppSettings {
     lmsLastConnectedAt,
     lmsCredentialRejected,
     lmsTimetableImportedAt,
-    checkinMin,
     dueTodayTimeSensitive,
     showTravelMeal,
     Object.hashAll(onboardingSkipped),
@@ -476,14 +457,6 @@ List<int> _requireOnboardingSteps(String key, Object? value) {
 T _require<T>(String key, Object? value) {
   if (value is T) return value;
   throw ArgumentError.value(value, key, 'Expected $T');
-}
-
-int _requireMinuteOfDay(String key, Object? value) {
-  final minute = _require<int>(key, value);
-  if (minute < 0 || minute >= 1440) {
-    throw ArgumentError.value(minute, key, 'Expected a minute of the day');
-  }
-  return minute;
 }
 
 int _requireDayBoundary(String key, Object? value) {
