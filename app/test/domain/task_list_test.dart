@@ -1,6 +1,7 @@
 // 03 할 일 목록 계산의 테스트. docs/screens.md '03 할 일'.
 
 import 'package:cnu_ai_assistant/domain/defaults.dart';
+import 'package:cnu_ai_assistant/domain/lms_status.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/domain/planner/plan_range.dart';
 import 'package:cnu_ai_assistant/domain/rules.dart';
@@ -128,6 +129,7 @@ TaskListContent content(
   bool lmsOnly = false,
   TaskListSort sort = TaskListSort.due,
   DateTime? when,
+  Set<int> unchecked = const {},
 }) => taskListContent(
   entries: entries,
   blocks: blocks,
@@ -140,6 +142,7 @@ TaskListContent content(
   weekly: weekly,
   lmsOnly: lmsOnly,
   sort: sort,
+  uncheckedCourseIds: unchecked,
 );
 
 List<int> ids(TaskListContent list) => [
@@ -609,6 +612,99 @@ void main() {
       expect(rowOf(list, 1).plan?.text, '시간표를 받으면 빈 시간에 놓아요');
       expect(rowOf(list, 2).plan?.text, '11월 27일 (금)부터 빈 시간에 놓아요');
       expect(rowOf(list, 3).plan?.text, '내일 09:00 · 확정');
+    });
+  });
+
+  group('확인 못 함과 안내 칸', () {
+    final os = '운영체제'.hashCode;
+    final entries = [
+      lms(1, due: at(11, 17)),
+      lms(2, due: at(11, 18), courseName: '운영체제'),
+      lms(3, due: at(11, 19), courseName: '운영체제'),
+      personal(4, due: at(11, 18)),
+    ];
+
+    test('마감순에서는 받지 못한 과목의 LMS 할 일 줄에 표시한다', () {
+      final list = content(entries, unchecked: {os});
+
+      expect(
+        [
+          for (final id in [1, 2, 3, 4]) rowOf(list, id).unchecked,
+        ],
+        [false, true, true, false],
+      );
+      expect(list.groups.every((group) => !group.unchecked), isTrue);
+      expect(
+        content(entries).groups.single.rows.any((r) => r.unchecked),
+        isFalse,
+      );
+    });
+
+    test('과목별에서는 줄 대신 그 과목 묶음 머리에 표시한다', () {
+      final list = content(entries, unchecked: {os}, sort: TaskListSort.course);
+
+      expect(
+        {for (final g in list.groups) g.title: g.unchecked},
+        {'자료구조': false, '운영체제': true, '개인': false},
+      );
+      expect(
+        list.groups.expand((g) => g.rows).any((r) => r.unchecked),
+        isFalse,
+      );
+    });
+
+    test('연동 멈춤과 로그인 전은 늘 알린다', () {
+      final paused = taskListNotice(status: LmsStatusKind.paused, now: now)!;
+      expect(paused.kind, TaskListNoticeKind.paused);
+      expect(paused.title, 'LMS 연동을 잠시 멈췄어요');
+      expect(paused.sub, '받아 둔 할 일은 그대로 있어요. 직접 추가는 계속 쓸 수 있어요');
+
+      final before = taskListNotice(
+        status: LmsStatusKind.beforeLogin,
+        unchecked: const ['운영체제'],
+        now: now,
+      )!;
+      expect(before.kind, TaskListNoticeKind.beforeLogin);
+      expect(before.title, 'LMS에 로그인하면 마감을 모아 와요');
+      expect(before.sub, '학번과 비밀번호로 로그인해요. 그전에는 할 일을 직접 넣어요');
+    });
+
+    test('일부 과목 실패는 연동됨일 때 과목 이름과 받은 때를 알린다', () {
+      TaskListNotice? notice(List<String> names, {LmsStatusKind? status}) =>
+          taskListNotice(
+            status: status ?? LmsStatusKind.synced,
+            unchecked: names,
+            checkedAt: now.subtract(const Duration(minutes: 12)),
+            now: now,
+          );
+
+      expect(notice(const ['운영체제'])!.title, '운영체제는 확인하지 못했어요');
+      expect(
+        notice(const ['운영체제'])!.sub,
+        '다른 과목은 12분 전에 새로 받았어요. 확인하지 못한 과목은 전에 받은 할 일을 보여 드려요',
+      );
+      expect(notice(const ['자료구조', '운영체제'])!.title, '자료구조·운영체제는 확인하지 못했어요');
+      expect(
+        notice(const ['자료구조', '운영체제', '선형대수'])!.title,
+        '자료구조 외 2과목은 확인하지 못했어요',
+      );
+      expect(notice(const ['선형대수'])!.title, '선형대수는 확인하지 못했어요');
+      expect(notice(const ['데이터베이스'])!.kind, TaskListNoticeKind.unchecked);
+      expect(
+        taskListNotice(
+          status: LmsStatusKind.synced,
+          unchecked: const ['운영체제'],
+          now: now,
+        )!.sub,
+        startsWith('다른 과목은 새로 받았어요.'),
+      );
+      expect(notice(const []), isNull);
+      expect(notice(const ['운영체제'], status: LmsStatusKind.offline), isNull);
+      expect(
+        notice(const ['운영체제'], status: LmsStatusKind.reloginNeeded),
+        isNull,
+      );
+      expect(taskListNotice(status: null, now: now), isNull);
     });
   });
 }
