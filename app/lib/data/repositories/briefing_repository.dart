@@ -46,35 +46,44 @@ class BriefingRepository {
         }),
       );
 
-  /// [day]의 브리핑에서 'N개 확정하기'를 [at]에 눌렀다고 기록한다. 다시 확정하면 마지막 시각으로 바꾸고,
-  /// 본 것으로 기록하지 않았으면 함께 기록한다. 01 아침 브리핑 화면 PR이 부른다.
-  Future<Result<void>> markConfirmed(DateTime day, {required DateTime at}) =>
-      guardStorage(
-        'briefings.markConfirmed',
-        () => _db.transaction(() async {
-          final row = await _row(day);
-          if (row == null) {
-            await _db
-                .into(_db.briefings)
-                .insert(
-                  BriefingsCompanion.insert(
-                    date: isoDate(day),
-                    createdAt: at,
-                    openedAt: Value(at),
-                    confirmedAt: Value(at),
-                  ),
-                );
-          } else {
-            await _update(
-              row.id,
-              BriefingsCompanion(
-                openedAt: Value(row.openedAt ?? at),
-                confirmedAt: Value(at),
-              ),
-            );
-          }
-        }),
-      );
+  /// [day]의 브리핑에서 'N개 확정하기'·'확정한 할 일 빼기'를 [at]에 눌렀다고 기록한다. 다시 확정하면 마지막
+  /// 시각으로 바꾸고, 본 것으로 기록하지 않았으면 함께 기록한다. [edits]는 이번에 확정하기 전에 체크를 켜고 끈
+  /// 횟수이고 `editCount`에 더한다(사용 지표의 확정 전 수정 횟수). 음수면 [ArgumentError]다.
+  Future<Result<void>> markConfirmed(
+    DateTime day, {
+    required DateTime at,
+    int edits = 0,
+  }) {
+    if (edits < 0) throw ArgumentError.value(edits, 'edits');
+    return guardStorage(
+      'briefings.markConfirmed',
+      () => _db.transaction(() async {
+        final row = await _row(day);
+        if (row == null) {
+          await _db
+              .into(_db.briefings)
+              .insert(
+                BriefingsCompanion.insert(
+                  date: isoDate(day),
+                  createdAt: at,
+                  openedAt: Value(at),
+                  confirmedAt: Value(at),
+                  editCount: Value(edits),
+                ),
+              );
+        } else {
+          await _update(
+            row.id,
+            BriefingsCompanion(
+              openedAt: Value(row.openedAt ?? at),
+              confirmedAt: Value(at),
+              editCount: Value(row.editCount + edits),
+            ),
+          );
+        }
+      }),
+    );
+  }
 
   Future<Briefing?> _row(DateTime day) => (_db.select(
     _db.briefings,
