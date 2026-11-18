@@ -1,11 +1,14 @@
 // Cloud Functions 진입점(docs/architecture.md '한눈에 보기'의 서버, '앱과 서버 사이 약속 (API)').
 //
 // 모든 함수는 서울 리전(asia-northeast3)에 둔다. 지정하지 않으면 us-central1에 배포된다. /v1/... 경로는 모두
-// HTTPS 함수 api 하나에 붙은 Express 앱이 받는다. 호출형(onCall)과 Hosting 리라이트는 쓰지 않는다.
+// HTTPS 함수 api 하나에 붙은 Express 앱이 받는다. 호출형(onCall)과 Hosting 리라이트는 쓰지 않는다. 서버 신호
+// 푸시는 예약 함수 syncSignal이 보낸다.
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { getMessaging } from "firebase-admin/messaging";
 import { setGlobalOptions } from "firebase-functions";
 import { onRequest } from "firebase-functions/https";
+import { onSchedule } from "firebase-functions/scheduler";
 
 import { ClaudeProvider } from "./ai/claude.js";
 import type { ParseDeps } from "./ai/parse.js";
@@ -19,7 +22,14 @@ import {
   aiDailyLimitTotal,
   appCheckEnforce,
   llmApiKey,
+  syncSignalEnabled,
 } from "./params.js";
+import {
+  runSyncSignal,
+  SYNC_SIGNAL_SCHEDULE,
+  type SyncSignalDeps,
+  writeSyncSignalLog,
+} from "./push/sync_signal.js";
 import { apiRoutes } from "./routes.js";
 
 setGlobalOptions({ region: "asia-northeast3" });
@@ -67,4 +77,23 @@ export const api = onRequest(
     secrets: [llmApiKey],
   },
   createApp({ routes: apiRoutes({ parse: parseDeps, metrics: metricsDeps }) }),
+);
+
+const syncSignalDeps: SyncSignalDeps = {
+  send: (message) => getMessaging().send(message),
+  enabled: () => syncSignalEnabled.value(),
+  log: writeSyncSignalLog,
+};
+
+/** 서버 신호 푸시. 15분마다 토픽 하나에 무음 푸시를 보낸다. 놓친 신호는 다시 보내지 않는다. */
+export const syncSignal = onSchedule(
+  {
+    schedule: SYNC_SIGNAL_SCHEDULE,
+    timeZone: "Asia/Seoul",
+    retryCount: 0,
+    timeoutSeconds: 30,
+    memory: "256MiB",
+    maxInstances: 1,
+  },
+  (event) => runSyncSignal(syncSignalDeps, event.scheduleTime),
 );
