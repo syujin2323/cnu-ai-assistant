@@ -385,7 +385,15 @@ class _TodaySchedule extends ConsumerWidget {
         ),
     ];
     final sameDay = home != null && home.date == data.day;
-    final items = sameDay ? home.items : const <DayItem>[];
+    // 10 나에서 이동·점심 시간 표시를 끄면 그 카드를 그리지 않는다(docs/screens.md '이동·점심 시간 표시').
+    final items = sameDay
+        ? [
+            for (final item in home.items)
+              if (home.showTravelMeal ||
+                  (item is! TravelItem && item is! MealItem))
+                item,
+          ]
+        : const <DayItem>[];
     final classes = items
         .whereType<ClassItem>()
         .where((item) => !item.cancelled)

@@ -317,6 +317,59 @@ void main() {
         await app.dispose(tester);
       });
 
+      testWidgets('이동·점심 시간 표시를 끄면 이동·점심 카드를 그리지 않는다', (tester) async {
+        Future<void> addRules(TestApp app) async {
+          final made = DateTime(2026, 11, 2);
+          for (final (kind, params) in [
+            (
+              RuleKind.travel,
+              const RuleParams(
+                minutes: 20,
+                position: TravelPosition.everyClass,
+              ),
+            ),
+            // seedDay의 0분 점심보다 나중에 저장한 점심(점심 자리는 나중 것만 씀).
+            (
+              RuleKind.meal,
+              const RuleParams(startMin: 690, endMin: 780, minutes: 30),
+            ),
+          ]) {
+            await app.db
+                .into(app.db.rules)
+                .insert(
+                  RulesCompanion.insert(
+                    kind: kind,
+                    params: params,
+                    active: true,
+                    source: EntrySource.manual,
+                    createdAt: made,
+                    updatedAt: made,
+                  ),
+                );
+          }
+          await tester.pump(const Duration(seconds: 1));
+          await tester.pumpAndSettle();
+        }
+
+        final (shown, _) = await pumpHome(tester, textScale: textScale);
+        await addRules(shown);
+        expect(find.text('이동 20분'), findsWidgets);
+        expect(find.textContaining('점심 · 30분'), findsOneWidget);
+        await shown.dispose(tester);
+
+        final (hidden, _) = await pumpHome(
+          tester,
+          textScale: textScale,
+          settings: {SettingKeys.showTravelMeal: false},
+        );
+        await addRules(hidden);
+        expect(find.text('이동 20분'), findsNothing);
+        expect(find.textContaining('점심 · 30분'), findsNothing);
+        // 이동·점심 카드만 숨기고 수업은 그대로 그린다.
+        expect(find.text('자료구조'), findsOneWidget);
+        await hidden.dispose(tester);
+      });
+
       testWidgets('오늘 일정을 읽지 못하면 안내만 보인다', (tester) async {
         final app = await pumpTestApp(
           tester,

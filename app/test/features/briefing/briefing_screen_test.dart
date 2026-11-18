@@ -44,6 +44,7 @@ Future<Ids> seed(
   AppDatabase db, {
   bool fillDay = false,
   int? dailyCapMin,
+  int lunchMin = 0,
 }) async {
   final made = DateTime(2026, 11, 1);
   Future<void> rule(RuleKind kind, RuleParams params) => db
@@ -65,7 +66,7 @@ Future<Ids> seed(
   await rule(RuleKind.classBuffer, const RuleParams(minutes: 10));
   await rule(
     RuleKind.meal,
-    const RuleParams(startMin: 690, endMin: 810, minutes: 0),
+    RuleParams(startMin: 690, endMin: 810, minutes: lunchMin),
   );
   if (dailyCapMin != null) {
     await rule(RuleKind.dailyCap, RuleParams(minutes: dailyCapMin));
@@ -168,15 +169,23 @@ Future<(TestApp, Ids)> pumpBriefing(
   Size size = phonePortrait,
   bool fillDay = false,
   int? dailyCapMin,
+  int lunchMin = 0,
+  Map<String, Object?> settings = const {},
 }) async {
   final app = await pumpTestApp(
     tester,
     now: at(mon, 8),
     textScale: textScale,
     size: size,
+    settings: settings,
     overrides: [planControllerProvider.overrideWith(() => _FixedPlan(_plan))],
   );
-  final ids = await seed(app.db, fillDay: fillDay, dailyCapMin: dailyCapMin);
+  final ids = await seed(
+    app.db,
+    fillDay: fillDay,
+    dailyCapMin: dailyCapMin,
+    lunchMin: lunchMin,
+  );
   await tester.pumpAndSettle();
   app.router.go(Routes.briefing);
   await tester.pumpAndSettle();
@@ -388,6 +397,65 @@ void main() {
         expect(app.router.state.uri.toString(), '/tasks?tab=all');
 
         await app.dispose(tester);
+      });
+
+      testWidgets('이동·점심 시간 표시를 끄면 오늘 일정에 이동·점심 카드를 그리지 않는다', (tester) async {
+        for (final shown in [true, false]) {
+          final (app, _) = await pumpBriefing(
+            tester,
+            textScale: textScale,
+            lunchMin: 30,
+            settings: {SettingKeys.showTravelMeal: shown},
+          );
+          // 오늘(월) 16:00–17:00 대면 수업과 매 수업 앞뒤 20분 이동.
+          final courseId = await app.db
+              .into(app.db.courses)
+              .insert(CoursesCompanion.insert(name: '자료구조'));
+          await app.db
+              .into(app.db.classSlots)
+              .insert(
+                ClassSlotsCompanion.insert(
+                  courseId: courseId,
+                  weekday: DateTime.monday,
+                  startMin: 960,
+                  endMin: 1020,
+                  campus: Campus.daedeok,
+                  online: false,
+                  source: SlotSource.manual,
+                ),
+              );
+          final made = DateTime(2026, 11, 2);
+          await app.db
+              .into(app.db.rules)
+              .insert(
+                RulesCompanion.insert(
+                  kind: RuleKind.travel,
+                  params: const RuleParams(
+                    minutes: 20,
+                    position: TravelPosition.everyClass,
+                  ),
+                  active: true,
+                  source: EntrySource.manual,
+                  createdAt: made,
+                  updatedAt: made,
+                ),
+              );
+          await tester.pump(const Duration(seconds: 1));
+          await tester.pumpAndSettle();
+
+          final reason = 'showTravelMeal: $shown';
+          expect(
+            find.text('점심'),
+            shown ? findsOneWidget : findsNothing,
+            reason: reason,
+          );
+          expect(
+            find.text('이동 20분'),
+            shown ? findsWidgets : findsNothing,
+            reason: reason,
+          );
+          await app.dispose(tester);
+        }
       });
 
       testWidgets('말로 추가 칸에 쓰고 보내면 06 AI 비서를 연다', (tester) async {
