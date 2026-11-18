@@ -1,6 +1,8 @@
 // LMS 상태 줄·칩·정보 시트에서 하는 동작 테스트. docs/screens.md 'LMS 상태 줄과 다시 로그인', '03 할 일',
 // docs/architecture.md '화면 이동'·'데모 모드'.
 
+import 'dart:async';
+
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
@@ -112,10 +114,15 @@ void main() {
     await tester.pumpAndSettle();
 
     var refreshes = 0;
+    // 새로 고침이 끝나기 전에는 시트가 그대로다(끝나지 않게 둠).
+    final refreshing = Completer<void>();
     final opened = openLmsInfoSheet(
       _home(tester),
       _ref(tester),
-      onRefresh: () => refreshes++,
+      onRefresh: () {
+        refreshes++;
+        return refreshing.future;
+      },
     );
     await tester.pumpAndSettle();
     expect(find.text('LMS와 연동돼 있어요'), findsOneWidget);
@@ -124,6 +131,7 @@ void main() {
     expect(find.text('없음'), findsOneWidget);
     await tapText(tester, '새로 고침');
     expect(refreshes, 1);
+    expect(find.text('LMS와 연동돼 있어요'), findsOneWidget);
 
     expect(
       await SettingsRepository(
@@ -141,6 +149,27 @@ void main() {
     expect(find.text('LMS 로그인이 풀렸어요'), findsNothing);
     app.router.pop();
     await tester.pumpAndSettle();
+    expect(find.byType(TodayScreen), findsOneWidget);
+    await app.dispose(tester);
+  });
+
+  testWidgets('시트에서 누른 새로 고침이 끝나면 시트를 닫는다', (tester) async {
+    final app = await pumpTestApp(tester);
+    await tester.pumpAndSettle();
+    final refreshing = Completer<void>();
+    final opened = openLmsInfoSheet(
+      _home(tester),
+      _ref(tester),
+      onRefresh: () => refreshing.future,
+    );
+    await tester.pumpAndSettle();
+    await tapText(tester, '새로 고침');
+    expect(find.text('LMS와 연동돼 있어요'), findsOneWidget);
+
+    refreshing.complete();
+    await tester.pumpAndSettle();
+    await opened;
+    expect(find.text('LMS와 연동돼 있어요'), findsNothing);
     expect(find.byType(TodayScreen), findsOneWidget);
     await app.dispose(tester);
   });
