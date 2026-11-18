@@ -7,6 +7,7 @@ import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,7 +26,7 @@ class SheetHarness {
   Object? result;
 
   ProviderContainer get container =>
-      ProviderScope.containerOf(_tester.element(find.byType(Scaffold)));
+      ProviderScope.containerOf(_tester.element(find.byType(Scaffold).first));
 
   /// 지금 토스트 문구.
   String? get toast => container.read(toastControllerProvider)?.text;
@@ -81,6 +82,7 @@ Future<SheetHarness> pumpProviderHarness(
   Future<void> Function(AppDatabase db)? seed,
   double textScale = 1,
   Size size = phonePortrait,
+  List<Override> overrides = const [],
 }) async {
   tester.view.physicalSize = size * 3;
   tester.view.devicePixelRatio = 3;
@@ -98,6 +100,7 @@ Future<SheetHarness> pumpProviderHarness(
         databaseProvider.overrideWithValue(db),
         motionLevelProvider.overrideWithValue(MotionLevel.off),
         clockProvider.overrideWithValue(TestClock(sheetTestNow)),
+        ...overrides,
       ],
       child: MaterialApp(
         theme: buildAppTheme(),
