@@ -752,3 +752,10 @@
   - 학교 시간표에는 수업 칸을 가리키는 값이 없어 처음 불러온 원래 값으로 맞춘다.
 - 다른 후보: 새 수업도 반영할지 묻기, 없어진 수업도 바로 지우기, 과목마다 불러온 수업을 통째로 바꿔 끼우기(사용자가 고친 장소와 수업 예외가 사라짐).
 - 영향: lms.md '시간표 (통합정보시스템)', screens.md '13 시간표·고정 일정', architecture.md '폴더 구조'·'폰 DB'(`settings`의 `lmsTimetableImportedAt`, 새로 필요한 저장 자리에서 불러온 시각을 뺌), `app/lib/domain/timetable_refresh.dart`·`models/imported_class_slot.dart`, `app/lib/data/repositories/timetable_refresh_repository.dart`·`lms_sync_repository.dart`, `app/lib/lms/sync_coordinator.dart`, `app/lib/domain/models/app_settings.dart`. 13의 새로 고침 칩·전후 보기·[반영하기]의 화면 연결은 세션 A의 화면 PR이 한다.
+
+## 2026-11-18 처리방침·이용약관은 별도 공개 레포의 GitHub Pages에 둔다
+
+- 결정: 개인정보 처리방침과 이용약관은 앱 레포가 아니라 별도 공개 레포 `syujin2323/cnu-planner-docs`에 두고 GitHub Pages(https://syujin2323.github.io/cnu-planner-docs/)로 공개한다. 그 레포의 `main`에 병합하면 바로 공개되므로 PR로 올려 관리자 승인을 받은 뒤 병합한다. 앱은 `AppConfig.privacyPolicyUrl`·`termsUrl`로 열고(14 온보딩 1단계의 개인정보 처리 안내 시트, 10 나), 스토어에 적는 처리방침 URL도 이 주소다. 처리방침에는 그 빌드가 하는 처리만 적는다.
+- 이유: Play와 App Store가 처리방침의 공개 URL을 요구한다. 앱 레포 밖에 두면 문구를 고쳐도 앱 빌드나 패치가 필요 없고 개발 문서와 섞이지 않는다. 공개 레포라 바뀐 기록이 남아 이전 판을 따로 보관하지 않아도 된다(처리방침 10항). 레포를 만들고 공개하는 것은 관리자가 승인했다(2026-11-15).
+- 다른 후보: 앱 레포의 `docs/`를 Pages로 공개하기(개발 문서까지 사이트에 섞임), Notion 공개 페이지(바뀐 기록을 따로 남겨야 함), 앱 안에만 두기(스토어가 URL을 요구함).
+- 영향: architecture.md '테스트 배포', screens.md '개인정보 처리 안내 시트', `app/lib/app/config.dart`, `app/lib/features/lms_connect/privacy_sheet.dart`, 10 나의 처리방침·이용약관 링크(10 나 PR).
