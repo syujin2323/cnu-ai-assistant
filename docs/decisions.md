@@ -906,3 +906,10 @@
 - 이유: AI 비서는 앱의 주요 기능인데, 동의하지 않으면 무엇을 쓸 수 없는지 모른 채 넘어가기 쉽다(관리자 결정). 선택 동의라는 원칙(2026-11-06)은 그대로라 동의하지 않아도 앱의 나머지 기능을 쓴다.
 - 다른 후보: 다시 묻지 않고 바로 넘어가기(이전 동작), 10 나에서 AI를 끌 때도 다시 묻기.
 - 영향: screens.md '14 온보딩', `app/lib/features/onboarding/steps/ai_consent_step.dart`, 온보딩 화면 테스트.
+
+## 2026-11-19 아이콘 SVG는 Dart 문자열로 둔다 (architecture.md '앱 코드 규약'의 아이콘 에셋 바꿈)
+
+- 결정: 캔버스 아이콘 SVG를 `app/assets/icons/`의 에셋 파일이 아니라 `app/lib/design/icon_svgs.dart`의 Dart 문자열로 두고 `SvgPicture.string`으로 그린다. 에셋 폴더와 `pubspec.yaml`의 그 줄은 지운다. 새 아이콘은 `IconSvgs`에 문자열 하나와 `AppIconName`에 한 줄을 더한다. 캔버스가 같은 그림을 다른 뜻으로 쓰는 이름(할 일 탭·네모 안 체크, 오늘 탭·해, 나 탭·사람)은 앞 이름의 문자열을 가리킨다.
+- 이유: 에셋은 Shorebird 패치로 바꿀 수 없어서, 첫 팀원 빌드 뒤 화면 PR이 새 아이콘을 쓸 때마다 새 release를 내야 한다. Dart 문자열이면 아이콘도 패치로 낸다. 아이콘 37개가 모두 합쳐 약 10KB라 앱 크기에 거의 차이가 없다(세션 C와 합의).
+- 다른 후보: 첫 팀원 빌드 전에 캔버스 아이콘을 모두 에셋으로 넣기(빠진 아이콘이 있으면 그때마다 새 release).
+- 영향: architecture.md '폴더 구조'·'앱 코드 규약'·'확인과 CI', `app/lib/design/icons.dart`, `app/lib/design/icon_svgs.dart`, `app/pubspec.yaml`, `app/test/design/icons_test.dart`, `app/test/conventions_test.dart`(SvgPicture는 `design/icons.dart`만, SVG 문자열은 `design/icon_svgs.dart`만).
