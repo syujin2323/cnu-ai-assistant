@@ -291,7 +291,14 @@ void main() {
           moved.endAt.difference(moved.startAt).inMinutes,
           inInclusiveRange(25, 60),
         );
-        expect(find.textContaining(RegExp('^과제 1을 .+ 옮겼어요\$')), findsOneWidget);
+        // 토스트는 옮긴 자리의 시작을 말한다.
+        final start =
+            '${moved.startAt.hour.toString().padLeft(2, '0')}:'
+            '${moved.startAt.minute.toString().padLeft(2, '0')}';
+        expect(
+          find.textContaining(RegExp('^과제 1을 .+ $start(으로|로) 옮겼어요\$')),
+          findsOneWidget,
+        );
 
         await tester.tap(find.text('되돌리기'));
         await tester.pumpAndSettle();
@@ -336,6 +343,18 @@ void main() {
           isNull,
         );
         expect(await statusOf(app.db, ids.later), PlanBlockStatus.confirmed);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('그사이 지난 빈 시간을 누르면 시트 대신 알린다', (tester) async {
+        final (app, _) = await pumpHome(tester, textScale: textScale);
+
+        // 시간표는 11:02에 그린 그대로이고, 누를 때는 그 빈 시간(–12:50)이 지났다.
+        app.clock.current = at(12, 51);
+        await tapText(tester, '빈 시간 1시간 48분');
+        expect(find.byType(FreeSlotSheet), findsNothing);
+        expect(find.text('이 빈 시간은 지났어요'), findsOneWidget);
 
         await app.dispose(tester);
       });
