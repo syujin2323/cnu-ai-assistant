@@ -61,20 +61,23 @@ class AssistantCardFrame extends StatelessWidget {
                   ),
                   if (tag case final tag?)
                     Flexible(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpace.s8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.tint,
-                          borderRadius: BorderRadius.circular(AppRadius.pill),
-                        ),
-                        child: Text(
-                          tag,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppText.caption.copyWith(color: colors.ink2),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpace.s8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colors.tint,
+                            borderRadius: BorderRadius.circular(AppRadius.pill),
+                          ),
+                          child: Text(
+                            tag,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.caption.copyWith(color: colors.ink2),
+                          ),
                         ),
                       ),
                     ),
