@@ -266,6 +266,47 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
+  testWidgets('닫히는 화면의 기준점이 탭바보다 나중에 놓아도 탭바 기준점의 크기가 지워지지 않는다', (tester) async {
+    // 위 화면의 기준점을 탭바보다 깊이 두면, 화면을 닫는 프레임에서 탭바 기준점이 먼저 연결을 잡고 위 화면
+    // 기준점이 뒤에 놓는다. 놓는 쪽이 연결의 크기를 지우면 따라가는 토스트가 그 프레임에 단정에 걸린다.
+    Widget deep(Widget child, int levels) =>
+        levels == 0 ? child : deep(KeyedSubtree(child: child), levels - 1);
+    for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+      debugDefaultTargetPlatformOverride = platform;
+      await _pump(
+        tester,
+        bottomPadding: 34,
+        toast: const AppToast(text: '확정했어요'),
+        home: _withTabBar(),
+      );
+      final onTabBar = _toastBottom(tester);
+      final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+      unawaited(
+        navigator.push(
+          MaterialPageRoute<void>(
+            builder: (_) => Scaffold(
+              bottomNavigationBar: deep(
+                const ToastAnchor(child: SizedBox(height: 200)),
+                60,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(_toastBottom(tester), 200 + AppToastLayer.gap);
+
+      navigator.pop();
+      for (var frame = 0; frame < 12; frame++) {
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(tester.takeException(), isNull, reason: '$platform $frame');
+      }
+      await tester.pumpAndSettle();
+      expect(_toastBottom(tester), onTabBar);
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
   testWidgets('내려간 토스트는 그리지 않고 누를 수 없다', (tester) async {
     var undos = 0;
     await _pump(
