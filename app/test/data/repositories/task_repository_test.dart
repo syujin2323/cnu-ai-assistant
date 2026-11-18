@@ -1,6 +1,7 @@
 // 할 일 저장소 테스트. docs/architecture.md '폰 DB'(동기화·되돌리기), docs/screens.md '03 할 일'.
 
 import 'package:cnu_ai_assistant/data/db/database.dart';
+import 'package:cnu_ai_assistant/data/repositories/schedule_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/task_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/undo_repository.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
@@ -140,6 +141,27 @@ void main() {
 
       expect(seen.first, isEmpty);
       expect(seen.last, ['새 할 일']);
+    });
+
+    test('일정 스트림을 먼저 보고 있어도 할 일이 바뀌면 다시 읽고, 일정 스트림은 일정 표만 본다', () async {
+      // 같은 쿼리 문장이면 drift가 스트림을 하나로 묶어 먼저 만든 쪽의 표만 본다(02 홈이 둘을 함께 봄).
+      var schedules = 0;
+      final schedule = ScheduleRepository(db)
+          .watch(start: DateTime(2026, 11, 16), end: DateTime(2026, 11, 17))
+          .listen((_) => schedules++);
+      final seen = <List<String>>[];
+      final tasks = repository.watch().listen(
+        (entries) => seen.add([for (final e in entries) e.task.title]),
+      );
+      await pumpEventQueue();
+      final schedulesBefore = schedules;
+      await addTask(title: '새 할 일');
+      await pumpEventQueue();
+      await tasks.cancel();
+      await schedule.cancel();
+
+      expect(seen.last, ['새 할 일']);
+      expect(schedules, schedulesBefore);
     });
   });
 
