@@ -53,7 +53,6 @@ BlockSheetContent content(
   TaskEntry? task,
   String? courseName = '자료구조',
   DateTime? next,
-  bool canMove = true,
 }) => blockSheetContent(
   block: block,
   entry: task ?? entry(),
@@ -61,7 +60,6 @@ BlockSheetContent content(
   now: now,
   dayBoundaryMin: 240,
   nextSuggestionAt: next,
-  canMove: canMove,
 );
 
 void main() {
@@ -107,16 +105,6 @@ void main() {
     expect(content(confirmed).actions, [
       BlockSheetAction.complete,
       BlockSheetAction.move,
-      BlockSheetAction.dismiss,
-    ]);
-    // 옮기기 시트가 없으면 옮기기를 두지 않는다.
-    expect(content(confirmed, canMove: false).actions, [
-      BlockSheetAction.complete,
-      BlockSheetAction.dismiss,
-    ]);
-    expect(content(block(), canMove: false).actions, [
-      BlockSheetAction.confirm,
-      BlockSheetAction.complete,
       BlockSheetAction.dismiss,
     ]);
   });
