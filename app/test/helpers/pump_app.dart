@@ -254,6 +254,8 @@ Future<TestApp> pumpTestApp(
     ProviderScope(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+        // 앱처럼(bootstrap) 실제 모드의 폰 DB를 하나로 둔다. 설치 표식·LMS 상태·데이터 삭제가 이 DB를 본다.
+        realDatabaseProvider.overrideWithValue(db),
         // 실제 databaseProvider처럼 앱 모드를 보고 DB를 고르게 해, 데모 전환이 provider 사이
         // 의존 관계까지 그대로 돌게 한다. 파일 대신 모드마다 메모리 DB를 쓴다.
         databaseProvider.overrideWith((ref) {
