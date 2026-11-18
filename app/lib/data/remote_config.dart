@@ -26,8 +26,8 @@ abstract final class RemoteConfigKeys {
   /// 않고 06 AI 비서를 직접 추가 폼으로 연다(docs/architecture.md '환경 변수').
   static const aiOpen = 'ai_open';
 
-  /// 서버 신호 푸시(FCM 토픽 구독)를 쓰는 스위치. 처리방침에 FCM을 적고 시행일이 된 뒤 켠다. 꺼져 있으면 앱은 FCM
-  /// 토큰을 만들지 않고 토픽을 구독하지 않는다(docs/architecture.md '환경 변수').
+  /// 서버 신호 푸시(FCM 토픽 구독)를 쓰는 스위치. 켜는 때는 관리자가 콘솔에서 정한다(2026-11-18에 켬). 꺼져 있으면
+  /// 앱은 FCM 토큰을 만들지 않고 토픽을 구독하지 않는다(docs/architecture.md '환경 변수').
   static const pushSignalEnabled = 'push_signal_enabled';
 }
 

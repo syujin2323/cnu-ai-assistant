@@ -62,8 +62,8 @@ bool syncSignalWanted({
   required LmsSessionState state,
 }) => enabled && mode == AppMode.real && !state.beforeLogin;
 
-/// 서버 신호를 쓸지(Remote Config `push_signal_enabled`, 기본 false). 처리방침에 FCM을 적고 시행일이 된 뒤 관리자가
-/// 켠다. 앱을 켤 때 Remote Config 받기가 끝난 뒤(실패·시간 초과 포함)의 값 하나만 쓰고, 그 전에는 값이 없다(구독을
+/// 서버 신호를 쓸지(Remote Config `push_signal_enabled`, 기본 false). 켜는 때는 관리자가 콘솔에서 정한다
+/// (2026-11-18에 켬). 앱을 켤 때 Remote Config 받기가 끝난 뒤(실패·시간 초과 포함)의 값 하나만 쓰고, 그 전에는 값이 없다(구독을
 /// 바꾸지 않고 개인정보 처리 안내 시트에도 줄을 넣지 않음. 두 곳이 늘 같은 값을 봄). 실행 중에 바뀐 값은 다음 실행부터
 /// 따른다. 읽지 못하면 꺼진 것으로 본다. 테스트는 덮어쓴다.
 final pushSignalEnabledProvider = FutureProvider<bool>((ref) async {

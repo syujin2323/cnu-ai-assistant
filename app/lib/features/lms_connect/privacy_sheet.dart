@@ -5,7 +5,7 @@
 // 그 기능이 들어가는 빌드부터 넣는다. '처리방침 전체 보기'는 처리방침 전문을 외부 브라우저가 아니라 앱 안의 덮개
 // 화면으로 연다(`design/widgets/legal_document.dart`). '확인했어요'를 누르면 시트는 true를 돌려주고 폼이 동의를
 // 체크한다(폼의 동의 칸은 이 시트를 열지 않아도 바로 체크된다). 서버 신호 푸시(FCM) 줄은 원격 스위치
-// `push_signal_enabled`가 켜졌을 때만 넣는다(그때부터 그 처리를 함. 처리방침 시행일에 켬, `platform/push.dart`).
+// `push_signal_enabled`가 켜졌을 때만 넣는다(그때부터 그 처리를 함, `platform/push.dart`).
 
 import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';

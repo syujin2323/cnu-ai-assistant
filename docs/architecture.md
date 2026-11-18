@@ -557,7 +557,7 @@ AI 경로(`/v1/parse`, `/v1/extract`(스토어 공개 뒤))는 `settings`의 `ai
 | `lms_sync_budget` | Remote Config | 조회 간격, 하루 최대 횟수, 조회하지 않는 시간 |
 | `min_app_version` | Remote Config | 최소 지원 앱 버전 `X.Y.Z` (첫 테스터 빌드부터) |
 | `ai_open` | Remote Config | AI 경로를 사용자에게 여는 스위치(기본 false). 평가 기준을 통과한 뒤 켭니다. false면 앱은 `/v1/parse`를 부르지 않고 06 AI 비서를 직접 추가 폼으로 엽니다 |
-| `push_signal_enabled` | Remote Config | 서버 신호 푸시(FCM 토픽 구독)를 쓰는 스위치(기본 false). 처리방침에 FCM을 적고 시행일이 된 뒤 켭니다. false면 앱은 FCM 토큰을 만들지 않고 토픽을 구독하지 않습니다(구독했으면 풂). 앱을 켤 때 Remote Config를 받은 뒤의 값을 쓰고(그 전에는 구독을 바꾸지 않고 시트 줄도 보이지 않음), 실행 중에 바꾼 값은 다음 실행부터 따릅니다 |
+| `push_signal_enabled` | Remote Config | 서버 신호 푸시(FCM 토픽 구독)를 쓰는 스위치(기본 false). 켜는 때는 관리자가 정합니다(2026-11-18에 켬). false면 앱은 FCM 토큰을 만들지 않고 토픽을 구독하지 않습니다(구독했으면 풂). 앱을 켤 때 Remote Config를 받은 뒤의 값을 쓰고(그 전에는 구독을 바꾸지 않고 시트 줄도 보이지 않음), 실행 중에 바꾼 값은 다음 실행부터 따릅니다 |
 
 - Functions 설정값과 비밀값은 `functions/src/params.ts`에서 `firebase-functions/params`의 `defineInt`·`defineString`(기본값 포함, 예: `defineInt("AI_DAILY_LIMIT_PER_INSTALL", { default: 30 })`)과 `defineSecret("LLM_API_KEY")`로 선언하고 `process.env`와 제거된 `functions.config()`는 쓰지 않습니다. 비밀값은 쓰는 함수의 `secrets` 옵션에 묶고 `firebase functions:secrets:set <이름>`으로 Secret Manager에 넣습니다. 모든 값은 핸들러 안에서 `.value()`로 읽고 모듈 최상위에서는 읽지 않습니다(배포가 실패합니다). 설정값의 원본은 코드의 기본값이고 바꿀 때는 기본값을 고치는 PR로 합니다. 다른 값을 잠깐 쓸 때만 `functions/.env`(커밋하지 않음)에 적고, 이름과 기본값은 `functions/.env.example`에 적습니다.
 - 로컬 에뮬레이터용 비밀값은 `functions/.secret.local`의 `이름=값` 줄로 두고 커밋하지 않습니다.

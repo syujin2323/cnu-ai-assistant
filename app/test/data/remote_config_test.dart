@@ -25,7 +25,7 @@ void main() {
     expect(remoteConfigDefaults['min_app_version'], '0.0.0');
     // 평가 기준을 통과하기 전에는 AI 경로를 열지 않는다.
     expect(remoteConfigDefaults['ai_open'], isFalse);
-    // 처리방침 시행일 전에는 서버 신호 푸시(FCM)를 쓰지 않는다.
+    // 콘솔에서 켜기 전에는(설정을 받지 못했을 때도) 서버 신호 푸시(FCM)를 쓰지 않는다.
     expect(remoteConfigDefaults['push_signal_enabled'], isFalse);
     const documented = {
       'listMinIntervalMin': 10,
