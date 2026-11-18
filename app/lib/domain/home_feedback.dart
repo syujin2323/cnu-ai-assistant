@@ -97,10 +97,10 @@ HomeFeedback homeFeedback({
   required List<TimeSpan> free,
   HomeAnswer? answer,
 }) {
+  // 제안 블록은 아래 상태 조건(확정·완료·놓침)에 들지 않으므로 따로 거르지 않는다.
   final today = [
     for (final item in blocks)
-      if (item.entry != null && item.block.status != PlanBlockStatus.suggested)
-        item,
+      if (item.entry != null) item,
   ];
   final confirmed = [
     for (final item in today)

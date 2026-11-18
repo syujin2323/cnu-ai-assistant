@@ -308,12 +308,23 @@ void main() {
     expect(placed.source, BlockSource.manual);
   });
 
-  test('오늘 자리가 없으면 내일 자리를 찾고, 다시 놓으면 내일이라고 알린다', () async {
+  test('오늘 자리가 없으면 내일의 일정을 보고 내일 자리를 찾고, 다시 놓으면 내일이라고 알린다', () async {
     final app = await _start(now: at(mon, 17, 30));
+    await app.db
+        .into(app.db.events)
+        .insert(
+          EventsCompanion.insert(
+            title: '면담',
+            startAt: at(tue, 9),
+            endAt: at(tue, 10),
+            allDay: false,
+            source: EventSource.manual,
+          ),
+        );
     await app.answers.answer(await app.block(app.doneBlockId), did: false);
-    expect(app.answer?.answer.slot, TimeSpan(at(tue, 9), at(tue, 10)));
+    expect(app.answer?.answer.slot, TimeSpan(at(tue, 10), at(tue, 11)));
     await app.answers.retry();
-    expect(app.toast?.text, '과제 1을 내일 09:00에 다시 놓았어요');
+    expect(app.toast?.text, '과제 1을 내일 10:00에 다시 놓았어요');
   });
 
   test('오늘은 괜찮아요와 확인은 답을 거두고, 오늘은 괜찮아요만 알린다', () async {

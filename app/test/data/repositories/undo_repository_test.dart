@@ -329,6 +329,7 @@ void main() {
       await change(at: at);
       for (final other in [
         UndoMark('rules', at.add(const Duration(milliseconds: 1))),
+        UndoMark('rules', at.subtract(const Duration(milliseconds: 1))),
         UndoMark('plan_blocks', at),
       ]) {
         expect(_ok(await undo.undoLast(now: at, only: other)), isFalse);
