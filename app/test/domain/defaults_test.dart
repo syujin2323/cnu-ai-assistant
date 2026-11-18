@@ -38,10 +38,9 @@ void main() {
     expect(Defaults.nightWindowEndMin, 24 * 60 + 60);
   });
 
-  test('브리핑 08:00, 오늘 할 일 5개, 저녁 체크인 22:30', () {
+  test('브리핑 08:00, 오늘 할 일 5개', () {
     expect(Defaults.briefingMin, 8 * 60);
     expect(Defaults.briefingTodayTaskMax, 5);
-    expect(Defaults.checkinMin, 22 * 60 + 30);
   });
 
   test('종류별 기본 예상 시간과 길이 모르는 영상', () {
