@@ -1,11 +1,13 @@
 // 수업 칸 저장소(`class_slots` 표). docs/architecture.md '폰 DB'.
 //
-// 13 시간표·고정 일정의 수업 시트와 14 온보딩 2단계가 쓴다. 읽기는 출처와 관계없이 모든 수업을 과목과 함께
-// 주고, 시간표 새로 고침의 비교도 이 목록을 읽는다. 넣기는 직접 넣은 수업(`source` `manual`)만이다.
+// 13 시간표·고정 일정의 수업 시트와 14 온보딩 2단계가 쓴다. 읽기는 출처와 관계없이 숨기지 않은 모든 수업을 과목과
+// 함께 준다. 넣기는 직접 넣은 수업(`source` `manual`)만이다.
 // 통합정보시스템에서 불러온 수업(`auto`)을 넣는 일과 새로 고침의 비교·반영은 LMS의 시간표 불러오기가 한다.
 // 사용자가 불러온 수업을 고치면 출처와 불러온 원래 값(`imported*`)은 그대로 두고, 장소나 실시간 온라인을
 // 바꿨으면 그 표시(`placeEdited`·`onlineEdited`)를 켠다. 새로 고침이 고친 값을 덮어쓰지 않게 하려는
-// 것이다(docs/lms.md '시간표 (통합정보시스템)'). 수업 시트의 [직접 입력] 과목은 같은 트랜잭션에서
+// 것이다(docs/lms.md '시간표 (통합정보시스템)'). 수업을 빼면 직접 넣은 수업은 행을 지우고, 불러온 수업은 행을 남겨
+// 숨긴다(`hidden`. 새로 고침이 학교 시간표의 그 수업을 다시 넣지 않게. 시간표 새로 고침의 비교는 숨긴 수업까지
+// `LmsSyncRepository.importedSlots`로 읽는다). 수업 시트의 [직접 입력] 과목은 같은 트랜잭션에서
 // `remoteId` 없이 만들고(되돌리면 함께 지움), 고를 수 있는 과목 가운데 이름이 같은 것이 있으면 그 과목을
 // 쓴다. 쓰기 전에 `domain/timetable_checks.dart`의 [checkClassSlot]으로 보고, 걸리면 [ArgumentError]다
 // (화면이 먼저 같은 검사로 이유를 보인다). 한 동작의 쓰기와 되돌리기 기록은 한 트랜잭션이다. 폰 DB를
@@ -50,8 +52,8 @@ class ClassSlotRepository {
 
   static const _table = 'class_slots';
 
-  /// 모든 수업을 과목과 함께 지금 읽고, 수업이나 과목이 바뀔 때마다 다시 읽는다. 요일·시작 시각 순서이고
-  /// 같으면 id 순서다.
+  /// 숨기지 않은 모든 수업을 과목과 함께 지금 읽고, 수업이나 과목이 바뀔 때마다 다시 읽는다. 요일·시작 시각
+  /// 순서이고 같으면 id 순서다.
   Stream<List<ClassSlotEntry>> watch() => _query().watch().map(_entries);
 
   /// [watch]와 같은 목록을 한 번 읽는다.
@@ -68,7 +70,6 @@ class ClassSlotRepository {
     required int startMin,
     required int endMin,
     String? place,
-    required Campus campus,
     required bool online,
     required DateTime now,
   }) {
@@ -87,7 +88,6 @@ class ClassSlotRepository {
                 startMin: startMin,
                 endMin: endMin,
                 place: Value(place),
-                campus: campus,
                 online: online,
                 source: SlotSource.manual,
               ),
@@ -99,9 +99,9 @@ class ClassSlotRepository {
     );
   }
 
-  /// 수업 [id]의 과목·요일·시각·장소·캠퍼스·실시간 온라인을 모두 바꾼다(되돌리면 이전 값). 출처와 불러온
-  /// 원래 값은 바꾸지 않고, 불러온 수업이면 장소·실시간 온라인을 바꿨을 때 그 표시를 켠다(끄지는 않음).
-  /// 수업이 없으면 false다. [course]가 빈 이름이거나 [checkClassSlot]에 걸리면 [ArgumentError]다.
+  /// 수업 [id]의 과목·요일·시각·장소·실시간 온라인을 모두 바꾼다(되돌리면 이전 값). 출처와 불러온 원래 값은
+  /// 바꾸지 않고, 불러온 수업이면 장소·실시간 온라인을 바꿨을 때 그 표시를 켠다(끄지는 않음). 수업이 없거나
+  /// 숨긴 수업이면 false다. [course]가 빈 이름이거나 [checkClassSlot]에 걸리면 [ArgumentError]다.
   Future<Result<bool>> update(
     int id, {
     required CourseChoice course,
@@ -109,7 +109,6 @@ class ClassSlotRepository {
     required int startMin,
     required int endMin,
     String? place,
-    required Campus campus,
     required bool online,
     required DateTime now,
   }) {
@@ -120,7 +119,7 @@ class ClassSlotRepository {
         final current = await (_db.select(
           _db.classSlots,
         )..where((t) => t.id.equals(id))).getSingleOrNull();
-        if (current == null) return false;
+        if (current == null || current.hidden) return false;
         final undo = UndoRecorder(_db);
         final courseId = await _courseId(course, undo);
         await undo.before(_table, id);
@@ -132,7 +131,6 @@ class ClassSlotRepository {
             startMin: Value(startMin),
             endMin: Value(endMin),
             place: Value(place),
-            campus: Value(campus),
             online: Value(online),
             placeEdited: imported && place != current.place
                 ? const Value(true)
@@ -148,12 +146,17 @@ class ClassSlotRepository {
     );
   }
 
-  /// 수업 [id]와 그 수업의 수업 예외를 지운다(되돌리면 함께 되살린다. 외래 키 때문에 예외부터 지운다).
-  /// 과목은 지우지 않는다. 수업이 없으면 false다.
+  /// 수업 [id]를 시간표에서 뺀다. 직접 넣은 수업은 행을 지우고, 불러온 수업(`source` `auto`)은 행을 남겨 숨긴다
+  /// ([ClassSlot.hidden]. docs/decisions.md 2026-11-19 '뺀 불러온 수업은 숨겨 두고 새로 고침이 다시 넣지 않는다').
+  /// 어느 쪽이든 그 수업의 수업 예외는 지우고(외래 키 때문에 예외부터), 되돌리면 함께 되살린다. 과목은 지우지
+  /// 않는다. 수업이 없거나 이미 숨긴 수업이면 false다.
   Future<Result<bool>> delete(int id, {required DateTime now}) => guardStorage(
     'class_slots.delete',
     () => _db.transaction(() async {
-      if (!await _exists(id)) return false;
+      final current = await (_db.select(
+        _db.classSlots,
+      )..where((t) => t.id.equals(id))).getSingleOrNull();
+      if (current == null || current.hidden) return false;
       final undo = UndoRecorder(_db);
       final exceptions = _db.classExceptions;
       final exceptionIds =
@@ -170,7 +173,13 @@ class ClassSlotRepository {
         exceptions,
       )..where((t) => t.classSlotId.equals(id))).go();
       await undo.before(_table, id);
-      await (_db.delete(_db.classSlots)..where((t) => t.id.equals(id))).go();
+      if (current.source == SlotSource.auto) {
+        await (_db.update(_db.classSlots)..where((t) => t.id.equals(id))).write(
+          const ClassSlotsCompanion(hidden: Value(true)),
+        );
+      } else {
+        await (_db.delete(_db.classSlots)..where((t) => t.id.equals(id))).go();
+      }
       await undo.write(table: _table, action: UndoAction.delete, now: now);
       return true;
     }),
@@ -178,15 +187,17 @@ class ClassSlotRepository {
 
   JoinedSelectStatement<HasResultSet, dynamic> _query() =>
       _db.select(_db.classSlots).join([
-        innerJoin(
-          _db.courses,
-          _db.courses.id.equalsExp(_db.classSlots.courseId),
-        ),
-      ])..orderBy([
-        OrderingTerm(expression: _db.classSlots.weekday),
-        OrderingTerm(expression: _db.classSlots.startMin),
-        OrderingTerm(expression: _db.classSlots.id),
-      ]);
+          innerJoin(
+            _db.courses,
+            _db.courses.id.equalsExp(_db.classSlots.courseId),
+          ),
+        ])
+        ..where(_db.classSlots.hidden.equals(false))
+        ..orderBy([
+          OrderingTerm(expression: _db.classSlots.weekday),
+          OrderingTerm(expression: _db.classSlots.startMin),
+          OrderingTerm(expression: _db.classSlots.id),
+        ]);
 
   List<ClassSlotEntry> _entries(List<TypedResult> rows) => [
     for (final row in rows)
@@ -216,13 +227,6 @@ class ClassSlotRepository {
         return id;
     }
   }
-
-  Future<bool> _exists(int id) async =>
-      await (_db.selectOnly(_db.classSlots)
-            ..addColumns([_db.classSlots.id])
-            ..where(_db.classSlots.id.equals(id)))
-          .getSingleOrNull() !=
-      null;
 
   static void _check(
     CourseChoice course,

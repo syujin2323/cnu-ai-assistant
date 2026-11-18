@@ -72,7 +72,6 @@ void main() {
               weekday: 1,
               startMin: 540,
               endMin: 600,
-              campus: Campus.daedeok,
               online: false,
               source: source,
             ),
