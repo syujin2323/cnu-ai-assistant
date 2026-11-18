@@ -33,6 +33,7 @@ import 'package:cnu_ai_assistant/features/calendar/month_screen.dart';
 import 'package:cnu_ai_assistant/features/calendar/week_screen.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/relogin_screen.dart';
 import 'package:cnu_ai_assistant/features/me/me_screen.dart';
+import 'package:cnu_ai_assistant/features/me/widgets/me_rows.dart';
 import 'package:cnu_ai_assistant/features/me/rules_screen.dart';
 import 'package:cnu_ai_assistant/features/me/timetable_screen.dart';
 import 'package:cnu_ai_assistant/features/onboarding/onboarding_controller.dart';
@@ -741,7 +742,8 @@ void main() {
         // (10 나의 항목, 열리는 화면, 경로)
         final rows = <(String, Type, String)>[
           (AppStrings.myRules, RulesScreen, Routes.meRules),
-          (AppStrings.timetableAndFixed, TimetableScreen, Routes.meTimetable),
+          ('시간표', TimetableScreen, Routes.meTimetable),
+          ('고정 일정', TimetableScreen, Routes.meTimetable),
         ];
         for (final (item, screen, path) in rows) {
           await tapText(tester, item);
@@ -1412,10 +1414,8 @@ void main() {
         await tapTab(tester, '나');
         await scrollTo(tester, find.text('데모 모드 끝내기'));
         expect(
-          tester
-              .widget<ListTile>(find.widgetWithText(ListTile, '데모 모드 끝내기'))
-              .enabled,
-          isFalse,
+          tester.widget<MeRow>(find.widgetWithText(MeRow, '데모 모드 끝내기')).onTap,
+          isNull,
         );
         // 끝내는 중에 다시 불러도 끝내기를 또 부르지 않는다(기다리지 않고 바로 센다).
         final again = app.container.read(demoExitProvider.notifier).exit();
