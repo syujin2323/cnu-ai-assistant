@@ -109,6 +109,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(app.router.state.uri.path, Routes.today);
       expect(find.byType(UpdateRequiredScreen), findsNothing);
+
+      await app.dispose(tester);
     });
 
     testWidgets('업데이트가 필요 없으면 /update로 가도 시작 위치로 보낸다', (tester) async {
@@ -118,6 +120,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(app.router.state.uri.path, Routes.today);
+
+      await app.dispose(tester);
     });
   });
 }
