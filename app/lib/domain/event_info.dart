@@ -40,6 +40,7 @@ final class EventInfoContent {
     this.change,
     this.changeLabel,
     this.lockText,
+    this.canEditBySpeech = false,
   });
 
   final EventInfoKind kind;
@@ -69,6 +70,10 @@ final class EventInfoContent {
 
   /// 수업 하루를 바꿀 수 있는지.
   bool get canChange => changeLabel != null;
+
+  /// 일정을 [말로 바꾸기]로 06 AI 비서에서 바꿀 수 있는지. 06은 오늘부터의 일정만 바꾸기 대상으로 찾으므로 지난
+  /// 날의 일정(논리적 하루로 셈, 종일 일정은 끝날로 셈)은 false다. 수업·고정 일정도 false다.
+  final bool canEditBySpeech;
 }
 
 /// [item]의 시트 내용. 수업·일정·고정 일정만 받는다(그 밖은 [ArgumentError]). 하루 시간표에 없는 종일 일정은
@@ -156,6 +161,7 @@ EventInfoContent eventInfoContent(
           dayBoundaryMin: dayBoundaryMin,
         ),
         date: first,
+        canEditBySpeech: !last.isBefore(today),
       );
     case EventItem(:final event):
       return EventInfoContent(
@@ -165,6 +171,7 @@ EventInfoContent eventInfoContent(
         time: timeLine(event.place),
         dayWord: word,
         date: day,
+        canEditBySpeech: !day.isBefore(today),
       );
     case FixedItem(:final block):
       return EventInfoContent(

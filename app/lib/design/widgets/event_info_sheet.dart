@@ -5,7 +5,7 @@
 // 동작(저장, 되돌리기 토스트, 화면 이동)은 부르는 쪽이 한다(`features/today/event_info_actions.dart`).
 // - 수업: '{날짜 말} 수업만 바꾸기' 칩 [휴강][시험][장소 변경]. 지금 바뀐 칩을 다시 누르면 원래대로다. 장소 변경은 바뀐
 //   장소를 받는 칸과 [저장]을 연다. 그날만 바뀐다고 알린다. 바꿀 수 없는 수업은 안내만 둔다.
-// - 일정: [말로 바꾸기](06 AI 비서), [지우기].
+// - 일정: [말로 바꾸기](06 AI 비서. 지난 일정은 06이 찾지 못하므로 숨김), [지우기].
 // - 고정 일정: 매주 반복한다는 안내와 [시간표·고정 일정에서 바꾸기].
 
 import 'package:cnu_ai_assistant/design/icons.dart';
@@ -198,13 +198,15 @@ class _EventInfoSheetState extends State<EventInfoSheet> {
             const SizedBox(height: AppSpace.s20),
             Row(
               children: [
-                Expanded(
-                  child: FilledButton.tonal(
-                    onPressed: () => _done(const EditEventBySpeech()),
-                    child: const Text('말로 바꾸기'),
+                if (content.canEditBySpeech) ...[
+                  Expanded(
+                    child: FilledButton.tonal(
+                      onPressed: () => _done(const EditEventBySpeech()),
+                      child: const Text('말로 바꾸기'),
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpace.s8),
+                  const SizedBox(width: AppSpace.s8),
+                ],
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () => _done(const DeleteEvent()),
