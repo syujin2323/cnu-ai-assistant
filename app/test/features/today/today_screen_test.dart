@@ -286,6 +286,8 @@ void main() {
         await tapText(tester, '계획');
         expect(find.byType(BriefingScreen), findsOneWidget);
         expect(app.router.state.uri.path, Routes.briefing);
+        // push로 열어 02 홈이 아래에 남는다(go로 열면 하단 탭 셸이 내려감).
+        expect(find.byType(TodayScreen, skipOffstage: false), findsOneWidget);
 
         await tester.tap(find.byTooltip('계획 닫기'));
         await tester.pumpAndSettle();
