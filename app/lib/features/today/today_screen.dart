@@ -19,6 +19,7 @@ import 'package:cnu_ai_assistant/domain/home_feedback.dart';
 import 'package:cnu_ai_assistant/domain/lms_status.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/lms_actions.dart';
+import 'package:cnu_ai_assistant/features/today/block_actions.dart';
 import 'package:cnu_ai_assistant/features/today/today_controller.dart';
 import 'package:cnu_ai_assistant/features/today/widgets/feedback_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -209,6 +210,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 now: home.now,
                 dayBoundaryMin: home.dayBoundaryMin,
                 courseNames: home.courseNames,
+                onBlockTap: (item) => openBlockSheet(context, ref, item.block),
                 onBlockCheck: answers.toggleBlock,
               ),
             ],

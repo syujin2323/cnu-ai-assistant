@@ -37,6 +37,7 @@ import 'package:cnu_ai_assistant/features/briefing/widgets/briefing_day.dart';
 import 'package:cnu_ai_assistant/features/briefing/widgets/briefing_rows.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/lms_actions.dart';
 import 'package:cnu_ai_assistant/features/tasks/task_list_screen.dart';
+import 'package:cnu_ai_assistant/features/today/block_actions.dart';
 import 'package:cnu_ai_assistant/features/today/today_controller.dart';
 import 'package:cnu_ai_assistant/lms/sync_coordinator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -632,7 +633,7 @@ class _TodayTasks extends ConsumerWidget {
           BriefingList(
             children: [
               for (final task in rows)
-                _taskRow(context, task, controller, same),
+                _taskRow(context, ref, task, controller, same),
             ],
           ),
         ] else
@@ -662,6 +663,7 @@ class _TodayTasks extends ConsumerWidget {
 
   Widget _taskRow(
     BuildContext context,
+    WidgetRef ref,
     BriefingTask task,
     BriefingSelectionController controller,
     bool same,
@@ -698,7 +700,7 @@ class _TodayTasks extends ConsumerWidget {
     }
     final on = locked || pick != null;
     final action = locked
-        ? ''
+        ? (block == null ? '' : ', 근거 보기')
         : (pick != null ? ', 오늘 일정에서 빼기' : ', 오늘 일정에 넣기');
     return BriefingTaskRow(
       title: entry.title,
@@ -712,7 +714,10 @@ class _TodayTasks extends ConsumerWidget {
       timeMuted: timeMuted,
       tag: tag,
       tagColor: tagColor,
-      onTap: locked ? null : () => controller.toggleTask(task),
+      // 잠긴 줄(오늘 이미 확정·완료한 블록)은 근거 시트를 연다(docs/screens.md '근거 시트').
+      onTap: locked
+          ? (block == null ? null : () => openBlockSheet(context, ref, block))
+          : () => controller.toggleTask(task),
       semanticsLabel:
           '${entry.title}'
           '${time == null ? '' : ', ${on ? '오늘' : '추천 시간'} $time'}'

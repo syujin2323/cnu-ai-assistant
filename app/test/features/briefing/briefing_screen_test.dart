@@ -458,6 +458,35 @@ void main() {
         }
       });
 
+      testWidgets('오늘 이미 확정한 잠긴 줄을 누르면 근거 시트를 연다', (tester) async {
+        final (app, ids) = await pumpBriefing(tester, textScale: textScale);
+        // 직접 놓은 오늘 16:00–17:00 '과제 D'는 브리핑이 바꾸지 않는 잠긴 줄이다.
+        await app.db
+            .into(app.db.planBlocks)
+            .insert(
+              PlanBlocksCompanion.insert(
+                taskId: ids.d,
+                startAt: at(mon, 16),
+                endAt: at(mon, 17),
+                status: PlanBlockStatus.confirmed,
+                source: BlockSource.manual,
+              ),
+            );
+        await tester.pumpAndSettle();
+
+        final locked = find.descendant(
+          of: find.byType(BriefingTaskRow),
+          matching: find.text('직접 놓음'),
+        );
+        await scrollTo(tester, locked);
+        await tester.tap(locked);
+        await tester.pumpAndSettle();
+        expect(find.text('직접 정한 시간이에요'), findsOneWidget);
+        expect(find.textContaining('오늘 16:00–17:00'), findsWidgets);
+
+        await app.dispose(tester);
+      });
+
       testWidgets('말로 추가 칸에 쓰고 보내면 06 AI 비서를 연다', (tester) async {
         final (app, _) = await pumpBriefing(tester, textScale: textScale);
 

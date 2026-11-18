@@ -155,13 +155,14 @@ class PlanBlockRepository {
     }),
   );
 
-  /// 블록을 완료로 바꾸고 그 길이를 할 일의 한 만큼에 더한다(블록 체크). 확정·놓침 블록만 완료하고,
-  /// 다른 상태이거나 없으면 false다.
+  /// 블록을 완료로 바꾸고 그 길이를 할 일의 한 만큼에 더한다(블록 체크, 근거 시트 [완료]). 제안·확정·놓침
+  /// 블록만 완료하고(제안은 근거를 둔 채 완료가 됨), 다른 상태이거나 없으면 false다.
   Future<Result<bool>> complete(int id, {required DateTime now}) =>
       guardStorage(
         'plan_blocks.complete',
         () => _db.transaction(() async {
           final block = await _storedWithStatus(id, const {
+            PlanBlockStatus.suggested,
             PlanBlockStatus.confirmed,
             PlanBlockStatus.missed,
           });

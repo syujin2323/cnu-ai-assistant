@@ -301,6 +301,27 @@ void main() {
       expect(_ok(await repository.complete(id, now: now)), isFalse);
     });
 
+    test('제안 블록도 근거 시트에서 바로 완료하고, 지운 블록은 완료하지 않는다', () async {
+      final taskId = await addTask();
+      final suggested = await addBlock(
+        taskId,
+        now.subtract(const Duration(hours: 1)),
+        minutes: 30,
+        status: PlanBlockStatus.suggested,
+      );
+      expect(_ok(await repository.complete(suggested, now: now)), isTrue);
+      expect((await block(suggested))!.status, PlanBlockStatus.done);
+      expect((await task(taskId)).spentMin, 30);
+
+      final dismissed = await addBlock(
+        taskId,
+        now.add(const Duration(hours: 1)),
+        minutes: 30,
+        status: PlanBlockStatus.dismissed,
+      );
+      expect(_ok(await repository.complete(dismissed, now: now)), isFalse);
+    });
+
     test('완료를 끄면 확정으로 돌리고 한 만큼에서 빼되 0 아래로 내리지 않는다', () async {
       final taskId = await addTask(spentMin: 20);
       final id = await addBlock(
