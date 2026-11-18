@@ -54,7 +54,6 @@ ClassSlot slot(
   startMin: startMin,
   endMin: endMin,
   place: '공학관 $id',
-  campus: Campus.daedeok,
   online: false,
   source: SlotSource.auto,
 );

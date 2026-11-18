@@ -444,7 +444,6 @@ void main() {
                   weekday: DateTime.monday,
                   startMin: 960,
                   endMin: 1020,
-                  campus: Campus.daedeok,
                   online: false,
                   source: SlotSource.manual,
                 ),

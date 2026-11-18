@@ -22,7 +22,6 @@ ClassItem lesson(DateTime start, DateTime end, {bool cancelled = false}) =>
         weekday: 1,
         startMin: start.hour * 60 + start.minute,
         endMin: end.hour * 60 + end.minute,
-        campus: Campus.daedeok,
         online: false,
         source: SlotSource.auto,
       ),
