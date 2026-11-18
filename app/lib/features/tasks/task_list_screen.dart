@@ -7,7 +7,7 @@
 // - 끝내기: 동그라미를 누르면 체크하고 제목에 줄을 그은 뒤 줄을 접고, 1초 뒤 완료로 저장한다(프로토타입). 그다음
 //   영상이 아니면 '얼마나 걸렸어요?' 시트를 거쳐 되돌리기 토스트를 띄운다([afterTaskCompleted]). 탭·정렬을 바꾸거나
 //   화면이 사라지면 기다리던 저장을 바로 한다.
-// - 줄을 누르면 무엇을 보일지는 아직 정하지 않았다(docs/screens.md '03 할 일').
+// - 줄을 누르면 작은 할 일 시트를 연다([openTaskSheet], docs/screens.md '할 일 시트').
 // - LMS 상태 줄을 누르면 LMS 정보 시트, 다시 로그인이 필요하면 칩이 다시 로그인 화면을 연다.
 // 처음 열 탭은 `/tasks?tab=all`처럼 받는다(`Routes.tasksTab`). 01 계획의 '할 일 전체 보기'가 [TaskListTab.all]로
 // 연다. 화면에서 탭을 바꾸면 주소의 탭도 바꿔, 같은 탭으로 다시 열어도 그 탭이 열리게 한다. 문구는 디자인 전 임시
@@ -34,7 +34,6 @@ import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/lms_status.dart';
 import 'package:cnu_ai_assistant/domain/models/sync_run.dart';
-import 'package:cnu_ai_assistant/domain/models/task.dart';
 import 'package:cnu_ai_assistant/domain/models/task_entry.dart';
 import 'package:cnu_ai_assistant/domain/task_list.dart';
 import 'package:cnu_ai_assistant/domain/task_took.dart';
@@ -44,6 +43,7 @@ import 'package:cnu_ai_assistant/features/assistant/assistant_args.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/lms_actions.dart';
 import 'package:cnu_ai_assistant/features/tasks/task_actions.dart';
 import 'package:cnu_ai_assistant/features/tasks/task_list_controller.dart';
+import 'package:cnu_ai_assistant/features/tasks/widgets/task_kind_icon.dart';
 import 'package:cnu_ai_assistant/lms/sync_coordinator.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/lms_system_band_slot.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -352,6 +352,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
             checked:
                 _pending.containsKey(row.taskId) || _gone.contains(row.taskId),
             onCheck: () => _check(row),
+            onOpen: () => unawaited(openTaskSheet(context, ref, row.taskId)),
           ),
         ),
     ],
@@ -835,6 +836,7 @@ class _TaskRowTile extends StatelessWidget {
     required this.row,
     required this.checked,
     required this.onCheck,
+    required this.onOpen,
   });
 
   final TaskRow row;
@@ -842,6 +844,9 @@ class _TaskRowTile extends StatelessWidget {
   /// 체크했는지(저장을 기다리거나 접히는 중).
   final bool checked;
   final VoidCallback onCheck;
+
+  /// 줄을 눌렀을 때(작은 할 일 시트). 체크한 줄은 누를 수 없다.
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -882,79 +887,95 @@ class _TaskRowTile extends StatelessWidget {
     ];
     return Stack(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(6, 15, AppSpace.screen, 16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 9),
-                child: _DoneCheck(
-                  checked: checked,
-                  label:
-                      '${row.title} ${withJosa(taskDoneWord(task), Josa.euroRo)} 표시',
-                  onTap: onCheck,
+        InkWell(
+          onTap: checked ? null : onOpen,
+          child: Padding(
+            // 오른쪽은 화살표 자리를 비운다(최종 프로토타입).
+            padding: const EdgeInsets.fromLTRB(6, 15, AppSpace.screen + 22, 16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 9),
+                  child: _DoneCheck(
+                    checked: checked,
+                    label:
+                        '${row.title} ${withJosa(taskDoneWord(task), Josa.euroRo)} 표시',
+                    onTap: onCheck,
+                  ),
                 ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        AppIcon(
-                          _kindIcon(task.kind),
-                          size: 14,
-                          color: colors.icon,
-                        ),
-                        const SizedBox(width: 5),
-                        Flexible(
-                          child: Text(
-                            row.kicker,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppText.caption.copyWith(
-                              color: colors.muted,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          AppIcon(
+                            taskKindIcon(task.kind),
+                            size: 14,
+                            color: colors.icon,
+                          ),
+                          const SizedBox(width: 5),
+                          Flexible(
+                            child: Text(
+                              row.kicker,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppText.caption.copyWith(
+                                color: colors.muted,
+                              ),
                             ),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      AnimatedDefaultTextStyle(
+                        duration: MotionScope.of(context)
+                            .duration(const Duration(milliseconds: 300)),
+                        style: AppText.bodyLarge.copyWith(
+                          fontWeight: AppText.semibold,
+                          color: checked ? colors.muted : colors.ink,
+                          decoration: checked
+                              ? TextDecoration.lineThrough
+                              : TextDecoration.none,
+                          decorationColor: colors.faint,
+                          decorationThickness: 1.5,
                         ),
+                        child: Text(row.title),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        row.due,
+                        style: AppText.small.copyWith(
+                          color: row.dueUrgent && !checked
+                              ? colors.alert
+                              : colors.muted,
+                          fontWeight: row.dueUrgent && !checked
+                              ? AppText.semibold
+                              : AppText.regular,
+                        ),
+                      ),
+                      for (final line in lines) ...[
+                        const SizedBox(height: AppSpace.s8),
+                        line,
                       ],
-                    ),
-                    const SizedBox(height: 2),
-                    AnimatedDefaultTextStyle(
-                      duration: MotionScope.of(context)
-                          .duration(const Duration(milliseconds: 300)),
-                      style: AppText.bodyLarge.copyWith(
-                        fontWeight: AppText.semibold,
-                        color: checked ? colors.muted : colors.ink,
-                        decoration: checked
-                            ? TextDecoration.lineThrough
-                            : TextDecoration.none,
-                        decorationColor: colors.faint,
-                        decorationThickness: 1.5,
-                      ),
-                      child: Text(row.title),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      row.due,
-                      style: AppText.small.copyWith(
-                        color: row.dueUrgent && !checked
-                            ? colors.alert
-                            : colors.muted,
-                        fontWeight: row.dueUrgent && !checked
-                            ? AppText.semibold
-                            : AppText.regular,
-                      ),
-                    ),
-                    for (final line in lines) ...[
-                      const SizedBox(height: AppSpace.s8),
-                      line,
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
+          ),
+        ),
+        // 누르면 작은 할 일 시트가 열린다는 표시(최종 프로토타입).
+        Positioned(
+          right: 16,
+          top: 44,
+          child: IgnorePointer(
+            child: AppIcon(
+              AppIconName.chevronRight,
+              size: 16,
+              color: colors.faint,
+            ),
           ),
         ),
         // 줄 사이 선은 동그라미 오른쪽 아래부터 긋는다(최종 프로토타입).
@@ -968,17 +989,6 @@ class _TaskRowTile extends StatelessWidget {
     );
   }
 }
-
-/// 할 일 종류의 아이콘(최종 프로토타입).
-AppIconName _kindIcon(TaskKind kind) => switch (kind) {
-  TaskKind.assignment || TaskKind.material => AppIconName.doc,
-  TaskKind.video => AppIconName.video,
-  TaskKind.quiz => AppIconName.quiz,
-  TaskKind.team => AppIconName.team,
-  TaskKind.discussion => AppIconName.discussion,
-  TaskKind.exam => AppIconName.flag,
-  TaskKind.personal => AppIconName.person,
-};
 
 /// 덧줄 하나(12pt).
 class _Line extends StatelessWidget {

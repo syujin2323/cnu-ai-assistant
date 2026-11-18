@@ -4,6 +4,9 @@
 import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/motion/rise.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
+import 'package:cnu_ai_assistant/domain/text/josa.dart';
+import 'package:cnu_ai_assistant/domain/text/time_text.dart';
+import 'package:cnu_ai_assistant/features/assistant/assistant_context.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// 카드 틀: 머리말 줄(아이콘·머리말·오른쪽 꼬리표)과 내용. 처음 그릴 때 떠오른다.
@@ -112,12 +115,16 @@ class CardDetailRow extends StatelessWidget {
     required this.label,
     this.value,
     this.valueColor,
+    this.strike = false,
     this.child,
   }) : assert((value == null) != (child == null), '값이나 내용 하나만 준다');
 
   final String label;
   final String? value;
   final Color? valueColor;
+
+  /// 값에 취소선을 긋는다(휴강한 수업, 지운 일정).
+  final bool strike;
   final Widget? child;
 
   @override
@@ -153,6 +160,7 @@ class CardDetailRow extends StatelessWidget {
                 style: AppText.body.copyWith(
                   color: valueColor ?? colors.ink,
                   fontWeight: AppText.medium,
+                  decoration: strike ? TextDecoration.lineThrough : null,
                 ),
               ),
             ),
@@ -238,6 +246,119 @@ class CardOkLine extends StatelessWidget {
             child: Text(
               text,
               style: AppText.small.copyWith(color: colors.ink2),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 고를 것 한 줄(되묻기, 바꿀 일정 고르기). 동그라미와 이름, 아래 한 줄([sub]).
+class CardOptionRow extends StatelessWidget {
+  const CardOptionRow({
+    super.key,
+    required this.label,
+    this.sub,
+    required this.onTap,
+  });
+
+  final String label;
+  final String? sub;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    return Semantics(
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.input),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 52),
+          padding: const EdgeInsets.symmetric(vertical: AppSpace.s8),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: colors.edge)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: colors.icon, width: 1.5),
+                ),
+              ),
+              const SizedBox(width: AppSpace.s12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: AppText.body.copyWith(fontWeight: AppText.medium),
+                    ),
+                    if (sub case final sub?)
+                      Text(
+                        sub,
+                        style: AppText.caption.copyWith(color: colors.muted),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 겹침 줄: 겹치는 것이 없으면 확인 줄, 있으면 첫째와 그 밖의 수를 경고 상자로 알린다(막지 않음).
+class OverlapLine extends StatelessWidget {
+  const OverlapLine(this.overlaps, {super.key});
+
+  final List<EventOverlap> overlaps;
+
+  @override
+  Widget build(BuildContext context) {
+    if (overlaps.isEmpty) return const CardOkLine('겹치는 일정이 없어요');
+    final first = overlaps.first;
+    return CardNote(
+      icon: AppIconName.warning,
+      alert: true,
+      text:
+          '${withJosa(first.title, Josa.gwaWa)} '
+          '${durationText(first.minutes)} 겹쳐요',
+      sub:
+          '${overlapWhenText(first)}'
+          '${overlaps.length > 1 ? ' · 그 밖에 ${overlaps.length - 1}개' : ''}'
+          ' · 막지 않고 알려만 드려요',
+    );
+  }
+}
+
+/// 적용하지 않은 카드의 줄('바꾸지 않았어요', '그대로 뒀어요').
+class CardSkipped extends StatelessWidget {
+  const CardSkipped(this.text, {super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpace.s12),
+      child: Row(
+        children: [
+          AppIcon(AppIconName.close, size: 15, color: colors.muted),
+          const SizedBox(width: AppSpace.s4 + 2),
+          Expanded(
+            child: Text(
+              text,
+              style: AppText.small.copyWith(color: colors.muted),
             ),
           ),
         ],

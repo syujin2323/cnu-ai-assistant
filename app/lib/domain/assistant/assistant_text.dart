@@ -1,10 +1,11 @@
-// 06 AI 비서 카드의 문구와 예상 시간. docs/screens.md '06 AI 비서'(카드 1·2), docs/architecture.md '도메인 기본값과
-// 배치 엔진'(예상 시간의 순서).
+// 06 AI 비서 카드의 문구와 예상 시간. docs/screens.md '06 AI 비서'(카드 1·2·3·5), docs/architecture.md '도메인
+// 기본값과 배치 엔진'(예상 시간의 순서).
 //
 // 저장한 카드에 적는 '다시 계산한 제안'은 저장 직전과 직후의 배치 결과([PlanResult])를 견줘 만든다. 문구는
 // 디자인 전 임시 문구다(최종 프로토타입의 06 문구를 따름).
 
 import 'package:cnu_ai_assistant/domain/assistant/assistant_message.dart';
+import 'package:cnu_ai_assistant/domain/assistant/assistant_targets.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/models/task.dart';
@@ -118,6 +119,68 @@ String? estimateNote(EstimateSource source, TaskKind kind) => switch (source) {
     '처음이라 ${taskKindText(kind)} 기본값으로 잡았어요. 맞게 골라 주세요',
   EstimateSource.none => '예상 시간을 고르면 빈 시간에 놓아요',
 };
+
+/// 바꾸기·지우기 카드의 '지금': 일정은 '{M월 D일 (요)} HH:MM–HH:MM'(종일이면 '{날짜} · 종일'), 고정 일정은
+/// '{반복} HH:MM–HH:MM'.
+String targetWhenText(ChangeTarget target, {required DateTime today}) =>
+    switch (target) {
+      EventTarget(:final event) => _eventWhen(
+        event.startAt,
+        event.endAt,
+        allDay: event.allDay,
+        today: today,
+      ),
+      FixedTarget(:final block) =>
+        '${repeatText(block.weekdays)} '
+            '${timeRangeText(block.startMin, block.endMin)}',
+    };
+
+/// 바꾸기 카드의 '바꾼 뒤'([targetWhenText]와 같은 꼴).
+String afterWhenText(ChangeAfter after, {required DateTime today}) =>
+    switch (after) {
+      EventAfter(:final startAt, :final endAt, :final allDay) => _eventWhen(
+        startAt,
+        endAt,
+        allDay: allDay,
+        today: today,
+      ),
+      FixedAfter(:final weekdays, :final startMin, :final endMin) =>
+        '${repeatText(weekdays)} ${timeRangeText(startMin, endMin)}',
+    };
+
+String _eventWhen(
+  DateTime startAt,
+  DateTime endAt, {
+  required bool allDay,
+  required DateTime today,
+}) {
+  final date = monthDayText(
+    DateTime(startAt.year, startAt.month, startAt.day),
+    today: today,
+  );
+  if (allDay) return '$date · 종일';
+  final start = startAt.hour * 60 + startAt.minute;
+  final minutes = endAt.difference(startAt).inMinutes;
+  if (minutes <= 0) return '$date ${hhmmText(start)}';
+  // 하루를 넘는 일정은 하루 안의 끝까지만 적는다.
+  final length = minutes < 1440 ? minutes : 1439;
+  return '$date ${timeRangeText(start, start + length)}';
+}
+
+/// 수업 변경·일정 바꾸기·지우기 뒤 다시 계산한 제안. 직후([after])에 새로 놓인 제안이 있으면 '제안 N개를 다시
+/// 놓았어요', 없이 빠지기만 했으면 '제안 N개를 뺐어요'이고, 그대로거나 결과를 모르면 null이다.
+String? replanNote(PlanResult? before, PlanResult? after) {
+  if (before == null || after == null) return null;
+  Set<(int, DateTime, DateTime)> keys(PlanResult plan) => {
+    for (final block in plan.blocks) (block.taskId, block.startAt, block.endAt),
+  };
+  final old = keys(before);
+  final fresh = keys(after);
+  final placed = fresh.difference(old).length;
+  if (placed > 0) return '제안 $placed개를 다시 놓았어요';
+  final removed = old.difference(fresh).length;
+  return removed > 0 ? '제안 $removed개를 뺐어요' : null;
+}
 
 /// 일정을 넣은 뒤 다시 계산한 제안. 넣기 직전([before])에 있던 제안 가운데 직후([after])에 없는 것이 있으면
 /// '겹치던 제안 N개를 다른 빈 시간으로 옮겼어요'이고, 없거나 결과를 모르면 null이다.
