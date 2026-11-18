@@ -11,6 +11,7 @@ import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/guard_storage.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
+import 'package:cnu_ai_assistant/domain/models/plan_block.dart';
 import 'package:cnu_ai_assistant/domain/models/undo_log_entry.dart';
 import 'package:drift/drift.dart';
 
@@ -222,12 +223,13 @@ class UndoRepository {
     if (!ok) throw const FormatException('undo step columns');
   }
 
-  Future<void> _apply(UndoStep step) {
+  Future<void> _apply(UndoStep step) async {
     final table = _table(step.table);
     final name = '"${step.table}"';
     switch (step) {
       case UndoDelete(:final id):
-        return _db.customUpdate(
+        if (step.table == 'tasks') await _deleteGeneratedBlocks(id);
+        await _db.customUpdate(
           'DELETE FROM $name WHERE "id" = ?',
           variables: [Variable.withInt(id)],
           updates: {table},
@@ -239,7 +241,7 @@ class UndoRepository {
           for (final column in columns)
             if (column != 'id') '"$column" = excluded."$column"',
         ];
-        return _db.customUpdate(
+        await _db.customUpdate(
           'INSERT INTO $name (${columns.map((c) => '"$c"').join(', ')}) '
           'VALUES (${List.filled(columns.length, '?').join(', ')}) '
           'ON CONFLICT ("id") DO UPDATE SET ${updates.join(', ')}',
@@ -249,7 +251,7 @@ class UndoRepository {
         );
       case UndoPatch(:final id, :final values):
         final columns = values.keys.toList();
-        return _db.customUpdate(
+        await _db.customUpdate(
           'UPDATE $name SET ${columns.map((c) => '"$c" = ?').join(', ')} '
           'WHERE "id" = ?',
           variables: [
@@ -261,6 +263,23 @@ class UndoRepository {
         );
     }
   }
+
+  /// 넣은 할 일 [taskId]를 되돌려 지우기 전에, 그사이 재계산이 만든 그 할 일의 제안·지운 블록을 지운다.
+  ///
+  /// 할 일을 넣으면 재계산(`app/plan_controller.dart`, 300ms 뒤)이 그 할 일의 제안 블록을 만드는데, 재계산은
+  /// 되돌리기 기록을 남기지 않으므로 넣기의 기록이 그대로 마지막 동작이다. 블록의 외래 키는 기본 동작(NO
+  /// ACTION)이라 남은 블록이 있으면 할 일을 지울 수 없어 되돌리기가 실패한다. 확정·완료·놓친 블록은 사용자의
+  /// 동작이라 그 기록이 넣기의 기록을 덮어쓰므로 여기서는 지우지 않는다(남아 있으면 지우기가 실패한다).
+  Future<void> _deleteGeneratedBlocks(int taskId) => _db.customUpdate(
+    'DELETE FROM "plan_blocks" WHERE "task_id" = ? AND "status" IN (?, ?)',
+    variables: [
+      Variable.withInt(taskId),
+      Variable.withString(PlanBlockStatus.suggested.name),
+      Variable.withString(PlanBlockStatus.dismissed.name),
+    ],
+    updates: {_db.planBlocks},
+    updateKind: UpdateKind.delete,
+  );
 
   TableInfo<Table, Object?> _table(String name) =>
       _db.allTables.firstWhere((table) => table.actualTableName == name);

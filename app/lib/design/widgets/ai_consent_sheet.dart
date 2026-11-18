@@ -2,7 +2,8 @@
 //
 // AI가 꺼진 상태에서 AI를 켜려 할 때(10 나 › AI 사용. 06 AI 비서·12 '말로 정하기'·07 켜기도 같은 시트를 쓴다)
 // 공용 문구 [AiConsentBody]로 묻는다. 동의를 적는 것(`settings`의 `aiEnabled` true와 `aiConsentAt`)은 부르는
-// 쪽이 한다. '동의 문구 다시 보기'는 버튼 하나로 같은 문구를 보인다. 문구는 디자인 전 임시 문구다.
+// 쪽이 한다. '동의 문구 다시 보기'는 버튼 하나로 같은 문구를 보인다. 06 AI 비서는 먼저 쓴 문장을 '동의하면
+// 보낼 문장'으로 함께 보이고 동의하면 그 문장을 보낸다(screens.md 'AI 사용 동의'). 문구는 디자인 전 임시 문구다.
 
 import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
@@ -10,15 +11,18 @@ import 'package:cnu_ai_assistant/design/widgets/ai_consent_body.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_sheet.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// AI 사용 동의를 묻는다. [동의하고 켜기]면 true, [동의하지 않음]이나 닫으면 false다.
+/// AI 사용 동의를 묻는다. [동의하고 켜기]면 true, [동의하지 않음]이나 닫으면 false다. [pendingText]가 있으면
+/// '동의하면 보낼 문장'으로 보인다(06 AI 비서에서 AI가 꺼진 채 문장을 보냈을 때).
 Future<bool> showAiConsentSheet(
   BuildContext context,
-  MotionLevel motion,
-) async =>
+  MotionLevel motion, {
+  String? pendingText,
+}) async =>
     await showAppSheet<bool>(
       context: context,
       motion: motion,
-      builder: (context) => const _AiConsentSheet(ask: true),
+      builder: (context) =>
+          _AiConsentSheet(ask: true, pendingText: pendingText),
     ) ??
     false;
 
@@ -34,13 +38,20 @@ Future<void> showAiConsentReview(
 );
 
 class _AiConsentSheet extends StatelessWidget {
-  const _AiConsentSheet({required this.ask, this.consentedOn});
+  const _AiConsentSheet({
+    required this.ask,
+    this.consentedOn,
+    this.pendingText,
+  });
 
   /// 동의를 묻는지(아니면 다시 보기).
   final bool ask;
 
   /// 다시 보기에서 동의한 날('11월 18일').
   final String? consentedOn;
+
+  /// 동의하면 보낼 문장.
+  final String? pendingText;
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +78,33 @@ class _AiConsentSheet extends StatelessWidget {
           if (lead != null) ...[
             const SizedBox(height: AppSpace.s4),
             Text(lead, style: AppText.small.copyWith(color: colors.muted)),
+          ],
+          if (pendingText case final text?) ...[
+            const SizedBox(height: AppSpace.s16),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpace.s16,
+                vertical: AppSpace.s12,
+              ),
+              decoration: BoxDecoration(
+                color: colors.tint,
+                borderRadius: BorderRadius.circular(AppRadius.notice),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '동의하면 보낼 문장',
+                    style: AppText.caption.copyWith(
+                      color: colors.muted,
+                      fontWeight: AppText.semibold,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.s4),
+                  Text(text, style: AppText.body.copyWith(color: colors.ink)),
+                ],
+              ),
+            ),
           ],
           const AiConsentBody(),
           const SizedBox(height: AppSpace.s24),
