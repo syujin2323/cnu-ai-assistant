@@ -137,6 +137,33 @@ class TaskRepository {
     }),
   );
 
+  /// 할 일의 예상 시간(분)을 바꾼다(작은 할 일 시트의 예상 시간 칩). 다음 재계산이 그 시간으로 다시 놓는다.
+  /// [minutes]가 0 이하면 [ArgumentError]다. 할 일이 없거나, 영상이거나(출석 인정 시간을 씀), 값이 같으면 false이고
+  /// 기록을 남기지 않는다.
+  Future<Result<bool>> setEstimate(
+    int id,
+    int minutes, {
+    required DateTime now,
+  }) {
+    if (minutes <= 0) throw ArgumentError.value(minutes, 'minutes');
+    return guardStorage(
+      'tasks.setEstimate',
+      () => _db.transaction(() async {
+        final task = await _byId(id);
+        if (task == null ||
+            task.kind == TaskKind.video ||
+            task.estimateMin == minutes) {
+          return false;
+        }
+        final undo = UndoRecorder(_db);
+        await undo.beforeColumns(_table, id, const {'estimate_min'});
+        await _write(id, TasksCompanion(estimateMin: Value(minutes)));
+        await undo.write(table: _table, action: UndoAction.update, now: now);
+        return true;
+      }),
+    );
+  }
+
   /// '얼마나 걸렸어요?'에 답한 걸린 시간(분)을 적는다. [minutes]가 0 이하면 [ArgumentError]다. 할 일이
   /// 없으면 false다.
   Future<Result<bool>> setActualMin(
