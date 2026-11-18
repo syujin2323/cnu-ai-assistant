@@ -30,10 +30,11 @@ class TaskRepository {
   static const _table = 'tasks';
 
   /// 숨기지 않은 할 일을 LMS 원본·과목과 함께 지금 읽고, 할 일·LMS 원본·과목이 바뀔 때마다 다시 읽는다.
-  /// 마감순(마감 없는 일은 맨 뒤)이고 같으면 id 순서다.
+  /// 마감순(마감 없는 일은 맨 뒤)이고 같으면 id 순서다. 바뀜을 알리는 쿼리 문장은 저장소마다 다르게 둔다
+  /// (`ScheduleRepository.watch`의 설명).
   Stream<List<TaskEntry>> watch() => _db
       .customSelect(
-        'SELECT 1',
+        'SELECT 1 AS task_tables',
         readsFrom: {_db.tasks, _db.lmsItems, _db.courses},
       )
       .watch()

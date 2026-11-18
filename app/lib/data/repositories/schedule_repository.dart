@@ -35,11 +35,14 @@ class ScheduleRepository {
 
   /// [read]와 같은 범위를 지금 읽고, 다섯 표(수업 칸·수업 예외·고정 일정·일정·블록) 가운데 하나가
   /// 바뀔 때마다 다시 읽는다. 화면이 쓴다. 읽은 결과는 바뀐 순서대로 온다.
+  ///
+  /// 바뀜을 알리는 쿼리 문장은 저장소마다 달라야 한다. drift는 문장과 값이 같은 스트림을 하나로 묶고(보는 표는
+  /// 가리지 않음) 먼저 만든 쪽의 표만 보므로, 다른 저장소와 같은 문장을 쓰면 그 표의 바뀜을 놓친다.
   Stream<Schedule> watch({required DateTime start, required DateTime end}) {
     _checkRange(start, end);
     return _db
         .customSelect(
-          'SELECT 1',
+          'SELECT 1 AS schedule_tables',
           readsFrom: {
             _db.classSlots,
             _db.classExceptions,
