@@ -124,6 +124,18 @@ String durationText(int minutes) {
   return rest == 0 ? '$hours시간' : '$hours시간 $rest분';
 }
 
+/// 남은 시간 '1일 15시간'·'3시간 20분'·'40분'(근거 시트의 '마감까지 … 남았어요', 임시). 하루가 넘으면 날과
+/// 시간, 한 시간이 넘으면 시간과 분, 그 밖에는 분이고 0인 단위는 쓰지 않는다. 음수는 0분으로 본다.
+String remainingText(int minutes) {
+  final total = minutes < 0 ? 0 : minutes;
+  final days = total ~/ 1440;
+  final hours = total % 1440 ~/ 60;
+  final rest = total % 60;
+  if (days > 0) return hours == 0 ? '$days일' : '$days일 $hours시간';
+  if (hours > 0) return rest == 0 ? '$hours시간' : '$hours시간 $rest분';
+  return '$rest분';
+}
+
 /// 요일 한 글자. [weekday]는 1(월)–7(일)이다. 서버 API의 `weekday` 값도 이것이다.
 String weekdayText(int weekday) {
   RangeError.checkValueInInterval(
