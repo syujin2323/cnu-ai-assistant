@@ -129,11 +129,6 @@ abstract final class Defaults {
   /// 01 아침 브리핑 '오늘 할 일'에 보이는 최대 수.
   static const int briefingTodayTaskMax = 5;
 
-  // 저녁 체크인(임시로 뺌. docs/decisions.md 2026-11-15 'R1·R2 범위를 줄인다')
-
-  /// 저녁 체크인 22:30. `settings`의 `checkinMin`이 null이면 이 값을 쓴다. 기능을 다시 정할 때 함께 본다.
-  static const int checkinMin = 1350;
-
   // 알림(재설계 예정. 새 코드에서 쓰지 않고 재설계 때 다시 본다, docs/architecture.md '알림')
 
   /// 마감 리마인더를 보내는 날(마감 며칠 전, 논리적 하루로 센다). D-3, D-1.
