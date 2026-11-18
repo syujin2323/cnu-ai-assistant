@@ -123,6 +123,14 @@ enum AppIconName {
   /// 글자 크기(눈).
   eye(IconSvgs.eye),
 
+  // 13 시간표·고정 일정의 고정 일정 종류(캔버스 '최종 프로토타입'의 아이콘).
+
+  /// 알바(가방).
+  work(IconSvgs.work),
+
+  /// 기타 고정 일정·장소(핀).
+  place(IconSvgs.place),
+
   // 03 할 일 줄 머리의 할 일 종류.
 
   /// 영상(재생 화면).
