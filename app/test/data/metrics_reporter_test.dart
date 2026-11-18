@@ -136,7 +136,7 @@ void main() {
 
   test('적어 둔 제안 날짜는 그날 블록이 지워졌어도 제안이 있던 날로 보낸다', () async {
     await SettingsRepository(db)
-        .write(SettingKeys.metricsSuggestedDays, ['2026-11-18']);
+        .write(SettingKeys.metricsSuggestedDays, ['2026-11-10', '2026-11-18']);
 
     await reporter.run();
 
@@ -161,15 +161,15 @@ void main() {
   });
 
   test('보내지 못하면 거기서 멈추고, 다음에 그날부터 다시 보낸다', () async {
-    server.failAt.add(1);
+    server.failAt.add(0);
 
     await reporter.run();
-    expect(server.dates, ['2026-11-17', '2026-11-18']);
-    expect((await settings()).metricsLastSentOn, '2026-11-17');
+    expect(server.dates, ['2026-11-17']);
+    expect((await settings()).metricsLastSentOn, '2026-11-16');
 
     server.failAt.clear();
     await reporter.run();
-    expect(server.dates, ['2026-11-17', '2026-11-18', '2026-11-18']);
+    expect(server.dates, ['2026-11-17', '2026-11-17', '2026-11-18']);
     expect((await settings()).metricsLastSentOn, '2026-11-18');
   });
 

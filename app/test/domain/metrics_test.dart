@@ -175,7 +175,8 @@ void main() {
     test('동기화는 그 논리적 하루에 LMS를 부른 것을 계기마다 세고, 정상·빈 결과·일부를 성공으로 센다', () {
       final result = report(
         syncRuns: [
-          run(at(18, 9), SyncTrigger.open, SyncResultKind.normal),
+          // 하루의 시작(04:00)은 그날이다.
+          run(at(18, 4), SyncTrigger.open, SyncResultKind.normal),
           run(at(18, 12), SyncTrigger.open, SyncResultKind.networkFailure),
           run(at(18, 15), SyncTrigger.periodic, SyncResultKind.empty),
           run(at(19, 2), SyncTrigger.background, SyncResultKind.partial),
@@ -226,6 +227,11 @@ void main() {
         installedAt: at(17, 10),
       ).toJson();
 
+      expect(report().toJson(), containsPair('briefingOpened', 0));
+      expect(
+        report(suggested: true).toJson(),
+        containsPair('todaySuggested', 1),
+      );
       expect(json, {
         'date': '2026-11-18',
         'briefingOpened': 1,
@@ -295,6 +301,16 @@ void main() {
           installDay: DateTime(2026, 11, 14),
         ),
         [DateTime(2026, 11, 15)],
+      );
+      // 설치한 날은 고른다.
+      expect(
+        metricsDaysToSend(
+          today: today,
+          lastSentOn: null,
+          activeDays: active,
+          installDay: DateTime(2026, 11, 13),
+        ),
+        [DateTime(2026, 11, 13), DateTime(2026, 11, 15)],
       );
     });
 
