@@ -383,6 +383,143 @@ void main() {
     });
   });
 
+  group("끝낸 뒤 '얼마나 걸렸어요?'", () {
+    test('걸린 시간을 끝내기 기록에 담아 함께 되돌리고, 기록 시각을 옮긴다', () async {
+      final id = await addTask();
+      final upcoming = await addBlock(id, now.add(const Duration(hours: 2)));
+      expect(_ok(await repository.complete(id, now: now)), isTrue);
+      // 시트에서 고르는 데 9초가 걸렸다.
+      final picked = now.add(const Duration(seconds: 9));
+      expect(
+        _ok(
+          await repository.recordTook(
+            id,
+            minutes: 90,
+            completed: UndoMark('tasks', now),
+            now: picked,
+          ),
+        ),
+        isTrue,
+      );
+      expect((await taskById(id))!.actualMin, 90);
+
+      // 끝낸 때부터는 10초가 넘었어도 고른 때부터 10초 안이면 되돌린다.
+      final later = picked.add(const Duration(seconds: 8));
+      expect(_ok(await undo.undoLast(now: later)), isTrue);
+      final task = (await taskById(id))!;
+      expect(task.status, TaskStatus.todo);
+      expect(task.completedAt, isNull);
+      expect(task.actualMin, isNull);
+      expect(await blockIds(), {upcoming});
+    });
+
+    test('같은 끝내기에 두 번 적어도 되돌리면 끝내기 전 값으로 돌아간다', () async {
+      final id = await addTask();
+      expect(_ok(await repository.complete(id, now: now)), isTrue);
+      final first = now.add(const Duration(seconds: 2));
+      expect(
+        _ok(
+          await repository.recordTook(
+            id,
+            minutes: 30,
+            completed: UndoMark('tasks', now),
+            now: first,
+          ),
+        ),
+        isTrue,
+      );
+      final second = first.add(const Duration(seconds: 2));
+      expect(
+        _ok(
+          await repository.recordTook(
+            id,
+            minutes: 60,
+            completed: UndoMark('tasks', first),
+            now: second,
+          ),
+        ),
+        isTrue,
+      );
+      expect((await taskById(id))!.actualMin, 60);
+
+      expect(_ok(await undo.undoLast(now: second)), isTrue);
+      final task = (await taskById(id))!;
+      expect(task.actualMin, isNull);
+      expect(task.status, TaskStatus.todo);
+    });
+
+    test('건너뛰면 걸린 시간은 그대로 두고 기록 시각만 옮긴다', () async {
+      final id = await addTask();
+      expect(_ok(await repository.complete(id, now: now)), isTrue);
+      final skipped = now.add(const Duration(seconds: 30));
+      expect(
+        _ok(
+          await repository.recordTook(
+            id,
+            completed: UndoMark('tasks', now),
+            now: skipped,
+          ),
+        ),
+        isTrue,
+      );
+      expect((await taskById(id))!.actualMin, isNull);
+      expect(
+        _ok(await undo.undoLast(now: skipped.add(const Duration(seconds: 5)))),
+        isTrue,
+      );
+      expect((await taskById(id))!.status, TaskStatus.todo);
+    });
+
+    test('그사이 다른 동작을 했으면 걸린 시간만 따로 기록한다', () async {
+      final id = await addTask();
+      final other = await addTask(title: '다른 일');
+      expect(_ok(await repository.complete(id, now: now)), isTrue);
+      final next = now.add(const Duration(seconds: 1));
+      expect(_ok(await repository.complete(other, now: next)), isTrue);
+      expect(
+        _ok(
+          await repository.recordTook(
+            id,
+            minutes: 30,
+            completed: UndoMark('tasks', now),
+            now: next,
+          ),
+        ),
+        isFalse,
+      );
+      expect((await taskById(id))!.actualMin, 30);
+
+      expect(_ok(await undo.undoLast(now: next)), isTrue);
+      final task = (await taskById(id))!;
+      expect(task.actualMin, isNull);
+      expect(task.status, TaskStatus.done);
+      expect((await taskById(other))!.status, TaskStatus.done);
+    });
+
+    test('없는 할 일은 false이고, 0 이하는 ArgumentError다', () async {
+      expect(
+        _ok(
+          await repository.recordTook(
+            999,
+            minutes: 30,
+            completed: UndoMark('tasks', now),
+            now: now,
+          ),
+        ),
+        isFalse,
+      );
+      expect(
+        () => repository.recordTook(
+          1,
+          minutes: 0,
+          completed: UndoMark('tasks', now),
+          now: now,
+        ),
+        throwsArgumentError,
+      );
+    });
+  });
+
   group('지우기', () {
     test('LMS 할 일은 숨기고 아직 시작하지 않은 확정 블록만 지우며, 되돌리면 되살린다', () async {
       final courseId = await addCourse('자료구조');

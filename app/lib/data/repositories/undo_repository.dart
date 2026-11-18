@@ -130,6 +130,68 @@ class UndoRecorder {
   }
 }
 
+/// [mark]가 가리키는 동작이 아직 마지막 기록이면, 그 기록에 [table]의 [id] 행 [columns](SQL 열 이름)의 지금 값을
+/// 더하고(되돌리면 그 열도 지금 값으로 돌아감) 기록 시각을 [now]로 옮긴 뒤 true다. 시트를 거쳐 끝나는 동작(03 할 일의
+/// 끝내기 → '얼마나 걸렸어요?')의 뒤쪽 쓰기를 같은 되돌리기로 묶고, 토스트의 10초가 동작이 끝난 때부터 시작하게
+/// 하려는 것이다. 그 행을 이미 통째로 되살리거나 지우는 기록이면 열을 더하지 않는다. 마지막 기록이 다른 동작이거나
+/// 읽을 수 없거나 행이 없으면 아무것도 바꾸지 않고 false다. 같은 트랜잭션 안에서 그 열을 고치기 전에 부른다.
+Future<bool> amendUndo(
+  AppDatabase db,
+  UndoMark mark, {
+  required String table,
+  required int id,
+  Set<String> columns = const {},
+  required DateTime now,
+}) async {
+  UndoRecorder._checkTable(table);
+  if (columns.contains('id')) throw ArgumentError.value(columns, 'columns');
+  final entry = await db.select(db.undoLog).getSingleOrNull();
+  final json = entry?.beforeJson;
+  if (entry == null || json == null || !mark.matches(entry)) return false;
+  final List<UndoStep> steps;
+  try {
+    steps = [...decodeUndoSteps(json)];
+  } on FormatException {
+    return false;
+  }
+  if (columns.isNotEmpty) {
+    final names = columns.map((column) => '"$column"').join(', ');
+    final row = await db
+        .customSelect(
+          'SELECT $names FROM "$table" WHERE "id" = ?',
+          variables: [Variable.withInt(id)],
+        )
+        .getSingleOrNull();
+    if (row == null) return false;
+    final covered = steps.any(
+      (step) => switch (step) {
+        UndoRestore(:final row) => step.table == table && row['id'] == id,
+        UndoDelete(id: final deleted) => step.table == table && deleted == id,
+        UndoPatch() => false,
+      },
+    );
+    final patch = steps.indexWhere(
+      (step) => step is UndoPatch && step.table == table && step.id == id,
+    );
+    if (patch >= 0) {
+      // 앞서 담은 값이 그 동작 전의 값이므로 겹치는 열은 그것을 둔다.
+      steps[patch] = UndoPatch(table, id, {
+        ...row.data,
+        ...(steps[patch] as UndoPatch).values,
+      });
+    } else if (!covered) {
+      steps.add(UndoPatch(table, id, Map.of(row.data)));
+    }
+  }
+  await (db.update(db.undoLog)..where((log) => log.id.equals(entry.id))).write(
+    UndoLogCompanion(
+      beforeJson: Value(encodeUndoSteps(steps)),
+      createdAt: Value(now),
+    ),
+  );
+  return true;
+}
+
 /// 마지막 동작을 되돌리는 저장소. 폰 DB를 읽거나 쓰지 못하면 [StorageError]를 담은 [Err]다.
 class UndoRepository {
   UndoRepository(this._db);
