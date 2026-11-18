@@ -77,7 +77,7 @@ String dueText(
   bool farAsDate = false,
 }) {
   if (dueAt == null) return '마감 없음';
-  final date = _dueDate(dueAt);
+  final date = dueDateOf(dueAt);
   final today = logicalDate(now, dayBoundaryMin: dayBoundaryMin);
   final days = _daysBetween(today, date);
   final day = farAsDate && (days <= -2 || days >= 7)
@@ -98,11 +98,12 @@ int dueDayOffset(
   required int dayBoundaryMin,
 }) => _daysBetween(
   logicalDate(now, dayBoundaryMin: dayBoundaryMin),
-  _dueDate(dueAt),
+  dueDateOf(dueAt),
 );
 
-/// 마감 날짜: 정확히 00:00이면 전날, 그 밖에는 달력 날짜.
-DateTime _dueDate(DateTime dueAt) => DateTime(
+/// 마감 날짜(그날 0시): 정확히 00:00이면 전날, 그 밖에는 달력 날짜. 마감 문구([dueText])와 09 일간의 마감 줄이
+/// 같은 날짜를 쓴다.
+DateTime dueDateOf(DateTime dueAt) => DateTime(
   dueAt.year,
   dueAt.month,
   dueAt.hour == 0 && dueAt.minute == 0 ? dueAt.day - 1 : dueAt.day,
