@@ -3,7 +3,7 @@
 # .github/workflows/functions-check.yml(functions/)도 같은 PR에서 고친다.
 
 .DEFAULT_GOAL := check
-.PHONY: check lint test format gen gen-check db-schema functions-check functions-lint functions-test functions-format
+.PHONY: check lint test format gen gen-check db-schema legal-sync functions-check functions-lint functions-test functions-format
 
 # PR 전에 돌리는 확인(lint + test). 처음 실패한 단계에서 멈춘다.
 check: lint test
@@ -42,6 +42,11 @@ gen-check:
 db-schema:
 	cd app && dart run drift_dev make-migrations && \
 	dart run drift_dev schema generate drift_schemas/app/ test/data/db/app/generated/
+
+# 처리방침·이용약관을 공개 레포(syujin2323/cnu-planner-docs)의 main에서 받아 app/lib/design/legal_texts.dart를
+# 다시 만든다. 그 레포에 바뀐 글을 병합한 뒤 돌리고, 만든 파일을 함께 커밋한다(docs/architecture.md '테스트 배포').
+legal-sync:
+	cd app && dart run tool/legal_sync.dart && dart format lib/design/legal_texts.dart
 
 # functions/(서버)를 바꿨으면 PR 전에 돌리는 확인(lint + test). CI의 functions-check와 같다.
 # 처음 한 번 functions/에서 npm ci로 패키지를 받아 둔다.

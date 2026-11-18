@@ -928,6 +928,22 @@ void main() {
     final whole = plan([lms(3, due: at(monday + 3, 23, 59), estimate: 60)]);
     expect(whole.blocks.single.reason!.factor, BlockFactor.unsplit);
     expect(whole.blocks.single.reason!.gapMin, 540);
+
+    // 한 번에 다 들어가는 빈 시간(13:00–15:00)을, 꼭 맞지만 다 들어가지 않는 빈 시간(09:00–10:00)보다 먼저
+    // 고른다.
+    Event busy(int id, int fromHour, int toHour) => Event(
+      id: id,
+      title: '일정 $id',
+      startAt: at(monday, fromHour),
+      endAt: at(monday, toHour),
+      allDay: false,
+      source: EventSource.manual,
+    );
+    final unsplit = plan([
+      lms(4, due: at(monday + 1, 18), estimate: 90),
+    ], schedule: scheduleOf(events: [busy(1, 10, 13), busy(2, 15, 18)]));
+    expect(describe(unsplit), ['4 16 13:00–14:30']);
+    expect(unsplit.blocks.single.reason!.factor, BlockFactor.unsplit);
   });
 
   test('같은 입력이면 순서가 달라도 같은 계획이다', () {

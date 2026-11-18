@@ -24,11 +24,14 @@
 //    최대 `max_block`), 블록 사이 [Defaults.blockGapMin](새로 놓는 블록끼리와 확정·완료 블록과도), 그날 지운
 //    자리(그 할 일만), 미룬 할 일은 미룬 날부터, '밤 시간 쓰기'를 고른 할 일은 그날부터 마감일까지 하루 창
 //    끝을 늘린 빈 시간.
-//    그날 안에서는 자리마다 점수([PlanWeights]: 쪼개지 않음·길이 맞음·관련 수업과 가까움·선호 시간대, 짧게
+//    그날 안에서는 자리마다 점수([scoreSlot]: 쪼개지 않음·길이 맞음·관련 수업과 가까움·선호 시간대, 짧게
 //    남는 빈 조각은 깎음)를 매겨 가장 높은 자리, 같으면 이른 자리에 놓는다. 근거의 `factor`는 그 자리의 가장
 //    구체적인 이유다(관련 수업과 가까움 → 선호 시간대(조각의 절반 이상) → 쪼개지 않음 → 길이 맞음 순서).
 // 5. 다 놓지 못한 할 일은 모자란 시간과 함께 [PlanResult.shortages]에 담는다(6단계 시간 부족).
 // 수업 칸이 하나도 없으면(시간표를 아직 받지 못함) 아무것도 놓지 않는다.
+//
+// 점수·조각 길이·블록 간격·5분 단위는 옮기기 시트와 [다시 놓기]의 자리 추천(`suggest_slots.dart`)과 함께 쓰려고
+// `placement.dart`에 둔다.
 
 import 'dart:math' as math;
 
@@ -39,27 +42,10 @@ import 'package:cnu_ai_assistant/domain/models/plan_block.dart';
 import 'package:cnu_ai_assistant/domain/models/task.dart';
 import 'package:cnu_ai_assistant/domain/models/task_entry.dart';
 import 'package:cnu_ai_assistant/domain/planner/day_availability.dart';
+import 'package:cnu_ai_assistant/domain/planner/placement.dart';
 import 'package:cnu_ai_assistant/domain/planner/schedule.dart';
 import 'package:cnu_ai_assistant/domain/planner/time_span.dart';
 import 'package:cnu_ai_assistant/domain/rules.dart';
-
-/// 자리 점수의 가중치(임시값). 모의 실험으로 고르고 테스트로 고정한다.
-abstract final class PlanWeights {
-  /// 할 일을 이 조각으로 끝냄(쪼개지 않음).
-  static const double unsplit = 3;
-
-  /// 조각이 그 빈 구간을 채우는 정도(조각 ÷ 빈 구간).
-  static const double fit = 2;
-
-  /// 그 과목 수업과 가까움([Defaults.nearClassMin] 안).
-  static const double nearClass = 2;
-
-  /// 조각이 선호 시간대 안에 드는 비율.
-  static const double preferred = 2;
-
-  /// 최소 조각보다 짧게 남는 빈 조각 하나마다 깎는 점수.
-  static const double fragment = 1;
-}
 
 /// 시간이 모자란 할 일.
 final class Shortage {
@@ -154,7 +140,7 @@ PlanResult planRange({
 }) {
   if (days < 1) throw ArgumentError.value(days, 'days');
   if (schedule.classSlots.isEmpty) return PlanResult.empty;
-  final start = _roundUp(now);
+  final start = roundUpToFive(now);
   final planDays = <_Day>[
     for (var i = 0; i < days; i++)
       _Day(
@@ -324,7 +310,7 @@ final class _Job {
     if (toPlace <= 0) return null;
     final openAt = entry.lmsItem?.openAt;
     final earliest = openAt != null && openAt.isAfter(start)
-        ? _roundUp(openAt)
+        ? roundUpToFive(openAt)
         : start;
     if (!earliest.isBefore(dueAt)) return null;
     return _Job._(
@@ -333,10 +319,7 @@ final class _Job {
       dueDate: logicalDate(dueAt, dayBoundaryMin: dayBoundaryMin),
       earliest: earliest,
       toPlace: toPlace,
-      minChunk: switch (task.kind) {
-        TaskKind.video || TaskKind.quiz => Defaults.minLightChunkMin,
-        _ => Defaults.minChunkMin,
-      },
+      minChunk: minChunkMinFor(task.kind),
       courseId: task.courseIdWith(entry.lmsItem),
       nightFrom: task.nightWindowFrom,
       deferredUntil: task.deferredUntil,
@@ -386,9 +369,7 @@ final class _Job {
 
   /// [date]에 하루 창 끝을 늘린 빈 시간을 쓰는지('밤 시간 쓰기'를 고른 날부터 마감일까지).
   bool usesNightOn(DateTime date) =>
-      nightFrom != null &&
-      isoDate(date).compareTo(nightFrom!) >= 0 &&
-      !date.isAfter(dueDate);
+      usesNightWindowOn(date, nightFrom: nightFrom, dueDate: dueDate);
 }
 
 /// 논리적 하루 하나와 그날 놓은 것.
@@ -410,10 +391,10 @@ final class _Day {
          dayBoundaryMin: dayBoundaryMin,
        ) {
     rules = config.forWeekday(date.weekday);
-    preferred = ruleSpansInLogicalDay(
+    preferred = preferredSpans(
       date,
+      config: config,
       dayBoundaryMin: dayBoundaryMin,
-      rangesFor: (weekday) => config.forWeekday(weekday).preferred,
     );
     for (final block in schedule.planBlocks) {
       if (block.status != PlanBlockStatus.confirmed &&
@@ -426,16 +407,7 @@ final class _Day {
       if (logical.contains(block.startAt)) existingLoad += span.minutes;
     }
     freeMin = _sum(_after(normal.free, start));
-    final courses = {
-      for (final slot in schedule.classSlots) slot.id: slot.courseId,
-    };
-    for (final busy in normal.busy) {
-      if (busy.kind != BusyKind.classTime) continue;
-      final courseId = courses[busy.sourceId];
-      if (courseId != null) {
-        (classes[courseId] ??= []).add(busy.span);
-      }
-    }
+    classes = classesByCourse(normal, schedule.classSlots);
   }
 
   /// 논리적 하루의 날짜.
@@ -469,7 +441,7 @@ final class _Day {
   final List<TimeSpan> study = [];
 
   /// 과목 id → 그날 그 과목 수업.
-  final Map<int, List<TimeSpan>> classes = {};
+  late final Map<int, List<TimeSpan>> classes;
 
   /// 그날 시작하는 확정·완료 블록의 분. 하루 최대 공부량에 넣는다.
   int existingLoad = 0;
@@ -506,10 +478,8 @@ final class _Day {
     final latest = tier == _Tier.slack ? job.dueAt : job.softEnd;
     final window = TimeSpan(_later(job.earliest, logical.start), latest);
     if (!window.end.isAfter(window.start)) return null;
-    const gap = Duration(minutes: Defaults.blockGapMin);
     final blocked = [
-      for (final span in [...placed, ...study])
-        TimeSpan(span.start.subtract(gap), span.end.add(gap)),
+      ...withBlockGap([...placed, ...study]),
       ...job.dismissed,
     ];
     _Candidate? best;
@@ -518,7 +488,7 @@ final class _Day {
       window,
     )) {
       for (final segment in subtractSpans(free, blocked)) {
-        final from = _roundUp(segment.start);
+        final from = roundUpToFive(segment.start);
         final segmentMin = segment.end.difference(from).inMinutes;
         final chunk = _chunkLength(
           job.remaining,
@@ -529,10 +499,10 @@ final class _Day {
         final duration = Duration(minutes: chunk);
         final starts = <DateTime>{
           from,
-          _roundDown(segment.end.subtract(duration)),
+          roundDownToFive(segment.end.subtract(duration)),
           for (final span in preferred)
             if (span.end.isAfter(from) && span.start.isBefore(segment.end))
-              _later(from, _roundUp(span.start)),
+              _later(from, roundUpToFive(span.start)),
         };
         for (final at in starts) {
           if (at.isBefore(from) || at.add(duration).isAfter(segment.end)) {
@@ -580,53 +550,21 @@ final class _Day {
   }
 
   _Candidate _score(_Job job, TimeSpan segment, DateTime at, int chunk) {
-    final span = TimeSpan(at, at.add(Duration(minutes: chunk)));
-    final segmentMin = segment.minutes;
-    final unsplit = chunk == job.remaining ? PlanWeights.unsplit : 0.0;
-    final fit = PlanWeights.fit * chunk / segmentMin;
-    final near = _nearClass(job.courseId, span) ? PlanWeights.nearClass : 0.0;
-    final inPreferred = _sum([
-      for (final window in preferred) ?window.intersection(span),
-    ]);
-    final preferredScore = PlanWeights.preferred * inPreferred / chunk;
-    final leftovers = [
-      at.difference(segment.start).inMinutes,
-      segment.end.difference(span.end).inMinutes,
-    ].where((minutes) => minutes > 0 && minutes < Defaults.minChunkMin).length;
-    final factor = near > 0
-        ? BlockFactor.nearClass
-        : inPreferred * 2 >= chunk
-        ? BlockFactor.preferred
-        : unsplit > 0
-        ? BlockFactor.unsplit
-        : BlockFactor.fit;
+    final courseId = job.courseId;
+    final scored = scoreSlot(
+      segment: segment,
+      slot: TimeSpan(at, at.add(Duration(minutes: chunk))),
+      whole: chunk == job.remaining,
+      lessons: courseId == null ? const [] : classes[courseId] ?? const [],
+      preferred: preferred,
+    );
     return _Candidate(
       start: at,
       minutes: chunk,
-      segmentMin: segmentMin,
-      score:
-          unsplit +
-          fit +
-          near +
-          preferredScore -
-          PlanWeights.fragment * leftovers,
-      factor: factor,
+      segmentMin: segment.minutes,
+      score: scored.score,
+      factor: scored.factor,
     );
-  }
-
-  /// [span]이 [courseId] 과목의 그날 수업 끝 뒤나 시작 앞 [Defaults.nearClassMin] 안인지.
-  bool _nearClass(int? courseId, TimeSpan span) {
-    if (courseId == null) return false;
-    const near = Duration(minutes: Defaults.nearClassMin);
-    for (final lesson in classes[courseId] ?? const <TimeSpan>[]) {
-      final after = span.start.difference(lesson.end);
-      final before = lesson.start.difference(span.end);
-      if ((!after.isNegative && after <= near) ||
-          (!before.isNegative && before <= near)) {
-        return true;
-      }
-    }
-    return false;
   }
 }
 
@@ -675,13 +613,3 @@ int _sum(Iterable<TimeSpan> spans) =>
     spans.fold<int>(0, (sum, span) => sum + span.minutes);
 
 DateTime _later(DateTime a, DateTime b) => a.isAfter(b) ? a : b;
-
-/// 다음 5분 단위로 올린다(이미 5분 단위면 그대로).
-DateTime _roundUp(DateTime at) {
-  final floored = _roundDown(at);
-  return floored == at ? at : floored.add(const Duration(minutes: 5));
-}
-
-/// 5분 단위로 내린다.
-DateTime _roundDown(DateTime at) =>
-    DateTime(at.year, at.month, at.day, at.hour, at.minute - at.minute % 5);
