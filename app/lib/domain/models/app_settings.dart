@@ -224,8 +224,8 @@ class AppSettings {
   /// 표시').
   final bool showTravelMeal;
 
-  /// 건너뛴 온보딩 단계의 번호(docs/architecture.md '온보딩'의 1–5. 지금은 3단계만 건너뛸 수 있다).
-  /// 이 값을 쓰는 화면은 문서에 없다(홈 위 카드가 아님). 늘 1–5의 중복 없는 오름차순 목록이다.
+  /// 건너뛴 온보딩 단계의 번호(docs/architecture.md '온보딩'의 1–4. 지금은 3단계만 건너뛸 수 있다).
+  /// 이 값을 쓰는 화면은 문서에 없다(홈 위 카드가 아님). 늘 1–4의 중복 없는 오름차순 목록이다.
   final List<int> onboardingSkipped;
 
   /// 설치 표식. 첫 실행 때 보안 저장소를 비운 뒤 적는다(docs/lms.md '쿠키 금고').
@@ -235,7 +235,7 @@ class AppSettings {
   ///
   /// 값의 형은 그 키의 필드와 같아야 한다. 예를 들어 `lmsSessionState`에는
   /// [LmsSessionState], `aiConsentAt`에는 `DateTime` 또는 null을 넘긴다. 모르는 키,
-  /// 맞지 않는 형, null을 받지 않는 키의 null, 하루 밖의 분, 고를 수 없는 하루 경계, 1–5의 중복 없는
+  /// 맞지 않는 형, null을 받지 않는 키의 null, 하루 밖의 분, 고를 수 없는 하루 경계, 1–4의 중복 없는
   /// 오름차순 목록이 아닌 건너뛴 온보딩 단계는 프로그래밍 오류로 보고 [ArgumentError]를 던진다.
   static Object? encodeValue(String key, Object? value) {
     return switch (key) {
@@ -443,10 +443,10 @@ List<String> _requireIsoDates(String key, Object? value) {
 }
 
 /// 온보딩 단계 수(docs/screens.md '14 온보딩'). `features/onboarding/`의 `OnboardingStep`과 같아야 한다.
-const int _onboardingStepCount = 5;
+const int _onboardingStepCount = 4;
 
 /// 건너뛴 온보딩 단계 목록을 읽는다. 정수가 아닌 값이 섞였으면 형이 다른 것으로 보고 null(기본값)이고,
-/// 1–5 밖의 수와 중복은 버리고 오름차순으로 둔다(쓰기는 엄격하게, 읽기는 너그럽게).
+/// 1–4 밖의 수와 중복은 버리고 오름차순으로 둔다(쓰기는 엄격하게, 읽기는 너그럽게).
 List<int>? _onboardingStepsOrNull(Object? value) {
   if (value is! List) return null;
   if (!value.every((element) => element is int)) return null;
@@ -457,7 +457,7 @@ List<int>? _onboardingStepsOrNull(Object? value) {
   return List<int>.unmodifiable(steps);
 }
 
-/// 건너뛴 온보딩 단계 목록은 1–5의 중복 없는 오름차순 목록만 쓴다.
+/// 건너뛴 온보딩 단계 목록은 1–4의 중복 없는 오름차순 목록만 쓴다.
 List<int> _requireOnboardingSteps(String key, Object? value) {
   final steps = _require<List<int>>(key, value);
   for (var i = 0; i < steps.length; i++) {

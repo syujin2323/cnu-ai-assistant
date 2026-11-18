@@ -1,9 +1,9 @@
 // 온보딩(셸 밖 `/onboarding`). docs/screens.md '14 온보딩', docs/architecture.md '온보딩', '데모 모드'.
 //
-// `steps/` 아래 다섯 단계 파일을 `PageView`로 넘긴다. 단계는 버튼으로만 넘기고(스와이프 없음), 2단계부터 화면
+// `steps/` 아래 네 단계 파일을 `PageView`로 넘긴다. 단계는 버튼으로만 넘기고(스와이프 없음), 2단계부터 화면
 // 위 머리에 진행 막대를 둔다. 뒤로 가기는 3단계부터, '건너뛰기'는 3단계에만 있다. 시스템 뒤로 가기는 1단계에서는
-// 화면을 닫고(앱을 나감), 2단계에서는 받지 않으며, 3–5단계에서는 앞 단계로 간다. 저장 같은 일이 진행 중이면
-// 다음·건너뛰기·뒤로 가기를 받지 않는다([OnboardingState.busy]). 5단계를 마치거나 로그아웃 뒤 1단계에서
+// 화면을 닫고(앱을 나감), 2단계에서는 받지 않으며, 3–4단계에서는 앞 단계로 간다. 저장 같은 일이 진행 중이면
+// 다음·건너뛰기·뒤로 가기를 받지 않는다([OnboardingState.busy]). 4단계를 마치거나 로그아웃 뒤 1단계에서
 // 로그인하면 `/`로 가고, 시작 위치(redirect)가 브리핑이나 오늘로 보낸다. 실제 모드에서 LMS 상태가 아직
 // `disconnected`면(로그인 전) 온보딩에 머문다. '로그인 없이 둘러보기'는 데모 모드로 들어간다. 처음 열 때
 // 컨트롤러가 시작 단계(로그인한 뒤 끝내기 전에 꺼졌으면 2단계)를 정하는 동안은 빈 화면이다.
@@ -14,7 +14,6 @@ import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/features/onboarding/onboarding_controller.dart';
 import 'package:cnu_ai_assistant/features/onboarding/steps/ai_consent_step.dart';
-import 'package:cnu_ai_assistant/features/onboarding/steps/briefing_time_step.dart';
 import 'package:cnu_ai_assistant/features/onboarding/steps/fixed_blocks_step.dart';
 import 'package:cnu_ai_assistant/features/onboarding/steps/login_step.dart';
 import 'package:cnu_ai_assistant/features/onboarding/steps/timetable_step.dart';
@@ -106,11 +105,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       OnboardingStep.aiConsent => AiConsentStep(
         onConsent: () => _run((controller) => controller.consentToAi()),
         onDecline: () => _run((controller) => controller.declineAi()),
-      ),
-      OnboardingStep.briefingTime => BriefingTimeStep(
-        onDone: (briefingMin) => _run(
-          (controller) => controller.finishWithBriefingTime(briefingMin),
-        ),
       ),
     };
   }

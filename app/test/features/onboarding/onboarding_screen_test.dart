@@ -1,7 +1,6 @@
 // 온보딩 화면 테스트. docs/screens.md '14 온보딩', docs/architecture.md '온보딩'·'화면 이동'.
 //
-// 다섯 단계(1 LMS 로그인 · 2 불러온 시간표 확인 · 3 고정 일정 · 4 AI 사용 동의 · 5 아침 브리핑 시각)를
-// 지나며 단계마다 뒤로·건너뛰기가 문서대로 있는지, 시스템 뒤로 가기, 건너뛴 단계 기록, 로그아웃 뒤 다시
+// 네 단계(1 LMS 로그인 · 2 불러온 시간표 확인 · 3 고정 일정 · 4 AI 사용 동의)를 지나며 단계마다 뒤로·건너뛰기가 문서대로 있는지, 시스템 뒤로 가기, 건너뛴 단계 기록, 로그아웃 뒤 다시
 // 들어온 경우, 저장 실패에도 계속되는지를 본다. 단계를 지나는 테스트는 debug 빌드의 개발용 '로그인 없이
 // 다음으로'로 1단계를 넘어가고(테스트는 debug로 돈다), 1단계 로그인 폼으로 로그인한 뒤의 이동은 가짜 로그인
 // 흐름으로 본다(폼 자체는 test/features/lms_connect/login_form_test.dart). 모든 단계를 지나가므로 글자
@@ -16,9 +15,7 @@ import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
-import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
-import 'package:cnu_ai_assistant/domain/models/entry_source.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/domain/models/rule.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_screen.dart';
@@ -38,7 +35,7 @@ const _devSkip = '로그인 없이 다음으로';
 void main() {
   for (final textScale in [1.0, 2.0]) {
     group('글자 배율 $textScale', () {
-      testWidgets('다섯 단계를 지나며 뒤로·건너뛰기가 문서대로 있고, 5단계를 마치면 '
+      testWidgets('네 단계를 지나며 뒤로·건너뛰기가 문서대로 있고, 4단계를 마치면 '
           'onboarding_done을 켜고 /briefing으로 간다', (tester) async {
         final app = await pumpTestApp(
           tester,
@@ -95,25 +92,17 @@ void main() {
           skip: false,
         );
 
-        await _tapInStep(tester, find.text('동의하지 않고 계속'));
-        _expectStep(OnboardingStep.briefingTime);
-        _expectHeader(
-          tester,
-          OnboardingStep.briefingTime,
-          back: true,
-          skip: false,
-        );
         expect(app.preferences.getBool(PrefKeys.onboardingDone), isNull);
 
-        await _tapInStep(tester, find.text('다음'));
+        // 4단계가 마지막이다. 브리핑 시각을 묻는 단계는 없다(docs/decisions.md 2026-11-19 '온보딩은 네
+        // 단계이고 브리핑 시각은 정하지 않는다').
+        await _tapInStep(tester, find.text('동의하지 않고 계속'));
         expect(app.preferences.getBool(PrefKeys.onboardingDone), isTrue);
         expect(await _skipped(app), isEmpty);
-        // 동의하지 않았으므로 AI는 꺼져 있고, 브리핑 시각은 기본값으로 내 규칙에 저장했다.
+        // 동의하지 않았으므로 AI는 꺼져 있고, 내 규칙에는 아무것도 저장하지 않았다.
         expect((await _settings(app)).aiEnabled, isFalse);
         expect((await _settings(app)).aiConsentAt, isNull);
-        expect(await _briefingRules(app), [
-          (briefingMin: Defaults.briefingMin, source: EntrySource.manual),
-        ]);
+        expect(await _rules(app), isEmpty);
         expect(find.byType(OnboardingScreen), findsNothing);
         expect(find.byType(BriefingScreen), findsOneWidget);
         expect(app.router.state.uri.path, Routes.briefing);
@@ -135,7 +124,7 @@ void main() {
         _expectStep(OnboardingStep.aiConsent);
         expect(await _skipped(app), [OnboardingStep.fixedBlocks.number]);
 
-        // 시스템 뒤로 가기는 3–5단계에서 앞 단계로 간다.
+        // 시스템 뒤로 가기는 3–4단계에서 앞 단계로 간다.
         expect(await tester.binding.handlePopRoute(), isTrue);
         await tester.pumpAndSettle();
         _expectStep(OnboardingStep.fixedBlocks);
@@ -152,7 +141,7 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('로그아웃 뒤 다시 들어와 1단계에서 로그인하면 2–5단계 없이 시작 위치로 간다', (
+      testWidgets('로그아웃 뒤 다시 들어와 1단계에서 로그인하면 2–4단계 없이 시작 위치로 간다', (
         tester,
       ) async {
         final app = await pumpTestApp(
@@ -170,7 +159,7 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('로그아웃 뒤 다시 들어와 1단계 로그인 폼으로 로그인하면 2–5단계 없이 시작 위치로 '
+      testWidgets('로그아웃 뒤 다시 들어와 1단계 로그인 폼으로 로그인하면 2–4단계 없이 시작 위치로 '
           '간다', (tester) async {
         final flow = FakeLoginFlow();
         final app = await pumpTestApp(
@@ -195,10 +184,11 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('4단계에서 동의하면 AI를 켜고 동의 시각을 적는다', (tester) async {
+      testWidgets('4단계에서 동의하면 AI를 켜고 동의 시각을 적은 뒤 온보딩을 끝낸다', (tester) async {
         final app = await pumpTestApp(
           tester,
           start: TestStart.fresh,
+          briefingOpenedToday: false,
           now: _now,
           textScale: textScale,
         );
@@ -211,60 +201,11 @@ void main() {
         );
 
         await _tapInStep(tester, find.text('동의하고 계속'));
-        _expectStep(OnboardingStep.briefingTime);
         final settings = await _settings(app);
         expect(settings.aiEnabled, isTrue);
         expect(settings.aiConsentAt, _now);
-
-        await app.dispose(tester);
-      });
-
-      testWidgets('5단계는 오전 6:00–오후 12:00 칩 13개에서 기본 오전 8:00을 골라 두고, 고른 시각을 '
-          '내 규칙 한 행에 저장한다(이미 있으면 그 행에 합친다)', (tester) async {
-        final app = await pumpTestApp(
-          tester,
-          start: TestStart.fresh,
-          textScale: textScale,
-        );
-        // 이미 있는 브리핑 시각 규칙(하나만 두는 종류).
-        final existing = await RulesRepository(app.db).save(
-          kind: RuleKind.notify,
-          params: const RuleParams(briefingMin: 420),
-          source: EntrySource.manual,
-          now: app.clock.current,
-        );
-        await _goToStep(tester, OnboardingStep.briefingTime);
-
-        final chips = tester.widgetList<ChoiceChip>(
-          find.byType(ChoiceChip, skipOffstage: false),
-        );
-        expect(chips, hasLength(13));
-        expect(
-          tester
-              .widget<ChoiceChip>(
-                find.widgetWithText(ChoiceChip, '오전 8:00', skipOffstage: false),
-              )
-              .selected,
-          isTrue,
-        );
-
-        await _tapInStep(tester, find.widgetWithText(ChoiceChip, '오전 7:30'));
-        expect(
-          tester
-              .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '오전 7:30'))
-              .selected,
-          isTrue,
-        );
-        await _tapInStep(tester, find.text('다음'));
-        expect(find.byType(OnboardingScreen), findsNothing);
-
-        final rules = (await RulesRepository(app.db).read() as Ok<List<Rule>>)
-            .value
-            .where((rule) => rule.kind == RuleKind.notify)
-            .toList();
-        expect(rules, hasLength(1));
-        expect(rules.single.id, (existing as Ok<Rule>).value.id);
-        expect(rules.single.params, const RuleParams(briefingMin: 450));
+        expect(app.preferences.getBool(PrefKeys.onboardingDone), isTrue);
+        expect(find.byType(BriefingScreen), findsOneWidget);
 
         await app.dispose(tester);
       });
@@ -314,27 +255,19 @@ void main() {
         },
       );
 
-      testWidgets('4단계에서 동의했다가 뒤로 와 동의하지 않고 계속하면 AI는 꺼진다', (tester) async {
-        // 거절은 aiEnabled false를 늘 쓴다(기본값이 꺼짐이어도). 앞에서 동의해 켜 두었을 수 있기 때문이다.
+      testWidgets('4단계에서 동의하지 않고 계속하면 AI가 켜져 있었어도 끈다', (tester) async {
+        // 거절은 aiEnabled false를 늘 쓴다(기본값이 꺼짐이어도). 앞서 켜 두었을 수 있기 때문이다(예: 로그인한 뒤
+        // 끝내기 전에 앱이 꺼져 2단계부터 다시 연 경우).
         final app = await pumpTestApp(
           tester,
           start: TestStart.fresh,
+          settings: {SettingKeys.aiEnabled: true},
           textScale: textScale,
         );
-        await _tapInStep(tester, find.text(_devSkip));
-        await _tapInStep(tester, find.text('맞아요'));
-        await _tapInStep(tester, find.text('다음'));
-        _expectStep(OnboardingStep.aiConsent);
-        await _tapInStep(tester, find.text('동의하고 계속'));
-        _expectStep(OnboardingStep.briefingTime);
+        await _goToStep(tester, OnboardingStep.aiConsent);
         expect((await _settings(app)).aiEnabled, isTrue);
 
-        await tester.tap(find.byType(BackButton));
-        await tester.pumpAndSettle();
-        _expectStep(OnboardingStep.aiConsent);
         await _tapInStep(tester, find.text('동의하지 않고 계속'));
-        _expectStep(OnboardingStep.briefingTime);
-        await _tapInStep(tester, find.text('다음'));
 
         expect(app.preferences.getBool(PrefKeys.onboardingDone), isTrue);
         expect((await _settings(app)).aiEnabled, isFalse);
@@ -379,7 +312,6 @@ void main() {
         expect(await _skipped(app), isEmpty);
 
         await _tapInStep(tester, find.text('동의하지 않고 계속'));
-        await _tapInStep(tester, find.text('다음'));
         expect(find.byType(BriefingScreen), findsOneWidget);
 
         await app.dispose(tester);
@@ -477,13 +409,14 @@ void main() {
     await app.dispose(tester);
   });
 
-  test('단계 번호는 1–5이고, 건너뛴 단계 목록에 모두 쓸 수 있다', () {
-    expect(OnboardingStep.values.map((step) => step.number), [1, 2, 3, 4, 5]);
+  test('단계 번호는 1–4이고, 건너뛴 단계 목록에 모두 쓸 수 있다', () {
+    expect(OnboardingStep.values.map((step) => step.number), [1, 2, 3, 4]);
+    expect(OnboardingStep.aiConsent.isLast, isTrue);
     expect(
       AppSettings.encodeValue(SettingKeys.onboardingSkipped, [
         for (final step in OnboardingStep.values) step.number,
       ]),
-      [1, 2, 3, 4, 5],
+      [1, 2, 3, 4],
     );
     expect(
       [
@@ -521,27 +454,20 @@ Future<AppSettings> _settings(TestApp app) async =>
       Err(:final error) => fail('settings를 읽지 못했다: $error'),
     };
 
-/// 실제 모드 DB의 브리핑 시각 규칙(`notify`).
-Future<List<({int? briefingMin, EntrySource source})>> _briefingRules(
-  TestApp app,
-) async => switch (await RulesRepository(app.db).read()) {
-  Ok(:final value) => [
-    for (final rule in value)
-      if (rule.kind == RuleKind.notify)
-        (briefingMin: rule.params.briefingMin, source: rule.source),
-  ],
-  Err(:final error) => fail('rules를 읽지 못했다: $error'),
-};
+/// 실제 모드 DB의 내 규칙.
+Future<List<Rule>> _rules(TestApp app) async =>
+    switch (await RulesRepository(app.db).read()) {
+      Ok(:final value) => value,
+      Err(:final error) => fail('rules를 읽지 못했다: $error'),
+    };
 
-/// 개발용 넘어가기로 1단계를 지나 [step]까지 간다(3단계는 '다음', 4단계는 동의하지 않음).
+/// 개발용 넘어가기로 1단계를 지나 [step]까지 간다(3단계는 '다음').
 Future<void> _goToStep(WidgetTester tester, OnboardingStep step) async {
   await _tapInStep(tester, find.text(_devSkip));
   if (step == OnboardingStep.timetable) return;
   await _tapInStep(tester, find.text('맞아요'));
   if (step == OnboardingStep.fixedBlocks) return;
   await _tapInStep(tester, find.text('다음'));
-  if (step == OnboardingStep.aiConsent) return;
-  await _tapInStep(tester, find.text('동의하지 않고 계속'));
 }
 
 /// 건너뛴 단계 목록만 쓰지 못하는 저장소(폰 DB 쓰기 실패 흉내).
@@ -608,7 +534,7 @@ void _expectHeader(
     expect(progress, findsNothing);
   } else {
     final bar = tester.widget<LinearProgressIndicator>(progress);
-    expect(bar.semanticsLabel, '온보딩 5단계 중 ${step.number}단계');
+    expect(bar.semanticsLabel, '온보딩 4단계 중 ${step.number}단계');
     // 바탕은 진행 막대 바탕 토큰이다.
     expect(bar.backgroundColor, AppColors.light.tint2);
   }
