@@ -69,6 +69,23 @@ void main() {
         ),
       );
 
+  test('닫기를 겹쳐 불러도 한 번만 닫고, 멈춘 구독이 취소되면 모두 끝난다', () async {
+    final paused = db.select(db.courses).watch().listen((_) {});
+    await pumpEventQueue();
+    paused.pause();
+
+    var done = 0;
+    final first = db.close().then((_) => done++);
+    final second = db.close().then((_) => done++);
+    await pumpEventQueue();
+    // 멈춘 구독에는 끝 신호가 닿지 않아 drift의 닫기가 기다린다.
+    expect(done, 0);
+
+    await paused.cancel();
+    await Future.wait([first, second]);
+    expect(done, 2);
+  });
+
   test('열 때 외래 키 검사를 켠다', () async {
     final row = await db.customSelect('PRAGMA foreign_keys').getSingle();
     expect(row.data.values.single, 1);

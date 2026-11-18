@@ -149,6 +149,56 @@ void main() {
       );
     });
 
+    test('가려진 탭이 멈춰 둔 데모 DB 스트림이 있어도 끝내기는 끝나고, 그 뒤의 데모 DB 저장은 Err다', () async {
+      // 가려진 탭(TickerMode 꺼짐)의 화면이 보는 provider는 Riverpod이 구독을 멈춰 둔다. drift의 close()는
+      // 멈춘 구독에 끝 신호가 닿기를 기다리므로, 끝내기가 그것을 기다리면 끝나지 않는다.
+      driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+      addTearDown(
+        () => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false,
+      );
+      SharedPreferences.setMockInitialValues({
+        'app_mode': 'demo',
+        'demo_entry': 'me',
+      });
+      final realDb = AppDatabase.memory();
+      final demoDb = AppDatabase.memory();
+      addTearDown(realDb.close);
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(
+            await SharedPreferences.getInstance(),
+          ),
+          databaseProvider.overrideWith(
+            (ref) => switch (ref.watch(appModeProvider)) {
+              AppMode.real => realDb,
+              AppMode.demo => demoDb,
+            },
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final paused = demoDb.select(demoDb.courses).watch().listen((_) {});
+      await pumpEventQueue();
+      paused.pause();
+      addTearDown(() async {
+        await paused.cancel();
+        await demoDb.close();
+      });
+
+      expect(
+        await container
+            .read(appModeProvider.notifier)
+            .exitDemo(demoDb)
+            .timeout(const Duration(seconds: 5)),
+        const Ok(DemoEntry.me),
+      );
+      expect(container.read(appModeProvider), AppMode.real);
+      expect(
+        await SettingsRepository(demoDb).write(SettingKeys.aiEnabled, true),
+        isA<Err<void>>(),
+      );
+    });
+
     group('데모 끝내기·들어가기를 거듭 부를 때', () {
       late SharedPreferences preferences;
       late AppDatabase realDb;
