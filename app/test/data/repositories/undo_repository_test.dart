@@ -300,6 +300,60 @@ void main() {
     expect(await log(), isNull);
     expect(_ok(await undo.undoLast(now: now)), isFalse);
   });
+
+  group('정한 동작만(02 홈 피드백 카드의 답)', () {
+    late int id;
+    Future<void> change({DateTime? at}) => record((recorder) async {
+      await recorder.before('rules', id);
+      await (db.update(db.rules)..where((rule) => rule.id.equals(id))).write(
+        const RulesCompanion(params: Value(RuleParams(minutes: 20))),
+      );
+    }, at: at);
+
+    setUp(() async => id = await insertRule(10));
+
+    test('그 동작의 기록이면 시간이 지나도 되돌린다', () async {
+      final at = DateTime(2026, 11, 13, 9, 0, 0, 123);
+      await change(at: at);
+      final later = at.add(const Duration(hours: 1));
+      expect(
+        _ok(await undo.undoLast(now: later, only: UndoMark('rules', at))),
+        isTrue,
+      );
+      expect((await ruleById(id))!.params, const RuleParams(minutes: 10));
+      expect(await log(), isNull);
+    });
+
+    test('다른 동작(표·시각이 다름)의 기록이면 되돌리지도 버리지도 않는다', () async {
+      final at = DateTime(2026, 11, 13, 9, 0, 0, 123);
+      await change(at: at);
+      for (final other in [
+        UndoMark('rules', at.add(const Duration(milliseconds: 1))),
+        UndoMark('plan_blocks', at),
+      ]) {
+        expect(_ok(await undo.undoLast(now: at, only: other)), isFalse);
+        expect(await log(), isNotNull);
+        _ok(await undo.discard(only: other));
+        expect(await log(), isNotNull);
+      }
+      expect((await ruleById(id))!.params, const RuleParams(minutes: 20));
+      // 기록이 없으면 false다.
+      _ok(await undo.discard());
+      expect(
+        _ok(await undo.undoLast(now: at, only: UndoMark('rules', at))),
+        isFalse,
+      );
+    });
+
+    test('그 동작의 기록만 버린다', () async {
+      final at = DateTime(2026, 11, 13, 9, 0, 0, 123);
+      await change(at: at);
+      _ok(await undo.discard(only: UndoMark('rules', at)));
+      expect(await log(), isNull);
+      _ok(await undo.discard(only: UndoMark('rules', at)));
+      expect(await log(), isNull);
+    });
+  });
 }
 
 T _ok<T>(Result<T> result) => switch (result) {
