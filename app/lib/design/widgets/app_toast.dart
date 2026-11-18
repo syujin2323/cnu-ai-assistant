@@ -13,6 +13,7 @@ import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/motion/toast_transition.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_tab_bar.dart';
+import 'package:flutter/rendering.dart' show RenderLeaderLayer;
 import 'package:material_ui/material_ui.dart';
 
 /// 토스트 하나. [onUndo]가 있으면 '되돌리기' 버튼을 단다.
@@ -232,9 +233,34 @@ class _ToastAnchorState extends State<ToastAnchor> {
         scope != null &&
         (ModalRoute.of(context)?.isCurrent ?? true) &&
         MediaQuery.viewInsetsOf(context).bottom == 0;
-    return CompositedTransformTarget(
+    return _AnchorTarget(
       link: active ? scope.anchor : _idle,
       child: widget.child,
     );
+  }
+}
+
+/// 연결을 바꿀 때 배치를 다시 해 연결의 크기를 다시 적는 [CompositedTransformTarget].
+///
+/// 한 프레임에 두 기준점이 [_ToastScope.anchor]를 주고받으면(위 화면이 닫히며 아래 탭바가 다시 쓰임), 연결을
+/// 놓는 쪽의 [RenderLeaderLayer]가 그 연결의 크기(`leaderSize`)를 지운다. 잡는 쪽이 먼저 갱신되면 잡으며 적은
+/// 크기가 지워져, 가운데에 붙는 토스트가 그 프레임에 크기 없이 그려진다(디버그에서는 단정 실패). 잡는 쪽이
+/// 배치 단계에서 크기를 다시 적게 해 갱신 순서와 관계없이 맞춘다.
+class _AnchorTarget extends CompositedTransformTarget {
+  const _AnchorTarget({required super.link, super.child});
+
+  @override
+  RenderLeaderLayer createRenderObject(BuildContext context) =>
+      _RenderAnchorTarget(link: link);
+}
+
+class _RenderAnchorTarget extends RenderLeaderLayer {
+  _RenderAnchorTarget({required super.link});
+
+  @override
+  set link(LayerLink value) {
+    if (value == link) return;
+    super.link = value;
+    markNeedsLayout();
   }
 }
