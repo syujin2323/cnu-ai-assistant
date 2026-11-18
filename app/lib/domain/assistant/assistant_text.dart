@@ -136,18 +136,21 @@ String? eventPlanNote(PlanResult? before, PlanResult? after) {
 }
 
 /// 할 일을 넣은 뒤 놓인 자리. [plan]은 넣은 뒤의 배치 결과이고 모르면 null이다. [estimate]는 그 할 일의 예상
-/// 시간(없으면 자동으로 놓지 않음)이다. [now]에는 [Clock.now]의 값을 넘긴다.
+/// 시간(없으면 자동으로 놓지 않음), [hasTimetable]은 수업 칸이 하나라도 있는지다(없으면 배치 엔진이 아무것도
+/// 놓지 않음). [now]에는 [Clock.now]의 값을 넘긴다.
 String? taskPlanNote({
   required TaskDraft draft,
   required int taskId,
   required int? estimate,
   required PlanResult? plan,
+  required bool hasTimetable,
   required DateTime now,
   required int dayBoundaryMin,
 }) {
   final due = draft.dueAt;
   if (due == null) return '마감이 없어 자동으로 놓지 않아요';
   if (estimate == null) return '예상 시간을 몰라 자동으로 놓지 않아요';
+  if (!hasTimetable) return '시간표가 없어 아직 자동으로 놓지 않아요';
   if (plan == null) return null;
   final blocks = plan.blocks.where((block) => block.taskId == taskId).toList()
     ..sort((a, b) => a.startAt.compareTo(b.startAt));

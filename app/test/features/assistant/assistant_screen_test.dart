@@ -291,6 +291,8 @@ void main() {
     expect(task.dueTimeUnknown, isTrue);
     expect(task.source, EntrySource.ai);
     expect(find.text('할 일에 넣었어요 · 2시간 걸린다고 보고 놓아요'), findsOneWidget);
+    // 시간표가 없으면 배치 엔진이 아무것도 놓지 않는다.
+    expect(find.text('시간표가 없어 아직 자동으로 놓지 않아요'), findsOneWidget);
 
     // 되돌리면 할 일을 지운다(그사이 재계산이 만든 제안 블록이 있어도).
     await tester.tap(find.text('되돌리기'));
@@ -298,6 +300,52 @@ void main() {
     expect(await app.db.select(app.db.tasks).get(), isEmpty);
     expect(find.widgetWithText(FilledButton, '할 일에 추가'), findsOneWidget);
 
+    await app.dispose(tester);
+  });
+
+  testWidgets('시간표가 있으면 넣은 할 일이 놓인 자리를 적는다', (tester) async {
+    final (app, _) = await _open(
+      tester,
+      seed: (db) async {
+        final courseId = await db
+            .into(db.courses)
+            .insert(CoursesCompanion.insert(name: '데이터구조'));
+        await db
+            .into(db.classSlots)
+            .insert(
+              ClassSlotsCompanion.insert(
+                courseId: courseId,
+                weekday: DateTime.monday,
+                startMin: 9 * 60,
+                endMin: 10 * 60 + 30,
+                online: false,
+                source: SlotSource.manual,
+              ),
+            );
+      },
+      reply: (_) => Ok(
+        ParseResult(
+          intent: ParseIntent.createTask,
+          items: [
+            ParseItem(
+              title: '보고서',
+              kind: ParseItemKind.task,
+              category: ParseCategory.personal,
+              due: DateTime(2026, 11, 21),
+              dateExpression: '토요일까지',
+            ),
+          ],
+        ),
+      ),
+    );
+    await _say(tester, '보고서 토요일까지');
+    await tapText(tester, '할 일에 추가');
+    final task = (await app.db.select(app.db.tasks).get()).single;
+    final suggested = await (app.db.select(
+      app.db.planBlocks,
+    )..where((block) => block.taskId.equals(task.id))).get();
+    expect(suggested, isNotEmpty);
+    expect(find.textContaining('확정 전 제안이에요'), findsOneWidget);
     await app.dispose(tester);
   });
 

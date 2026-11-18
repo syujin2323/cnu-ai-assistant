@@ -188,15 +188,20 @@ void main() {
         kind: TaskKind.assignment,
         dueDate: DateTime(2026, 11, 21),
       );
-      String? note(PlanResult? plan, {TaskDraft? task, int? estimate = 60}) =>
-          taskPlanNote(
-            draft: task ?? draft,
-            taskId: 7,
-            estimate: estimate,
-            plan: plan,
-            now: _now,
-            dayBoundaryMin: Defaults.dayBoundaryMin,
-          );
+      String? note(
+        PlanResult? plan, {
+        TaskDraft? task,
+        int? estimate = 60,
+        bool hasTimetable = true,
+      }) => taskPlanNote(
+        draft: task ?? draft,
+        taskId: 7,
+        estimate: estimate,
+        plan: plan,
+        hasTimetable: hasTimetable,
+        now: _now,
+        dayBoundaryMin: Defaults.dayBoundaryMin,
+      );
       expect(
         note(
           _plan([
@@ -216,6 +221,10 @@ void main() {
         '마감 전 빈 시간이 모자라요 · 홈에서 방법을 골라 주세요',
       );
       expect(note(_plan(const [])), '마감 전에 놓을 빈 시간을 찾지 못했어요');
+      expect(
+        note(_plan(const []), hasTimetable: false),
+        '시간표가 없어 아직 자동으로 놓지 않아요',
+      );
       expect(note(null), isNull);
       expect(note(_plan(const []), estimate: null), '예상 시간을 몰라 자동으로 놓지 않아요');
       expect(

@@ -492,6 +492,14 @@ class AssistantController extends Notifier<AssistantState> {
       config: ref.read(plannerConfigProvider),
     ).minutes;
     final settings = ref.read(settingsProvider).value;
+    final hasTimetable = switch (await ref
+        .read(classSlotRepositoryProvider)
+        .read()) {
+      Ok(:final value) => value.isNotEmpty,
+      // 읽지 못하면 시간표가 있는 것으로 보고 결과만 적는다.
+      Err() => true,
+    };
+    if (!ref.mounted) return;
     _noteIfSaved(
       cardId,
       taskPlanNote(
@@ -499,6 +507,7 @@ class AssistantController extends Notifier<AssistantState> {
         taskId: taskId,
         estimate: estimate,
         plan: after,
+        hasTimetable: hasTimetable,
         now: ref.read(clockProvider).now(),
         dayBoundaryMin: settings?.dayBoundaryMin ?? Defaults.dayBoundaryMin,
       ),
