@@ -43,9 +43,14 @@ import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/lms_status.dart';
+import 'package:cnu_ai_assistant/domain/defaults.dart';
+import 'package:cnu_ai_assistant/domain/models/class_slot_entry.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
+import 'package:cnu_ai_assistant/domain/models/rule.dart';
 import 'package:cnu_ai_assistant/domain/models/sync_run.dart';
 import 'package:cnu_ai_assistant/domain/models/task_entry.dart';
+import 'package:cnu_ai_assistant/domain/planner/schedule.dart';
+import 'package:cnu_ai_assistant/domain/rules.dart';
 import 'package:cnu_ai_assistant/lms/lms_config.dart';
 import 'package:cnu_ai_assistant/domain/planner/plan_range.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
@@ -404,6 +409,46 @@ class MinuteClock extends Notifier<DateTime> {
 final taskEntriesProvider = StreamProvider<List<TaskEntry>>(
   (ref) => ref.watch(taskRepositoryProvider).watch(),
 );
+
+/// 내 규칙 전부(꺼진 것 포함). 규칙이 바뀌면 다시 낸다.
+final rulesProvider = StreamProvider<List<Rule>>(
+  (ref) => ref.watch(rulesRepositoryProvider).watch(),
+);
+
+/// 배치 설정([PlannerConfig.from], 켜진 규칙을 기본값 위에 덮음). 규칙을 아직 읽지 못했거나 읽지 못하면
+/// null이다.
+final plannerConfigProvider = Provider<PlannerConfig?>((ref) {
+  final rules = ref.watch(rulesProvider).value;
+  return rules == null ? null : PlannerConfig.from(rules);
+});
+
+/// 모든 수업 칸과 그 과목. 수업 카드의 과목 이름에 쓴다.
+final classSlotEntriesProvider = StreamProvider<List<ClassSlotEntry>>(
+  (ref) => ref.watch(classSlotRepositoryProvider).watch(),
+);
+
+/// 논리적 하루 [day](그날 0시)의 일정(`ScheduleRepository.watch`). 하루 경계 설정으로 그날의 범위를 정하고,
+/// 일정 표가 바뀌면 다시 낸다. 설정을 읽지 못하면 기본 하루 경계로 본다.
+final dayScheduleProvider = StreamProvider.family<Schedule, DateTime>((
+  ref,
+  day,
+) {
+  final boundary = ref.watch(
+    settingsProvider.select(
+      (settings) =>
+          settings.value?.dayBoundaryMin ??
+          (settings.hasError ? Defaults.dayBoundaryMin : null),
+    ),
+  );
+  if (boundary == null) return const Stream.empty();
+  final date = DateTime(day.year, day.month, day.day);
+  return ref
+      .watch(scheduleRepositoryProvider)
+      .watch(
+        start: logicalDayStart(date, dayBoundaryMin: boundary),
+        end: logicalDayEnd(date, dayBoundaryMin: boundary),
+      );
+});
 
 /// 마지막 LMS 동기화 시도(건너뛴 기록 제외). LMS 상태 줄의 실패 상태(점검·연결 실패)에 쓴다.
 final latestSyncAttemptProvider = StreamProvider<SyncRun?>(

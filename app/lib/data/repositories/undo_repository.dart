@@ -27,6 +27,19 @@ const Set<String> undoableTables = {
   'rules',
 };
 
+/// 되돌리기 기록 하나를 가리킨다: 그 동작의 요약 표([table])와 그 동작에 넘긴 시각([at], 밀리초까지 견줌).
+final class UndoMark {
+  const UndoMark(this.table, this.at);
+
+  final String table;
+  final DateTime at;
+
+  /// [entry]가 이 동작의 기록인지.
+  bool matches(UndoLogEntry entry) =>
+      entry.targetTable == table &&
+      entry.createdAt.millisecondsSinceEpoch == at.millisecondsSinceEpoch;
+}
+
 /// 한 동작에서 바뀌는 행의 직전 값을 모은다.
 ///
 /// 저장소는 트랜잭션 안에서 행을 고치거나 지우기 전에 [before]를, 새 행을 넣은 뒤 [inserted]를 부르고,
@@ -124,7 +137,11 @@ class UndoRepository {
 
   /// 마지막 동작을 되돌린다. 되돌렸으면 true다. 기록이 없거나, [Defaults.undoWindow]가 지났거나
   /// (기기 시각이 기록보다 이르면 지난 것으로 봄), 기록을 읽을 수 없으면 기록을 버리고 false다.
-  Future<Result<bool>> undoLast({required DateTime now}) async {
+  ///
+  /// [only]를 주면 마지막 기록이 그 동작일 때만 되돌리고 시간은 보지 않는다(02 홈 피드백 카드의 답은 화면을
+  /// 떠날 때까지 카드 안 [되돌리기]로 돌린다, docs/screens.md '되돌리기'). 그 뒤에 다른 동작이 기록을
+  /// 덮어썼으면 그 기록은 그대로 두고 false다.
+  Future<Result<bool>> undoLast({required DateTime now, UndoMark? only}) async {
     final UndoLogEntry? entry;
     switch (await guardStorage(
       'undo.read',
@@ -136,7 +153,8 @@ class UndoRepository {
         return Err(error);
     }
     if (entry == null) return const Ok(false);
-    final steps = _stepsToApply(entry, now);
+    if (only != null && !only.matches(entry)) return const Ok(false);
+    final steps = _stepsToApply(entry, now, timed: only == null);
     if (steps == null) {
       return switch (await discard()) {
         Ok() => const Ok(false),
@@ -155,14 +173,25 @@ class UndoRepository {
     );
   }
 
-  /// 기록을 버린다. 되돌리기를 받지 않게 된 때(화면을 떠남 등) 부른다.
-  Future<Result<void>> discard() =>
-      guardStorage('undo.discard', () => _db.delete(_db.undoLog).go());
+  /// 기록을 버린다. 되돌리기를 받지 않게 된 때(화면을 떠남 등) 부른다. [only]를 주면 마지막 기록이 그
+  /// 동작일 때만 버린다(그 뒤 다른 동작의 기록은 남김).
+  Future<Result<void>> discard({UndoMark? only}) =>
+      guardStorage('undo.discard', () async {
+        if (only != null) {
+          final entry = await _db.select(_db.undoLog).getSingleOrNull();
+          if (entry == null || !only.matches(entry)) return;
+        }
+        await _db.delete(_db.undoLog).go();
+      });
 
-  /// [entry]에서 적용할 단계. 시간이 지났거나 읽을 수 없으면 null이다.
-  List<UndoStep>? _stepsToApply(UndoLogEntry entry, DateTime now) {
+  /// [entry]에서 적용할 단계. [timed]면 시간이 지난 기록도 null이고, 읽을 수 없으면 null이다.
+  List<UndoStep>? _stepsToApply(
+    UndoLogEntry entry,
+    DateTime now, {
+    required bool timed,
+  }) {
     final age = now.difference(entry.createdAt);
-    if (age.isNegative || age > Defaults.undoWindow) return null;
+    if (timed && (age.isNegative || age > Defaults.undoWindow)) return null;
     final json = entry.beforeJson;
     if (json == null) return null;
     try {

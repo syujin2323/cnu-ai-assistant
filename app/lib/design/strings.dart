@@ -37,4 +37,7 @@ abstract final class AppStrings {
 
   /// 시간표·고정 일정 편집 화면의 이름. 10 나의 항목과 `/me/timetable`의 제목이 함께 쓴다.
   static const String timetableAndFixed = '시간표·고정 일정';
+
+  /// 폰 DB에 쓰지 못한 동작의 토스트(디자인 전 임시 문구).
+  static const String saveFailed = '저장하지 못했어요';
 }
