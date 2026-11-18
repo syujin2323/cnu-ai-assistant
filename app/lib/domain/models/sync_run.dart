@@ -90,6 +90,10 @@ abstract final class SyncRunDetail {
   /// 예산 설정을 해석하지 못해 기본값을 씀(그 계기 행에 남긴다).
   static const budgetParseFailed = 'budget_parse_failed';
 
+  /// `network_failure`: 연결 없음·주소 해석 실패(오프라인). 시간 초과·연결 거부·보안 연결 오류(연결 실패)는 남기지
+  /// 않는다(docs/lms.md '응답 판별').
+  static const offline = 'offline';
+
   /// 위 코드 전부(테스트와 로그 검사용).
   static const all = [
     budget,
@@ -100,5 +104,6 @@ abstract final class SyncRunDetail {
     webviewOpen,
     demoMode,
     budgetParseFailed,
+    offline,
   ];
 }

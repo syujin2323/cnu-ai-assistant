@@ -61,8 +61,8 @@ final class BlockSheetContent {
 }
 
 /// [block]의 근거 시트 내용. [entry]는 블록의 할 일, [courseName]은 그 할 일의 과목 이름(없으면 null)이다.
-/// [nextSuggestionAt]은 놓친 블록의 할 일에 지금 뒤로 놓인 가장 이른 제안의 시작이다(없으면 null). [canMove]가
-/// false면 [옮기기]를 두지 않는다. [now]에는 `Clock.now`의 값을 넘긴다.
+/// [nextSuggestionAt]은 놓친 블록의 할 일에 지금 뒤로 놓인 가장 이른 제안의 시작이다(없으면 null). [now]에는
+/// `Clock.now`의 값을 넘긴다.
 BlockSheetContent blockSheetContent({
   required PlanBlock block,
   required TaskEntry entry,
@@ -70,7 +70,6 @@ BlockSheetContent blockSheetContent({
   required DateTime now,
   required int dayBoundaryMin,
   required DateTime? nextSuggestionAt,
-  bool canMove = true,
 }) {
   final task = entry.task;
   final minutes = block.endAt.difference(block.startAt).inMinutes;
@@ -120,12 +119,12 @@ BlockSheetContent blockSheetContent({
     PlanBlockStatus.suggested => [
       BlockSheetAction.confirm,
       BlockSheetAction.complete,
-      if (canMove) BlockSheetAction.move,
+      BlockSheetAction.move,
       BlockSheetAction.dismiss,
     ],
     PlanBlockStatus.confirmed => [
       BlockSheetAction.complete,
-      if (canMove) BlockSheetAction.move,
+      BlockSheetAction.move,
       BlockSheetAction.dismiss,
     ],
     PlanBlockStatus.done => [BlockSheetAction.uncomplete],

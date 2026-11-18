@@ -8,8 +8,12 @@ import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/domain/task_took.dart';
+import 'package:cnu_ai_assistant/lms/lms_config.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_screen.dart';
+import 'package:cnu_ai_assistant/design/widgets/block_sheet.dart';
+import 'package:cnu_ai_assistant/features/lms_connect/relogin_screen.dart';
 import 'package:cnu_ai_assistant/features/tasks/task_list_screen.dart';
+import 'package:cnu_ai_assistant/features/tasks/widgets/task_sheet.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -124,6 +128,26 @@ Future<Task> _task(TestApp app, String title) async =>
         value.firstWhere((entry) => entry.task.title == title).task,
       Err(:final error) => fail('할 일을 읽지 못했다: $error'),
     };
+
+/// 할 일 동기화 기록 하나를 [result]로 남긴다(실패한 과목 [failed], 시작 [at]. 없으면 지금).
+Future<void> _syncRun(
+  TestApp app,
+  SyncResultKind result, {
+  List<int>? failed,
+  DateTime? at,
+}) => app.db
+    .into(app.db.syncRuns)
+    .insert(
+      SyncRunsCompanion.insert(
+        startedAt: at ?? app.clock.now(),
+        trigger: SyncTrigger.periodic,
+        scope: SyncScope.list,
+        result: result,
+        changedCount: 0,
+        failedCourseIds: Value(failed),
+        elapsedMs: 10,
+      ),
+    );
 
 /// [text]가 보이고 누를 수 있는지(접히지 않음).
 bool _shown(String text) => find.text(text).hitTestable().evaluate().isNotEmpty;
@@ -388,6 +412,110 @@ void main() {
     await app.dispose(tester);
   });
 
+  group('안내 칸', () {
+    testWidgets('연동을 멈추면 받아 둔 할 일이 그대로라고 알린다', (tester) async {
+      final app = await pumpTestApp(
+        tester,
+        now: _now,
+        overrides: [
+          lmsConfigProvider.overrideWith(
+            () => _FixedLmsConfig(
+              const LmsConfig(enabled: false, requestParams: null),
+            ),
+          ),
+        ],
+      );
+      await _seed(app.db);
+      await tapTab(tester, AppStrings.tabTasks);
+
+      // 상태 줄과 안내 칸의 제목이 같다(최종 프로토타입).
+      expect(find.text('LMS 연동을 잠시 멈췄어요'), findsNWidgets(2));
+      expect(find.text('받아 둔 할 일은 그대로 있어요. 직접 추가는 계속 쓸 수 있어요'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, '로그인'), findsNothing);
+      expect(find.text('연결 리스트 과제'), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('로그인 전이면 로그인을 권하고, [로그인]은 다시 로그인 화면을 연다', (tester) async {
+      final app = await pumpTestApp(tester, now: _now);
+      await writeLmsSessionState(app, LmsSessionState.disconnected);
+      await _seed(app.db);
+      app.router.go(Routes.tasks);
+      await tester.pumpAndSettle();
+
+      expect(find.text('LMS에 로그인하면 마감을 모아 와요'), findsOneWidget);
+      expect(find.text('학번과 비밀번호로 로그인해요. 그전에는 할 일을 직접 넣어요'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, '로그인'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ReloginScreen), findsOneWidget);
+      expect(app.router.state.uri.path, Routes.login);
+      await app.dispose(tester);
+    });
+
+    testWidgets('마지막 동기화가 일부 과목을 받지 못했으면 그 과목을 알리고 줄에 확인 못 함을 붙인다', (
+      tester,
+    ) async {
+      final app = await _open(tester);
+      final la = (await (app.db.select(
+        app.db.courses,
+      )..where((course) => course.name.equals('선형대수'))).getSingle()).id;
+      await _syncRun(
+        app,
+        SyncResultKind.partial,
+        failed: [la],
+        at: _now.subtract(const Duration(minutes: 12)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('선형대수는 확인하지 못했어요'), findsOneWidget);
+      expect(
+        find.text('다른 과목은 12분 전에 새로 받았어요. 확인하지 못한 과목은 전에 받은 할 일을 보여 드려요'),
+        findsOneWidget,
+      );
+      // 마감순: 그 과목의 줄 머리 뒤에 붙인다.
+      expect(find.text(' · 확인 못 함'), findsOneWidget);
+      final mark = tester.getRect(find.text(' · 확인 못 함'));
+      final quiz = tester.getRect(find.text('고윳값 퀴즈'));
+      expect(mark.bottom, lessThanOrEqualTo(quiz.top + 1));
+      expect(mark.bottom, greaterThan(quiz.top - 30));
+
+      // 과목별: 줄 대신 그 과목 묶음 머리에 붙인다.
+      await tester.tap(find.bySemanticsLabel('과목별'));
+      await tester.pumpAndSettle();
+      expect(find.text(' · 확인 못 함'), findsNothing);
+      expect(find.text('확인 못 함'), findsOneWidget);
+
+      // 마지막 성공이 일부 과목 실패가 아니면(실패 과목이 적혀 있어도) 알리지 않는다.
+      await _syncRun(app, SyncResultKind.normal, failed: [la]);
+      await tester.pumpAndSettle();
+      expect(find.text('선형대수는 확인하지 못했어요'), findsNothing);
+      expect(find.text('확인 못 함'), findsNothing);
+      await app.dispose(tester);
+    });
+
+    testWidgets('글자 2.0에서도 안내 칸이 넘치지 않는다', (tester) async {
+      final app = await pumpTestApp(tester, now: _now, textScale: 2.0);
+      await writeLmsSessionState(app, LmsSessionState.disconnected);
+      await _seed(app.db);
+      app.router.go(Routes.tasks);
+      await tester.pumpAndSettle();
+      expect(find.text('LMS에 로그인하면 마감을 모아 와요'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, '로그인'), findsOneWidget);
+
+      await writeLmsSessionState(app, LmsSessionState.active);
+      final courses = await app.db.select(app.db.courses).get();
+      await _syncRun(
+        app,
+        SyncResultKind.partial,
+        failed: [for (final course in courses) course.id],
+      );
+      await tester.pumpAndSettle();
+      // 과목 이름은 고를 수 있는 과목의 순서(이름순)다.
+      expect(find.text('선형대수·자료구조는 확인하지 못했어요'), findsOneWidget);
+      await app.dispose(tester);
+    });
+  });
+
   testWidgets('데모 모드는 샘플 할 일을 보이고 넘치지 않는다', (tester) async {
     final app = await _open(tester, seed: false, start: TestStart.demo);
     expect(find.text('샘플 데이터 · 데모'), findsOneWidget);
@@ -410,6 +538,108 @@ void main() {
     await app.dispose(tester);
   });
 
+  group('작은 할 일 시트', () {
+    Finder inSheet(Finder finder) =>
+        find.descendant(of: find.byType(TaskSheet), matching: finder);
+
+    testWidgets('줄을 누르면 열리고, 예상 시간 칩을 고르면 그 값으로 저장한다', (tester) async {
+      final app = await _open(tester);
+      await tester.tap(find.text('연결 리스트 과제'));
+      await tester.pumpAndSettle();
+      expect(inSheet(find.text('자료구조 · 과제')), findsOneWidget);
+      expect(inSheet(find.text('연결 리스트 과제')), findsOneWidget);
+      expect(inSheet(find.text('내일 23:59 마감')), findsOneWidget);
+      expect(inSheet(find.text('과제 기본 예상 시간이에요. 맞게 골라 주세요')), findsOneWidget);
+      expect(inSheet(find.text('아직 놓인 시간이 없어요')), findsOneWidget);
+      expect(inSheet(find.text('끝내기')), findsOneWidget);
+      expect(inSheet(find.text('숨기기')), findsOneWidget);
+
+      await tester.tap(find.bySemanticsLabel('예상 2시간'));
+      await tester.pumpAndSettle();
+      expect((await _task(app, '연결 리스트 과제')).estimateMin, 120);
+      // 고른 값이면 안내를 두지 않는다. 시트는 연 채로 둔다.
+      expect(inSheet(find.text('과제 기본 예상 시간이에요. 맞게 골라 주세요')), findsNothing);
+      expect(find.byType(TaskSheet), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('[끝내기]는 걸린 시간을 묻고 끝낸다', (tester) async {
+      final app = await _open(tester);
+      await tester.tap(find.text('연결 리스트 과제'));
+      await tester.pumpAndSettle();
+      await tester.tap(inSheet(find.text('끝내기')));
+      await tester.pumpAndSettle();
+      expect(find.text('얼마나 걸렸어요?'), findsOneWidget);
+      await tapText(tester, '건너뛰기');
+      expect(find.text('연결 리스트 과제 · 공부 완료로 옮겼어요'), findsOneWidget);
+      expect((await _task(app, '연결 리스트 과제')).status, TaskStatus.done);
+      await app.dispose(tester);
+    });
+
+    testWidgets('직접 넣은 할 일은 지우고 LMS 할 일은 숨기며, 되돌릴 수 있다', (tester) async {
+      final app = await _open(tester);
+      await tester.tap(find.text('장학금 서류'));
+      await tester.pumpAndSettle();
+      expect(inSheet(find.text('숨겨도 LMS에서는 그대로예요')), findsNothing);
+      await tester.tap(inSheet(find.text('지우기')));
+      await tester.pumpAndSettle();
+      expect(find.text('장학금 서류를 지웠어요'), findsOneWidget);
+      expect(find.text('장학금 서류'), findsNothing);
+      await tapText(tester, '되돌리기');
+      expect(find.text('장학금 서류'), findsOneWidget);
+
+      await tester.tap(find.text('연결 리스트 과제'));
+      await tester.pumpAndSettle();
+      expect(inSheet(find.text('숨겨도 LMS에서는 그대로예요')), findsOneWidget);
+      await tester.tap(inSheet(find.text('숨기기')));
+      await tester.pumpAndSettle();
+      expect(find.text('연결 리스트 과제를 숨겼어요'), findsOneWidget);
+      expect(find.text('연결 리스트 과제'), findsNothing);
+      final hidden = await TaskRepository(app.db).read();
+      expect(switch (hidden) {
+        Ok(:final value) => value.where(
+          (entry) => entry.task.title == '연결 리스트 과제',
+        ),
+        Err(:final error) => fail('$error'),
+      }, isEmpty);
+      await app.dispose(tester);
+    });
+
+    testWidgets('블록 줄을 누르면 근거 시트를 연다', (tester) async {
+      final app = await _open(tester);
+      final task = await _task(app, '연결 리스트 과제');
+      await app.db
+          .into(app.db.planBlocks)
+          .insert(
+            PlanBlocksCompanion.insert(
+              taskId: task.id,
+              startAt: _at(17, 14, 0),
+              endAt: _at(17, 15, 0),
+              status: PlanBlockStatus.confirmed,
+              source: BlockSource.manual,
+            ),
+          );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('연결 리스트 과제'));
+      await tester.pumpAndSettle();
+      expect(inSheet(find.text('내일 14:00–15:00 · 확정')), findsOneWidget);
+      await tester.tap(inSheet(find.text('내일 14:00–15:00 · 확정')));
+      await tester.pumpAndSettle();
+      expect(find.byType(TaskSheet), findsNothing);
+      expect(find.byType(BlockSheet), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('글자 2.0에서도 넘치지 않는다', (tester) async {
+      final app = await _open(tester, textScale: 2.0);
+      await tester.tap(find.text('연결 리스트 과제'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TaskSheet), findsOneWidget);
+      await scrollTo(tester, inSheet(find.text('숨기기')));
+      await app.dispose(tester);
+    });
+  });
+
   for (final (name, scale, size) in [
     ('글자 2.0', 2.0, phonePortrait),
     ('태블릿 가로', 1.0, tabletLandscape),
@@ -425,4 +655,14 @@ void main() {
       await app.dispose(tester);
     });
   }
+}
+
+/// Remote Config를 읽지 않고 [config]를 돌려주는 LMS 설정.
+class _FixedLmsConfig extends LmsConfigController {
+  _FixedLmsConfig(this.config);
+
+  final LmsConfig config;
+
+  @override
+  Future<LmsConfig> build() async => config;
 }

@@ -104,7 +104,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final screenHeight = tester.view.physicalSize.height / 3;
-    final button = tester.getRect(find.byType(FilledButton));
+    final button = tester.getRect(find.widgetWithText(FilledButton, '아래 버튼'));
     expect(button.bottom, lessThanOrEqualTo(screenHeight - 48));
     // 시트 배경은 내비게이션 바 밑까지 그린다.
     expect(tester.getRect(find.byType(BottomSheet)).bottom, screenHeight);

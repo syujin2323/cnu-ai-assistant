@@ -7,11 +7,15 @@
 // - 마감순은 마감이 이른 것부터(지난 마감이 맨 위, 같으면 영상이 뒤)이고 마감 없는 일은 맨 아래 '마감 없음' 묶음이다.
 //   과목별은 그 순서에서 과목이 처음 나오는 차례로 묶고(급한 과목부터) 개인 할 일은 늘 마지막 '개인' 묶음이다.
 // - 줄: 머리('{과목} · {종류}' 또는 '개인'), 제목, 마감, 해당하면 마감 변경·영상 길이·마감 지남·공개 전 안내와 계획 줄.
-//   LMS 항목에는 번호가 없어 프로토타입의 '과제 3' 같은 번호는 붙이지 않는다(임시).
+//   LMS 항목에는 번호가 없어 프로토타입의 '과제 3' 같은 번호는 붙이지 않는다(임시). 마지막 LMS 동기화가 받지 못한
+//   과목의 할 일은 머리 뒤에 '· 확인 못 함'을 붙인다(과목별 정렬에서는 묶음 머리에).
+// - 머리 아래 안내 칸([taskListNotice]): 일부 과목 실패, 연동 멈춤, 로그인 전. 점검·연결 실패·오프라인은 01·02·03
+//   맨 위의 띠가 알린다.
 // 문구는 디자인 전 임시 문구다.
 
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
+import 'package:cnu_ai_assistant/domain/lms_status.dart';
 import 'package:cnu_ai_assistant/domain/models/entry_source.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_item_change.dart';
 import 'package:cnu_ai_assistant/domain/models/plan_block.dart';
@@ -21,6 +25,7 @@ import 'package:cnu_ai_assistant/domain/models/value_codec.dart';
 import 'package:cnu_ai_assistant/domain/planner/plan_range.dart';
 import 'package:cnu_ai_assistant/domain/rules.dart';
 import 'package:cnu_ai_assistant/domain/task_week.dart';
+import 'package:cnu_ai_assistant/domain/text/josa.dart';
 import 'package:cnu_ai_assistant/domain/text/task_kind_text.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 
@@ -109,6 +114,7 @@ final class TaskRow {
     this.note,
     this.plan,
     this.folded = false,
+    this.unchecked = false,
   });
 
   final TaskEntry entry;
@@ -134,13 +140,22 @@ final class TaskRow {
   /// 'LMS만'이라 접힌 개인 할 일. 화면은 줄을 제자리에서 접는다.
   final bool folded;
 
+  /// 마지막 LMS 동기화가 이 할 일의 과목을 받지 못했다. 머리 뒤에 '· 확인 못 함'을 붙인다(과목별 정렬에서는
+  /// 묶음 머리가 대신 알림).
+  final bool unchecked;
+
   int get taskId => entry.task.id;
   String get title => entry.task.title;
 }
 
 /// 묶음 하나.
 final class TaskGroup {
-  const TaskGroup({required this.kind, this.title, required this.rows});
+  const TaskGroup({
+    required this.kind,
+    this.title,
+    required this.rows,
+    this.unchecked = false,
+  });
 
   final TaskGroupKind kind;
 
@@ -148,6 +163,9 @@ final class TaskGroup {
   final String? title;
 
   final List<TaskRow> rows;
+
+  /// 과목별 정렬의 과목 묶음인데 마지막 LMS 동기화가 그 과목을 받지 못했다. 머리에 '확인 못 함'을 붙인다.
+  final bool unchecked;
 
   /// 접히지 않은 줄의 수(머리의 'N개'). 0이면 화면은 머리도 접는다.
   int get shownCount => rows.where((row) => !row.folded).length;
@@ -203,6 +221,7 @@ TaskListContent taskListContent({
   required bool weekly,
   required bool lmsOnly,
   required TaskListSort sort,
+  Set<int> uncheckedCourseIds = const {},
 }) {
   final remaining = entries.where((entry) => entry.isRemaining).toList()
     ..sort(_dueOrder);
@@ -255,9 +274,13 @@ TaskListContent taskListContent({
     }
   }
 
+  bool unchecked(TaskEntry entry) =>
+      _isLms(entry) && uncheckedCourseIds.contains(entry.lmsItem?.courseId);
+
   TaskRow row(TaskEntry entry) => _row(
     entry,
     folded: !shown(entry),
+    unchecked: sort == TaskListSort.due && unchecked(entry),
     courseSort: sort == TaskListSort.course,
     blocks: blocks,
     shortages: shortages,
@@ -300,11 +323,13 @@ TaskListContent taskListContent({
     }
     for (final key in order) {
       if (key == _personalGroup) continue;
+      final members = byGroup[key]!;
       groups.add(
         TaskGroup(
           kind: TaskGroupKind.course,
           title: key,
-          rows: [for (final entry in byGroup[key]!) row(entry)],
+          rows: [for (final entry in members) row(entry)],
+          unchecked: members.any(unchecked),
         ),
       );
     }
@@ -368,6 +393,7 @@ int _positive(int? minutes) => minutes == null || minutes < 0 ? 0 : minutes;
 TaskRow _row(
   TaskEntry entry, {
   required bool folded,
+  required bool unchecked,
   required bool courseSort,
   required List<PlanBlock> blocks,
   required List<Shortage> shortages,
@@ -392,7 +418,7 @@ TaskRow _row(
       dueAt != null &&
       isDueSoon(dueDayOffset(dueAt, now: now, dayBoundaryMin: dayBoundaryMin));
   final lms = _isLms(entry);
-  final kicker = _kicker(entry, courseSort: courseSort);
+  final kicker = taskKicker(entry, courseSort: courseSort);
   final dueChange = lms
       ? _dueChange(entry, dueChanges, now: now, dayBoundaryMin: dayBoundaryMin)
       : null;
@@ -405,6 +431,7 @@ TaskRow _row(
       dueUrgent: false,
       dueChange: dueChange,
       folded: folded,
+      unchecked: unchecked,
       note: TaskNote(
         TaskNoteKind.overdue,
         lms ? '마감이 지났어요 · LMS에서 확인해 주세요' : '마감이 지났어요 · 끝냈다면 체크해 주세요',
@@ -420,6 +447,7 @@ TaskRow _row(
       dueUrgent: urgent,
       dueChange: dueChange,
       folded: folded,
+      unchecked: unchecked,
       note: TaskNote(
         TaskNoteKind.opens,
         opensText(openAt, now: now, dayBoundaryMin: dayBoundaryMin),
@@ -433,7 +461,8 @@ TaskRow _row(
     dueUrgent: urgent,
     dueChange: dueChange,
     folded: folded,
-    video: task.kind == TaskKind.video ? _videoText(entry) : null,
+    unchecked: unchecked,
+    video: task.kind == TaskKind.video ? taskVideoText(entry) : null,
     plan: _planLine(
       entry,
       blocks: blocks,
@@ -446,8 +475,8 @@ TaskRow _row(
   );
 }
 
-/// 줄 머리. 과목별 정렬에서는 묶음 이름이 과목이므로 과목을 빼고 쓴다.
-String _kicker(TaskEntry entry, {required bool courseSort}) {
+/// 줄 머리('{과목} · {종류}', '개인'). 과목별 정렬에서는 묶음 이름이 과목이므로 과목을 빼고 쓴다. 작은 할 일 시트도 쓴다.
+String taskKicker(TaskEntry entry, {bool courseSort = false}) {
   final task = entry.task;
   final course = _courseName(entry);
   if (!_isLms(entry) && course == null) {
@@ -490,8 +519,8 @@ String? _dueChange(
   return '마감이 $amount ${days > 0 ? '늦춰졌어요' : '당겨졌어요'}';
 }
 
-/// 영상 길이. LMS는 본 시간을 알려 주지 않아 길이와 출석 인정 시간만 적는다.
-String _videoText(TaskEntry entry) {
+/// 영상 길이. LMS는 본 시간을 알려 주지 않아 길이와 출석 인정 시간만 적는다. 작은 할 일 시트도 쓴다.
+String taskVideoText(TaskEntry entry) {
   final item = entry.lmsItem;
   final required = item?.requiredMin;
   final video = item?.videoMin;
@@ -630,3 +659,68 @@ int _minuteOfDay(DateTime at) {
   final minute = at.hour * 60 + at.minute;
   return minute == 0 ? 1440 : minute;
 }
+
+/// 머리 아래 안내 칸의 종류. 점검·연결 실패·오프라인은 맨 위의 띠가 알리므로 여기에 없다.
+enum TaskListNoticeKind {
+  /// 마지막 LMS 동기화가 일부 과목의 할 일을 받지 못했다.
+  unchecked,
+
+  /// 연동 멈춤(원격 스위치).
+  paused,
+
+  /// 로그인 전. 화면은 [로그인]을 둔다.
+  beforeLogin,
+}
+
+/// 머리 아래 안내 칸.
+final class TaskListNotice {
+  const TaskListNotice({
+    required this.kind,
+    required this.title,
+    required this.sub,
+  });
+
+  final TaskListNoticeKind kind;
+  final String title;
+  final String sub;
+}
+
+/// 안내 칸(최종 프로토타입 03 할 일의 안내). [status]는 LMS 상태(읽지 못했으면 null)이고, [unchecked]는 마지막으로
+/// 성공한 LMS 동기화가 받지 못한 과목의 이름(그 동기화는 [checkedAt]에 시작)이다. 연동됨일 때만 일부 과목 실패를
+/// 알린다. 보일 것이 없으면 null이다.
+TaskListNotice? taskListNotice({
+  required LmsStatusKind? status,
+  List<String> unchecked = const [],
+  DateTime? checkedAt,
+  required DateTime now,
+}) => switch (status) {
+  LmsStatusKind.paused => const TaskListNotice(
+    kind: TaskListNoticeKind.paused,
+    title: 'LMS 연동을 잠시 멈췄어요',
+    sub: '받아 둔 할 일은 그대로 있어요. 직접 추가는 계속 쓸 수 있어요',
+  ),
+  LmsStatusKind.beforeLogin => const TaskListNotice(
+    kind: TaskListNoticeKind.beforeLogin,
+    title: 'LMS에 로그인하면 마감을 모아 와요',
+    sub: '학번과 비밀번호로 로그인해요. 그전에는 할 일을 직접 넣어요',
+  ),
+  LmsStatusKind.synced when unchecked.isNotEmpty => TaskListNotice(
+    kind: TaskListNoticeKind.unchecked,
+    title: '${withJosa(_coursesText(unchecked), Josa.eunNeun)} 확인하지 못했어요',
+    sub: [
+      checkedAt == null
+          ? '다른 과목은 새로 받았어요'
+          : '다른 과목은 ${elapsedText(now.difference(checkedAt))}에 새로 받았어요',
+      '확인하지 못한 과목은 전에 받은 할 일을 보여 드려요',
+    ].join('. '),
+  ),
+  _ => null,
+};
+
+/// 과목 이름 묶음: 하나면 그대로, 둘이면 '자료구조·운영체제', 셋 이상이면 '자료구조 외 2과목'.
+String _coursesText(List<String> names) => switch (names) {
+  [final one] => one,
+  [final a, final b] => '$a·$b',
+  [final first, ...] => '$first 외 ${names.length - 1}과목',
+  [] => '',
+};

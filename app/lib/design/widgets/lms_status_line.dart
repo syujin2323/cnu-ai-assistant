@@ -24,6 +24,7 @@ AppIconName lmsStatusIcon(LmsStatusKind kind) => switch (kind) {
   LmsStatusKind.demo ||
   LmsStatusKind.reloginNeeded => AppIconName.refresh,
   LmsStatusKind.connectionFailed => AppIconName.warning,
+  LmsStatusKind.offline => AppIconName.offline,
   LmsStatusKind.maintenance ||
   LmsStatusKind.paused ||
   LmsStatusKind.beforeLogin => AppIconName.info,

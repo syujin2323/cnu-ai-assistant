@@ -3,6 +3,7 @@
 // 가짜 LMS 서버(합성 키 스크립트·과목 목록·할 일 목록·홈)와 합성 요청 상수로 계기·예산·잠금·판별·쓰기·상태 전이를 본다.
 // 학번·쿠키·키는 모두 합성 값이다.
 import 'dart:convert';
+import 'dart:io' show SocketException;
 
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/lms_sync_repository.dart';
@@ -23,6 +24,7 @@ import 'package:cnu_ai_assistant/lms/lms_config.dart';
 import 'package:cnu_ai_assistant/lms/request_params.dart';
 import 'package:cnu_ai_assistant/lms/sync_budget.dart';
 import 'package:cnu_ai_assistant/lms/sync_coordinator.dart';
+import 'package:dio/dio.dart' show DioExceptionType;
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -272,6 +274,48 @@ void main() {
       expect(await db.select(db.syncLeases).get(), isEmpty);
     });
 
+    test('연결 없음·주소 해석 실패면 detail에 offline을 남기고, 시간 초과는 남기지 않는다', () async {
+      const offline = FakeLmsResponse.networkFailure(
+        failureCause: SocketException("Failed host lookup: 'example.invalid'"),
+      );
+      Future<SyncResult> run(
+        Map<String, FakeLmsResponse Function(FakeLmsRequest)> routes,
+      ) => manual(coordinator(FakeLmsServer(routes)));
+
+      // 할 일 목록에서.
+      final todos = await run(routes(todos: (_) => offline));
+      expect(
+        (todos.kind, todos.detail),
+        (SyncResultKind.networkFailure, SyncRunDetail.offline),
+      );
+      expect((await runs()).last.detail, SyncRunDetail.offline);
+
+      // 준비 요청(키 받기)에서.
+      final prepare = await run({
+        ...routes(),
+        'GET /assets/synthetic-key-3.js': (_) => offline,
+      });
+      expect(
+        (prepare.kind, prepare.detail),
+        (SyncResultKind.networkFailure, SyncRunDetail.offline),
+      );
+
+      // 시간 초과는 연결 실패라 남기지 않는다.
+      final timeout = await run(
+        routes(
+          todos: (_) => const FakeLmsResponse.networkFailure(
+            failureType: DioExceptionType.receiveTimeout,
+          ),
+        ),
+      );
+      expect(
+        (timeout.kind, timeout.detail),
+        (SyncResultKind.networkFailure, null),
+      );
+      expect((await runs()).last.detail, isNull);
+      expect((await readSettings()).lmsSessionState, LmsSessionState.active);
+    });
+
     test('같은 isolate에서 두 번 부르면 진행 중인 것을 함께 받고 도는 동안만 알린다', () async {
       final server = FakeLmsServer(routes());
       final c = coordinator(server);
@@ -484,13 +528,17 @@ void main() {
         final down = FakeLmsServer({
           ...routes(todos: (_) => loginPage()),
           'POST /synthetic-login/submit': (_) =>
-              const FakeLmsResponse.networkFailure(),
+              const FakeLmsResponse.networkFailure(
+                failureCause: SocketException(
+                  "Failed host lookup: 'example.invalid'",
+                ),
+              ),
         });
 
-        expect(
-          (await manual(coordinator(down))).kind,
-          SyncResultKind.networkFailure,
-        );
+        final postponed = await manual(coordinator(down));
+        expect(postponed.kind, SyncResultKind.networkFailure);
+        // 다시 로그인이 오프라인으로 막혔으면 그것도 남긴다.
+        expect(postponed.detail, SyncRunDetail.offline);
         expect(
           (await readSettings()).lmsSessionState,
           LmsSessionState.restoring,
@@ -640,6 +688,27 @@ void main() {
     Future<int> courseId(String remoteId) async => (await (db.select(
       db.courses,
     )..where((c) => c.remoteId.equals(remoteId))).getSingle()).id;
+
+    test('모든 과목이 오프라인으로 실패하면 결과에 offline을 담는다(강의계획서·통합정보시스템 요청 모두)', () async {
+      const offline = FakeLmsResponse.networkFailure(
+        failureCause: SocketException("Failed host lookup: 'example.invalid'"),
+      );
+      for (final failing in [
+        'POST /api/synthetic-course-plan',
+        'GET /outlink/open',
+      ]) {
+        final result = await importTimetable(
+          withTimetable(
+            FakeLmsServer({...timetableRoutes(), failing: (_) => offline}),
+          ),
+        );
+        expect(
+          (result.kind, result.detail),
+          (SyncResultKind.networkFailure, SyncRunDetail.offline),
+          reason: failing,
+        );
+      }
+    });
 
     test(
       '과목 목록을 쓰고 과목마다 시간표를 읽어 불러온 수업으로 넣으며, 동기화 기록과 마지막 확인 시각에는 남기지 않는다',

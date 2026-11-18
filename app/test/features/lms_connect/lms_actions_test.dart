@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
+import 'package:cnu_ai_assistant/design/widgets/lms_info_sheet.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/lms_actions.dart';
@@ -219,7 +220,14 @@ void main() {
     await tester.pumpAndSettle();
     final again = openLmsInfoSheet(_home(tester), _ref(tester));
     await tester.pumpAndSettle();
-    expect(find.text('LMS에 연결할 수 없어요'), findsOneWidget);
+    // 02 홈 위의 띠도 같은 제목이라 시트 안에서 찾는다.
+    expect(
+      find.descendant(
+        of: find.byType(LmsInfoSheet),
+        matching: find.text('LMS에 연결할 수 없어요'),
+      ),
+      findsOneWidget,
+    );
     await tapText(tester, 'LMS 계정 보기');
     await again;
     expect(find.byType(MeScreen), findsOneWidget);
