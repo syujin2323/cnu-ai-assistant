@@ -931,3 +931,10 @@
 - 받아들인 점: 숨긴 수업을 다시 보이는 화면은 없다(10초 되돌리기가 지나면 직접 넣어야 함). 학교 쪽에서 숨긴 수업의 시간이 바뀌어도 알리지 않는다.
 - 다른 후보: 지우되 '새로 고침하면 다시 들어올 수 있어요'를 안내하기(권장안이었다), 불러온 수업에는 [빼기]를 두지 않기.
 - 영향: architecture.md '폰 DB'(`class_slots`), lms.md '시간표 (통합정보시스템)', screens.md '13 시간표·고정 일정', `app/lib/domain/timetable_refresh.dart`, `app/lib/data/repositories/class_slot_repository.dart`·`schedule_repository.dart`·`timetable_refresh_repository.dart`·`lms_sync_repository.dart`, 스키마 스냅샷 v1.
+
+## 2026-11-19 아이콘 SVG는 Dart 문자열로 둔다 (architecture.md '앱 코드 규약'의 아이콘 에셋 바꿈)
+
+- 결정: 캔버스 아이콘 SVG를 `app/assets/icons/`의 에셋 파일이 아니라 `app/lib/design/icon_svgs.dart`의 Dart 문자열로 두고 `SvgPicture.string`으로 그린다. 에셋 폴더와 `pubspec.yaml`의 그 줄은 지운다. 새 아이콘은 `IconSvgs`에 문자열 하나와 `AppIconName`에 한 줄을 더한다. 캔버스가 같은 그림을 다른 뜻으로 쓰는 이름(할 일 탭·네모 안 체크, 오늘 탭·해, 나 탭·사람)은 앞 이름의 문자열을 가리킨다.
+- 이유: 에셋은 Shorebird 패치로 바꿀 수 없어서, 첫 팀원 빌드 뒤 화면 PR이 새 아이콘을 쓸 때마다 새 release를 내야 한다. Dart 문자열이면 아이콘도 패치로 낸다. 아이콘 37개가 모두 합쳐 약 10KB라 앱 크기에 거의 차이가 없다(세션 C와 합의).
+- 다른 후보: 첫 팀원 빌드 전에 캔버스 아이콘을 모두 에셋으로 넣기(빠진 아이콘이 있으면 그때마다 새 release).
+- 영향: architecture.md '폴더 구조'·'앱 코드 규약'·'확인과 CI', `app/lib/design/icons.dart`, `app/lib/design/icon_svgs.dart`, `app/pubspec.yaml`, `app/test/design/icons_test.dart`, `app/test/conventions_test.dart`(SvgPicture는 `design/icons.dart`만, SVG 문자열은 `design/icon_svgs.dart`만).
