@@ -221,11 +221,50 @@ void main() {
         await app.dispose(tester);
       });
 
+      testWidgets('시간표의 할 일 블록을 누르면 근거 시트가 열리고, 완료는 되돌리기로 돌린다', (tester) async {
+        final (app, ids) = await pumpHome(tester, textScale: textScale);
+
+        // 16:00–17:00 '과제 1'(직접 놓은 확정 블록).
+        await scrollTo(tester, find.text('과제 1'));
+        await tester.tap(find.text('과제 1'));
+        await tester.pumpAndSettle();
+        expect(find.text('확정'), findsOneWidget);
+        expect(find.text('직접 정한 시간이에요'), findsOneWidget);
+        expect(find.textContaining('오늘 16:00–17:00 · 1시간'), findsOneWidget);
+        expect(find.widgetWithText(FilledButton, '완료'), findsOneWidget);
+        expect(find.widgetWithText(OutlinedButton, '지우기'), findsOneWidget);
+        // 옮기기 시트가 붙기 전에는 [옮기기]를 두지 않는다.
+        expect(find.text('옮기기'), findsNothing);
+
+        await tester.tap(find.widgetWithText(FilledButton, '완료'));
+        await tester.pumpAndSettle();
+        expect(find.text('직접 정한 시간이에요'), findsNothing);
+        expect(await statusOf(app.db, ids.later), PlanBlockStatus.done);
+        expect(find.text('과제 1 · 1시간 끝냈어요'), findsOneWidget);
+
+        await tester.tap(find.text('되돌리기'));
+        await tester.pumpAndSettle();
+        expect(await statusOf(app.db, ids.later), PlanBlockStatus.confirmed);
+
+        // 지우기는 블록을 지운 것으로 둔다.
+        await scrollTo(tester, find.text('과제 1'));
+        await tester.tap(find.text('과제 1'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(OutlinedButton, '지우기'));
+        await tester.pumpAndSettle();
+        expect(await statusOf(app.db, ids.later), PlanBlockStatus.dismissed);
+        expect(find.textContaining('과제 1을 지웠어요'), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
       testWidgets('지난 일정을 펼치고 접는다', (tester) async {
         final (app, _) = await pumpHome(tester, textScale: textScale);
 
         // 놓친 블록은 흐리게 '놓침'으로 그리고 체크가 없다(근거 시트는 W5 PR에서 붙어 아직 누를 수 없음).
-        final pastBlock = find.bySemanticsLabel('과제 1, 09:00부터 10:00, 놓침');
+        final pastBlock = find.bySemanticsLabel(
+          '과제 1, 09:00부터 10:00, 놓침, 근거 보기',
+        );
         expect(pastBlock, findsNothing);
 
         await tapText(tester, '지난 일정 1개 보기');

@@ -88,6 +88,7 @@ Future<void> pump(
   double textScale = 1,
   Size size = phonePortrait,
   ValueChanged<DayItem>? onItemTap,
+  ValueChanged<BlockItem>? onBlockTap,
   ValueChanged<BlockItem>? onBlockCheck,
   ValueChanged<TimeSpan>? onFreeTap,
 }) async {
@@ -119,6 +120,7 @@ Future<void> pump(
                 dayBoundaryMin: Defaults.dayBoundaryMin,
                 courseNames: const {7: '선형대수'},
                 onItemTap: onItemTap,
+                onBlockTap: onBlockTap,
                 onBlockCheck: onBlockCheck,
                 onFreeTap: onFreeTap,
               ),
@@ -156,6 +158,7 @@ void main() {
     await pump(
       tester,
       onItemTap: tapped.add,
+      onBlockTap: tapped.add,
       onBlockCheck: tapped.add,
       onFreeTap: tapped.add,
     );
@@ -168,6 +171,22 @@ void main() {
     expect(tapped, [lesson, items[2], items[2], free.single]);
   });
 
+  testWidgets('할 일 블록은 블록 콜백으로만 누르고, 수업·일정은 카드 콜백으로만 누른다', (tester) async {
+    final items = <Object>[];
+    final blocks = <Object>[];
+    await pump(tester, onItemTap: items.add);
+    await tester.tap(find.text('퀴즈'));
+    await tester.tap(find.text('선형대수'));
+    await tester.pumpAndSettle();
+    expect(items, [lesson]);
+
+    await pump(tester, onBlockTap: blocks.add);
+    await tester.tap(find.text('선형대수'));
+    await tester.tap(find.text('퀴즈'));
+    await tester.pumpAndSettle();
+    expect(blocks, hasLength(1));
+  });
+
   testWidgets('확정·완료 블록에만 체크가 있고, 제안·놓침에는 없다', (tester) async {
     await pump(tester);
     expect(find.bySemanticsLabel('퀴즈 완료로 표시'), findsOneWidget);
@@ -177,7 +196,12 @@ void main() {
 
   testWidgets('읽기 도구는 카드마다 제목·시각·종류와 할 수 있는 일을 한 번에 읽는다', (tester) async {
     final handle = tester.ensureSemantics();
-    await pump(tester, onItemTap: (_) {}, onFreeTap: (_) {});
+    await pump(
+      tester,
+      onItemTap: (_) {},
+      onBlockTap: (_) {},
+      onFreeTap: (_) {},
+    );
     expect(
       find.bySemanticsLabel('선형대수, 10:30부터 11:45, 수업, 정보 보기'),
       findsOneWidget,

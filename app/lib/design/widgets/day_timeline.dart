@@ -11,8 +11,9 @@
 // 카드 높이는 시간으로 정해지므로, 글자를 키우면 카드 안 글자는 잘린다(넘침 오류는 내지 않음). 읽기 도구에는
 // 카드마다 제목·시각·종류와, 누를 수 있으면 할 수 있는 일을 한 번에 읽어 준다(눌러도 반응 없는 자리를 알리지
 // 않게).
-// 누르면: 할 일 블록 → [DayTimeline.onItemTap](근거 시트), 블록의 체크 → [DayTimeline.onBlockCheck], 수업·일정 →
-// [DayTimeline.onItemTap](일정 정보 시트), 빈 시간 → [DayTimeline.onFreeTap](빈 시간에 놓기 시트).
+// 누르면: 할 일 블록 → [DayTimeline.onBlockTap](근거 시트), 블록의 체크 → [DayTimeline.onBlockCheck], 수업·일정 →
+// [DayTimeline.onItemTap](일정 정보 시트), 빈 시간 → [DayTimeline.onFreeTap](빈 시간에 놓기 시트). 넘기지 않은 쪽은
+// 누를 수 없다.
 
 import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/motion/press.dart';
@@ -40,6 +41,7 @@ class DayTimeline extends StatelessWidget {
     required this.dayBoundaryMin,
     this.courseNames = const {},
     this.onItemTap,
+    this.onBlockTap,
     this.onBlockCheck,
     this.onFreeTap,
   });
@@ -55,7 +57,12 @@ class DayTimeline extends StatelessWidget {
   /// 과목 id → 과목 이름(수업 카드의 제목).
   final Map<int, String> courseNames;
 
+  /// 할 일 블록이 아닌 카드(수업·일정·고정 일정)를 누를 때.
   final ValueChanged<DayItem>? onItemTap;
+
+  /// 할 일 블록을 누를 때(근거 시트).
+  final ValueChanged<BlockItem>? onBlockTap;
+
   final ValueChanged<BlockItem>? onBlockCheck;
   final ValueChanged<TimeSpan>? onFreeTap;
 
@@ -127,7 +134,12 @@ class DayTimeline extends StatelessWidget {
       title: _title(entry.item),
       now: now,
       dayBoundaryMin: dayBoundaryMin,
-      onTap: onItemTap == null ? null : () => onItemTap!(entry.item),
+      onTap: switch (entry.item) {
+        final BlockItem item when onBlockTap != null => () => onBlockTap!(item),
+        BlockItem() => null,
+        final item when onItemTap != null => () => onItemTap!(item),
+        _ => null,
+      },
       onCheck: entry.item is BlockItem && onBlockCheck != null
           ? () => onBlockCheck!(entry.item as BlockItem)
           : null,
