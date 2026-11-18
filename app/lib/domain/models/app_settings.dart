@@ -17,6 +17,7 @@ abstract final class SettingKeys {
   static const dayBoundaryMin = 'dayBoundaryMin';
   static const aiEnabled = 'aiEnabled';
   static const aiConsentAt = 'aiConsentAt';
+  static const aiLimitReachedOn = 'aiLimitReachedOn';
   static const privacyConsentAt = 'privacyConsentAt';
   static const metricsEnabled = 'metricsEnabled';
   static const metricsLastSentOn = 'metricsLastSentOn';
@@ -27,6 +28,7 @@ abstract final class SettingKeys {
   static const lmsTimetableImportedAt = 'lmsTimetableImportedAt';
   static const checkinMin = 'checkinMin';
   static const dueTodayTimeSensitive = 'dueTodayTimeSensitive';
+  static const showTravelMeal = 'showTravelMeal';
   static const onboardingSkipped = 'onboardingSkipped';
   static const installedAt = 'installedAt';
 
@@ -35,6 +37,7 @@ abstract final class SettingKeys {
     dayBoundaryMin,
     aiEnabled,
     aiConsentAt,
+    aiLimitReachedOn,
     privacyConsentAt,
     metricsEnabled,
     metricsLastSentOn,
@@ -45,6 +48,7 @@ abstract final class SettingKeys {
     lmsTimetableImportedAt,
     checkinMin,
     dueTodayTimeSensitive,
+    showTravelMeal,
     onboardingSkipped,
     installedAt,
   ];
@@ -56,6 +60,7 @@ class AppSettings {
     required this.dayBoundaryMin,
     required this.aiEnabled,
     required this.aiConsentAt,
+    required this.aiLimitReachedOn,
     required this.privacyConsentAt,
     required this.metricsEnabled,
     required this.metricsLastSentOn,
@@ -66,6 +71,7 @@ class AppSettings {
     required this.lmsTimetableImportedAt,
     required this.checkinMin,
     required this.dueTodayTimeSensitive,
+    required this.showTravelMeal,
     required this.onboardingSkipped,
     required this.installedAt,
   });
@@ -75,6 +81,7 @@ class AppSettings {
     dayBoundaryMin: Defaults.dayBoundaryMin,
     aiEnabled: false,
     aiConsentAt: null,
+    aiLimitReachedOn: null,
     privacyConsentAt: null,
     metricsEnabled: false,
     metricsLastSentOn: null,
@@ -85,6 +92,7 @@ class AppSettings {
     lmsTimetableImportedAt: null,
     checkinMin: null,
     dueTodayTimeSensitive: false,
+    showTravelMeal: true,
     onboardingSkipped: [],
     installedAt: null,
   );
@@ -100,6 +108,9 @@ class AppSettings {
       aiEnabled: _boolOrNull(values[SettingKeys.aiEnabled]) ?? d.aiEnabled,
       aiConsentAt:
           tryDecodeDateTime(values[SettingKeys.aiConsentAt]) ?? d.aiConsentAt,
+      aiLimitReachedOn:
+          _isoDateOrNull(values[SettingKeys.aiLimitReachedOn]) ??
+          d.aiLimitReachedOn,
       privacyConsentAt:
           tryDecodeDateTime(values[SettingKeys.privacyConsentAt]) ??
           d.privacyConsentAt,
@@ -131,6 +142,8 @@ class AppSettings {
       dueTodayTimeSensitive:
           _boolOrNull(values[SettingKeys.dueTodayTimeSensitive]) ??
           d.dueTodayTimeSensitive,
+      showTravelMeal:
+          _boolOrNull(values[SettingKeys.showTravelMeal]) ?? d.showTravelMeal,
       onboardingSkipped:
           _onboardingStepsOrNull(values[SettingKeys.onboardingSkipped]) ??
           d.onboardingSkipped,
@@ -151,6 +164,12 @@ class AppSettings {
 
   /// AI 사용에 동의한 시각.
   final DateTime? aiConsentAt;
+
+  /// `/v1/parse`에서 429(`install_limit`, 설치당 하루 한도를 다 씀)를 받은 한국 달력 날짜(`YYYY-MM-DD`). 그날은
+  /// 문장을 보내지 않고 10 나 › AI가 '오늘 사용량을 다 썼어요'를 보인다(docs/decisions.md 2026-11-15 '오늘 AI
+  /// 사용량을 다 쓴 날을 기억한다'). 서버가 한도를 세는 날이라 논리적 하루가 아니라 달력 날짜다. 적는 곳은 06 AI
+  /// 비서다.
+  final String? aiLimitReachedOn;
 
   /// 14 온보딩 1단계에서 개인정보 처리 안내(필수)에 동의한 시각. 로그인 폼 PR이 적는다.
   final DateTime? privacyConsentAt;
@@ -187,6 +206,11 @@ class AppSettings {
   /// (R1) 마감 당일 알림을 '시간 민감' 알림으로 보낼지.
   final bool dueTodayTimeSensitive;
 
+  /// 10 나 › 일정의 '이동·점심 시간 표시'(기본 켬). 끄면 01 아침 브리핑·02 홈·09 일간이 이동·점심 카드를
+  /// 그리지 않고 11 주간은 막대에서 이동을 뺀다. 배치는 그 시간을 그대로 비운다(docs/screens.md '이동·점심 시간
+  /// 표시').
+  final bool showTravelMeal;
+
   /// 건너뛴 온보딩 단계의 번호(docs/architecture.md '온보딩'의 1–5. 지금은 3단계만 건너뛸 수 있다).
   /// 이 값을 쓰는 화면은 문서에 없다(홈 위 카드가 아님). 늘 1–5의 중복 없는 오름차순 목록이다.
   final List<int> onboardingSkipped;
@@ -208,7 +232,8 @@ class AppSettings {
       SettingKeys.aiEnabled ||
       SettingKeys.metricsEnabled ||
       SettingKeys.lmsCredentialRejected ||
-      SettingKeys.dueTodayTimeSensitive => _require<bool>(key, value),
+      SettingKeys.dueTodayTimeSensitive ||
+      SettingKeys.showTravelMeal => _require<bool>(key, value),
       SettingKeys.aiConsentAt ||
       SettingKeys.privacyConsentAt ||
       SettingKeys.lmsLastSuccessAt ||
@@ -216,7 +241,7 @@ class AppSettings {
       SettingKeys.lmsTimetableImportedAt ||
       SettingKeys.installedAt =>
         value == null ? null : encodeDateTime(_require<DateTime>(key, value)),
-      SettingKeys.metricsLastSentOn =>
+      SettingKeys.aiLimitReachedOn || SettingKeys.metricsLastSentOn =>
         value == null ? null : _requireIsoDate(key, value),
       SettingKeys.lmsSessionState => snakeName(
         _require<LmsSessionState>(key, value),
@@ -235,6 +260,7 @@ class AppSettings {
     SettingKeys.dayBoundaryMin => dayBoundaryMin,
     SettingKeys.aiEnabled => aiEnabled,
     SettingKeys.aiConsentAt => aiConsentAt,
+    SettingKeys.aiLimitReachedOn => aiLimitReachedOn,
     SettingKeys.privacyConsentAt => privacyConsentAt,
     SettingKeys.metricsEnabled => metricsEnabled,
     SettingKeys.metricsLastSentOn => metricsLastSentOn,
@@ -245,6 +271,7 @@ class AppSettings {
     SettingKeys.lmsTimetableImportedAt => lmsTimetableImportedAt,
     SettingKeys.checkinMin => checkinMin,
     SettingKeys.dueTodayTimeSensitive => dueTodayTimeSensitive,
+    SettingKeys.showTravelMeal => showTravelMeal,
     SettingKeys.onboardingSkipped => onboardingSkipped,
     SettingKeys.installedAt => installedAt,
     _ => throw ArgumentError.value(key, 'key', 'Unknown settings key'),
@@ -255,6 +282,7 @@ class AppSettings {
     int? dayBoundaryMin,
     bool? aiEnabled,
     Object? aiConsentAt = _keep,
+    Object? aiLimitReachedOn = _keep,
     Object? privacyConsentAt = _keep,
     bool? metricsEnabled,
     Object? metricsLastSentOn = _keep,
@@ -265,6 +293,7 @@ class AppSettings {
     Object? lmsTimetableImportedAt = _keep,
     Object? checkinMin = _keep,
     bool? dueTodayTimeSensitive,
+    bool? showTravelMeal,
     List<int>? onboardingSkipped,
     Object? installedAt = _keep,
   }) {
@@ -274,6 +303,9 @@ class AppSettings {
       aiConsentAt: identical(aiConsentAt, _keep)
           ? this.aiConsentAt
           : aiConsentAt as DateTime?,
+      aiLimitReachedOn: identical(aiLimitReachedOn, _keep)
+          ? this.aiLimitReachedOn
+          : aiLimitReachedOn as String?,
       privacyConsentAt: identical(privacyConsentAt, _keep)
           ? this.privacyConsentAt
           : privacyConsentAt as DateTime?,
@@ -298,6 +330,7 @@ class AppSettings {
           : checkinMin as int?,
       dueTodayTimeSensitive:
           dueTodayTimeSensitive ?? this.dueTodayTimeSensitive,
+      showTravelMeal: showTravelMeal ?? this.showTravelMeal,
       onboardingSkipped: onboardingSkipped ?? this.onboardingSkipped,
       installedAt: identical(installedAt, _keep)
           ? this.installedAt
@@ -311,6 +344,7 @@ class AppSettings {
       other.dayBoundaryMin == dayBoundaryMin &&
       other.aiEnabled == aiEnabled &&
       other.aiConsentAt == aiConsentAt &&
+      other.aiLimitReachedOn == aiLimitReachedOn &&
       other.privacyConsentAt == privacyConsentAt &&
       other.metricsEnabled == metricsEnabled &&
       other.metricsLastSentOn == metricsLastSentOn &&
@@ -321,6 +355,7 @@ class AppSettings {
       other.lmsTimetableImportedAt == lmsTimetableImportedAt &&
       other.checkinMin == checkinMin &&
       other.dueTodayTimeSensitive == dueTodayTimeSensitive &&
+      other.showTravelMeal == showTravelMeal &&
       _sameInts(other.onboardingSkipped, onboardingSkipped) &&
       other.installedAt == installedAt;
 
@@ -329,6 +364,7 @@ class AppSettings {
     dayBoundaryMin,
     aiEnabled,
     aiConsentAt,
+    aiLimitReachedOn,
     privacyConsentAt,
     metricsEnabled,
     metricsLastSentOn,
@@ -339,6 +375,7 @@ class AppSettings {
     lmsTimetableImportedAt,
     checkinMin,
     dueTodayTimeSensitive,
+    showTravelMeal,
     Object.hashAll(onboardingSkipped),
     installedAt,
   );

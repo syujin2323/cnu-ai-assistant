@@ -56,6 +56,7 @@ void main() {
       expect(settings.dayBoundaryMin, 240);
       expect(settings.aiEnabled, isFalse);
       expect(settings.aiConsentAt, isNull);
+      expect(settings.aiLimitReachedOn, isNull);
       expect(settings.privacyConsentAt, isNull);
       expect(settings.metricsEnabled, isFalse);
       expect(settings.metricsLastSentOn, isNull);
@@ -66,6 +67,7 @@ void main() {
       expect(settings.lmsTimetableImportedAt, isNull);
       expect(settings.checkinMin, isNull);
       expect(settings.dueTodayTimeSensitive, isFalse);
+      expect(settings.showTravelMeal, isTrue);
       expect(settings.onboardingSkipped, isEmpty);
       expect(settings.installedAt, isNull);
       expect(settings, AppSettings.defaults);
@@ -76,6 +78,7 @@ void main() {
         'dayBoundaryMin': 240,
         'aiEnabled': false,
         'aiConsentAt': null,
+        'aiLimitReachedOn': null,
         'privacyConsentAt': null,
         'metricsEnabled': false,
         'metricsLastSentOn': null,
@@ -86,6 +89,7 @@ void main() {
         'lmsTimetableImportedAt': null,
         'checkinMin': null,
         'dueTodayTimeSensitive': false,
+        'showTravelMeal': true,
         'onboardingSkipped': <int>[],
         'installedAt': null,
       });
@@ -99,6 +103,7 @@ void main() {
       await writeOk(SettingKeys.dayBoundaryMin, 300);
       await writeOk(SettingKeys.aiEnabled, true);
       await writeOk(SettingKeys.aiConsentAt, consentAt);
+      await writeOk(SettingKeys.aiLimitReachedOn, '2026-10-29');
       final privacyAt = DateTime(2026, 10, 29, 9);
       await writeOk(SettingKeys.privacyConsentAt, privacyAt);
       await writeOk(SettingKeys.metricsLastSentOn, '2026-10-28');
@@ -111,6 +116,7 @@ void main() {
       await writeOk(SettingKeys.lmsTimetableImportedAt, importedAt);
       await writeOk(SettingKeys.checkinMin, 1350);
       await writeOk(SettingKeys.dueTodayTimeSensitive, true);
+      await writeOk(SettingKeys.showTravelMeal, false);
       await writeOk(SettingKeys.onboardingSkipped, [3, 4]);
 
       expect(
@@ -119,6 +125,7 @@ void main() {
           dayBoundaryMin: 300,
           aiEnabled: true,
           aiConsentAt: consentAt,
+          aiLimitReachedOn: '2026-10-29',
           privacyConsentAt: privacyAt,
           metricsLastSentOn: '2026-10-28',
           lmsSessionState: LmsSessionState.reconnectRequired,
@@ -126,6 +133,7 @@ void main() {
           lmsTimetableImportedAt: importedAt,
           checkinMin: 1350,
           dueTodayTimeSensitive: true,
+          showTravelMeal: false,
           onboardingSkipped: [3, 4],
         ),
       );
@@ -202,6 +210,8 @@ void main() {
         (SettingKeys.aiConsentAt, '2026-10-29'),
         (SettingKeys.privacyConsentAt, true),
         (SettingKeys.metricsLastSentOn, '2026-10-32'),
+        (SettingKeys.aiLimitReachedOn, '2026-11-18T00:00'),
+        (SettingKeys.showTravelMeal, null),
         (SettingKeys.onboardingSkipped, null),
         // 건너뛴 온보딩 단계는 1–5의 중복 없는 오름차순 목록만 쓴다.
         (SettingKeys.onboardingSkipped, [0]),
@@ -300,6 +310,8 @@ void main() {
       await putRaw(SettingKeys.onboardingSkipped, '[1, "x"]');
       await putRaw(SettingKeys.installedAt, '"yesterday"');
       await putRaw(SettingKeys.metricsLastSentOn, '"2026-02-30"');
+      await putRaw(SettingKeys.aiLimitReachedOn, '20261118');
+      await putRaw(SettingKeys.showTravelMeal, '"no"');
       await putRaw('unknownKey', '1');
       // 없앤 키가 예전 행으로 남아 있어도 읽지 않는다.
       await putRaw('lmsAutoLogin', 'true');

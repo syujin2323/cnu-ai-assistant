@@ -10,6 +10,7 @@ import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/data/repositories/local_data_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
+import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/task_week.dart';
@@ -17,6 +18,27 @@ import 'package:cnu_ai_assistant/lms/account.dart';
 import 'package:cnu_ai_assistant/lms/cookie_vault.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+/// 10 나 › AI 사용의 상태(docs/screens.md '10 나').
+enum AiStatus {
+  /// 켜짐.
+  on,
+
+  /// 꺼짐(동의하지 않았거나 껐음).
+  off,
+
+  /// 켜져 있지만 오늘 사용량을 다 썼음.
+  limitReached,
+}
+
+/// AI 사용의 상태. 켜져 있고 `aiLimitReachedOn`이 오늘이면 오늘 사용량을 다 쓴 것이다. 오늘은 서버가 한도를 세는
+/// 한국 달력 날짜라 논리적 하루가 아니다(하루 경계 전 새벽에도 그날 날짜). [now]에는 [Clock.now]의 값을 넘긴다.
+AiStatus aiStatusOf(AppSettings settings, {required DateTime now}) =>
+    !settings.aiEnabled
+    ? AiStatus.off
+    : settings.aiLimitReachedOn == isoDate(now)
+    ? AiStatus.limitReached
+    : AiStatus.on;
 
 /// 학번을 가린다: 앞 4자리(입학 연도)와 끝 2자리만 보이고 나머지는 '•'다. 6자리 이하면 끝 2자리만 보인다.
 String maskStudentId(String studentId) {

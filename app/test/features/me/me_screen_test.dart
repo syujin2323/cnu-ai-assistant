@@ -1,4 +1,5 @@
-// 10 나 화면 테스트. docs/screens.md '10 나', docs/lms.md '로그아웃, 데이터 삭제, 내보내기'.
+// 10 나 화면 테스트. docs/screens.md '10 나'·'AI 사용 동의'·'이동·점심 시간 표시', docs/lms.md '로그아웃, 데이터 삭제,
+// 내보내기'.
 //
 // 2026-11-16(월) 10:00이고, 실제 모드에서 LMS에 로그인해 있다(저장된 학번 202412345).
 
@@ -14,6 +15,7 @@ import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/relogin_screen.dart';
 import 'package:cnu_ai_assistant/features/me/me_controller.dart';
 import 'package:cnu_ai_assistant/features/me/me_screen.dart';
+import 'package:cnu_ai_assistant/features/me/widgets/me_rows.dart';
 import 'package:cnu_ai_assistant/features/onboarding/onboarding_screen.dart';
 import 'package:cnu_ai_assistant/lms/account.dart';
 import 'package:drift/drift.dart' show Value;
@@ -95,6 +97,18 @@ Future<void> tapFinder(WidgetTester tester, Finder target) async {
   await tester.pumpAndSettle();
 }
 
+Future<AppSettings> readSettings(AppDatabase db) async =>
+    (await SettingsRepository(db).read() as Ok<AppSettings>).value;
+
+/// 제목이 [label]인 줄의 오른쪽 값이 [value]인지.
+Finder rowValue(String label, String value) => find.descendant(
+  of: find.widgetWithText(MeRow, label),
+  matching: find.text(value),
+);
+
+/// 제목이 [label]인 스위치 줄.
+Finder switchRow(String label) => find.widgetWithText(MeSwitchRow, label);
+
 void main() {
   group('maskStudentId', () {
     test('앞 4자리와 끝 2자리만 보이고, 짧으면 끝 2자리만 보인다', () {
@@ -103,6 +117,36 @@ void main() {
       expect(maskStudentId('123456'), '••••56');
       expect(maskStudentId('12'), '••');
     });
+  });
+
+  test('AI 사용의 상태는 켜짐·꺼짐·오늘 사용량 다 씀이고, 오늘은 한국 달력 날짜다', () {
+    final on = AppSettings.defaults.copyWith(aiEnabled: true);
+    expect(aiStatusOf(AppSettings.defaults, now: now), AiStatus.off);
+    expect(aiStatusOf(on, now: now), AiStatus.on);
+    expect(
+      aiStatusOf(on.copyWith(aiLimitReachedOn: '2026-11-16'), now: now),
+      AiStatus.limitReached,
+    );
+    expect(
+      aiStatusOf(on.copyWith(aiLimitReachedOn: '2026-11-15'), now: now),
+      AiStatus.on,
+    );
+    // 하루 경계(04:00) 전 새벽 02:00도 서버가 세는 날은 그날(11월 17일)이다.
+    expect(
+      aiStatusOf(
+        on.copyWith(aiLimitReachedOn: '2026-11-17'),
+        now: DateTime(2026, 11, 17, 2),
+      ),
+      AiStatus.limitReached,
+    );
+    // 꺼져 있으면 한도를 다 쓴 날이어도 꺼짐이다.
+    expect(
+      aiStatusOf(
+        AppSettings.defaults.copyWith(aiLimitReachedOn: '2026-11-16'),
+        now: now,
+      ),
+      AiStatus.off,
+    );
   });
 
   test('문의 메일은 처리방침의 연락처에서 읽고, 없으면 null이다', () {
@@ -128,6 +172,8 @@ void main() {
         expect(find.text('지금 새로 고침'), findsOneWidget);
         await scrollTo(tester, find.text('로그아웃'));
         expect(find.textContaining('PC·웹 LMS 세션이 끊길 수 있어요'), findsOneWidget);
+        await scrollTo(tester, find.text('글자 크기'));
+        expect(rowValue('글자 크기', '시스템'), findsOneWidget);
         await scrollTo(tester, find.text('데이터 삭제'));
         await scrollTo(tester, find.text('버전'));
         expect(find.text('0.1.0'), findsOneWidget);
@@ -233,6 +279,165 @@ void main() {
         await app.dispose(tester);
       });
 
+      testWidgets('하루 경계는 시트에서 고르면 바꾸고 알리며, 지금 값을 고르면 그대로다', (tester) async {
+        final app = await pumpMe(tester, textScale: textScale);
+        await scrollTo(tester, find.text('하루 경계'));
+        expect(rowValue('하루 경계', '04:00'), findsOneWidget);
+
+        await tapFinder(tester, find.text('하루 경계'));
+        expect(find.text('하루를 몇 시에 나눌까요?'), findsOneWidget);
+        await tapFinder(tester, find.text('04:00 · 기본'));
+        expect(find.text('하루를 몇 시에 나눌까요?'), findsNothing);
+        expect(
+          [
+            for (final row in await app.db.select(app.db.settings).get())
+              row.key,
+          ],
+          isNot(contains(SettingKeys.dayBoundaryMin)),
+          reason: '지금 값을 고르면 쓰지 않는다',
+        );
+
+        await tapFinder(tester, find.text('하루 경계'));
+        await tapFinder(tester, find.text('05:00'));
+        expect(find.text('하루를 몇 시에 나눌까요?'), findsNothing);
+        expect((await readSettings(app.db)).dayBoundaryMin, 300);
+        expect(rowValue('하루 경계', '05:00'), findsOneWidget);
+        expect(find.text('하루 경계를 05:00으로 바꿨어요'), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('이동·점심 시간 표시 스위치는 설정을 끄고 켠다', (tester) async {
+        final app = await pumpMe(tester, textScale: textScale);
+        final row = switchRow('이동·점심 시간 표시');
+        await scrollTo(tester, row);
+        expect(tester.widget<MeSwitchRow>(row).value, isTrue);
+
+        await tapFinder(tester, row);
+        expect((await readSettings(app.db)).showTravelMeal, isFalse);
+        expect(tester.widget<MeSwitchRow>(row).value, isFalse);
+
+        await tapFinder(tester, row);
+        expect((await readSettings(app.db)).showTravelMeal, isTrue);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('아침 브리핑 시각은 시트에서 고르면 내 규칙에 저장하고, 되돌리기로 돌린다', (tester) async {
+        final app = await pumpMe(tester, textScale: textScale);
+        await scrollTo(tester, find.text('아침 브리핑'));
+        expect(rowValue('아침 브리핑', '08:00'), findsOneWidget);
+
+        // 지금 시각 그대로 [확인]하면 아무것도 쓰지 않는다.
+        await tapFinder(tester, find.text('아침 브리핑'));
+        expect(find.text('아침 브리핑을 몇 시에 받을까요?'), findsOneWidget);
+        await tapFinder(tester, find.widgetWithText(FilledButton, '확인'));
+        expect(await app.db.select(app.db.rules).get(), isEmpty);
+
+        await tapFinder(tester, find.text('아침 브리핑'));
+        await tapFinder(tester, find.text('오전 9:00'));
+        await tapFinder(tester, find.widgetWithText(FilledButton, '확인'));
+        final rule = (await app.db.select(app.db.rules).get()).single;
+        expect(rule.kind, RuleKind.notify);
+        expect(rule.params.briefingMin, 540);
+        expect(rule.source, EntrySource.manual);
+        expect(rowValue('아침 브리핑', '09:00'), findsOneWidget);
+        expect(find.text('아침 브리핑을 09:00으로 바꿨어요'), findsOneWidget);
+
+        await tester.tap(find.text('되돌리기'));
+        await tester.pumpAndSettle();
+        expect(await app.db.select(app.db.rules).get(), isEmpty);
+        expect(rowValue('아침 브리핑', '08:00'), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('AI 사용은 켜면 동의를 묻고, 동의하면 켜고 동의 시각을 적으며, 끄면 바로 끈다', (
+        tester,
+      ) async {
+        final app = await pumpMe(tester, textScale: textScale);
+        final ai = switchRow('AI 사용');
+        await scrollTo(tester, ai);
+        expect(find.text('꺼져 있어요'), findsOneWidget);
+        expect(find.textContaining('AI를 끄면 AI 비서는'), findsOneWidget);
+
+        await tapFinder(tester, ai);
+        expect(find.text('AI를 쓸까요?'), findsOneWidget);
+        expect(find.text('보내는 것'), findsOneWidget);
+        await tapFinder(tester, find.text('동의하지 않음'));
+        expect(find.text('AI를 쓸까요?'), findsNothing);
+        expect((await readSettings(app.db)).aiEnabled, isFalse);
+
+        await tapFinder(tester, ai);
+        await tapFinder(tester, find.text('동의하고 켜기'));
+        var settings = await readSettings(app.db);
+        expect(settings.aiEnabled, isTrue);
+        expect(settings.aiConsentAt, now);
+        expect(find.text('켜져 있어요'), findsOneWidget);
+        expect(find.textContaining('AI를 끄면 AI 비서는'), findsNothing);
+        expect(find.textContaining('AI 사용에 동의했어요'), findsOneWidget);
+
+        await tapFinder(tester, ai);
+        expect(find.text('AI를 쓸까요?'), findsNothing);
+        settings = await readSettings(app.db);
+        expect(settings.aiEnabled, isFalse);
+        expect(settings.aiConsentAt, now);
+        expect(find.text('꺼져 있어요'), findsOneWidget);
+        expect(find.textContaining('AI 사용을 껐어요'), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('오늘 사용량을 다 쓴 날에는 그렇게 알리고, 다른 날이면 켜짐이다', (tester) async {
+        final app = await pumpMe(
+          tester,
+          textScale: textScale,
+          settings: {
+            SettingKeys.aiEnabled: true,
+            SettingKeys.aiLimitReachedOn: '2026-11-16',
+          },
+        );
+        await scrollTo(tester, switchRow('AI 사용'));
+        expect(find.text('오늘 사용량을 다 썼어요'), findsOneWidget);
+        expect(find.textContaining('내일 다시 쓸 수 있어요'), findsOneWidget);
+        expect(tester.widget<MeSwitchRow>(switchRow('AI 사용')).value, isTrue);
+
+        await SettingsRepository(app.db)
+            .write(SettingKeys.aiLimitReachedOn, '2026-11-15');
+        await tester.pumpAndSettle();
+        expect(find.text('켜져 있어요'), findsOneWidget);
+        expect(find.textContaining('내일 다시 쓸 수 있어요'), findsNothing);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('동의 문구 다시 보기는 같은 문구를 보이고, 켜져 있으면 동의한 날을 보인다', (tester) async {
+        final app = await pumpMe(
+          tester,
+          textScale: textScale,
+          settings: {
+            SettingKeys.aiEnabled: true,
+            SettingKeys.aiConsentAt: DateTime(2026, 11, 10, 9),
+          },
+        );
+
+        await tapFinder(tester, find.text('동의 문구 다시 보기'));
+        expect(find.text('AI에 보내는 것'), findsOneWidget);
+        expect(find.text('11월 10일 (화)에 동의했어요'), findsOneWidget);
+        expect(find.text('보내는 것'), findsOneWidget);
+        expect(find.text('동의하고 켜기'), findsNothing);
+        await tapFinder(tester, find.widgetWithText(FilledButton, '확인'));
+        expect(find.text('AI에 보내는 것'), findsNothing);
+
+        await SettingsRepository(app.db).write(SettingKeys.aiEnabled, false);
+        await tester.pumpAndSettle();
+        await tapFinder(tester, find.text('동의 문구 다시 보기'));
+        expect(find.text('AI에 보내는 것'), findsOneWidget);
+        expect(find.textContaining('에 동의했어요'), findsNothing);
+
+        await app.dispose(tester);
+      });
+
       testWidgets('처리방침·이용약관은 앱 안 화면으로, 오픈소스 라이선스는 라이선스 화면으로 연다', (
         tester,
       ) async {
@@ -279,6 +484,13 @@ void main() {
     expect(find.text('데모 계정'), findsOneWidget);
     expect(find.text('로그아웃'), findsNothing);
     expect(find.text('지금 새로 고침'), findsNothing);
+
+    // 하루 경계 같은 설정은 그 모드의 폰 DB(데모 DB)에 쓴다.
+    await tapFinder(tester, find.text('하루 경계'));
+    await tapFinder(tester, find.text('06:00'));
+    expect((await readSettings(app.demoDb)).dayBoundaryMin, 360);
+    expect((await readSettings(app.db)).dayBoundaryMin, 240);
+
     await scrollTo(tester, find.text('데모 모드 끝내기'));
     expect(find.text('데이터 삭제'), findsNothing);
 

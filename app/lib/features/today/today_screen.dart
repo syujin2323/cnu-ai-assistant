@@ -105,6 +105,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       today: true,
       windowEndMin: home.windowEndMin,
       showPast: _showPast,
+      showTravelMeal: home.showTravelMeal,
     );
     final pastCount = layout.pastCount;
     return ListView(

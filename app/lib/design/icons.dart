@@ -110,7 +110,16 @@ enum AppIconName {
   mail('assets/icons/mail.svg'),
 
   /// 학기 카드(학사모).
-  school('assets/icons/school.svg');
+  school('assets/icons/school.svg'),
+
+  /// 하루 경계(달).
+  moon('assets/icons/moon.svg'),
+
+  /// 아침 브리핑 시각(해).
+  sun('assets/icons/sun.svg'),
+
+  /// 글자 크기(눈).
+  eye('assets/icons/eye.svg');
 
   const AppIconName(this.asset);
 

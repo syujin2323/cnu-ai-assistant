@@ -1,8 +1,8 @@
 // 10 나의 묶음과 줄. docs/screens.md '10 나'.
 //
 // 모양은 최종 프로토타입의 설정 묶음을 따른다: 묶음 제목(작은 흐린 글자) 아래 테두리 있는 목록, 줄마다 왼쪽
-// 아이콘 칸(32pt, 틴트 바탕), 제목과 한 줄 설명, 오른쪽 값과 화살표. 위험한 동작(데이터 삭제·로그아웃)은 경고
-// 색이다.
+// 아이콘 칸(32pt, 틴트 바탕), 제목과 한 줄 설명, 오른쪽 값과 화살표(스위치 줄은 스위치). 위험한 동작(데이터
+// 삭제·로그아웃)은 경고 색이다.
 
 import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/motion/press.dart';
@@ -45,11 +45,12 @@ class MeGroup extends StatelessWidget {
               ),
             ),
           ),
-          Container(
-            decoration: BoxDecoration(
-              color: colors.surface,
+          // 줄의 눌림 효과(InkWell)는 가장 가까운 Material에 그려지므로, 색 있는 상자 대신 Material로 감싼다.
+          Material(
+            color: colors.surface,
+            shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadius.listGroup),
-              border: Border.all(color: colors.edge),
+              side: BorderSide(color: colors.edge),
             ),
             clipBehavior: Clip.antiAlias,
             child: Column(
@@ -124,12 +125,121 @@ class MeRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    final row = _RowLayout(
+      icon: icon,
+      label: label,
+      sub: sub,
+      subColor: subColor,
+      alert: alert,
+      accent: accent,
+      trailing: (maxWidth) => [
+        if (value case final text?) ...[
+          const SizedBox(width: AppSpace.s8),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth * 0.46),
+            child: Text(
+              text,
+              textAlign: TextAlign.right,
+              style: AppText.small.copyWith(color: colors.muted),
+            ),
+          ),
+        ],
+        if (onTap != null && chevron) ...[
+          const SizedBox(width: AppSpace.s4),
+          AppIcon(AppIconName.chevronRight, size: 16, color: colors.icon),
+        ],
+      ],
+    );
+    return Semantics(
+      button: onTap != null,
+      label: semanticsLabel ?? [label, ?sub, ?value].join(', '),
+      excludeSemantics: true,
+      child: Press(
+        enabled: onTap != null,
+        child: InkWell(onTap: onTap, child: row),
+      ),
+    );
+  }
+}
+
+/// 스위치 줄 하나. 줄 어디를 눌러도 켜고 끈다.
+class MeSwitchRow extends StatelessWidget {
+  const MeSwitchRow({
+    super.key,
+    required this.icon,
+    required this.label,
+    this.sub,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final AppIconName icon;
+  final String label;
+
+  /// 제목 아래 한 줄.
+  final String? sub;
+
+  /// 켜져 있는지.
+  final bool value;
+
+  /// 바꿀 때 바꿀 값을 받는다. null이면 바꿀 수 없다.
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final onChanged = this.onChanged;
+    final toggle = onChanged == null ? null : () => onChanged(!value);
+    return Semantics(
+      toggled: value,
+      enabled: onChanged != null,
+      label: [label, ?sub].join(', '),
+      excludeSemantics: true,
+      onTap: toggle,
+      child: InkWell(
+        onTap: toggle,
+        child: _RowLayout(
+          icon: icon,
+          label: label,
+          sub: sub,
+          trailing: (_) => [
+            const SizedBox(width: AppSpace.s8),
+            Switch(value: value, onChanged: onChanged),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 줄의 모양: 왼쪽 아이콘 칸, 제목과 한 줄 설명, 오른쪽 [trailing](줄 너비를 받음).
+class _RowLayout extends StatelessWidget {
+  const _RowLayout({
+    required this.icon,
+    required this.label,
+    required this.trailing,
+    this.sub,
+    this.subColor,
+    this.alert = false,
+    this.accent = false,
+  });
+
+  final AppIconName icon;
+  final String label;
+  final String? sub;
+  final Color? subColor;
+  final bool alert;
+  final bool accent;
+  final List<Widget> Function(double maxWidth) trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final labelColor = alert
         ? colors.alert
         : accent
         ? colors.accent
         : colors.ink;
-    final row = ConstrainedBox(
+    return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 56),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -176,35 +286,10 @@ class MeRow extends StatelessWidget {
                   ],
                 ),
               ),
-              if (value case final text?) ...[
-                const SizedBox(width: AppSpace.s8),
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: constraints.maxWidth * 0.46,
-                  ),
-                  child: Text(
-                    text,
-                    textAlign: TextAlign.right,
-                    style: AppText.small.copyWith(color: colors.muted),
-                  ),
-                ),
-              ],
-              if (onTap != null && chevron) ...[
-                const SizedBox(width: AppSpace.s4),
-                AppIcon(AppIconName.chevronRight, size: 16, color: colors.icon),
-              ],
+              ...trailing(constraints.maxWidth),
             ],
           ),
         ),
-      ),
-    );
-    return Semantics(
-      button: onTap != null,
-      label: semanticsLabel ?? [label, ?sub, ?value].join(', '),
-      excludeSemantics: true,
-      child: Press(
-        enabled: onTap != null,
-        child: InkWell(onTap: onTap, child: row),
       ),
     );
   }

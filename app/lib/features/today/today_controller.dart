@@ -15,6 +15,7 @@ import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/free_slots.dart';
 import 'package:cnu_ai_assistant/domain/home_feedback.dart';
+import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
 import 'package:cnu_ai_assistant/domain/models/plan_block.dart';
 import 'package:cnu_ai_assistant/domain/planner/day_items.dart';
 import 'package:cnu_ai_assistant/domain/planner/suggest_slots.dart';
@@ -34,6 +35,7 @@ final class TodayHome {
     required this.free,
     required this.windowEndMin,
     required this.courseNames,
+    this.showTravelMeal = true,
   });
 
   /// 오늘(논리적 하루)의 날짜.
@@ -55,6 +57,10 @@ final class TodayHome {
 
   /// 과목 id → 과목 이름(수업 카드의 제목).
   final Map<int, String> courseNames;
+
+  /// 10 나의 '이동·점심 시간 표시'(`settings`의 `showTravelMeal`). false면 시간표가 이동·점심 카드를 그리지 않는다
+  /// ([items]에는 그대로 있다. 빈 시간은 그 시간을 이미 뺀 값이다).
+  final bool showTravelMeal;
 
   /// 오늘의 블록(확정·완료·놓침).
   List<BlockItem> get blocks => [
@@ -141,6 +147,8 @@ final todayHomeProvider = Provider<AsyncValue<TodayHome>>((ref) {
       courseNames: {
         for (final entry in slotsValue) entry.course.id: entry.course.name,
       },
+      showTravelMeal:
+          settings.value?.showTravelMeal ?? AppSettings.defaults.showTravelMeal,
     ),
   );
 });
