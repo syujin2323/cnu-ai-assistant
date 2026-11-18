@@ -503,17 +503,21 @@ void main() {
       }
     });
 
-    test('알림 재설계 전에는 notify에서 브리핑 시각만 저장한다', () {
-      expect(savableNotifyFields, {RuleField.briefingMin});
-      // validateRule은 범위만 보므로 하루 상한·조용한 시간은 통과하지만, 저장할 수 없는 자리로 따로 알린다.
-      const capAndQuiet = RuleParams(
+    test('알림 재설계 전에는 notify 규칙을 저장하지 않는다(브리핑 시각 포함)', () {
+      expect(ruleKindSavable(RuleKind.notify), isFalse);
+      for (final kind in RuleKind.values.where((k) => k != RuleKind.notify)) {
+        expect(ruleKindSavable(kind), isTrue, reason: kind.name);
+      }
+      // validateRule은 범위만 보므로 알림 값도 통과하지만, 넣은 값의 자리 모두를 저장할 수 없는 자리로 알린다.
+      const all = RuleParams(
         briefingMin: Defaults.briefingMin,
         notifyCap: 3,
         quietStartMin: 1380,
         quietEndMin: 1860,
       );
-      expect(issues(RuleKind.notify, capAndQuiet), isEmpty);
-      expect(unsavableFields(RuleKind.notify, capAndQuiet), [
+      expect(issues(RuleKind.notify, all), isEmpty);
+      expect(unsavableFields(RuleKind.notify, all), [
+        RuleField.briefingMin,
         RuleField.notifyCap,
         RuleField.quietStartMin,
         RuleField.quietEndMin,
@@ -523,17 +527,11 @@ void main() {
           RuleKind.notify,
           const RuleParams(briefingMin: Defaults.briefingMin),
         ),
-        isEmpty,
+        [RuleField.briefingMin],
       );
+      expect(unsavableFields(RuleKind.notify, const RuleParams()), isEmpty);
       expect(
         unsavableFields(RuleKind.dailyCap, const RuleParams(minutes: 120)),
-        isEmpty,
-      );
-      expect(
-        issues(
-          RuleKind.notify,
-          const RuleParams(briefingMin: Defaults.briefingMin),
-        ),
         isEmpty,
       );
     });
@@ -1675,11 +1673,15 @@ void main() {
   });
 
   group('ruleFormDefault', () {
-    test('12 내 규칙의 새 폼 값은 모두 값 검사를 통과하고 저장할 수 있다', () {
+    test('12 내 규칙의 새 폼 값은 모두 값 검사를 통과하고, 지금 저장하는 종류는 저장할 수 있다', () {
       for (final kind in RuleKind.values) {
         final params = ruleFormDefault(kind);
         expect(issues(kind, params), isEmpty, reason: '$kind');
-        expect(unsavableFields(kind, params), isEmpty, reason: '$kind');
+        expect(
+          unsavableFields(kind, params),
+          ruleKindSavable(kind) ? isEmpty : isNotEmpty,
+          reason: '$kind',
+        );
       }
     });
   });

@@ -62,21 +62,21 @@ void main() {
   group('save', () {
     test('하나만 두는 종류는 다시 저장해도 한 행에 합치고, 출처·문장·updatedAt만 새 값으로 바꾼다', () async {
       final first = await save(
-        RuleKind.notify,
-        const RuleParams(briefingMin: 420),
+        RuleKind.maxBlock,
+        const RuleParams(minutes: 90),
         source: EntrySource.ai,
-        sentence: '브리핑은 7시에 줘',
+        sentence: '한 번에 한 시간 반까지만 할래',
       );
       final second = await save(
-        RuleKind.notify,
-        const RuleParams(briefingMin: 480),
+        RuleKind.maxBlock,
+        const RuleParams(minutes: 60),
         at: later,
       );
 
       final rows = await all();
       expect(rows, hasLength(1));
       expect(second.id, first.id);
-      expect(second.params, const RuleParams(briefingMin: 480));
+      expect(second.params, const RuleParams(minutes: 60));
       expect(second.active, isTrue);
       expect(second.source, EntrySource.manual);
       expect(second.sentence, isNull);
@@ -181,20 +181,28 @@ void main() {
       expect((await all()).where((rule) => rule.active), hasLength(2));
     });
 
-    test('값 검사를 통과하지 못하거나 재설계 전 알림 값이면 ArgumentError이고 아무것도 바꾸지 않는다', () async {
+    test('값 검사를 통과하지 못하거나 알림 규칙이면 ArgumentError이고 아무것도 바꾸지 않는다', () async {
       final kept = await save(RuleKind.travel, travel40);
       final before = (await all()).map(_snapshot).toList();
       final logBefore = await log();
 
-      await expectLater(
-        rules.save(
-          kind: RuleKind.notify,
-          params: const RuleParams(briefingMin: 480, notifyCap: 3),
-          source: EntrySource.ai,
-          now: later,
-        ),
-        throwsArgumentError,
-      );
+      // 알림은 재설계 전이라 브리핑 시각만 있어도, 값이 없어도 받지 않는다.
+      for (final params in const [
+        RuleParams(briefingMin: 480, notifyCap: 3),
+        RuleParams(briefingMin: 480),
+        RuleParams(),
+      ]) {
+        await expectLater(
+          rules.save(
+            kind: RuleKind.notify,
+            params: params,
+            source: EntrySource.ai,
+            now: later,
+          ),
+          throwsArgumentError,
+          reason: '$params',
+        );
+      }
       // 같은 요일의 이전 규칙을 끄기 전에 검사한다.
       await expectLater(
         rules.save(
@@ -203,15 +211,6 @@ void main() {
             minutes: 999,
             position: TravelPosition.dayEdges,
           ),
-          source: EntrySource.manual,
-          now: later,
-        ),
-        throwsArgumentError,
-      );
-      await expectLater(
-        rules.save(
-          kind: RuleKind.notify,
-          params: const RuleParams(briefingMin: 615),
           source: EntrySource.manual,
           now: later,
         ),
@@ -324,20 +323,29 @@ void main() {
       );
       expect((await all()).single.params, travel40);
 
-      // 고치기도 재설계 전 알림 값(하루 상한·조용한 시간)은 받지 않고 아무것도 바꾸지 않는다.
-      final notify = await save(
-        RuleKind.notify,
-        const RuleParams(briefingMin: 480),
-      );
+      // 저장해 둔 알림 행(브리핑 시각을 저장하던 때의 행)을 고치는 것도 받지 않고 아무것도 바꾸지 않는다.
+      final notifyId = await db
+          .into(db.rules)
+          .insert(
+            RulesCompanion.insert(
+              kind: RuleKind.notify,
+              params: const RuleParams(briefingMin: 480),
+              active: true,
+              source: EntrySource.manual,
+              createdAt: now,
+              updatedAt: now,
+            ),
+          );
       final before = (await all()).map(_snapshot).toList();
       final logBefore = await log();
       for (final params in const [
+        RuleParams(briefingMin: 540),
         RuleParams(briefingMin: 480, notifyCap: 3),
         RuleParams(quietStartMin: 1380, quietEndMin: 1860),
       ]) {
         await expectLater(
           rules.edit(
-            notify.id,
+            notifyId,
             params: params,
             source: EntrySource.manual,
             now: later,
@@ -396,10 +404,10 @@ void main() {
     );
 
     test('한 행만 바꾼 동작은 rowId에 그 id를 적고, 합치기·켜기·고치기·지우기를 직전 값으로 되돌린다', () async {
-      final notify = await save(
-        RuleKind.notify,
-        const RuleParams(briefingMin: 420),
-        sentence: '7시에 줘',
+      final maxBlock = await save(
+        RuleKind.maxBlock,
+        const RuleParams(minutes: 90),
+        sentence: '한 번에 한 시간 반까지만',
       );
       final blackout = await save(
         RuleKind.blackout,
@@ -421,13 +429,10 @@ void main() {
       }
 
       await expectUndone(
-        () async => save(
-          RuleKind.notify,
-          const RuleParams(briefingMin: 540),
-          at: later,
-        ),
+        () async =>
+            save(RuleKind.maxBlock, const RuleParams(minutes: 60), at: later),
         UndoAction.update,
-        notify.id,
+        maxBlock.id,
       );
       await expectUndone(
         () async =>

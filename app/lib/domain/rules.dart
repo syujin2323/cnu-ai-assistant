@@ -2,9 +2,9 @@
 //
 // - 배치 엔진은 [PlannerConfig]만 받고 `rules` 행을 직접 읽지 않는다. [PlannerConfig]와 [NotifyConfig]는
 //   `domain/defaults.dart`의 기본값(임시값)에서 시작해 켜진 규칙을 덮어 만든다.
-// - 알림은 재설계 예정이다. `notify` 규칙은 브리핑 시각(`briefingMin`)만 12 내 규칙·10 나·14 온보딩
-//   5단계가 보이고 저장한다([savableNotifyFields]). 나머지 알림 값의 검사와 [NotifyConfig]는 지우지 않고
-//   재설계 때 다시 보며, 이 값들로 알림 기능을 새로 만들지 않는다.
+// - 알림은 재설계 예정이다. `notify` 규칙은 브리핑 시각을 포함해 어떤 값도 지금 저장하지 않는다
+//   ([ruleKindSavable], docs/decisions.md 2026-11-19 '온보딩은 네 단계이고 브리핑 시각은 정하지 않는다').
+//   알림 값의 검사와 [NotifyConfig]는 지우지 않고 재설계 때 다시 보며, 이 값들로 알림 기능을 새로 만들지 않는다.
 // - 같은 자리를 다투는 규칙이 여럿이면 나중에 저장한 것(`updatedAt`, 같으면 `id`가 큰 것)을 쓴다.
 //   입력 순서와 상관없이 같은 규칙이면 같은 설정이 나온다.
 // - 저장 정책([RuleKindPolicy], [canonicalWeekdays], [rulesReplacedBy], [paramsToStore])은 여기 순수
@@ -65,19 +65,20 @@ abstract final class RuleLimits {
   ]);
 }
 
-/// 알림 재설계 전까지 `notify` 규칙에서 저장하는 값(브리핑 시각만). 06 AI 비서와 12 내 규칙 폼은 이 밖의
-/// 알림 값(하루 상한·조용한 시간)을 저장하지 않고 '아직 그런 조건은 정할 수 없어요'로 답한다
-/// (docs/architecture.md '내 규칙'). 그 값의 검사와 [NotifyConfig]는 지우지 않고 재설계 때 다시 본다.
-const Set<RuleField> savableNotifyFields = {RuleField.briefingMin};
+/// 지금 저장하는 규칙 종류인지. 알림(`notify`)은 재설계 예정이라 브리핑 시각까지 어떤 값도 저장하지 않는다
+/// (docs/decisions.md 2026-11-19 '온보딩은 네 단계이고 브리핑 시각은 정하지 않는다'). 06 AI 비서는 이런
+/// 종류를 받으면 값과 관계없이 '아직 그런 조건은 정할 수 없어요'로 답하고, 12 내 규칙은 새 규칙 종류에 두지
+/// 않는다(docs/architecture.md '내 규칙'). 그 값의 검사와 [NotifyConfig]는 지우지 않고 재설계 때 다시 본다.
+bool ruleKindSavable(RuleKind kind) => kind != RuleKind.notify;
 
-/// 알림 재설계 전이라 저장하지 않는 값의 자리. `notify`에서 [savableNotifyFields] 밖에 값이 있으면 그
-/// 자리들이고, 다른 종류면 빈 목록이다. [validateRule]은 값의 범위만 보므로(그 검사는 재설계 때 쓰려고 남김)
-/// 저장하기 전에는 이것도 본다. 비어 있지 않으면 06 AI 비서와 12 내 규칙은 '아직 그런 조건은 정할 수
-/// 없어요'로 답하고, 저장소(`RulesRepository`)는 [ArgumentError]를 던진다.
+/// 지금 저장하지 않는 값의 자리. 저장하지 않는 종류([ruleKindSavable])면 넣은 값의 자리 모두이고, 다른
+/// 종류면 빈 목록이다. [validateRule]은 값의 범위만 보므로(알림 값의 검사는 재설계 때 쓰려고 남김) 저장하기
+/// 전에는 이것도 본다. 비어 있지 않으면 06 AI 비서와 12 내 규칙은 '아직 그런 조건은 정할 수 없어요'로 답하고,
+/// 저장소(`RulesRepository`)는 [ArgumentError]를 던진다.
 List<RuleField> unsavableFields(RuleKind kind, RuleParams params) => [
-  if (kind == RuleKind.notify)
+  if (!ruleKindSavable(kind))
     for (final field in RuleField.values)
-      if (field.isSetIn(params) && !savableNotifyFields.contains(field)) field,
+      if (field.isSetIn(params)) field,
 ];
 
 /// 규칙 값의 자리. 이름이 `rules.params`의 JSON 키와 같고, [weekdays]만 `rules` 표의 열이다.
@@ -381,7 +382,8 @@ RuleParams paramsToStore(
 }
 
 /// 12 내 규칙에서 새 규칙을 만들 때 폼에 처음 넣는 값(임시, docs/screens.md '12 내 규칙'의 '새 폼 값'). 모두
-/// [validateRule]을 통과한다.
+/// [validateRule]을 통과한다. 12는 지금 저장하는 종류([ruleKindSavable])만 새 규칙으로 두므로 알림(`notify`)의
+/// 값은 쓰이지 않고 재설계 때 다시 본다.
 RuleParams ruleFormDefault(RuleKind kind) => switch (kind) {
   RuleKind.travel => const RuleParams(
     minutes: 30,
@@ -740,8 +742,8 @@ final class PlannerConfig {
 
 /// 알림 설정. 기본값([Defaults]) 위에 `notify` 규칙을 덮은 것이다.
 ///
-/// 알림은 재설계 예정이다. 지금 쓰는 값은 [briefingMin]뿐이고(12 내 규칙·10 나·14 온보딩 5단계가 보이고
-/// 저장한다), [notifyCap]·[quietHours]와 이 클래스는 재설계 때 다시 본다. 이 값들로 알림 기능을 새로
+/// 알림은 재설계 예정이다. 지금은 `notify` 규칙을 저장하지 않으므로([ruleKindSavable]) 늘 기본값이고,
+/// [briefingMin]·[notifyCap]·[quietHours]와 이 클래스는 재설계 때 다시 본다. 이 값들로 알림 기능을 새로
 /// 만들지 않는다. `notify` 행에서 값 하나가 검사를 통과하지 못하면 그 행 전체를 버리는데, 값마다 따로
 /// 무시할지도 재설계 때 정한다.
 final class NotifyConfig {

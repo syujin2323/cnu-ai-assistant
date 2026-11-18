@@ -387,13 +387,20 @@ void main() {
         ask(RuleKind.estimate, 'courseId|taskKind', RuleIssueKind.missingOneOf),
         '어느 과목이나 종류의 할 일인가요?',
       );
-      expect(
-        ask(
-          RuleKind.notify,
+      // 알림은 지금 저장하지 않으므로 무엇이 걸려도 되묻지 않고 정할 수 없다고 답한다(읽을 수 없는 규칙은 빼고).
+      for (final (field, issue) in [
+        (
           'briefingMin|notifyCap|quietStartMin|quietEndMin',
           RuleIssueKind.missingOneOf,
         ),
-        '아침 브리핑을 몇 시에 받을까요?',
+        ('briefingMin', RuleIssueKind.outOfRange),
+        ('weekdays', RuleIssueKind.notAllowed),
+      ]) {
+        expect(ask(RuleKind.notify, field, issue), unsavableRuleText);
+      }
+      expect(
+        ask(RuleKind.notify, 'params', RuleIssueKind.unreadable),
+        '저장된 값을 읽을 수 없는 규칙이에요. 지우고 다시 정해 주세요',
       );
       expect(
         ask(RuleKind.meal, 'weekdays', RuleIssueKind.notAllowed),
@@ -414,10 +421,6 @@ void main() {
       expect(
         ask(RuleKind.meal, 'minutes', RuleIssueKind.outOfRange),
         '식사 시간은 0분부터 4시간 사이로, 시간대보다 길지 않게 정해 주세요',
-      );
-      expect(
-        ask(RuleKind.notify, 'briefingMin', RuleIssueKind.outOfRange),
-        '아침 브리핑은 오전 6시부터 오후 12시 사이, 30분 단위로 정해 주세요',
       );
       expect(
         ask(RuleKind.workWindow, 'endMin', RuleIssueKind.badOrder),

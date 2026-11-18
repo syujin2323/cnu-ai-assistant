@@ -1,11 +1,10 @@
-// 10 나의 시트: 로그아웃(지우는 것과 두는 것)과 데이터 삭제(되돌릴 수 없음)의 확인, 하루 경계와 아침 브리핑 시각
-// 고르기. docs/screens.md '10 나', docs/lms.md '로그아웃, 데이터 삭제'. 문구는 디자인 전 임시 문구다.
+// 10 나의 시트: 로그아웃(지우는 것과 두는 것)과 데이터 삭제(되돌릴 수 없음)의 확인, 하루 경계 고르기.
+// docs/screens.md '10 나', docs/lms.md '로그아웃, 데이터 삭제'. 문구는 디자인 전 임시 문구다.
 
 import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_sheet.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
-import 'package:cnu_ai_assistant/domain/rules.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -69,18 +68,6 @@ Future<int?> showDayBoundarySheet(
   context: context,
   motion: motion,
   builder: (context) => _DayBoundarySheet(current: current),
-);
-
-/// 아침 브리핑 시각 시트를 연다. [확인]을 누르면 고른 시각(자정 기준 분, [RuleLimits.briefingChoices] 가운데
-/// 하나), 닫으면 null이다. 칩은 14 온보딩 5단계와 같다. [current]는 지금 값이다.
-Future<int?> showBriefingTimeSheet(
-  BuildContext context,
-  MotionLevel motion, {
-  required int current,
-}) => showAppSheet<int>(
-  context: context,
-  motion: motion,
-  builder: (context) => _BriefingTimeSheet(current: current),
 );
 
 /// 시트의 제목과 한 줄 설명.
@@ -197,61 +184,6 @@ class _ChoiceRow extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _BriefingTimeSheet extends StatefulWidget {
-  const _BriefingTimeSheet({required this.current});
-
-  final int current;
-
-  @override
-  State<_BriefingTimeSheet> createState() => _BriefingTimeSheetState();
-}
-
-class _BriefingTimeSheetState extends State<_BriefingTimeSheet> {
-  late int _selected = widget.current;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpace.screen,
-        AppSpace.s4,
-        AppSpace.screen,
-        AppSpace.s20,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const _SheetHead(
-            title: '아침 브리핑을 몇 시에 받을까요?',
-            sub: "고른 시각은 '내 규칙'에 저장해요",
-          ),
-          const SizedBox(height: AppSpace.s16),
-          Wrap(
-            spacing: AppSpace.s8,
-            runSpacing: AppSpace.s8,
-            children: [
-              for (final minute in RuleLimits.briefingChoices)
-                ChoiceChip(
-                  label: Text(shortClockText(minute)),
-                  selected: minute == _selected,
-                  onSelected: (_) => setState(() => _selected = minute),
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpace.s24),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(_selected),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(52),
-            ),
-            child: const Text('확인'),
-          ),
-        ],
       ),
     );
   }

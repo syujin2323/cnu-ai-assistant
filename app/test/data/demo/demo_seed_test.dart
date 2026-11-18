@@ -162,7 +162,7 @@ void main() {
     final rules = _ok(await RulesRepository(db).read());
     expect(
       rules.map((r) => r.kind),
-      unorderedEquals([RuleKind.travel, RuleKind.dailyCap, RuleKind.notify]),
+      unorderedEquals([RuleKind.travel, RuleKind.dailyCap, RuleKind.preferred]),
     );
     for (final rule in rules) {
       expect(
@@ -174,7 +174,9 @@ void main() {
     final day = PlannerConfig.from(rules).forWeekday(DateTime.friday);
     expect(day.travel!.minutes, 30);
     expect(day.dailyCapMin, 240);
-    expect(NotifyConfig.from(rules).briefingMin, 510);
+    expect(day.preferred, [const MinuteRange(1140, 1320)]);
+    // 지금 저장하지 않는 종류(알림)는 넣지 않는다.
+    expect(rules.every((rule) => ruleKindSavable(rule.kind)), isTrue);
   });
 
   test('블록은 어제 놓침·완료, 오늘 직접 놓은 확정과 제안, 내일 제안이고 모두 그날의 빈 시간 안이다', () async {
