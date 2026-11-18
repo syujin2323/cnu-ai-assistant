@@ -4,9 +4,9 @@
 // 피드백 카드, 오늘 시간표다. [계획]은 01 계획을 push로 열어 닫으면 이 화면으로 돌아온다(docs/decisions.md
 // 2026-11-19 ''아침 브리핑'을 '계획'으로 부르고 02 홈에서도 연다').
 // 시간표에는 확정한 할 일만 있고(제안은 보이지 않음), 지난 일정은 '지난 일정 N개 보기'로 접으며 '일간 보기 ›'가
-// 09 일간을 연다. 블록의 체크는 블록 완료를 켜고 끈다. 블록을 누르면 근거 시트, 수업·일정·고정 일정을 누르면 일정
-// 정보 시트를 연다. 빈 시간을 눌러 여는 빈 시간에 놓기 시트와 시간 부족·빈 시간 없음 카드, 끌어 옮기기는 그
-// 시트·카드 PR(W5–W8, S3)에서 붙인다.
+// 09 일간을 연다. 블록의 체크는 블록 완료를 켜고 끈다. 블록을 누르면 근거 시트(그 [옮기기]는 옮기기 시트), 수업·
+// 일정·고정 일정을 누르면 일정 정보 시트, 빈 시간 카드와 피드백 카드의 [빈 시간에 할 일 놓기]를 누르면 빈 시간에
+// 놓기 시트를 연다. 시간 부족·빈 시간 없음 카드와 끌어 옮기기는 그 카드 PR(W8, S3)에서 붙인다.
 // 화면을 떠나면(다른 탭이나 전체 화면이 덮음) 피드백 카드의 방금 한 답과 그 되돌리기 기록을 버린다.
 
 import 'package:cnu_ai_assistant/app/providers.dart';
@@ -24,6 +24,7 @@ import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/lms_actions.dart';
 import 'package:cnu_ai_assistant/features/today/block_actions.dart';
 import 'package:cnu_ai_assistant/features/today/event_info_actions.dart';
+import 'package:cnu_ai_assistant/features/today/free_slot_actions.dart';
 import 'package:cnu_ai_assistant/features/today/today_controller.dart';
 import 'package:cnu_ai_assistant/features/today/widgets/feedback_card.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/lms_system_band_slot.dart';
@@ -184,6 +185,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               onRetry: answers.retry,
               onSkipRetry: answers.skipRetry,
               onDismiss: answers.dismiss,
+              onPlace: (gap) => openFreeSlotSheet(context, ref, gap),
             ),
           ),
         ),
@@ -228,6 +230,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 onItemTap: (item) => openEventInfoSheet(context, ref, item),
                 onBlockTap: (item) => openBlockSheet(context, ref, item.block),
                 onBlockCheck: answers.toggleBlock,
+                onFreeTap: (gap) => openFreeSlotSheet(context, ref, gap),
               ),
             ],
           ),

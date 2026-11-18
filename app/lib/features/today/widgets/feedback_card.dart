@@ -2,9 +2,9 @@
 //
 // 무엇을 보일지는 `domain/home_feedback.dart`의 [homeFeedback]이 정하고, 여기서는 문구와 버튼을 그린다. 모양은
 // 최종 프로토타입의 홈 카드를 따른다: 위 줄에 아이콘(지금 할 일은 퍼지는 점)과 머리말·오른쪽 값, 제목, 한 줄
-// 설명, 지금 할 일의 진행 막대, 버튼 줄. 상태가 바뀌면 rise로 다시 나타난다. '과제 자세히'·'강의 자세히' 링크와
-// 7번의 [빈 시간에 할 일 놓기]는 여는 화면(할 일 상세는 재설계 예정, 빈 시간에 놓기 시트는 W6 PR)이 생길 때까지
-// 두지 않는다(눌러도 반응 없는 버튼을 두지 않음).
+// 설명, 지금 할 일의 진행 막대, 버튼 줄. 상태가 바뀌면 rise로 다시 나타난다. 7번의 [빈 시간에 할 일 놓기]는 가장
+// 가까운 빈 시간의 빈 시간에 놓기 시트를 연다. '과제 자세히'·'강의 자세히' 링크는 여는 화면(할 일 상세는 재설계
+// 예정)이 생길 때까지 두지 않는다(눌러도 반응 없는 버튼을 두지 않음).
 
 import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/motion/pulse.dart';
@@ -14,6 +14,7 @@ import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/home_feedback.dart';
 import 'package:cnu_ai_assistant/domain/models/task.dart';
 import 'package:cnu_ai_assistant/domain/planner/day_items.dart';
+import 'package:cnu_ai_assistant/domain/planner/time_span.dart';
 import 'package:cnu_ai_assistant/domain/text/josa.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:material_ui/material_ui.dart';
@@ -27,6 +28,7 @@ final class FeedbackActions {
     required this.onRetry,
     required this.onSkipRetry,
     required this.onDismiss,
+    required this.onPlace,
   });
 
   /// '했어요'·'끝냈어요'(지금 할 일 포함).
@@ -46,6 +48,9 @@ final class FeedbackActions {
 
   /// 다시 놓을 자리가 없을 때의 [확인].
   final VoidCallback onDismiss;
+
+  /// 오늘 놓은 할 일이 없을 때의 [빈 시간에 할 일 놓기]. 가장 가까운 빈 시간을 받는다.
+  final ValueChanged<TimeSpan> onPlace;
 }
 
 /// 02 홈 피드백 카드.
@@ -252,6 +257,13 @@ class FeedbackCard extends StatelessWidget {
           ? '오늘은 남은 빈 시간이 없어요'
           : '남은 빈 시간 ${durationText(freeMin)} · 가장 가까운 빈 시간은 '
                 '${_hhmm(nearest.start)}',
+      buttons: [
+        if (nearest != null)
+          FilledButton(
+            onPressed: () => actions.onPlace(nearest),
+            child: const Text('빈 시간에 할 일 놓기'),
+          ),
+      ],
     ),
   };
 
