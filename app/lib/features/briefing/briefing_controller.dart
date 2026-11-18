@@ -417,8 +417,8 @@ class BriefingSelectionController extends Notifier<BriefingSelection> {
         .read(toastControllerProvider.notifier)
         .show(
           action == BriefingActionKind.clear
-              ? '확정한 할 일을 뺐어요'
-              : '할 일 ${drafts.length}개를 확정했어요',
+              ? '확정한 할 일을 오늘 일정에서 뺐어요'
+              : '오늘 할 일 ${drafts.length}개를 확정했어요',
           undoable: true,
         );
     return true;
