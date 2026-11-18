@@ -158,6 +158,41 @@ class TaskRepository {
     );
   }
 
+  /// 03 할 일의 '얼마나 걸렸어요?'를 마친다. [completed]는 그 할 일을 끝낸 동작([complete]에 넘긴 시각)의
+  /// 되돌리기 기록이다. 그 기록이 아직 마지막 기록이면 걸린 시간([minutes], 건너뛰었으면 null)도 그 기록에 담아
+  /// 끝내기와 함께 되돌리게 하고, 기록 시각을 [now]로 옮겨 토스트의 10초가 지금부터 시작하게 한 뒤 true다. 그사이
+  /// 다른 동작을 했으면 걸린 시간만 따로 기록하고 false다(되돌리면 걸린 시간만 지움). [minutes]가 0 이하면
+  /// [ArgumentError]다.
+  Future<Result<bool>> recordTook(
+    int id, {
+    int? minutes,
+    required UndoMark completed,
+    required DateTime now,
+  }) {
+    if (minutes != null && minutes <= 0) {
+      throw ArgumentError.value(minutes, 'minutes');
+    }
+    return guardStorage(
+      'tasks.recordTook',
+      () => _db.transaction(() async {
+        final merged = await amendUndo(
+          _db,
+          completed,
+          table: _table,
+          id: id,
+          columns: {if (minutes != null) 'actual_min'},
+          now: now,
+        );
+        if (minutes == null || await _byId(id) == null) return merged;
+        final undo = merged ? null : UndoRecorder(_db);
+        await undo?.beforeColumns(_table, id, const {'actual_min'});
+        await _write(id, TasksCompanion(actualMin: Value(minutes)));
+        await undo?.write(table: _table, action: UndoAction.update, now: now);
+        return merged;
+      }),
+    );
+  }
+
   /// 할 일을 지운다. LMS 할 일은 행을 남기고 숨기며(`hidden`. 동기화가 다시 만들지 않음), 직접 넣은
   /// 할 일은 그 블록과 함께 행을 지운다. LMS 할 일도 아직 시작하지 않은 확정 블록은 지운다. 할 일이
   /// 없거나 이미 숨겼으면 false다.
