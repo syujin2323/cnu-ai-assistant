@@ -23,14 +23,18 @@ EventInfoContent lesson({ClassDayChange? change, String? lockText}) =>
       lockText: lockText,
     );
 
-final event = EventInfoContent(
-  kind: EventInfoKind.event,
-  kicker: '개인 일정',
-  title: '상담',
-  time: '11월 16일 (월) · 15:00–15:30 · 학생회관',
-  dayWord: '오늘',
-  date: day,
-);
+EventInfoContent eventContent({bool canEditBySpeech = true}) =>
+    EventInfoContent(
+      kind: EventInfoKind.event,
+      kicker: '개인 일정',
+      title: '상담',
+      time: '11월 16일 (월) · 15:00–15:30 · 학생회관',
+      dayWord: '오늘',
+      date: day,
+      canEditBySpeech: canEditBySpeech,
+    );
+
+final event = eventContent();
 
 final fixed = EventInfoContent(
   kind: EventInfoKind.fixed,
@@ -159,6 +163,18 @@ void main() {
     expect(harness.result, isA<EditEventBySpeech>());
 
     await harness.open();
+    await tester.tap(find.text('지우기'));
+    await tester.pumpAndSettle();
+    expect(harness.result, isA<DeleteEvent>());
+    await harness.dispose();
+  });
+
+  testWidgets('지난 일정은 [말로 바꾸기] 없이 [지우기]만 둔다', (tester) async {
+    final harness = await pumpSheet(
+      tester,
+      eventContent(canEditBySpeech: false),
+    );
+    expect(find.text('말로 바꾸기'), findsNothing);
     await tester.tap(find.text('지우기'));
     await tester.pumpAndSettle();
     expect(harness.result, isA<DeleteEvent>());

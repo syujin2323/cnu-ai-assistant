@@ -146,7 +146,10 @@ enum AppIconName {
   team(IconSvgs.team),
 
   /// 토론(말풍선 둘).
-  discussion(IconSvgs.discussion);
+  discussion(IconSvgs.discussion),
+
+  /// 내 규칙(조절 막대).
+  rule(IconSvgs.rule);
 
   const AppIconName(this.svg);
 

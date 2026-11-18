@@ -4,8 +4,9 @@
 // 요약 줄, 묶음과 줄, 빈 화면이다. 보일 것은 [taskListProvider](`domain/task_list.dart`)가 주고, 이 화면은 그리기와
 // 탭·칩·정렬·끝내기만 한다. 모양은 최종 프로토타입(03 할 일)을 따른다.
 // - 'LMS만'은 개인 할 일 줄을 제자리에서 접고, 끄면 그 자리에서 다시 편다(줄은 목록에 남아 있음).
-// - 끝내기: 동그라미를 누르면 체크하고 제목에 줄을 그은 뒤 줄을 접고, 1초 뒤 완료로 저장해 되돌리기 토스트를 띄운다
-//   (프로토타입). 탭·정렬을 바꾸거나 화면이 사라지면 기다리던 저장을 바로 한다.
+// - 끝내기: 동그라미를 누르면 체크하고 제목에 줄을 그은 뒤 줄을 접고, 1초 뒤 완료로 저장한다(프로토타입). 그다음
+//   영상이 아니면 '얼마나 걸렸어요?' 시트를 거쳐 되돌리기 토스트를 띄운다([afterTaskCompleted]). 탭·정렬을 바꾸거나
+//   화면이 사라지면 기다리던 저장을 바로 한다.
 // - 줄을 누르면 무엇을 보일지는 아직 정하지 않았다(docs/screens.md '03 할 일').
 // - LMS 상태 줄을 누르면 LMS 정보 시트, 다시 로그인이 필요하면 칩이 다시 로그인 화면을 연다.
 // 처음 열 탭은 `/tasks?tab=all`처럼 받는다(`Routes.tasksTab`). 01 계획의 '할 일 전체 보기'가 [TaskListTab.all]로
@@ -34,10 +35,14 @@ import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/lms_status.dart';
 import 'package:cnu_ai_assistant/domain/models/sync_run.dart';
 import 'package:cnu_ai_assistant/domain/models/task.dart';
+import 'package:cnu_ai_assistant/domain/models/task_entry.dart';
 import 'package:cnu_ai_assistant/domain/task_list.dart';
+import 'package:cnu_ai_assistant/domain/task_took.dart';
+import 'package:cnu_ai_assistant/domain/text/josa.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_args.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/lms_actions.dart';
+import 'package:cnu_ai_assistant/features/tasks/task_actions.dart';
 import 'package:cnu_ai_assistant/features/tasks/task_list_controller.dart';
 import 'package:cnu_ai_assistant/lms/sync_coordinator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -71,16 +76,14 @@ class TaskListScreen extends ConsumerStatefulWidget {
 /// 체크해 저장을 기다리는 할 일. 화면이 사라져도 저장하도록 저장소와 시계를 잡아 둔다.
 final class _Pending {
   _Pending({
+    required this.entry,
     required this.repository,
     required this.clock,
-    required this.toast,
   });
 
+  final TaskEntry entry;
   final TaskRepository repository;
   final Clock clock;
-
-  /// 저장한 뒤 띄울 토스트 문구.
-  final String toast;
 
   final List<Timer> timers = [];
 }
@@ -145,9 +148,9 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
     if (_pending.containsKey(id) || _gone.contains(id)) return;
     final motion = ref.read(motionLevelProvider);
     final pending = _Pending(
+      entry: row.entry,
       repository: ref.read(taskRepositoryProvider),
       clock: ref.read(clockProvider),
-      toast: '${row.title} · ${_doneWord(row.entry.task)}로 옮겼어요',
     );
     pending.timers.addAll([
       Timer(motion.duration(_foldAfter), () {
@@ -166,15 +169,19 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
       timer.cancel();
     }
     if (mounted) setState(() => _gone.add(id));
-    final result = await pending.repository.complete(
-      id,
-      now: pending.clock.now(),
-    );
+    final completedAt = pending.clock.now();
+    final result = await pending.repository.complete(id, now: completedAt);
     if (!mounted) return;
     final toast = ref.read(toastControllerProvider.notifier);
     switch (result) {
       case Ok(value: true):
-        toast.show(pending.toast, undoable: true);
+        // 영상은 토스트만, 그 밖에는 '얼마나 걸렸어요?'를 거쳐 토스트를 띄운다.
+        await afterTaskCompleted(
+          context,
+          ref,
+          pending.entry,
+          completedAt: completedAt,
+        );
       case Ok():
         // 이미 끝냈거나 없는 할 일이다. 목록에 남아 있으면 다시 편다.
         setState(() => _gone.remove(id));
@@ -356,12 +363,6 @@ Widget _padded(Widget child) => Padding(
   padding: const EdgeInsets.symmetric(horizontal: AppSpace.screen),
   child: child,
 );
-
-/// 끝냈을 때 쓰는 말(최종 프로토타입). 영상은 '다 봤어요', LMS 할 일은 '공부 완료', 개인 할 일은 '완료'다.
-String _doneWord(Task task) {
-  if (task.kind == TaskKind.video) return '다 봤어요';
-  return task.lmsKey != null ? '공부 완료' : '완료';
-}
 
 /// 06 AI 비서의 직접 추가 폼을 할 일로 연다.
 void _openAdd(BuildContext context) => unawaited(
@@ -888,7 +889,8 @@ class _TaskRowTile extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 9),
                 child: _DoneCheck(
                   checked: checked,
-                  label: '${row.title} ${_doneWord(task)}로 표시',
+                  label:
+                      '${row.title} ${withJosa(taskDoneWord(task), Josa.euroRo)} 표시',
                   onTap: onCheck,
                 ),
               ),

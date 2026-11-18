@@ -177,6 +177,45 @@ void main() {
       expect(c.date, DateTime(2026, 11, 16));
       expect(c.changeLabel, isNull);
       expect(c.lockText, isNull);
+      expect(c.canEditBySpeech, isTrue);
+    });
+
+    test('지난 날의 일정은 [말로 바꾸기]를 두지 않는다(06이 오늘부터의 일정만 찾음)', () {
+      EventInfoContent timed(int day) => content(
+        EventItem(
+          TimeSpan(at(day, 15), at(day, 15, 30)),
+          event: event(startAt: at(day, 15), endAt: at(day, 15, 30)),
+        ),
+      );
+      expect(timed(15).canEditBySpeech, isFalse);
+      expect(timed(17).canEditBySpeech, isTrue);
+      // 오늘 이미 끝난 일정은 바꿀 수 있다.
+      expect(
+        content(
+          EventItem(
+            TimeSpan(at(16, 7), at(16, 8)),
+            event: event(startAt: at(16, 7), endAt: at(16, 8)),
+          ),
+        ).canEditBySpeech,
+        isTrue,
+      );
+      // 종일 일정은 끝날이 오늘 전일 때만 지난 일정이다.
+      EventInfoContent allDay(DateTime start, DateTime end) => content(
+        EventItem(
+          TimeSpan(start, end),
+          event: event(startAt: start, endAt: end, allDay: true),
+        ),
+      );
+      expect(
+        allDay(DateTime(2026, 11, 15), DateTime(2026, 11, 16)).canEditBySpeech,
+        isFalse,
+      );
+      expect(
+        allDay(DateTime(2026, 11, 15), DateTime(2026, 11, 17)).canEditBySpeech,
+        isTrue,
+      );
+      // 수업·고정 일정은 말로 바꾸지 않는다.
+      expect(content(lesson()).canEditBySpeech, isFalse);
     });
 
     test('종일 일정은 달력 날짜와 종일로 쓰고, 여러 날이면 첫날과 끝날을 쓴다', () {

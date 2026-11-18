@@ -141,4 +141,8 @@ abstract final class IconSvgs {
 
   static const discussion =
       r'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h8A2.5 2.5 0 0 1 17 6.5v5a2.5 2.5 0 0 1-2.5 2.5H9l-4 3v-3.3a2.5 2.5 0 0 1-1-2Z"/><path d="M17 9h.5A2.5 2.5 0 0 1 20 11.5v4.3a2.5 2.5 0 0 1-1 2V21l-3-2.4h-4.5a2.5 2.5 0 0 1-2.4-1.9"/></svg>''';
+
+  /// 내 규칙(조절 막대). 03 할 일 '얼마나 걸렸어요?'의 저장할 규칙 줄.
+  static const rule =
+      r'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></svg>''';
 }
