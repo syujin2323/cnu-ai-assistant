@@ -6,9 +6,11 @@
 // - 할 일 블록은 할 일 색 점선이다(확정해도). 제안은 배경 없이 '제안'을 붙이고, 완료는 흐리게 취소선과 체크,
 //   놓침은 흐리게 '놓침'이다. LMS에서 사라진 할 일의 블록은 회색으로 흐리게 그린다.
 // - 끝난 카드는 흐리게, 지금 하는 카드는 '진행 중 · N분 남음'과 아래 진행 막대를 그린다.
-// - 이동·점심은 작은 흐린 카드, 빈 시간은 점선 카드와 '놓기'다. 지금 선은 시 칸의 시각 알약과 점선이다.
+// - 이동·점심은 작은 흐린 카드, 빈 시간은 점선 카드다(누를 수 있으면 '놓기'를 붙임). 지금 선은 시 칸의 시각
+//   알약과 점선이다.
 // 카드 높이는 시간으로 정해지므로, 글자를 키우면 카드 안 글자는 잘린다(넘침 오류는 내지 않음). 읽기 도구에는
-// 카드마다 제목·시각·종류를 한 번에 읽어 준다.
+// 카드마다 제목·시각·종류와, 누를 수 있으면 할 수 있는 일을 한 번에 읽어 준다(눌러도 반응 없는 자리를 알리지
+// 않게).
 // 누르면: 할 일 블록 → [DayTimeline.onItemTap](근거 시트), 블록의 체크 → [DayTimeline.onBlockCheck], 수업·일정 →
 // [DayTimeline.onItemTap](일정 정보 시트), 빈 시간 → [DayTimeline.onFreeTap](빈 시간에 놓기 시트).
 
@@ -456,7 +458,7 @@ class _ItemCard extends StatelessWidget {
       '${hhmmText(item.span.start.hour * 60 + item.span.start.minute)}부터 '
           '${hhmmText(item.span.end.hour * 60 + item.span.end.minute)}',
       label,
-      if (item is BlockItem) '근거 보기' else '정보 보기',
+      if (onTap != null) item is BlockItem ? '근거 보기' : '정보 보기',
     ].join(', ');
     final card0 = Semantics(
       button: onTap != null,
@@ -637,20 +639,22 @@ class _FreeCard extends StatelessWidget {
               style: AppText.small.copyWith(color: colors.muted),
             ),
           ),
-          AppIcon(AppIconName.plus, size: 13, color: colors.accent),
-          const SizedBox(width: 2),
-          Flexible(
-            child: Text(
-              '놓기',
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.ellipsis,
-              style: AppText.caption.copyWith(
-                fontWeight: AppText.semibold,
-                color: colors.accent,
+          if (onTap != null) ...[
+            AppIcon(AppIconName.plus, size: 13, color: colors.accent),
+            const SizedBox(width: 2),
+            Flexible(
+              child: Text(
+                '놓기',
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                style: AppText.caption.copyWith(
+                  fontWeight: AppText.semibold,
+                  color: colors.accent,
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -658,7 +662,7 @@ class _FreeCard extends StatelessWidget {
       button: onTap != null,
       label:
           '${hhmmText(span.start.hour * 60 + span.start.minute)}부터 '
-          '${durationText(span.minutes)} 빈 시간, 할 일 놓기',
+          '${durationText(span.minutes)} 빈 시간${onTap == null ? '' : ', 할 일 놓기'}',
       excludeSemantics: true,
       child: Press(
         enabled: onTap != null,
