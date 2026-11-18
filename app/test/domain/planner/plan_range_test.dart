@@ -69,7 +69,6 @@ ClassSlot slot(
   startMin: startMin,
   endMin: endMin,
   place: online ? null : '공학관 201',
-  campus: Campus.daedeok,
   online: online,
   source: SlotSource.manual,
 );

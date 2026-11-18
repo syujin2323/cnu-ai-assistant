@@ -345,15 +345,6 @@ class $ClassSlotsTable extends ClassSlots
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  @override
-  late final GeneratedColumnWithTypeConverter<Campus, String> campus =
-      GeneratedColumn<String>(
-        'campus',
-        aliasedName,
-        false,
-        type: DriftSqlType.string,
-        requiredDuringInsert: true,
-      ).withConverter<Campus>($ClassSlotsTable.$convertercampus);
   static const VerificationMeta _onlineMeta = const VerificationMeta('online');
   @override
   late final GeneratedColumn<bool> online = GeneratedColumn<bool>(
@@ -460,6 +451,19 @@ class $ClassSlotsTable extends ClassSlots
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _hiddenMeta = const VerificationMeta('hidden');
+  @override
+  late final GeneratedColumn<bool> hidden = GeneratedColumn<bool>(
+    'hidden',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("hidden" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -468,7 +472,6 @@ class $ClassSlotsTable extends ClassSlots
     startMin,
     endMin,
     place,
-    campus,
     online,
     repeatRule,
     source,
@@ -478,6 +481,7 @@ class $ClassSlotsTable extends ClassSlots
     importedPlace,
     placeEdited,
     onlineEdited,
+    hidden,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -600,6 +604,12 @@ class $ClassSlotsTable extends ClassSlots
         ),
       );
     }
+    if (data.containsKey('hidden')) {
+      context.handle(
+        _hiddenMeta,
+        hidden.isAcceptableOrUnknown(data['hidden']!, _hiddenMeta),
+      );
+    }
     return context;
   }
 
@@ -632,12 +642,6 @@ class $ClassSlotsTable extends ClassSlots
       place: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}place'],
-      ),
-      campus: $ClassSlotsTable.$convertercampus.fromSql(
-        attachedDatabase.typeMapping.read(
-          DriftSqlType.string,
-          data['${effectivePrefix}campus'],
-        )!,
       ),
       online: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
@@ -677,6 +681,10 @@ class $ClassSlotsTable extends ClassSlots
         DriftSqlType.bool,
         data['${effectivePrefix}online_edited'],
       )!,
+      hidden: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}hidden'],
+      )!,
     );
   }
 
@@ -685,9 +693,6 @@ class $ClassSlotsTable extends ClassSlots
     return $ClassSlotsTable(attachedDatabase, alias);
   }
 
-  static TypeConverter<Campus, String> $convertercampus = const EnumConverter(
-    Campus.values,
-  );
   static TypeConverter<SlotSource, String> $convertersource =
       const EnumConverter(SlotSource.values, fallback: SlotSource.manual);
 }
@@ -699,7 +704,6 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
   final Value<int> startMin;
   final Value<int> endMin;
   final Value<String?> place;
-  final Value<Campus> campus;
   final Value<bool> online;
   final Value<String?> repeatRule;
   final Value<SlotSource> source;
@@ -709,6 +713,7 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
   final Value<String?> importedPlace;
   final Value<bool> placeEdited;
   final Value<bool> onlineEdited;
+  final Value<bool> hidden;
   const ClassSlotsCompanion({
     this.id = const Value.absent(),
     this.courseId = const Value.absent(),
@@ -716,7 +721,6 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     this.startMin = const Value.absent(),
     this.endMin = const Value.absent(),
     this.place = const Value.absent(),
-    this.campus = const Value.absent(),
     this.online = const Value.absent(),
     this.repeatRule = const Value.absent(),
     this.source = const Value.absent(),
@@ -726,6 +730,7 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     this.importedPlace = const Value.absent(),
     this.placeEdited = const Value.absent(),
     this.onlineEdited = const Value.absent(),
+    this.hidden = const Value.absent(),
   });
   ClassSlotsCompanion.insert({
     this.id = const Value.absent(),
@@ -734,7 +739,6 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     required int startMin,
     required int endMin,
     this.place = const Value.absent(),
-    required Campus campus,
     required bool online,
     this.repeatRule = const Value.absent(),
     required SlotSource source,
@@ -744,11 +748,11 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     this.importedPlace = const Value.absent(),
     this.placeEdited = const Value.absent(),
     this.onlineEdited = const Value.absent(),
+    this.hidden = const Value.absent(),
   }) : courseId = Value(courseId),
        weekday = Value(weekday),
        startMin = Value(startMin),
        endMin = Value(endMin),
-       campus = Value(campus),
        online = Value(online),
        source = Value(source);
   static Insertable<ClassSlot> custom({
@@ -758,7 +762,6 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     Expression<int>? startMin,
     Expression<int>? endMin,
     Expression<String>? place,
-    Expression<String>? campus,
     Expression<bool>? online,
     Expression<String>? repeatRule,
     Expression<String>? source,
@@ -768,6 +771,7 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     Expression<String>? importedPlace,
     Expression<bool>? placeEdited,
     Expression<bool>? onlineEdited,
+    Expression<bool>? hidden,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -776,7 +780,6 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
       if (startMin != null) 'start_min': startMin,
       if (endMin != null) 'end_min': endMin,
       if (place != null) 'place': place,
-      if (campus != null) 'campus': campus,
       if (online != null) 'online': online,
       if (repeatRule != null) 'repeat_rule': repeatRule,
       if (source != null) 'source': source,
@@ -786,6 +789,7 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
       if (importedPlace != null) 'imported_place': importedPlace,
       if (placeEdited != null) 'place_edited': placeEdited,
       if (onlineEdited != null) 'online_edited': onlineEdited,
+      if (hidden != null) 'hidden': hidden,
     });
   }
 
@@ -796,7 +800,6 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     Value<int>? startMin,
     Value<int>? endMin,
     Value<String?>? place,
-    Value<Campus>? campus,
     Value<bool>? online,
     Value<String?>? repeatRule,
     Value<SlotSource>? source,
@@ -806,6 +809,7 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     Value<String?>? importedPlace,
     Value<bool>? placeEdited,
     Value<bool>? onlineEdited,
+    Value<bool>? hidden,
   }) {
     return ClassSlotsCompanion(
       id: id ?? this.id,
@@ -814,7 +818,6 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
       startMin: startMin ?? this.startMin,
       endMin: endMin ?? this.endMin,
       place: place ?? this.place,
-      campus: campus ?? this.campus,
       online: online ?? this.online,
       repeatRule: repeatRule ?? this.repeatRule,
       source: source ?? this.source,
@@ -824,6 +827,7 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
       importedPlace: importedPlace ?? this.importedPlace,
       placeEdited: placeEdited ?? this.placeEdited,
       onlineEdited: onlineEdited ?? this.onlineEdited,
+      hidden: hidden ?? this.hidden,
     );
   }
 
@@ -847,11 +851,6 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     }
     if (place.present) {
       map['place'] = Variable<String>(place.value);
-    }
-    if (campus.present) {
-      map['campus'] = Variable<String>(
-        $ClassSlotsTable.$convertercampus.toSql(campus.value),
-      );
     }
     if (online.present) {
       map['online'] = Variable<bool>(online.value);
@@ -882,6 +881,9 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     if (onlineEdited.present) {
       map['online_edited'] = Variable<bool>(onlineEdited.value);
     }
+    if (hidden.present) {
+      map['hidden'] = Variable<bool>(hidden.value);
+    }
     return map;
   }
 
@@ -894,7 +896,6 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
           ..write('startMin: $startMin, ')
           ..write('endMin: $endMin, ')
           ..write('place: $place, ')
-          ..write('campus: $campus, ')
           ..write('online: $online, ')
           ..write('repeatRule: $repeatRule, ')
           ..write('source: $source, ')
@@ -903,7 +904,8 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
           ..write('importedEndMin: $importedEndMin, ')
           ..write('importedPlace: $importedPlace, ')
           ..write('placeEdited: $placeEdited, ')
-          ..write('onlineEdited: $onlineEdited')
+          ..write('onlineEdited: $onlineEdited, ')
+          ..write('hidden: $hidden')
           ..write(')'))
         .toString();
   }
@@ -6294,7 +6296,6 @@ typedef $$ClassSlotsTableCreateCompanionBuilder = ClassSlotsCompanion Function({
   required int startMin,
   required int endMin,
   Value<String?> place,
-  required Campus campus,
   required bool online,
   Value<String?> repeatRule,
   required SlotSource source,
@@ -6304,6 +6305,7 @@ typedef $$ClassSlotsTableCreateCompanionBuilder = ClassSlotsCompanion Function({
   Value<String?> importedPlace,
   Value<bool> placeEdited,
   Value<bool> onlineEdited,
+  Value<bool> hidden,
 });
 typedef $$ClassSlotsTableUpdateCompanionBuilder = ClassSlotsCompanion Function({
   Value<int> id,
@@ -6312,7 +6314,6 @@ typedef $$ClassSlotsTableUpdateCompanionBuilder = ClassSlotsCompanion Function({
   Value<int> startMin,
   Value<int> endMin,
   Value<String?> place,
-  Value<Campus> campus,
   Value<bool> online,
   Value<String?> repeatRule,
   Value<SlotSource> source,
@@ -6322,6 +6323,7 @@ typedef $$ClassSlotsTableUpdateCompanionBuilder = ClassSlotsCompanion Function({
   Value<String?> importedPlace,
   Value<bool> placeEdited,
   Value<bool> onlineEdited,
+  Value<bool> hidden,
 });
 
 final class $$ClassSlotsTableReferences
@@ -6400,12 +6402,6 @@ class $$ClassSlotsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnWithTypeConverterFilters<Campus, Campus, String> get campus =>
-      $composableBuilder(
-        column: $table.campus,
-        builder: (column) => ColumnWithTypeConverterFilters(column),
-      );
-
   ColumnFilters<bool> get online => $composableBuilder(
     column: $table.online,
     builder: (column) => ColumnFilters(column),
@@ -6449,6 +6445,11 @@ class $$ClassSlotsTableFilterComposer
 
   ColumnFilters<bool> get onlineEdited => $composableBuilder(
     column: $table.onlineEdited,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hidden => $composableBuilder(
+    column: $table.hidden,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6535,11 +6536,6 @@ class $$ClassSlotsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get campus => $composableBuilder(
-    column: $table.campus,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<bool> get online => $composableBuilder(
     column: $table.online,
     builder: (column) => ColumnOrderings(column),
@@ -6582,6 +6578,11 @@ class $$ClassSlotsTableOrderingComposer
 
   ColumnOrderings<bool> get onlineEdited => $composableBuilder(
     column: $table.onlineEdited,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get hidden => $composableBuilder(
+    column: $table.hidden,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -6633,9 +6634,6 @@ class $$ClassSlotsTableAnnotationComposer
   GeneratedColumn<String> get place =>
       $composableBuilder(column: $table.place, builder: (column) => column);
 
-  GeneratedColumnWithTypeConverter<Campus, String> get campus =>
-      $composableBuilder(column: $table.campus, builder: (column) => column);
-
   GeneratedColumn<bool> get online =>
       $composableBuilder(column: $table.online, builder: (column) => column);
 
@@ -6676,6 +6674,9 @@ class $$ClassSlotsTableAnnotationComposer
     column: $table.onlineEdited,
     builder: (column) => column,
   );
+
+  GeneratedColumn<bool> get hidden =>
+      $composableBuilder(column: $table.hidden, builder: (column) => column);
 
   $$CoursesTableAnnotationComposer get courseId {
     final $$CoursesTableAnnotationComposer composer = $composerBuilder(
@@ -6760,7 +6761,6 @@ class $$ClassSlotsTableTableManager
                 Value<int> startMin = const Value.absent(),
                 Value<int> endMin = const Value.absent(),
                 Value<String?> place = const Value.absent(),
-                Value<Campus> campus = const Value.absent(),
                 Value<bool> online = const Value.absent(),
                 Value<String?> repeatRule = const Value.absent(),
                 Value<SlotSource> source = const Value.absent(),
@@ -6770,6 +6770,7 @@ class $$ClassSlotsTableTableManager
                 Value<String?> importedPlace = const Value.absent(),
                 Value<bool> placeEdited = const Value.absent(),
                 Value<bool> onlineEdited = const Value.absent(),
+                Value<bool> hidden = const Value.absent(),
               }) => ClassSlotsCompanion(
                 id: id,
                 courseId: courseId,
@@ -6777,7 +6778,6 @@ class $$ClassSlotsTableTableManager
                 startMin: startMin,
                 endMin: endMin,
                 place: place,
-                campus: campus,
                 online: online,
                 repeatRule: repeatRule,
                 source: source,
@@ -6787,6 +6787,7 @@ class $$ClassSlotsTableTableManager
                 importedPlace: importedPlace,
                 placeEdited: placeEdited,
                 onlineEdited: onlineEdited,
+                hidden: hidden,
               ),
           createCompanionCallback:
               ({
@@ -6796,7 +6797,6 @@ class $$ClassSlotsTableTableManager
                 required int startMin,
                 required int endMin,
                 Value<String?> place = const Value.absent(),
-                required Campus campus,
                 required bool online,
                 Value<String?> repeatRule = const Value.absent(),
                 required SlotSource source,
@@ -6806,6 +6806,7 @@ class $$ClassSlotsTableTableManager
                 Value<String?> importedPlace = const Value.absent(),
                 Value<bool> placeEdited = const Value.absent(),
                 Value<bool> onlineEdited = const Value.absent(),
+                Value<bool> hidden = const Value.absent(),
               }) => ClassSlotsCompanion.insert(
                 id: id,
                 courseId: courseId,
@@ -6813,7 +6814,6 @@ class $$ClassSlotsTableTableManager
                 startMin: startMin,
                 endMin: endMin,
                 place: place,
-                campus: campus,
                 online: online,
                 repeatRule: repeatRule,
                 source: source,
@@ -6823,6 +6823,7 @@ class $$ClassSlotsTableTableManager
                 importedPlace: importedPlace,
                 placeEdited: placeEdited,
                 onlineEdited: onlineEdited,
+                hidden: hidden,
               ),
           withReferenceMapper: (p0) => p0
               .map(

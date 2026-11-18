@@ -112,7 +112,6 @@ void main() {
     weekday: weekday,
     startMin: startMin,
     endMin: endMin,
-    campus: Campus.daedeok,
     online: online,
     source: SlotSource.manual,
   );

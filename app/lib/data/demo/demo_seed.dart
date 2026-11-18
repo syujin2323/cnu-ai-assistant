@@ -200,7 +200,6 @@ Future<List<int>> _insertTimetable(
             startMin: slot.startMin,
             endMin: slot.endMin,
             place: Value(slot.place),
-            campus: Campus.daedeok,
             online: slot.place == null,
             source: SlotSource.auto,
             importedWeekday: Value(days.weekday(slot.offset)),

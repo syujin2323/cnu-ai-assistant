@@ -26,7 +26,6 @@ final lesson = ClassItem(
     startMin: 630,
     endMin: 705,
     place: '자연과학관 105',
-    campus: Campus.daedeok,
     online: false,
     source: SlotSource.auto,
   ),

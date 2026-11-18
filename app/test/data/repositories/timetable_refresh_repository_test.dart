@@ -52,7 +52,6 @@ void main() {
             startMin: 540,
             endMin: 615,
             place: Value(place),
-            campus: Campus.boun,
             online: false,
             source: SlotSource.auto,
             importedWeekday: Value(weekday),
@@ -104,8 +103,8 @@ void main() {
         (3, 600, 690, '합성관202'),
       );
       expect(
-        (after.source, after.campus, after.online, after.placeEdited),
-        (SlotSource.auto, Campus.boun, false, false),
+        (after.source, after.online, after.placeEdited),
+        (SlotSource.auto, false, false),
       );
 
       expect(await ok(UndoRepository(db).undoLast(now: now)), isTrue);
@@ -178,6 +177,20 @@ void main() {
     expect((await slotRow(edited.id)).place, '내가 고친 곳');
     expect(await ok(UndoRepository(db).undoLast(now: now)), isTrue);
     expect((await slots()).map((s) => s.weekday), contains(5));
+  });
+
+  test('견준 뒤 사용자가 뺀(숨긴) 칸은 건너뛴다', () async {
+    final slot = await importedSlot();
+    await (db.update(db.classSlots)..where((t) => t.id.equals(slot.id))).write(
+      const ClassSlotsCompanion(hidden: Value(true)),
+    );
+
+    final applied = await ok(
+      repo.apply([TimetableSlotRemoval(slot)], now: now),
+    );
+
+    expect(applied, 0);
+    expect((await slotRow(slot.id)).hidden, isTrue);
   });
 
   test('여러 바뀜을 한 번에 되돌린다', () async {
