@@ -95,7 +95,7 @@ final class PlanResult {
   /// 시간이 모자란 할 일(급한 순서).
   final List<Shortage> shortages;
 
-  /// 놓을 시간이 있는 할 일의 id를 급한 순서(근거의 `rank` 순서)로. 01 아침 브리핑의 '급한 순'에 쓴다.
+  /// 놓을 시간이 있는 할 일의 id를 급한 순서(근거의 `rank` 순서)로. 01 계획의 '급한 순'에 쓴다.
   final List<int> ranked;
 }
 

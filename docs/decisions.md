@@ -932,6 +932,25 @@
 - 다른 후보: 지우되 '새로 고침하면 다시 들어올 수 있어요'를 안내하기(권장안이었다), 불러온 수업에는 [빼기]를 두지 않기.
 - 영향: architecture.md '폰 DB'(`class_slots`), lms.md '시간표 (통합정보시스템)', screens.md '13 시간표·고정 일정', `app/lib/domain/timetable_refresh.dart`, `app/lib/data/repositories/class_slot_repository.dart`·`schedule_repository.dart`·`timetable_refresh_repository.dart`·`lms_sync_repository.dart`, 스키마 스냅샷 v1.
 
+## 2026-11-19 아이콘 SVG는 Dart 문자열로 둔다 (architecture.md '앱 코드 규약'의 아이콘 에셋 바꿈)
+
+- 결정: 캔버스 아이콘 SVG를 `app/assets/icons/`의 에셋 파일이 아니라 `app/lib/design/icon_svgs.dart`의 Dart 문자열로 두고 `SvgPicture.string`으로 그린다. 에셋 폴더와 `pubspec.yaml`의 그 줄은 지운다. 새 아이콘은 `IconSvgs`에 문자열 하나와 `AppIconName`에 한 줄을 더한다. 캔버스가 같은 그림을 다른 뜻으로 쓰는 이름(할 일 탭·네모 안 체크, 오늘 탭·해, 나 탭·사람)은 앞 이름의 문자열을 가리킨다.
+- 이유: 에셋은 Shorebird 패치로 바꿀 수 없어서, 첫 팀원 빌드 뒤 화면 PR이 새 아이콘을 쓸 때마다 새 release를 내야 한다. Dart 문자열이면 아이콘도 패치로 낸다. 아이콘 37개가 모두 합쳐 약 10KB라 앱 크기에 거의 차이가 없다(세션 C와 합의).
+- 다른 후보: 첫 팀원 빌드 전에 캔버스 아이콘을 모두 에셋으로 넣기(빠진 아이콘이 있으면 그때마다 새 release).
+- 영향: architecture.md '폴더 구조'·'앱 코드 규약'·'확인과 CI', `app/lib/design/icons.dart`, `app/lib/design/icon_svgs.dart`, `app/pubspec.yaml`, `app/test/design/icons_test.dart`, `app/test/conventions_test.dart`(SvgPicture는 `design/icons.dart`만, SVG 문자열은 `design/icon_svgs.dart`만).
+
+## 2026-11-19 '아침 브리핑'을 '계획'으로 부르고 02 홈에서도 연다 (2026-11-04 '아침 브리핑은 오늘 할 일을 고르는 화면이고 AI 문장을 두지 않는다' 보완)
+
+- 결정:
+  - 화면 이름 '01 아침 브리핑'을 '01 계획'으로 바꾼다. 화면 문구와 문서(screens·architecture·lms)의 이름만 바꾸고, 코드 식별자(`features/briefing/`, `/briefing`, `briefings` 표, 사용 지표 키 `briefingOpened`)는 그대로 둔다. 이 파일의 지난 항목은 고치지 않으므로, 그 안의 '아침 브리핑'은 '계획'과 같은 화면이다.
+  - 그날 아직 보지 않았으면 앱을 열 때 먼저 뜨는 것(시작 위치 규칙, 뜨는 순간 본 것으로 기록)은 그대로다.
+  - 02 홈 머리 오른쪽에 [계획]을 두어 언제든 연다(push). 닫기·'오늘 시작하기'는 push로 열었으면 연 화면으로 돌아가고, 자동으로 떴으면 02 홈으로 간다.
+  - 하루에 여러 번 들어와 다시 확정하므로 `briefings.confirmedAt`은 처음 확정한 시각을 둔다. 사용 지표의 '확정까지 걸린 초'는 처음 확정까지다. 확정 전 수정 횟수는 지금처럼 확정할 때마다 더한다.
+  - 공개 처리방침의 '아침 브리핑' 표현은 다음에 처리방침을 고칠 때 함께 바꾼다(이름만으로 시행 7일 전 알림 절차를 밟지 않음). 앱 안 개인정보 안내 시트의 지표 줄은 바꿨다.
+- 이유: 이 화면은 하루를 계획하는 화면이고, 아침에 한 번만 보는 화면이 아니라 앱을 열어 계획을 더하거나 고치고 싶을 때 들어가는 화면이다(관리자 결정). 그래서 이름이 하는 일을 말하게 하고 02 홈에서 들어가는 길을 둔다.
+- 다른 후보: 이름만 그대로 두고 02 홈에 들어가는 길만 더하기, '오늘 계획'·'하루 계획'.
+- 영향: screens.md '화면 목록'·'01 계획'·'02 홈' 등 화면 이름, architecture.md '계획 화면'(옛 '아침 브리핑')·라우트 표·지표, lms.md, `app/lib/features/briefing/briefing_screen.dart`, `app/lib/features/today/today_screen.dart`, `app/lib/data/repositories/briefing_repository.dart`, `app/lib/features/lms_connect/privacy_sheet.dart`.
+
 ## 2026-11-19 AI가 되물으면 그 답을 앞 문장과 함께 받는다 (2026-11-15 '제공사에는 빈 값을 빈 문자열로 쓰는 응답 스키마를 따로 넣는다' 보완)
 
 - 결정:

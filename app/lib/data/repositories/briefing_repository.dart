@@ -1,7 +1,7 @@
-// 아침 브리핑 기록 저장소(`briefings` 표). docs/architecture.md '아침 브리핑'.
+// 아침 브리핑 기록 저장소(`briefings` 표). docs/architecture.md '계획 화면'.
 //
 // 브리핑 내용은 열 때 폰 DB와 배치 엔진으로 계산하므로 저장하지 않고, 그날(논리적 하루) 브리핑을 본 것과
-// 확정한 것만 적는다. 하루는 `date`(`YYYY-MM-DD`)가 겹치지 않는 한 행이다. 본 것은 01 아침 브리핑이 화면에
+// 확정한 것만 적는다. 하루는 `date`(`YYYY-MM-DD`)가 겹치지 않는 한 행이다. 본 것은 01 계획이 화면에
 // 뜨는 순간 적는다(docs/decisions.md 2026-11-13 '아침 브리핑은 뜨는 순간 본 것으로 기록한다'). 폰 DB를
 // 읽거나 쓰지 못하면 [StorageError]를 담은 [Err]다.
 
@@ -46,8 +46,9 @@ class BriefingRepository {
         }),
       );
 
-  /// [day]의 브리핑에서 'N개 확정하기'·'확정한 할 일 빼기'를 [at]에 눌렀다고 기록한다. 다시 확정하면 마지막
-  /// 시각으로 바꾸고, 본 것으로 기록하지 않았으면 함께 기록한다. [edits]는 이번에 확정하기 전에 체크를 켜고 끈
+  /// [day]의 브리핑에서 'N개 확정하기'·'확정한 할 일 빼기'를 [at]에 눌렀다고 기록한다. 계획 화면은 하루에 여러 번
+  /// 들어와 다시 확정하므로 처음 확정한 시각을 두고(사용 지표의 '확정까지 걸린 초', docs/decisions.md 2026-11-19
+  /// ''아침 브리핑'을 '계획'으로 부르고 02 홈에서도 연다'), 본 것으로 기록하지 않았으면 함께 기록한다. [edits]는 이번에 확정하기 전에 체크를 켜고 끈
   /// 횟수이고 `editCount`에 더한다(사용 지표의 확정 전 수정 횟수). 음수면 [ArgumentError]다.
   Future<Result<void>> markConfirmed(
     DateTime day, {
@@ -76,7 +77,7 @@ class BriefingRepository {
             row.id,
             BriefingsCompanion(
               openedAt: Value(row.openedAt ?? at),
-              confirmedAt: Value(at),
+              confirmedAt: Value(row.confirmedAt ?? at),
               editCount: Value(row.editCount + edits),
             ),
           );

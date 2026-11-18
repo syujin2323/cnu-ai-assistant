@@ -101,13 +101,13 @@ final appModeProvider = NotifierProvider<AppModeController, AppMode>(
 /// 데모를 끝낼 때는 데모 DB의 표를 한 트랜잭션으로 비운 직후 그 연결을 닫으므로, 그 뒤에 오는 데모 DB 저장은
 /// 닫힌 DB의 `StorageError`로 끝난다. 다만 끝내기 전에 시작한 저장은 끝난 뒤 비워지고, 비우는 동안 들어와
 /// 그 뒤에 줄 선 저장은 비운 DB에 남을 수 있다(남으면 다음 데모에 샘플을 넣지 않음). 그래서 사용자가 누르지
-/// 않았는데 화면이 저절로 쓰는 기록은 끝내는 중([exiting])이면 쓰지 않는다(01 아침 브리핑의 본 것처럼). 데모에
+/// 않았는데 화면이 저절로 쓰는 기록은 끝내는 중([exiting])이면 쓰지 않는다(01 계획의 본 것처럼). 데모에
 /// 들어갈 때는 실제 DB(`app.sqlite`)가 열린 채라 그때 돌던 저장은 그대로 끝난다.
 class AppModeController extends Notifier<AppMode> {
   Future<void>? _entering;
   Future<Result<DemoEntry>>? _exiting;
 
-  /// 데모를 끝내는 중인지. 그동안 화면이 저절로 쓰는 기록(01 아침 브리핑의 본 것)은 데모 DB에 적지 않는다
+  /// 데모를 끝내는 중인지. 그동안 화면이 저절로 쓰는 기록(01 계획의 본 것)은 데모 DB에 적지 않는다
   /// (비운 뒤에 남으면 다음 데모의 샘플을 막음).
   bool get exiting => _exiting != null;
 

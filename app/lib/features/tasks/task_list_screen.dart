@@ -1,6 +1,6 @@
 // 03 할 일(할 일 탭 `/tasks`). docs/screens.md '03 할 일'.
 // 탭 [주간 할 일 N | 전체 할 일 N], LMS 상태 줄, '할 일 추가'(06 직접 추가 폼을 할 일로)는 할 일 PR에서 만든다.
-// 처음 열 탭은 `/tasks?tab=all`처럼 받는다(`Routes.tasksTab`). 01 아침 브리핑의 '할 일 전체 보기'가
+// 처음 열 탭은 `/tasks?tab=all`처럼 받는다(`Routes.tasksTab`). 01 계획의 '할 일 전체 보기'가
 // [TaskListTab.all]로 연다.
 
 import 'package:cnu_ai_assistant/design/strings.dart';

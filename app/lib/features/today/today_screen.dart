@@ -1,6 +1,8 @@
 // 02 홈(오늘 탭 `/today`). docs/screens.md '02 홈'.
 //
-// 위에서부터 머리(날짜와 '{지금} · 남은 일정 N개 · 할 일 N개'), 다시 로그인 칩, 피드백 카드, 오늘 시간표다.
+// 위에서부터 머리(날짜와 '{지금} · 남은 일정 N개 · 할 일 N개', 오른쪽에 01 계획을 여는 [계획]), 다시 로그인 칩,
+// 피드백 카드, 오늘 시간표다. [계획]은 01 계획을 push로 열어 닫으면 이 화면으로 돌아온다(docs/decisions.md
+// 2026-11-19 ''아침 브리핑'을 '계획'으로 부르고 02 홈에서도 연다').
 // 시간표에는 확정한 할 일만 있고(제안은 보이지 않음), 지난 일정은 '지난 일정 N개 보기'로 접으며 '일간 보기 ›'가
 // 09 일간을 연다. 블록의 체크는 블록 완료를 켜고 끈다. 블록·수업·일정·빈 시간을 눌러 여는 시트(근거·일정 정보·
 // 빈 시간에 놓기)와 시간 부족·빈 시간 없음 카드, 끌어 옮기기는 그 시트·카드 PR(W5–W8, S3)에서 붙인다.
@@ -118,25 +120,34 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       ),
       children: [
         Rise(
-          child: Column(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Semantics(
-                header: true,
-                child: Text(
-                  monthDayText(home.date, today: home.date),
-                  style: AppText.heading,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        monthDayText(home.date, today: home.date),
+                        style: AppText.heading,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      homeSummaryText(
+                        now: home.now,
+                        events: home.eventsLeft,
+                        tasks: home.tasksLeft,
+                      ),
+                      style: AppText.small.copyWith(color: colors.muted),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                homeSummaryText(
-                  now: home.now,
-                  events: home.eventsLeft,
-                  tasks: home.tasksLeft,
-                ),
-                style: AppText.small.copyWith(color: colors.muted),
-              ),
+              const SizedBox(width: AppSpace.s12),
+              const _PlanButton(),
             ],
           ),
         ),
@@ -265,6 +276,33 @@ class _TextLink extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 머리 오른쪽의 [계획]. 01 계획을 열어 오늘 할 일을 고르거나 더한다.
+class _PlanButton extends StatelessWidget {
+  const _PlanButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    return Press(
+      child: TextButton.icon(
+        onPressed: () => context.push(Routes.briefing),
+        style: TextButton.styleFrom(
+          backgroundColor: colors.tint,
+          foregroundColor: colors.accent,
+          minimumSize: const Size(0, AppSize.minTouch),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.s16),
+          shape: const StadiumBorder(),
+        ),
+        icon: AppIcon(AppIconName.checkSquare, size: 18, color: colors.accent),
+        label: Text(
+          '계획',
+          style: AppText.small.copyWith(fontWeight: AppText.semibold),
         ),
       ),
     );
