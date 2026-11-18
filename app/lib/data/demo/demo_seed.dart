@@ -608,7 +608,7 @@ Future<void> _insertBlocks(
     );
   }
 
-  // 어제 놓친 블록(01 아침 브리핑의 '어제 못 한 일').
+  // 어제 놓친 블록(01 계획의 '어제 못 한 일').
   await block(
     _Task.shell,
     -1,
@@ -729,7 +729,7 @@ Future<void> _insertRules(AppDatabase db, _Days days) async {
   );
 }
 
-/// 어제 아침 브리핑에서 할 일 둘을 확정한 기록. 오늘 브리핑은 비워 두어 데모에 들어오면 01 아침 브리핑이 뜬다.
+/// 어제 아침 브리핑에서 할 일 둘을 확정한 기록. 오늘 브리핑은 비워 두어 데모에 들어오면 01 계획이 뜬다.
 Future<void> _insertBriefing(AppDatabase db, _Days days) => db
     .into(db.briefings)
     .insert(

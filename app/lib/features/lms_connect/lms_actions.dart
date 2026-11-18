@@ -24,7 +24,7 @@ bool _demoOnly(WidgetRef ref) {
   return true;
 }
 
-/// 다시 로그인 화면을 연다. 01 아침 브리핑·02 홈·03 할 일의 '다시 로그인' 칩과 LMS 정보 시트가 쓴다.
+/// 다시 로그인 화면을 연다. 01 계획·02 홈·03 할 일의 '다시 로그인' 칩과 LMS 정보 시트가 쓴다.
 void openRelogin(BuildContext context, WidgetRef ref) {
   if (_demoOnly(ref)) return;
   unawaited(context.push<void>(Routes.login));

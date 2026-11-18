@@ -1,4 +1,4 @@
-// 01 아침 브리핑 provider 테스트. docs/architecture.md '아침 브리핑', docs/screens.md '01 아침 브리핑'.
+// 01 계획 provider 테스트. docs/architecture.md '계획 화면', docs/screens.md '01 계획'.
 //
 // 화면 테스트는 브리핑 확인을 덮어쓰므로, 여기서는 실제 provider를 메모리 DB와 시계로 돌려 하루 경계에 따라
 // 그날을 고르는지, 본 것으로 적는 함수가 그날 행을 적는지, 적지 못하거나 데모를 끝내는 중이면 어떻게
@@ -205,7 +205,7 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      // 01 아침 브리핑이 뜨는 순간 끝내기를 눌렀다.
+      // 01 계획이 뜨는 순간 끝내기를 눌렀다.
       final exit = container
           .read(appModeProvider.notifier)
           .exitDemo(container.read(databaseProvider));

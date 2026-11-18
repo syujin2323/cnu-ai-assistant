@@ -10,6 +10,7 @@ import 'package:cnu_ai_assistant/design/widgets/lms_status_line.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/relogin_screen.dart';
 import 'package:cnu_ai_assistant/features/today/today_controller.dart';
+import 'package:cnu_ai_assistant/features/briefing/briefing_screen.dart';
 import 'package:cnu_ai_assistant/features/today/today_screen.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -273,6 +274,25 @@ void main() {
         await tapText(tester, '지난 일정 접기');
         expect(find.text('지난 일정 1개 보기'), findsOneWidget);
         expect(pastBlock, findsNothing);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('머리의 [계획]은 01 계획을 열고, 닫으면 02 홈으로 돌아온다', (tester) async {
+        // docs/decisions.md 2026-11-19 ''아침 브리핑'을 '계획'으로 부르고 02 홈에서도 연다'.
+        final (app, _) = await pumpHome(tester, textScale: textScale);
+
+        await tapText(tester, '계획');
+        expect(find.byType(BriefingScreen), findsOneWidget);
+        expect(app.router.state.uri.path, Routes.briefing);
+        // push로 열어 02 홈이 아래에 남는다(go로 열면 하단 탭 셸이 내려감).
+        expect(find.byType(TodayScreen, skipOffstage: false), findsOneWidget);
+
+        await tester.tap(find.byTooltip('계획 닫기'));
+        await tester.pumpAndSettle();
+        expect(find.byType(BriefingScreen), findsNothing);
+        expect(find.byType(TodayScreen), findsOneWidget);
+        expect(app.router.state.uri.path, Routes.today);
 
         await app.dispose(tester);
       });

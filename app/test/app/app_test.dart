@@ -1,6 +1,6 @@
 // 앱이 뜨고 네 탭과 AI 비서 버튼이 보이는지 보는 화면 테스트와 시작 위치(앱으로 돌아올 때 포함)·라우트
 // 표·데모 전환 테스트. docs/architecture.md '확인과 CI', '화면 이동', '데모 모드',
-// docs/screens.md '하단 탭과 AI 비서 버튼', '01 아침 브리핑'.
+// docs/screens.md '하단 탭과 AI 비서 버튼', '01 계획'.
 //
 // RootApp은 test/helpers/pump_app.dart로 띄운다(Firebase 없이 메모리 DB와 모의 SharedPreferences).
 // 모든 검사를 글자 배율 1.0과 2.0에서 돌려 넘침(RenderFlex overflow) 예외가 없어야 한다.
@@ -806,7 +806,7 @@ void main() {
               tester.widget<AssistantScreen>(find.byType(AssistantScreen)).args;
           expect(find.byType(BriefingScreen), findsOneWidget);
 
-          // 01 아침 브리핑의 말로 추가처럼, 쓴 문장을 바로 보내게 연다.
+          // 01 계획의 말로 추가처럼, 쓴 문장을 바로 보내게 연다.
           const fromBriefing = AssistantArgs(
             prefill: '내일 3시 팀플 회의',
             sendNow: true,
@@ -866,7 +866,7 @@ void main() {
           expect(Routes.tasksTab(TaskListTab.weekly), Routes.tasks);
           expect(Routes.tasksTab(TaskListTab.all), '/tasks?tab=all');
 
-          // 01 아침 브리핑의 '할 일 전체 보기'처럼 다른 화면에서 전체 할 일로 연다.
+          // 01 계획의 '할 일 전체 보기'처럼 다른 화면에서 전체 할 일로 연다.
           app.router.go(Routes.tasksTab(TaskListTab.all));
           await tester.pumpAndSettle();
           expect(tab(), TaskListTab.all);
@@ -1121,7 +1121,7 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('01 아침 브리핑은 뜨기만 해도 그날을 본 것으로 기록해, 시작 위치를 다시 정하면 02 홈이다', (
+      testWidgets('01 계획은 뜨기만 해도 그날을 본 것으로 기록해, 시작 위치를 다시 정하면 02 홈이다', (
         tester,
       ) async {
         // docs/decisions.md 2026-11-13 '아침 브리핑은 뜨는 순간 본 것으로 기록한다'.
@@ -1144,9 +1144,7 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('데모의 01 아침 브리핑은 데모 DB에 기록하고 실제 DB의 기록은 건드리지 않는다', (
-        tester,
-      ) async {
+      testWidgets('데모의 01 계획은 데모 DB에 기록하고 실제 DB의 기록은 건드리지 않는다', (tester) async {
         final app = await pumpTestApp(
           tester,
           start: TestStart.demo,
@@ -1166,7 +1164,7 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('실제 01 아침 브리핑을 본 뒤 데모에 들어가면 데모 브리핑이 따로 뜨고, 끝내도 실제 기록은 그대로다', (
+      testWidgets('실제 01 계획을 본 뒤 데모에 들어가면 데모 브리핑이 따로 뜨고, 끝내도 실제 기록은 그대로다', (
         tester,
       ) async {
         final now = DateTime(2026, 11, 13, 9);
@@ -1230,7 +1228,7 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('온보딩 1단계의 둘러보기로 데모 01 아침 브리핑에 들어가면 데모 모드 끝내기로 1단계에 돌아온다', (
+      testWidgets('온보딩 1단계의 둘러보기로 데모 01 계획에 들어가면 데모 모드 끝내기로 1단계에 돌아온다', (
         tester,
       ) async {
         final app = await pumpTestApp(
