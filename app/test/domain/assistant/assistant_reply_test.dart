@@ -1187,7 +1187,7 @@ void main() {
       expect(empty.kind, InfoKind.notUnderstood);
     });
 
-    test('항목이나 질문 종류가 없으면 못 알아들은 것이고, 내 규칙은 아직 안내만 한다', () {
+    test('항목이나 질문 종류가 없으면 못 알아들은 것이다', () {
       expect(
         (_reply(const ParseResult(intent: ParseIntent.other)).single
                 as InfoCard)
@@ -1212,12 +1212,12 @@ void main() {
           reason: '$intent',
         );
       }
-      expect(
-        (_reply(const ParseResult(intent: ParseIntent.setRule)).single
-                as InfoCard)
-            .kind,
-        InfoKind.notYet,
-      );
+      // 규칙 항목이 없는 내 규칙 응답은 정할 수 없는 조건으로 본다(assistant_rules_test.dart).
+      final rule =
+          _reply(const ParseResult(intent: ParseIntent.setRule)).single
+              as InfoCard;
+      expect(rule.kind, InfoKind.ruleUnsupported);
+      expect(rule.unsupported, UnsupportedRuleKind.other);
     });
 
     test('규칙 모드에서는 일정·할 일·바꾸기를 받지 않는다(질문·수업 변경·규칙은 받음)', () {

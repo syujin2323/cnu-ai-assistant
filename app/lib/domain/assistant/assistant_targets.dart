@@ -13,6 +13,7 @@ import 'package:cnu_ai_assistant/domain/models/course.dart';
 import 'package:cnu_ai_assistant/domain/models/event.dart';
 import 'package:cnu_ai_assistant/domain/models/fixed_block.dart';
 import 'package:cnu_ai_assistant/domain/models/parse_result.dart';
+import 'package:cnu_ai_assistant/domain/models/rule.dart';
 
 /// 카드를 만들 때 한 번 읽어 둔 폰 DB의 값.
 final class AssistantSnapshot {
@@ -22,6 +23,7 @@ final class AssistantSnapshot {
     this.exceptions = const [],
     this.fixedBlocks = const [],
     this.events = const [],
+    this.rules = const [],
   });
 
   /// 고를 수 있는 과목(요청에 보낸 과목).
@@ -37,6 +39,9 @@ final class AssistantSnapshot {
 
   /// 오늘 뒤(오늘 0시 이후 시작) 일정. 지난 일정은 바꾸지 않는다.
   final List<Event> events;
+
+  /// 내 규칙 전부(꺼진 것도). 규칙 카드가 지금 값·바뀌는 규칙·지울 대상을 찾는다.
+  final List<Rule> rules;
 }
 
 /// 수업 한 번(그 날짜에 평소대로 열리는 수업 칸).

@@ -12,6 +12,8 @@ import 'package:cnu_ai_assistant/domain/assistant/assistant_targets.dart';
 import 'package:cnu_ai_assistant/domain/models/class_exception.dart';
 import 'package:cnu_ai_assistant/domain/models/fixed_block.dart';
 import 'package:cnu_ai_assistant/domain/models/parse_result.dart';
+import 'package:cnu_ai_assistant/domain/models/plan_block.dart';
+import 'package:cnu_ai_assistant/domain/models/rule.dart';
 import 'package:cnu_ai_assistant/domain/models/task.dart';
 
 /// 대화의 한 줄.
@@ -167,17 +169,28 @@ enum AskTopic {
 
   /// 수업 변경의 날짜가 없거나 그날 그 과목 수업이 없다(2주 안의 수업에서 고름).
   session,
+
+  /// 이동 시간 규칙의 자리(매 수업 앞뒤, 하루 첫 수업 전·마지막 수업 뒤)를 말하지 않았다.
+  rulePosition,
 }
 
 /// 되묻기 카드의 고를 것 하나.
 final class AskOption {
-  const AskOption({required this.label, this.sub, required this.items});
+  const AskOption({
+    required this.label,
+    this.sub,
+    this.items = const [],
+    this.rules = const [],
+  });
 
   final String label;
   final String? sub;
 
   /// 고르면 이어서 처리할 항목(날짜·시각을 채운 것). '토·일 이틀 모두'면 둘이다.
   final List<ParseItem> items;
+
+  /// 고르면 이어서 처리할 내 규칙(오전·오후나 이동 시간의 자리를 채운 것). 내 규칙 되묻기만 쓴다.
+  final List<ParsedRule> rules;
 }
 
 /// 되묻기 카드. 고르면([picked]) 고른 항목으로 이어서 카드를 만든다.
@@ -198,7 +211,7 @@ final class AskCard extends AssistantMessage {
   final String? sub;
   final List<AskOption> options;
 
-  /// 이 항목이 나온 응답의 의도(일정·할 일).
+  /// 이 항목이 나온 응답의 의도(일정·할 일·수업 변경·바꾸기·지우기·내 규칙).
   final ParseIntent intent;
 
   /// 이 항목에서 이미 답한 것. 다음 확인에서 다시 묻지 않는다(문장 속 표현은 그대로 남으므로).
@@ -236,8 +249,14 @@ enum InfoKind {
   /// 규칙 모드(12 '말로 정하기')에서 규칙이 아닌 것을 말했다.
   ruleOnly,
 
-  /// 이 화면이 아직 처리하지 않는 의도(내 규칙).
-  notYet,
+  /// 정할 수 없는 내 규칙 조건이다(`unsupportedRule`, 알림). 종류는 [InfoCard.unsupported]다.
+  ruleUnsupported,
+
+  /// 내 규칙의 값이 없거나 범위를 벗어났다. 되묻는 문장은 [InfoCard.question]이다.
+  ruleQuestion,
+
+  /// 지울 내 규칙이 없다. 그 종류의 이름은 [InfoCard.question]이다.
+  noRuleToRemove,
 
   /// 수업 변경의 과목을 모르거나 2주 안에 그 과목 수업이 없다.
   noClass,
@@ -269,13 +288,16 @@ enum InfoKind {
 
 /// 안내 카드.
 final class InfoCard extends AssistantMessage {
-  const InfoCard(super.id, this.kind, {this.question});
+  const InfoCard(super.id, this.kind, {this.question, this.unsupported});
 
   final InfoKind kind;
 
   /// [InfoKind.serverQuestion]의 질문(AI가 쓴 문장), [InfoKind.targetNotFound]·[InfoKind.changeNeedsHow]의
-  /// 대상을 가리킨 말.
+  /// 대상을 가리킨 말, [InfoKind.ruleQuestion]의 되묻는 문장, [InfoKind.noRuleToRemove]의 규칙 종류 이름.
   final String? question;
+
+  /// [InfoKind.ruleUnsupported]의 조건 종류. 알 수 없으면 null이다.
+  final UnsupportedRuleKind? unsupported;
 }
 
 /// 수업 변경 카드(screens.md '06 AI 비서'의 카드 3). 그날 하루만 휴강·시험·강의실 변경·보강으로 바꾼다.
@@ -415,6 +437,180 @@ final class AnswerCard extends AssistantMessage {
   /// 마감 질문의 과목.
   final String? courseName;
   final String? say;
+}
+
+/// 저장 전 내 규칙.
+final class RuleDraft {
+  const RuleDraft({
+    required this.kind,
+    required this.params,
+    required this.merged,
+    this.weekdays,
+    this.courseName,
+  });
+
+  final RuleKind kind;
+
+  /// 저장소에 넘길 값(말하지 않은 값을 채운 것).
+  final RuleParams params;
+
+  /// 저장하면 행에 남을 값. 하나만 두는 종류는 지금 행과 합친 값이고, 그 밖에는 [params]다. 미리보기 문장에
+  /// 쓴다.
+  final RuleParams merged;
+
+  /// 걸리는 요일 1–7(정렬함). null이면 매일이다.
+  final List<int>? weekdays;
+
+  /// 예상 시간 규칙의 과목 이름(미리보기 문장).
+  final String? courseName;
+}
+
+/// 내 규칙 미리보기 카드(screens.md '06 AI 비서'의 카드 4).
+final class RuleCard extends AssistantMessage {
+  const RuleCard(
+    super.id, {
+    required this.draft,
+    this.replaced = const [],
+    this.say,
+    this.status = CardStatus.pending,
+    this.planNote,
+    this.conflicts = const [],
+  });
+
+  final RuleDraft draft;
+
+  /// 저장하면 바뀌거나 꺼지는 지금 켜진 규칙(최근 것 먼저). 하나만 두는 종류는 합쳐질 행이다.
+  final List<Rule> replaced;
+  final String? say;
+  final CardStatus status;
+
+  /// 저장한 뒤 다시 계산한 것('제안 2개를 다시 놓았어요'). 없으면 null이다.
+  final String? planNote;
+
+  /// 저장한 뒤 새 규칙과 겹치게 된 확정 블록.
+  final List<RuleConflict> conflicts;
+
+  RuleCard copyWith({
+    CardStatus? status,
+    String? Function()? planNote,
+    List<RuleConflict>? conflicts,
+  }) => RuleCard(
+    id,
+    draft: draft,
+    replaced: replaced,
+    say: say,
+    status: status ?? this.status,
+    planNote: planNote == null ? this.planNote : planNote(),
+    conflicts: conflicts ?? this.conflicts,
+  );
+}
+
+/// 새 규칙과 겹치는 확정 블록의 답.
+enum ConflictAnswer {
+  /// 아직 답하지 않았다([옮기기]·[그대로 두기]).
+  ask,
+
+  /// 블록을 지우고 다시 계산했다.
+  moved,
+
+  /// 겹친 채로 둔다.
+  kept,
+}
+
+/// 새 규칙과 겹치는 확정 블록 하나.
+final class RuleConflict {
+  const RuleConflict({
+    required this.block,
+    required this.title,
+    this.answer = ConflictAnswer.ask,
+    this.movedStart,
+    this.movedEnd,
+  });
+
+  final PlanBlock block;
+
+  /// 블록의 할 일 제목.
+  final String title;
+  final ConflictAnswer answer;
+
+  /// 옮긴 뒤 그 할 일에 다시 놓인 첫 제안. 없으면 null이다(다음 빈 시간에 놓음).
+  final DateTime? movedStart;
+  final DateTime? movedEnd;
+
+  RuleConflict answered(
+    ConflictAnswer answer, {
+    DateTime? movedStart,
+    DateTime? movedEnd,
+  }) => RuleConflict(
+    block: block,
+    title: title,
+    answer: answer,
+    movedStart: movedStart,
+    movedEnd: movedEnd,
+  );
+}
+
+/// 내 규칙 지우기 카드.
+final class RuleRemoveCard extends AssistantMessage {
+  const RuleRemoveCard(
+    super.id, {
+    required this.rule,
+    this.courseName,
+    this.say,
+    this.status = CardStatus.pending,
+    this.planNote,
+  });
+
+  final Rule rule;
+
+  /// 예상 시간 규칙의 과목 이름.
+  final String? courseName;
+  final String? say;
+  final CardStatus status;
+
+  /// 지운 뒤 다시 계산한 것. 없으면 null이다.
+  final String? planNote;
+
+  RuleRemoveCard copyWith({CardStatus? status, String? Function()? planNote}) =>
+      RuleRemoveCard(
+        id,
+        rule: rule,
+        courseName: courseName,
+        say: say,
+        status: status ?? this.status,
+        planNote: planNote == null ? this.planNote : planNote(),
+      );
+}
+
+/// 지울 내 규칙이 여럿이면 고르는 카드. 고르면 [RuleRemoveCard]를 만든다.
+final class RulePickCard extends AssistantMessage {
+  const RulePickCard(
+    super.id, {
+    required this.kind,
+    required this.rules,
+    this.courseNames = const {},
+    this.say,
+    this.picked,
+  });
+
+  final RuleKind kind;
+
+  /// 고를 규칙(최근 것 먼저).
+  final List<Rule> rules;
+
+  /// 과목 id와 이름(예상 시간 규칙의 문장).
+  final Map<int, String> courseNames;
+  final String? say;
+  final int? picked;
+
+  RulePickCard pick(int index) => RulePickCard(
+    id,
+    kind: kind,
+    rules: rules,
+    courseNames: courseNames,
+    say: say,
+    picked: index,
+  );
 }
 
 /// 보내지 못한 까닭.
