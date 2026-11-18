@@ -237,6 +237,16 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                 ),
               ),
             _padded(const LmsSystemBandSlot(directAdd: DirectAddKind.task)),
+            if (ref.watch(taskListNoticeProvider) case final notice?)
+              _padded(
+                Rise(
+                  delay: const Duration(milliseconds: 80),
+                  child: _Notice(
+                    notice: notice,
+                    onLogin: () => openRelogin(context, ref),
+                  ),
+                ),
+              ),
             if (value == null)
               if (content.hasError)
                 _padded(
@@ -805,24 +815,124 @@ class _GroupHead extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Flexible(
-              child: Text(
-                group.title ?? '',
-                style: soft
-                    ? AppText.caption.copyWith(color: colors.muted)
-                    : AppText.small.copyWith(
-                        fontWeight: AppText.semibold,
-                        color: colors.ink2,
-                      ),
+            Expanded(
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      group.title ?? '',
+                      style: soft
+                          ? AppText.caption.copyWith(color: colors.muted)
+                          : AppText.small.copyWith(
+                              fontWeight: AppText.semibold,
+                              color: colors.ink2,
+                            ),
+                    ),
+                  ),
+                  if (!soft) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      '$count개',
+                      style: AppText.caption.copyWith(color: colors.muted),
+                    ),
+                  ],
+                ],
               ),
             ),
-            if (!soft) ...[
-              const SizedBox(width: 6),
+            if (group.unchecked) ...[
+              const SizedBox(width: AppSpace.s8),
+              AppIcon(AppIconName.warning, size: 13, color: colors.alert),
+              const SizedBox(width: 4),
               Text(
-                '$count개',
-                style: AppText.caption.copyWith(color: colors.muted),
+                '확인 못 함',
+                style: AppText.caption.copyWith(
+                  fontWeight: AppText.semibold,
+                  color: colors.alert,
+                ),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 머리 아래 안내 칸(일부 과목 실패, 연동 멈춤, 로그인 전). 로그인 전이면 오른쪽에 [로그인]을 둔다. 모양은 최종
+/// 프로토타입의 안내 칸이다.
+class _Notice extends StatelessWidget {
+  const _Notice({required this.notice, required this.onLogin});
+
+  final TaskListNotice notice;
+  final VoidCallback onLogin;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final login = notice.kind == TaskListNoticeKind.beforeLogin;
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      child: Container(
+        margin: const EdgeInsets.only(top: AppSpace.s8),
+        padding: const EdgeInsets.fromLTRB(14, AppSpace.s12, 8, AppSpace.s12),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.smallCard),
+          border: Border.all(color: colors.edge),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: colors.tint,
+              ),
+              child: AppIcon(
+                login ? AppIconName.key : AppIconName.info,
+                size: 17,
+                color: colors.accent,
+              ),
+            ),
+            const SizedBox(width: AppSpace.s12),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 1, right: 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      notice.title,
+                      style: AppText.small.copyWith(
+                        fontWeight: AppText.semibold,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      notice.sub,
+                      style: AppText.caption.copyWith(color: colors.muted),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (login)
+              TextButton(
+                onPressed: onLogin,
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(AppSize.minTouch, AppSize.minTouch),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  foregroundColor: colors.accent,
+                  textStyle: AppText.small.copyWith(
+                    fontWeight: AppText.semibold,
+                  ),
+                ),
+                child: const Text('로그인'),
+              ),
           ],
         ),
       ),
@@ -926,6 +1036,14 @@ class _TaskRowTile extends StatelessWidget {
                               ),
                             ),
                           ),
+                          if (row.unchecked)
+                            Text(
+                              ' · 확인 못 함',
+                              style: AppText.caption.copyWith(
+                                fontWeight: AppText.semibold,
+                                color: colors.alert,
+                              ),
+                            ),
                         ],
                       ),
                       const SizedBox(height: 2),
