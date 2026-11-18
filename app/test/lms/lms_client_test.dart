@@ -4,11 +4,14 @@
 // 리다이렉트, 다시 보내기를 본다. 주소는 `example.invalid`이고 쿠키 값은 짧은 합성 값이다.
 
 import 'dart:convert';
+import 'dart:io' show HandshakeException, OSError, SocketException;
 
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/lms/cookie_vault.dart';
 import 'package:cnu_ai_assistant/lms/lms_client.dart';
 import 'package:cnu_ai_assistant/lms/request_spec.dart';
+import 'package:cnu_ai_assistant/lms/response_classifier.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/fake_lms_server.dart';
@@ -175,6 +178,119 @@ void main() {
     expect(failed.body, isEmpty);
     expect(sleeps, [lmsRetryDelay]);
     expect(twice.requests, hasLength(2));
+  });
+
+  group('오프라인과 연결 실패', () {
+    DioException failure(DioExceptionType type, [Object? cause]) =>
+        DioException(
+          requestOptions: RequestOptions(path: '/a'),
+          type: type,
+          error: cause,
+        );
+
+    test('연결 없음·주소 해석 실패는 오프라인이다', () {
+      expect(
+        isOfflineFailure(
+          failure(
+            DioExceptionType.connectionError,
+            const SocketException("Failed host lookup: 'example.invalid'"),
+          ),
+        ),
+        isTrue,
+      );
+      // ENETDOWN·ENETUNREACH(iOS·macOS 50·51, Android·Linux 100·101).
+      for (final errno in [50, 51, 100, 101]) {
+        expect(
+          isOfflineFailure(
+            failure(
+              DioExceptionType.unknown,
+              SocketException(
+                'Connection failed',
+                osError: OSError('합성', errno),
+              ),
+            ),
+          ),
+          isTrue,
+          reason: '$errno',
+        );
+      }
+    });
+
+    test('시간 초과·연결 거부·보안 연결 오류·원인 모름은 연결 실패다', () {
+      for (final type in [
+        DioExceptionType.connectionTimeout,
+        DioExceptionType.sendTimeout,
+        DioExceptionType.receiveTimeout,
+        DioExceptionType.badCertificate,
+      ]) {
+        expect(
+          isOfflineFailure(
+            failure(
+              type,
+              const SocketException("Failed host lookup: 'example.invalid'"),
+            ),
+          ),
+          isFalse,
+          reason: '$type',
+        );
+      }
+      // 연결 거부(ECONNREFUSED 61·111)와 끊김(ECONNRESET 54·104).
+      for (final errno in [61, 111, 54, 104]) {
+        expect(
+          isOfflineFailure(
+            failure(
+              DioExceptionType.connectionError,
+              SocketException(
+                'Connection refused',
+                osError: OSError('합성', errno),
+              ),
+            ),
+          ),
+          isFalse,
+          reason: '$errno',
+        );
+      }
+      expect(
+        isOfflineFailure(
+          failure(DioExceptionType.unknown, const HandshakeException('합성')),
+        ),
+        isFalse,
+      );
+      expect(
+        isOfflineFailure(failure(DioExceptionType.connectionError)),
+        isFalse,
+      );
+    });
+
+    test('두 번 다 응답을 받지 못하면 마지막 실패가 오프라인인지 응답 없음에 적는다', () async {
+      Future<LmsRawResponse> send(FakeLmsResponse failure) =>
+          client(FakeLmsServer({'GET /a': (_) => failure}))
+              .send(LmsHttpRequest(method: LmsMethod.get, url: _url('/a')));
+
+      final offline = await send(
+        const FakeLmsResponse.networkFailure(
+          failureCause: SocketException(
+            "Failed host lookup: 'example.invalid'",
+          ),
+        ),
+      );
+      expect(offline.statusCode, isNull);
+      expect(offline.offline, isTrue);
+
+      final timeout = await send(
+        const FakeLmsResponse.networkFailure(
+          failureType: DioExceptionType.connectionTimeout,
+        ),
+      );
+      expect(timeout.statusCode, isNull);
+      expect(timeout.offline, isFalse);
+
+      // 응답을 받으면 늘 오프라인이 아니다.
+      final served = await client(
+        FakeLmsServer({'GET /a': (_) => const FakeLmsResponse(503)}),
+      ).send(LmsHttpRequest(method: LmsMethod.get, url: _url('/a')));
+      expect(served.offline, isFalse);
+    });
   });
 
   test('리다이렉트 중간에 연결이 끊기면 처음부터 다시 보낸다', () async {

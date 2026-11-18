@@ -45,6 +45,7 @@ import 'package:cnu_ai_assistant/features/tasks/task_actions.dart';
 import 'package:cnu_ai_assistant/features/tasks/task_list_controller.dart';
 import 'package:cnu_ai_assistant/features/tasks/widgets/task_kind_icon.dart';
 import 'package:cnu_ai_assistant/lms/sync_coordinator.dart';
+import 'package:cnu_ai_assistant/features/lms_connect/lms_system_band_slot.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -235,6 +236,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                   child: _LmsLine(status: status),
                 ),
               ),
+            _padded(const LmsSystemBandSlot(directAdd: DirectAddKind.task)),
             if (value == null)
               if (content.hasError)
                 _padded(
@@ -1223,6 +1225,7 @@ class _EmptyState extends ConsumerWidget {
     LmsStatusKind.synced => '새 할 일이 올라오면 정해진 시간에 가져와요',
     LmsStatusKind.reloginNeeded => '다시 로그인하면 새 할 일을 가져와요',
     LmsStatusKind.connectionFailed => '연결되면 다시 확인할게요',
+    LmsStatusKind.offline => '인터넷에 연결되면 다시 확인할게요',
     LmsStatusKind.maintenance => '점검이 끝나면 새 할 일을 가져와요',
     LmsStatusKind.paused => '연동을 다시 켜면 새 할 일을 가져와요',
     LmsStatusKind.beforeLogin => '할 일은 직접 넣거나 AI 비서로 추가해요',

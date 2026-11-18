@@ -40,7 +40,9 @@ String? timetableRefreshMessage(SyncResult result) {
     case SyncResultKind.reloginRequired || SyncResultKind.restoreRequired:
       return 'LMS에 다시 로그인한 뒤 새로 고쳐 주세요';
     case SyncResultKind.networkFailure:
-      return '인터넷에 연결되지 않았어요';
+      return result.detail == SyncRunDetail.offline
+          ? '인터넷에 연결되지 않았어요'
+          : '학교 서버에 연결할 수 없어요';
     case SyncResultKind.serverError:
       return 'LMS가 점검 중이거나 응답하지 않아요';
     case SyncResultKind.parseFailure:

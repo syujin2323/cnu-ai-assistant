@@ -27,6 +27,7 @@ import 'package:cnu_ai_assistant/features/today/event_info_actions.dart';
 import 'package:cnu_ai_assistant/features/today/free_slot_actions.dart';
 import 'package:cnu_ai_assistant/features/today/today_controller.dart';
 import 'package:cnu_ai_assistant/features/today/widgets/feedback_card.dart';
+import 'package:cnu_ai_assistant/features/lms_connect/lms_system_band_slot.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -164,6 +165,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             ),
           ),
         ],
+        const LmsSystemBandSlot(),
         const SizedBox(height: AppSpace.s12),
         Rise(
           delay: const Duration(milliseconds: 150),

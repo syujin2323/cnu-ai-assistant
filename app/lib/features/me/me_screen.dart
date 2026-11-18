@@ -538,6 +538,7 @@ class _LmsAccount extends ConsumerWidget {
       switch (kind) {
         case LmsStatusKind.synced ||
             LmsStatusKind.connectionFailed ||
+            LmsStatusKind.offline ||
             LmsStatusKind.maintenance:
           final retry = kind != LmsStatusKind.synced;
           rows.add(

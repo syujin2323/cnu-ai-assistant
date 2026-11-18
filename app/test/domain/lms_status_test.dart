@@ -13,6 +13,7 @@ LmsStatus _status({
   bool enabled = true,
   LmsSessionState session = LmsSessionState.active,
   SyncResultKind? lastAttempt = SyncResultKind.normal,
+  bool lastAttemptOffline = false,
   DateTime? lastSuccessAt,
   bool byUserRefresh = false,
 }) => lmsStatus(
@@ -20,6 +21,7 @@ LmsStatus _status({
   enabled: enabled,
   session: session,
   lastAttempt: lastAttempt,
+  lastAttemptOffline: lastAttemptOffline,
   lastSuccessAt: lastSuccessAt ?? _threeHoursAgo,
   byUserRefresh: byUserRefresh,
   now: _now,
@@ -155,5 +157,148 @@ void main() {
       _status(session: LmsSessionState.reconnectRequired, byUserRefresh: true),
     );
     expect(status, isNot(_status(session: LmsSessionState.reconnectRequired)));
+  });
+
+  test('네트워크 실패가 오프라인으로 끝났으면 오프라인이고, 그 밖의 결과에서는 오프라인 표시를 보지 않는다', () {
+    expect(
+      _status(
+        lastAttempt: SyncResultKind.networkFailure,
+        lastAttemptOffline: true,
+      ),
+      _is(LmsStatusKind.offline, 'LMS 정보 3시간 전 · 오프라인'),
+    );
+    expect(
+      _status(
+        lastAttempt: SyncResultKind.serverError,
+        lastAttemptOffline: true,
+      ),
+      _is(LmsStatusKind.maintenance, 'LMS 정보 3시간 전 · 점검 중'),
+    );
+    // 다시 로그인이 필요하면 오프라인보다 먼저다.
+    expect(
+      _status(
+        session: LmsSessionState.reconnectRequired,
+        lastAttempt: SyncResultKind.networkFailure,
+        lastAttemptOffline: true,
+      ).kind,
+      LmsStatusKind.reloginNeeded,
+    );
+  });
+
+  group('01·02·03 위의 띠', () {
+    LmsBand? band(LmsStatus status) => lmsBand(status, now: _now);
+
+    test('점검 중·연결 실패는 받아 둔 정보와 마지막 확인을 알린다', () {
+      expect(
+        band(_status(lastAttempt: SyncResultKind.serverError)),
+        const LmsBand(
+          kind: LmsStatusKind.maintenance,
+          title: 'LMS가 점검 중이에요',
+          sub: '받아 둔 정보로 보여 드려요 · 마지막 확인 3시간 전',
+          directAdd: false,
+        ),
+      );
+      expect(
+        band(_status(lastAttempt: SyncResultKind.networkFailure)),
+        const LmsBand(
+          kind: LmsStatusKind.connectionFailed,
+          title: 'LMS에 연결할 수 없어요',
+          sub: '받아 둔 정보로 보여 드려요 · 마지막 확인 3시간 전',
+          directAdd: false,
+        ),
+      );
+      // 사용자 새로 고침 뒤 10분은 방금이고, 확인한 적이 없으면 받아 둔 정보가 없다고 한다.
+      expect(
+        band(
+          _status(
+            lastAttempt: SyncResultKind.serverError,
+            lastSuccessAt: _now.subtract(const Duration(minutes: 5)),
+            byUserRefresh: true,
+          ),
+        )?.sub,
+        '받아 둔 정보로 보여 드려요 · 마지막 확인 방금',
+      );
+      expect(
+        band(
+          lmsStatus(
+            demo: false,
+            enabled: true,
+            session: LmsSessionState.active,
+            lastAttempt: SyncResultKind.networkFailure,
+            lastSuccessAt: null,
+            byUserRefresh: false,
+            now: _now,
+          ),
+        )?.sub,
+        '아직 받아 둔 LMS 정보가 없어요',
+      );
+    });
+
+    test('오프라인은 폰의 정보로 쓴다고 알리고 직접 입력하기를 둔다', () {
+      expect(
+        band(
+          _status(
+            lastAttempt: SyncResultKind.networkFailure,
+            lastAttemptOffline: true,
+          ),
+        ),
+        const LmsBand(
+          kind: LmsStatusKind.offline,
+          title: '인터넷에 연결되지 않았어요',
+          sub: '폰에 저장된 정보로 그대로 쓸 수 있어요. 말로 추가는 연결되면 다시 돼요',
+          directAdd: true,
+        ),
+      );
+    });
+
+    test('그 밖의 상태에서는 띠가 없다', () {
+      for (final status in [
+        _status(),
+        _status(session: LmsSessionState.reconnectRequired),
+        _status(session: LmsSessionState.disconnected),
+        _status(enabled: false),
+        _status(demo: true),
+        _status(lastAttempt: SyncResultKind.parseFailure),
+      ]) {
+        expect(band(status), isNull, reason: '${status.kind}');
+      }
+    });
+
+    test('다시 확인한 결과의 토스트', () {
+      String? message(SyncResultKind kind, {bool offline = false}) =>
+          lmsRetryMessage(kind, offline: offline);
+      for (final kind in [
+        SyncResultKind.normal,
+        SyncResultKind.empty,
+        SyncResultKind.partial,
+      ]) {
+        expect(message(kind), 'LMS 정보를 새로 받았어요');
+      }
+      expect(
+        message(SyncResultKind.serverError),
+        '아직 점검 중이에요 · 받아 둔 정보는 그대로예요',
+      );
+      expect(
+        message(SyncResultKind.networkFailure, offline: true),
+        '아직 인터넷에 연결되지 않았어요 · 받아 둔 정보는 그대로예요',
+      );
+      expect(
+        message(SyncResultKind.networkFailure),
+        '아직 LMS에 연결할 수 없어요 · 받아 둔 정보는 그대로예요',
+      );
+      expect(
+        message(SyncResultKind.parseFailure),
+        'LMS 정보를 읽지 못했어요 · 받아 둔 정보는 그대로예요',
+      );
+      // 다시 로그인 칩이 대신 보이거나 받지 않았으면 알리지 않는다.
+      for (final kind in [
+        SyncResultKind.reloginRequired,
+        SyncResultKind.restoreRequired,
+        SyncResultKind.skipped,
+        SyncResultKind.cancelled,
+      ]) {
+        expect(message(kind), isNull, reason: '$kind');
+      }
+    });
   });
 }

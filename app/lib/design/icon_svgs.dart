@@ -79,6 +79,10 @@ abstract final class IconSvgs {
   static const warning =
       r'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.2 2.9 19.5h18.2L12 4.2Z"/><path d="M12 10v4.2M12 17.1v.1"/></svg>''';
 
+  /// 오프라인(빗금 친 와이파이).
+  static const offline =
+      r'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l16 16M8.5 16.2a5 5 0 0 1 6.4-.4M5.2 12.8A9.6 9.6 0 0 1 9 10.7M12.8 10.5a9.6 9.6 0 0 1 6 2.3M2 9.4a14 14 0 0 1 4-2.6M10.4 5.6A14 14 0 0 1 22 9.4M12 19.6v.1"/></svg>''';
+
   static const close =
       r'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>''';
 

@@ -93,7 +93,7 @@ enum LmsOutcomeKind {
   /// 5xx·429 또는 점검 페이지.
   serverError,
 
-  /// 연결 실패, 시간 초과.
+  /// 연결 실패, 시간 초과. 연결 없음·주소 해석 실패면 [LmsOutcome.offline]이다.
   networkFailure,
 
   /// 위 어디에도 맞지 않음, 스키마 검증 실패.
@@ -109,24 +109,31 @@ enum LmsOutcomeKind {
 /// `lms/`는 `FormatException`·`DioException`을 안에서 잡아 이 값으로 바꾸고 밖으로
 /// 던지지 않는다. URL, 헤더, 본문, 쿠키는 담지 않는다.
 final class LmsOutcome extends AppError {
-  const LmsOutcome(this.kind, {this.statusCode});
+  const LmsOutcome(this.kind, {this.statusCode, this.offline = false});
 
   final LmsOutcomeKind kind;
 
   /// HTTP 상태 코드. 응답을 받지 못했으면 null.
   final int? statusCode;
 
+  /// 네트워크 실패의 까닭이 오프라인(연결 없음·주소 해석 실패)인지. 그 밖의 네트워크 실패(시간 초과·연결 거부·보안
+  /// 연결 오류)는 연결 실패다(docs/lms.md '응답 판별').
+  final bool offline;
+
   @override
   bool operator ==(Object other) =>
       other is LmsOutcome &&
       other.kind == kind &&
-      other.statusCode == statusCode;
+      other.statusCode == statusCode &&
+      other.offline == offline;
 
   @override
-  int get hashCode => Object.hash(LmsOutcome, kind, statusCode);
+  int get hashCode => Object.hash(LmsOutcome, kind, statusCode, offline);
 
   @override
-  String toString() => 'LmsOutcome(${kind.name}, statusCode: $statusCode)';
+  String toString() =>
+      'LmsOutcome(${kind.name}, statusCode: $statusCode'
+      '${offline ? ', offline' : ''})';
 }
 
 /// 폰 DB나 보안 저장소의 읽기·쓰기 실패.
