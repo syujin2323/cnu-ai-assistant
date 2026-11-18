@@ -139,6 +139,13 @@ void main() {
       final byRule = sheet(lms(1), rules: PlannerConfig.from([rule]));
       expect(byRule.estimate, 150);
       expect(byRule.estimateNote, '내 규칙의 예상 시간이에요');
+      // 할 일에 고른 값이 있으면 규칙보다 앞선다.
+      final picked = sheet(
+        lms(1, estimateMin: 45),
+        rules: PlannerConfig.from([rule]),
+      );
+      expect(picked.estimate, 45);
+      expect(picked.estimateNote, isNull);
       final byKind = sheet(lms(1));
       expect(byKind.estimate, 60);
       expect(byKind.estimateNote, '과제 기본 예상 시간이에요. 맞게 골라 주세요');
