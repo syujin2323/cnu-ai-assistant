@@ -1,5 +1,6 @@
 // 온보딩 단계 하나의 틀. 단계 파일들이 함께 쓴다.
 
+import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/features/onboarding/onboarding_controller.dart';
@@ -85,6 +86,35 @@ class OnboardingStepPlaceholder extends StatelessWidget {
         Text(
           AppStrings.inProgress,
           style: AppText.body.copyWith(color: AppColors.of(context).muted),
+        ),
+      ],
+    );
+  }
+}
+
+/// 단계 제목 위의 작은 머리(아이콘과 단계 이름, 최종 프로토타입).
+class OnboardingKicker extends StatelessWidget {
+  const OnboardingKicker({super.key, required this.icon, required this.text});
+
+  final AppIconName icon;
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    return Row(
+      children: [
+        AppIcon(icon, size: 16, color: colors.accent),
+        const SizedBox(width: AppSpace.s4),
+        Flexible(
+          child: Text(
+            text,
+            style: AppText.small.copyWith(
+              fontWeight: AppText.semibold,
+              color: colors.accent,
+            ),
+          ),
         ),
       ],
     );
