@@ -161,18 +161,18 @@ String? ruleProposalQuestion(
   };
 }
 
-/// 값 검사([validateRule])에 걸린 값을 되묻는 문장(06 AI 비서 되묻기, 12 폼 안내).
+/// 값 검사([validateRule])에 걸린 값을 되묻는 문장(06 AI 비서 되묻기, 12 폼 안내). 지금 저장하지 않는
+/// 종류([ruleKindSavable], 알림)는 되묻지 않고 [unsavableRuleText]다(읽을 수 없는 규칙은 빼고).
 String ruleIssueQuestion(RuleKind kind, RuleIssue issue) {
   final field = issue.field;
   return switch (issue.kind) {
     RuleIssueKind.unreadable => '저장된 값을 읽을 수 없는 규칙이에요. 지우고 다시 정해 주세요',
+    _ when !ruleKindSavable(kind) => unsavableRuleText,
     RuleIssueKind.missing when field == 'position' =>
       '매 수업 앞뒤인가요, 하루 첫 수업 전과 마지막 수업 뒤인가요?',
     RuleIssueKind.missing when field == 'minutes' => _minutesQuestion(kind),
     RuleIssueKind.missing => _rangeQuestion(kind),
-    RuleIssueKind.missingOneOf when kind == RuleKind.estimate =>
-      '어느 과목이나 종류의 할 일인가요?',
-    RuleIssueKind.missingOneOf => '아침 브리핑을 몇 시에 받을까요?',
+    RuleIssueKind.missingOneOf => '어느 과목이나 종류의 할 일인가요?',
     RuleIssueKind.notAllowed when field == 'weekdays' =>
       '${withJosa(ruleKindName(kind), Josa.eunNeun)} 요일을 나눠 정할 수 없어요',
     RuleIssueKind.notAllowed when field == 'taskKind' =>
@@ -183,8 +183,6 @@ String ruleIssueQuestion(RuleKind kind, RuleIssue issue) {
     RuleIssueKind.outOfRange when field == 'minutes' => _minutesRangeQuestion(
       kind,
     ),
-    RuleIssueKind.outOfRange when field == 'briefingMin' =>
-      '아침 브리핑은 오전 6시부터 오후 12시 사이, 30분 단위로 정해 주세요',
     RuleIssueKind.outOfRange when field == 'weekdays' => '요일을 다시 골라 주세요',
     RuleIssueKind.outOfRange =>
       '${withJosa(ruleKindName(kind), Josa.eulReul)} 다시 정해 주세요',

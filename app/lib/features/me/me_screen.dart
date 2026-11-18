@@ -2,11 +2,12 @@
 //
 // 위에서부터 앱 이름과 '충남대 비공식 앱', 학기 카드(과목 수·이번 주 할 일 수, 누르면 03 할 일), LMS 계정(가린 학번,
 // 상태, 상태별 줄, 로그아웃, PC·웹 세션이 끊길 수 있다는 한 줄), 일정(시간표·고정 일정·내 규칙·하루 경계·이동·점심
-// 시간 표시), 알림(아침 브리핑 시각), AI(사용 스위치와 상태, 동의 문구 다시 보기, 사용 지표 보내기), 화면(글자 크기),
+// 시간 표시), AI(사용 스위치와 상태, 동의 문구 다시 보기, 사용 지표 보내기), 화면(글자 크기),
 // 데이터(데모 모드, 데이터 삭제), 앱 정보(처리방침·이용약관·오픈소스 라이선스·문의 메일·버전)다. 데모 모드에서는 LMS
 // 계정 동작과 데이터 삭제, 사용 지표 보내기를 두지 않는다(데모를 끝내면 샘플이 지워지고, 지표는 실제 모드의 숫자만
 // 보냄). 데모를 끝내는 곳은 데이터의 '데모 모드 끝내기' 하나이고, 끝내는 중과 끝내지 못했음도 그 줄이 보인다.
-// 하루 경계·이동·점심 시간 표시·브리핑 시각·AI는 그 모드의 폰 DB에 쓴다(데모에서는 데모 DB).
+// 하루 경계·이동·점심 시간 표시·AI는 그 모드의 폰 DB에 쓴다(데모에서는 데모 DB). 알림 묶음(아침 브리핑 시각)은
+// 두지 않는다(알림은 재설계 예정, docs/decisions.md 2026-11-19 '온보딩은 네 단계이고 브리핑 시각은 정하지 않는다').
 
 import 'dart:async';
 
@@ -29,7 +30,6 @@ import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/lms_status.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
-import 'package:cnu_ai_assistant/domain/rules.dart';
 import 'package:cnu_ai_assistant/domain/text/josa.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/lms_actions.dart';
@@ -96,13 +96,9 @@ class MeScreen extends ConsumerWidget {
               delay: Duration(milliseconds: 170),
               child: _ScheduleGroup(),
             ),
+            const Rise(delay: Duration(milliseconds: 230), child: _AiGroup()),
             const Rise(
-              delay: Duration(milliseconds: 230),
-              child: _BriefingGroup(),
-            ),
-            const Rise(delay: Duration(milliseconds: 290), child: _AiGroup()),
-            const Rise(
-              delay: Duration(milliseconds: 350),
+              delay: Duration(milliseconds: 290),
               child: MeGroup(
                 title: '화면',
                 children: [
@@ -116,7 +112,7 @@ class MeScreen extends ConsumerWidget {
               ),
             ),
             Rise(
-              delay: const Duration(milliseconds: 410),
+              delay: const Duration(milliseconds: 350),
               child: MeGroup(
                 title: '데이터',
                 children: [
@@ -158,7 +154,7 @@ class MeScreen extends ConsumerWidget {
               ),
             ),
             Rise(
-              delay: const Duration(milliseconds: 470),
+              delay: const Duration(milliseconds: 410),
               child: MeGroup(
                 title: '앱 정보',
                 children: [
@@ -314,67 +310,6 @@ Future<bool> _write(WidgetRef ref, String key, Object? value) async {
     case Err():
       ref.read(toastControllerProvider.notifier).show(_saveFailedText);
       return false;
-  }
-}
-
-/// 알림: 아침 브리핑 시각(14 온보딩 5단계와 같은 칩). 고르면 내 규칙 `notify`(`source` `manual`)로 저장하고
-/// 되돌리기 토스트를 보인다. 다른 알림 항목은 두지 않는다(알림은 재설계 예정).
-class _BriefingGroup extends ConsumerWidget {
-  const _BriefingGroup();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final rules = ref.watch(rulesProvider).value;
-    final briefingMin = rules == null
-        ? null
-        : NotifyConfig.from(rules).briefingMin;
-    return MeGroup(
-      title: '알림',
-      children: [
-        MeRow(
-          icon: AppIconName.sun,
-          label: '아침 브리핑',
-          value: briefingMin == null ? null : hhmmText(briefingMin),
-          semanticsLabel: briefingMin == null
-              ? null
-              : '아침 브리핑, 매일 ${clockText(briefingMin)}',
-          onTap: briefingMin == null
-              ? null
-              : () => _pickBriefingTime(context, ref, briefingMin),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _pickBriefingTime(
-    BuildContext context,
-    WidgetRef ref,
-    int current,
-  ) async {
-    final picked = await showBriefingTimeSheet(
-      context,
-      ref.read(motionLevelProvider),
-      current: current,
-    );
-    if (picked == null || picked == current) return;
-    final saved = await ref
-        .read(rulesRepositoryProvider)
-        .save(
-          kind: RuleKind.notify,
-          params: RuleParams(briefingMin: picked),
-          source: EntrySource.manual,
-          now: ref.read(clockProvider).now(),
-        );
-    final toast = ref.read(toastControllerProvider.notifier);
-    switch (saved) {
-      case Ok():
-        toast.show(
-          '아침 브리핑을 ${withJosa(hhmmText(picked), Josa.euroRo)} 바꿨어요',
-          undoable: true,
-        );
-      case Err():
-        toast.show(_saveFailedText);
-    }
   }
 }
 

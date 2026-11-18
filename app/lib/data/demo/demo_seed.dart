@@ -686,7 +686,8 @@ Future<void> _insertBlocks(
   );
 }
 
-/// 내 규칙 셋: 통학 30분(온보딩 3단계), 말로 정한 하루 최대 공부량 4시간, 브리핑 08:30(온보딩 5단계).
+/// 내 규칙 셋: 통학 30분(온보딩 3단계), 12 내 규칙 폼으로 정한 선호 시간대 매일 19:00–22:00, 말로 정한 하루 최대
+/// 공부량 4시간.
 Future<void> _insertRules(AppDatabase db, _Days days) async {
   Future<void> rule(
     RuleKind kind,
@@ -714,8 +715,8 @@ Future<void> _insertRules(AppDatabase db, _Days days) async {
     at: days.at(-7, 1260),
   );
   await rule(
-    RuleKind.notify,
-    const RuleParams(briefingMin: 510),
+    RuleKind.preferred,
+    const RuleParams(startMin: 1140, endMin: 1320),
     source: EntrySource.manual,
     at: days.at(-7, 1261),
   );
