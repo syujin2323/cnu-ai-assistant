@@ -45,6 +45,8 @@ import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/lms_status.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/models/class_slot_entry.dart';
+import 'package:cnu_ai_assistant/domain/models/course.dart';
+import 'package:cnu_ai_assistant/domain/models/fixed_block.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
 import 'package:cnu_ai_assistant/domain/models/rule.dart';
 import 'package:cnu_ai_assistant/domain/models/sync_run.dart';
@@ -430,9 +432,20 @@ final plannerConfigProvider = Provider<PlannerConfig?>((ref) {
   return rules == null ? null : PlannerConfig.from(rules);
 });
 
-/// 모든 수업 칸과 그 과목. 수업 카드의 과목 이름에 쓴다.
+/// 모든 수업 칸과 그 과목(숨긴 수업 제외). 수업 카드의 과목 이름, 13·14의 시간표 격자, 수업 시트의 겹침에 쓴다.
 final classSlotEntriesProvider = StreamProvider<List<ClassSlotEntry>>(
   (ref) => ref.watch(classSlotRepositoryProvider).watch(),
+);
+
+/// 고를 수 있는 과목(이번 학기 LMS 과목과 직접 만든 과목, `CourseRepository.watchSelectable`). 13 수업 시트의
+/// 과목 칩이 쓴다.
+final selectableCoursesProvider = StreamProvider<List<Course>>(
+  (ref) => ref.watch(courseRepositoryProvider).watchSelectable(),
+);
+
+/// 모든 고정 일정(`FixedBlockRepository.watch`). 13 고정 일정 탭과 14 온보딩 3단계가 쓴다.
+final fixedBlocksProvider = StreamProvider<List<FixedBlock>>(
+  (ref) => ref.watch(fixedBlockRepositoryProvider).watch(),
 );
 
 /// 논리적 하루 [day](그날 0시)의 일정(`ScheduleRepository.watch`). 하루 경계 설정으로 그날의 범위를 정하고,

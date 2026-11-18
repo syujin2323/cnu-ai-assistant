@@ -5,7 +5,7 @@ import 'package:cnu_ai_assistant/data/repositories/class_slot_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/undo_repository.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
-import 'package:drift/drift.dart' show Value, driftRuntimeOptions;
+import 'package:drift/drift.dart' show OrderingTerm, Value, driftRuntimeOptions;
 import 'package:flutter_test/flutter_test.dart';
 
 T _ok<T>(Result<T> result) => switch (result) {
@@ -354,6 +354,208 @@ void main() {
       _ok(await repository.read()).map((e) => e.slot.id),
       unorderedEquals([id, other]),
     );
+  });
+
+  group('saveGroup', () {
+    Future<List<ClassSlot>> rows() => (db.select(
+      db.classSlots,
+    )..orderBy([(t) => OrderingTerm(expression: t.id)])).get();
+
+    test('새 수업은 고른 요일마다 직접 넣은 칸을 넣고, 되돌리면 함께 만든 과목까지 지운다', () async {
+      final ids = _ok(
+        await repository.saveGroup(
+          slotIds: const [],
+          course: const TypedCourse('스터디'),
+          weekdays: {4, 2},
+          startMin: 600,
+          endMin: 690,
+          place: '합성관301',
+          online: false,
+          now: now,
+        ),
+      );
+
+      final saved = await rows();
+      expect(saved.map((r) => r.id), ids);
+      expect(saved.map((r) => (r.weekday, r.startMin, r.endMin)), [
+        (2, 600, 690),
+        (4, 600, 690),
+      ]);
+      expect(saved.every((r) => r.source == SlotSource.manual), isTrue);
+      expect(await courseNames(), ['스터디']);
+
+      expect(_ok(await undo.undoLast(now: now)), isTrue);
+      expect(await rows(), isEmpty);
+      expect(await courseNames(), isEmpty);
+    });
+
+    test('그대로인 요일은 그 칸을, 빠진 요일의 칸은 새 요일로 옮겨 고치고 불러온 원래 값은 둔다', () async {
+      final math = await course('선형대수', remoteId: 'c1', semester: '2026-2');
+      final mon = await importedSlot(math);
+      final wed = await importedSlot(math);
+      await (db.update(db.classSlots)..where((t) => t.id.equals(wed))).write(
+        const ClassSlotsCompanion(weekday: Value(3), importedWeekday: Value(3)),
+      );
+
+      final ids = _ok(
+        await repository.saveGroup(
+          slotIds: [mon, wed],
+          course: ChosenCourse(math),
+          weekdays: {1, 4},
+          startMin: 600,
+          endMin: 675,
+          place: '공대 5호관 101',
+          online: false,
+          now: now,
+        ),
+      );
+
+      expect(ids, [mon, wed]);
+      final moved = (await slot(wed))!;
+      expect((moved.weekday, moved.startMin, moved.endMin), (4, 600, 675));
+      expect((moved.source, moved.importedWeekday), (SlotSource.auto, 3));
+      expect((await slot(mon))!.startMin, 600);
+
+      expect(_ok(await undo.undoLast(now: now)), isTrue);
+      expect((await slot(wed))!.weekday, 3);
+      expect((await slot(mon))!.startMin, 540);
+    });
+
+    test('요일이 줄면 남는 칸을 빼고(불러온 수업은 숨김), 늘면 직접 넣은 칸을 더한다', () async {
+      final math = await course('선형대수', remoteId: 'c1', semester: '2026-2');
+      final mon = await importedSlot(math);
+      final wed = await importedSlot(math);
+      await (db.update(db.classSlots)..where((t) => t.id.equals(wed))).write(
+        const ClassSlotsCompanion(weekday: Value(3), importedWeekday: Value(3)),
+      );
+      await cancel(mon, '2026-11-16');
+
+      final shrunk = _ok(
+        await repository.saveGroup(
+          slotIds: [mon, wed],
+          course: ChosenCourse(math),
+          weekdays: {3},
+          startMin: 540,
+          endMin: 615,
+          place: '공대 5호관 101',
+          online: false,
+          now: now,
+        ),
+      );
+      expect(shrunk, [wed]);
+      expect((await slot(mon))!.hidden, isTrue);
+      expect(await exceptions(), isEmpty);
+
+      final grown = _ok(
+        await repository.saveGroup(
+          slotIds: [wed],
+          course: ChosenCourse(math),
+          weekdays: {3, 5},
+          startMin: 540,
+          endMin: 615,
+          place: '공대 5호관 101',
+          online: false,
+          now: now,
+        ),
+      );
+      expect(grown.first, wed);
+      final added = (await slot(grown.last))!;
+      expect((added.weekday, added.source), (5, SlotSource.manual));
+
+      // 되돌리면 마지막 동작(금요일 더하기)만 돌린다.
+      expect(_ok(await undo.undoLast(now: now)), isTrue);
+      expect(await slot(grown.last), isNull);
+      expect((await slot(mon))!.hidden, isTrue);
+    });
+
+    test('장소·실시간 온라인을 바꾸면 불러온 수업의 고친 표시를 켠다', () async {
+      final math = await course('선형대수', remoteId: 'c1', semester: '2026-2');
+      final mon = await importedSlot(math);
+
+      _ok(
+        await repository.saveGroup(
+          slotIds: [mon],
+          course: ChosenCourse(math),
+          weekdays: {1},
+          startMin: 540,
+          endMin: 615,
+          place: '공대 5호관 101',
+          online: true,
+          now: now,
+        ),
+      );
+
+      final row = (await slot(mon))!;
+      expect(
+        (row.online, row.onlineEdited, row.placeEdited),
+        (true, true, false),
+      );
+    });
+
+    test('요일이 없거나 시간표 검사에 걸리면 ArgumentError이고, 숨긴 칸은 건너뛴다', () async {
+      final math = await course('선형대수', remoteId: 'c1', semester: '2026-2');
+      expect(
+        () => repository.saveGroup(
+          slotIds: const [],
+          course: ChosenCourse(math),
+          weekdays: const {},
+          startMin: 540,
+          endMin: 615,
+          online: false,
+          now: now,
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => repository.saveGroup(
+          slotIds: const [],
+          course: ChosenCourse(math),
+          weekdays: {8},
+          startMin: 540,
+          endMin: 615,
+          online: false,
+          now: now,
+        ),
+        throwsArgumentError,
+      );
+
+      final hidden = await importedSlot(math);
+      _ok(await repository.delete(hidden, now: now));
+      final ids = _ok(
+        await repository.saveGroup(
+          slotIds: [hidden],
+          course: ChosenCourse(math),
+          weekdays: {1},
+          startMin: 540,
+          endMin: 615,
+          online: false,
+          now: now,
+        ),
+      );
+      expect(ids, isNot(contains(hidden)));
+      expect((await slot(hidden))!.hidden, isTrue);
+    });
+  });
+
+  test('removeGroup은 한 수업의 칸을 모두 빼고(불러온 수업은 숨김) 되돌리면 함께 되살린다', () async {
+    final math = await course('선형대수', remoteId: 'c1', semester: '2026-2');
+    final imported = await importedSlot(math);
+    final manual = _ok(await add(ChosenCourse(math), weekday: 3));
+    await cancel(imported, '2026-11-16');
+
+    expect(
+      _ok(await repository.removeGroup([imported, manual, 999], now: now)),
+      2,
+    );
+    expect((await slot(imported))!.hidden, isTrue);
+    expect(await slot(manual), isNull);
+    expect(await exceptions(), isEmpty);
+    expect(_ok(await repository.removeGroup([imported], now: now)), 0);
+
+    expect(_ok(await undo.undoLast(now: now)), isTrue);
+    expect((await slot(imported))!.hidden, isFalse);
+    expect((await slot(manual))!.weekday, 3);
+    expect(await exceptions(), [(imported, '2026-11-16')]);
   });
 
   test('빈 과목 이름이나 시간표 검사에 걸리는 값은 ArgumentError이고 아무것도 쓰지 않는다', () async {
