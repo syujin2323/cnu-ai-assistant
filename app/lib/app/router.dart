@@ -113,7 +113,7 @@ abstract final class Routes {
       ? meTimetable
       : '$meTimetable?$_tabParam=${tab.name}';
 
-  /// 01 아침 브리핑(셸 밖 전체 화면).
+  /// 01 계획(셸 밖 전체 화면).
   static const String briefing = '/briefing';
 
   /// 06 AI 비서(셸 밖 전체 화면). push로 열고, 연 곳마다 다른 인자는 [AssistantArgs]로 `extra`에만
@@ -445,7 +445,7 @@ class StartRules {
 
   final Ref _ref;
 
-  /// 돌아왔을 때 미루는 화면. 이미 시작 흐름에 있거나(14 온보딩, 다시 로그인, 01 아침 브리핑) 입력
+  /// 돌아왔을 때 미루는 화면. 이미 시작 흐름에 있거나(14 온보딩, 다시 로그인, 01 계획) 입력
   /// 중일 수 있는 화면(06 AI 비서와 그 위에 덮는 직접 추가 폼)이라 덮지 않는다. 미룬 확인은 다음에
   /// 돌아올 때 다시 본다. 01을 띄운 채 하루가 바뀌었으면 01이 스스로 새 날을 적고 다시 그린다.
   static const Set<String> _deferredPaths = {

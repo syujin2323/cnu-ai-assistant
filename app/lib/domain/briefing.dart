@@ -1,5 +1,5 @@
-// 01 아침 브리핑이 보일 것과 체크한 것을 확정할 때 쓸 값. docs/screens.md '01 아침 브리핑',
-// docs/architecture.md '아침 브리핑'.
+// 01 계획이 보일 것과 체크한 것을 확정할 때 쓸 값. docs/screens.md '01 계획',
+// docs/architecture.md '계획 화면'.
 //
 // 브리핑은 AI 없이 폰의 코드가 계산한다. 같은 입력이면 늘 같은 답을 내는 순수 함수다.
 //
@@ -72,7 +72,7 @@ final class BriefingMissed {
   int get minutes => block.endAt.difference(block.startAt).inMinutes;
 }
 
-/// 01 아침 브리핑의 '어제 못 한 일'과 '오늘 할 일'.
+/// 01 계획의 '어제 못 한 일'과 '오늘 할 일'.
 final class BriefingContent {
   BriefingContent({
     required List<BriefingMissed> missed,
@@ -104,7 +104,7 @@ final class BriefingContent {
   ];
 }
 
-/// 01 아침 브리핑에 보일 것을 고른다.
+/// 01 계획에 보일 것을 고른다.
 ///
 /// [today]·[yesterday]는 오늘·어제(논리적 하루)의 블록이고, [ranked]는 배치 엔진이 낸 급한 순서의 할 일 id다.
 /// - 어제 못 한 일: 어제 확정했거나 놓친 블록 가운데 할 일이 남은 것(끝냈거나 숨겼거나 LMS에서 사라진 일 제외).

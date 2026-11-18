@@ -2,7 +2,7 @@
 //
 // 06 AI 비서는 들어오는 곳마다 다른 인자로 열린다(screens.md '06 AI 비서'의 들어오는 길).
 // - 탭바 옆 'AI 비서에게 말하기': 인자 없음
-// - 01 아침 브리핑 말로 추가: 쓴 문장을 바로 보냄([AssistantArgs.prefill], [AssistantArgs.sendNow])
+// - 01 계획 말로 추가: 쓴 문장을 바로 보냄([AssistantArgs.prefill], [AssistantArgs.sendNow])
 // - 빈 시간에 놓기 시트 [일정은 말로 추가하기]: 09 일간에서 열면 그 빈 시간의 날짜·시각([AssistantArgs.at])
 // - 일정 정보 시트 [말로 바꾸기]: 문장을 채움([AssistantArgs.prefill])
 // - 03 할 일 '할 일 추가': 직접 추가 폼을 할 일로([AssistantArgs.form]이 [DirectAddKind.task])
@@ -61,7 +61,7 @@ class AssistantArgs {
   /// 입력창에 미리 채울 문장. 사용자가 쓴 문장일 수 있어 로그와 경로에 넣지 않는다.
   final String? prefill;
 
-  /// [prefill]을 열자마자 보낼지(01 아침 브리핑의 말로 추가).
+  /// [prefill]을 열자마자 보낼지(01 계획의 말로 추가).
   final bool sendNow;
 
   /// 처음부터 열 직접 추가 폼의 종류. null이면 입력창부터 연다.

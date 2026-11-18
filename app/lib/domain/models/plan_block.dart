@@ -111,11 +111,11 @@ class PlanBlock {
   /// 02 홈 피드백 카드에서 '했어요'·'못 했어요'로 답한 시각. 답한 블록은 다시 묻지 않는다.
   final DateTime? answeredAt;
 
-  /// 01 아침 브리핑에서 확정한 블록인지. 브리핑에서 다시 확정하면 이 블록을 새 선택으로 바꾼다.
+  /// 01 계획에서 확정한 블록인지. 브리핑에서 다시 확정하면 이 블록을 새 선택으로 바꾼다.
   final bool fromBriefing;
 }
 
-/// 새로 놓을 블록의 값. 배치 엔진의 제안과 01 아침 브리핑의 확정이 저장소에 넘긴다.
+/// 새로 놓을 블록의 값. 배치 엔진의 제안과 01 계획의 확정이 저장소에 넘긴다.
 final class BlockDraft {
   const BlockDraft({
     required this.taskId,

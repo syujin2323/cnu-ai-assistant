@@ -20,7 +20,7 @@ enum RiseStyle {
     AppMotion.riseBlur,
   ),
 
-  /// 01 아침 브리핑 화면.
+  /// 01 계획 화면.
   briefing(
     AppMotion.riseBriefing,
     AppMotion.riseOffset,

@@ -80,7 +80,7 @@ enum AppIconName {
   /// 경고(세모 안 느낌표). LMS 상태 줄의 연결 실패.
   warning(IconSvgs.warning),
 
-  // 01 아침 브리핑.
+  // 01 계획.
 
   /// 닫기(X).
   close(IconSvgs.close),

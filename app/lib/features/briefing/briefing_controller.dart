@@ -1,4 +1,4 @@
-// 01 아침 브리핑의 provider. docs/architecture.md '아침 브리핑', '화면 이동'.
+// 01 계획의 provider. docs/architecture.md '계획 화면', '화면 이동'.
 //
 // 그날(논리적 하루) 브리핑을 본 것으로 기록했는지 묻는 것과 기록하는 것을 둔다. 기록은 브리핑이 화면에 뜨는
 // 순간 하고(docs/decisions.md 2026-11-13 '아침 브리핑은 뜨는 순간 본 것으로 기록한다'), 어느 길로 떠나든
@@ -56,7 +56,7 @@ final briefingOpenedTodayProvider = Provider<BriefingOpenedCheck>((ref) {
 /// 오늘의 브리핑을 본 것으로 적는 함수. 적은 논리적 하루를 돌려주고, 적지 않았거나 적지 못했으면 null이다.
 typedef BriefingSeenMark = Future<DateTime?> Function();
 
-/// 오늘(논리적 하루)의 브리핑을 본 것으로 적는다. 01 아침 브리핑이 화면에 뜨는 순간과, 01을 띄운 채 앱으로
+/// 오늘(논리적 하루)의 브리핑을 본 것으로 적는다. 01 계획이 화면에 뜨는 순간과, 01을 띄운 채 앱으로
 /// 돌아왔을 때 부른다. 적지 못하면 기록만 남긴다(그러면 다음에 앱을 열 때 브리핑이 다시 뜬다).
 ///
 /// 적을 DB(저장소)와 시각은 부르는 순간에 정한다. 설정을 읽는 동안 데모를 끝내기 시작했거나 모드가 바뀌었으면
@@ -103,7 +103,7 @@ Future<DateTime?> _logicalToday(Ref ref, {DateTime? now}) async {
   }
 }
 
-/// 01 아침 브리핑이 [day](논리적 하루)에 보일 것과 체크를 확정할 때 쓸 값.
+/// 01 계획이 [day](논리적 하루)에 보일 것과 체크를 확정할 때 쓸 값.
 final class BriefingData {
   BriefingData({
     required this.day,
@@ -137,7 +137,7 @@ final class BriefingData {
   int? get dailyCapMin => config.forWeekday(day.weekday).dailyCapMin;
 }
 
-/// 01 아침 브리핑이 [day](논리적 하루)에 보일 것. 그날과 전날의 일정, 할 일, 규칙, 배치 엔진의 마지막 결과(급한
+/// 01 계획이 [day](논리적 하루)에 보일 것. 그날과 전날의 일정, 할 일, 규칙, 배치 엔진의 마지막 결과(급한
 /// 순서와 근거)로 계산한다. 아직 읽지 못한 것이 있으면 로딩이고, 그중 읽기에 실패한 것이 있으면 오류다.
 final briefingDataProvider =
     Provider.family<AsyncValue<BriefingData>, DateTime>((ref, day) {
@@ -202,7 +202,7 @@ final briefingDataProvider =
       );
     });
 
-/// 01 아침 브리핑의 체크.
+/// 01 계획의 체크.
 final class BriefingSelection {
   BriefingSelection({
     required Map<String, BlockDraft> picks,
@@ -246,7 +246,7 @@ final class BriefingSelection {
   );
 }
 
-/// 01 아침 브리핑의 체크와 확정. [day]는 브리핑이 보이는 논리적 하루이고, 화면을 떠나면 체크를 버린다.
+/// 01 계획의 체크와 확정. [day]는 브리핑이 보이는 논리적 하루이고, 화면을 떠나면 체크를 버린다.
 final briefingSelectionProvider = NotifierProvider.autoDispose
     .family<BriefingSelectionController, BriefingSelection, DateTime>(
       BriefingSelectionController.new,
