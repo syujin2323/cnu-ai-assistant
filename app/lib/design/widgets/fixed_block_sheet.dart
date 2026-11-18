@@ -227,13 +227,13 @@ class _FixedBlockFormState extends ConsumerState<FixedBlockForm> {
   }
 }
 
-/// 고정 일정 종류의 아이콘. 알바·기타는 맞는 캔버스 아이콘이 들어오기 전까지 임시 아이콘이다.
+/// 고정 일정 종류의 아이콘(최종 프로토타입).
 AppIconName fixedBlockKindIcon(FixedBlockKind kind) => switch (kind) {
   FixedBlockKind.meal => AppIconName.meal,
-  FixedBlockKind.work => AppIconName.clock,
+  FixedBlockKind.work => AppIconName.work,
   FixedBlockKind.exercise => AppIconName.exercise,
   FixedBlockKind.commute => AppIconName.bus,
-  FixedBlockKind.other => AppIconName.pencil,
+  FixedBlockKind.other => AppIconName.place,
 };
 
 class _BufferRow extends StatelessWidget {

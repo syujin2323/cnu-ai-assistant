@@ -31,11 +31,7 @@ Future<void> _pump(
 
 /// 상태를 들고 [TimeRangeFields]를 그린다.
 class _Holder extends StatefulWidget {
-  const _Holder({
-    required this.start,
-    required this.end,
-    this.endHigh = 1440,
-  });
+  const _Holder({required this.start, required this.end, this.endHigh = 1440});
 
   final int start;
   final int end;
