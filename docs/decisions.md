@@ -779,6 +779,21 @@
 - 다른 후보: 외부 브라우저로 열기(처음 만든 방식), 앱 안 WebView로 공개 페이지 열기(네트워크가 필요하고 웹 페이지 모양), 인앱 브라우저(SFSafariViewController·Custom Tabs. 여전히 웹 페이지), 앱에 글을 손으로 옮겨 적기(어긋나기 쉬움), `flutter_markdown` 패키지(의존성이 늘고 표를 좁은 화면에서 읽기 어려움), 앱 레포의 `docs/`를 Pages로 공개하기(개발 문서까지 사이트에 섞임).
 - 영향: architecture.md '테스트 배포'·'폴더 구조'·패키지 줄·'화면과 기능 폴더', screens.md '개인정보 처리 안내 시트'·'10 나', `Makefile`(`legal-sync`), `app/tool/legal_sync.dart`, `app/lib/design/legal_texts.dart`, `app/lib/design/widgets/legal_document.dart`, `app/lib/domain/text/markdown_lite.dart`, `app/lib/features/lms_connect/privacy_sheet.dart`, 10 나 PR.
 
+## 2026-11-18 백그라운드 동기화 작업은 앱을 켤 때마다 등록하고 Android는 3시간마다 깨운다
+
+- 결정:
+  - 앱을 켤 때마다(Remote Config를 받은 뒤) workmanager 주기 작업 하나를 등록한다. 이미 있으면 새 설정으로 바꾸고(`update`), 네트워크가 있을 때만 돈다.
+  - 로그인 상태와 관계없이 늘 등록한다. 깨운 뒤 LMS를 부를지는 코디네이터가 정한다(원격 스위치, 데모 모드, 업데이트 필요, 세션 상태, 호출 예산).
+  - Android 간격은 3시간(임시)이다. iOS는 깨우는 때를 iOS가 정하고, 다음 예약의 최소 간격은 `AppDelegate.swift`의 3시간이다.
+  - 앱으로 돌아올 때는 앱 열기 계기를 주기 전에, 백그라운드 작업이 쓸 수 있는 표의 스트림을 다시 읽게 한다.
+  - 서버 신호 푸시(FCM)는 서버 쪽과 맞춘 뒤 따로 붙인다.
+- 이유:
+  - 3시간은 호출 예산의 앱 열기 간격(`openStaleMin` 기본 180분)과 iOS의 최소 간격과 같다. 더 자주 깨워도 예산이 3시간 안에는 LMS를 부르지 않으므로 배터리만 쓴다.
+  - 로그인·로그아웃 때마다 등록하고 취소하면 둘이 어긋날 여지가 생긴다. 깨워도 로그인 전이면 LMS를 부르지 않고 곧 끝난다.
+  - 켤 때마다 `update`로 등록하면 Shorebird 패치로 간격이나 조건을 바꿔도 다음 실행부터 맞는다(`keep`이면 처음 설정이 남음).
+- 다른 후보: 1시간마다 깨우기(예산 때문에 대부분 그냥 끝남), 로그인한 동안만 등록하기, `keep` 정책.
+- 영향: architecture.md '앱 코드 규약'·'폴더 구조', lms.md '동기화', `app/lib/platform/background.dart`, `app/lib/lms/sync_triggers.dart`, `app/lib/app/bootstrap.dart`, `app/lib/data/db/database.dart`.
+
 ## 2026-11-18 서버 신호 푸시는 토픽 12개로 나눠 보낸다
 
 - 결정:
