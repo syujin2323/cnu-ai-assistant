@@ -35,13 +35,21 @@ void main() {
     );
   });
 
-  test('아이콘은 AppIcon만 쓴다(Icons.*와 SvgPicture.asset은 design/icons.dart만)', () {
+  test('아이콘은 AppIcon만 쓴다(Icons.*와 SvgPicture는 design/icons.dart만, SVG 문자열은 design/icon_svgs.dart만)', () {
     expect(_violations(libFiles, RegExp(r'\bIcons\.')), isEmpty);
     expect(
       _violations(
         libFiles,
-        RegExp(r'SvgPicture\.asset\('),
+        RegExp(r'SvgPicture\.(asset|string|file|network|memory)\('),
         allowed: {'lib/design/icons.dart'},
+      ),
+      isEmpty,
+    );
+    expect(
+      _violations(
+        libFiles,
+        RegExp(r'<svg\b'),
+        allowed: {'lib/design/icon_svgs.dart'},
       ),
       isEmpty,
     );
