@@ -41,10 +41,20 @@ final class ClassItem extends DayItem {
     this.cancelled = false,
     this.exam = false,
     this.makeup = false,
+    this.placeChanged = false,
     this.place,
+    this._date,
   });
 
   final ClassSlot slot;
+
+  final DateTime? _date;
+
+  /// 수업(보강이면 그 보강)이 열리는 달력 날짜의 0시. 수업 예외(`class_exceptions.date`)는 이 날짜에 둔다.
+  /// [span]은 논리적 하루로 자른 시각이라, 하루 경계를 걸친 수업이면 [span]이 시작하는 날짜와 다를 수 있다.
+  /// 넘기지 않았으면 [span]이 시작하는 날짜다.
+  DateTime get date =>
+      _date ?? DateTime(span.start.year, span.start.month, span.start.day);
 
   /// 그날 휴강이다. 시간을 막지 않는다.
   final bool cancelled;
@@ -54,6 +64,9 @@ final class ClassItem extends DayItem {
 
   /// 보강으로 여는 수업이다.
   final bool makeup;
+
+  /// 그날만 장소를 바꾼 수업이다([place]가 바뀐 장소).
+  final bool placeChanged;
 
   /// 그날의 강의실(장소 변경·시험 장소·보강 장소가 있으면 그 값, 없으면 수업 칸의 값).
   final String? place;
@@ -224,7 +237,9 @@ List<ClassItem> _classItems(
               slot: slot,
               cancelled: cancelled != null,
               exam: exam != null,
+              placeChanged: moved != null,
               place: moved?.place ?? exam?.place ?? slot.place,
+              date: on,
             ),
           );
         }
@@ -243,6 +258,7 @@ List<ClassItem> _classItems(
             slot: slot,
             makeup: true,
             place: makeup.place ?? slot.place,
+            date: on,
           ),
         );
       }

@@ -179,13 +179,14 @@ void main() {
       [
         for (final c in classes)
           '${c.slot.id} ${_hhmm(c.span.start)} ${c.cancelled ? '휴강' : ''}'
-              '${c.exam ? '시험' : ''}${c.makeup ? '보강' : ''} ${c.place}',
+              '${c.exam ? '시험' : ''}${c.makeup ? '보강' : ''}'
+              '${c.placeChanged ? '장소' : ''} ${c.place}',
       ],
       [
         '1 09:00 휴강 공학관 1',
         '1 09:00 보강 공학관 1',
         '2 13:00 시험 대강당',
-        '3 15:00  자연과학관 105',
+        '3 15:00 장소 자연과학관 105',
         '5 16:40  공학관 5',
         '4 19:00 보강 공학관 4',
       ],
@@ -201,8 +202,23 @@ void main() {
       ],
     );
     expect(describe(items(schedule)), ['수업 22:00–01:30', '수업 01:00–02:00']);
+    // 수업이 열리는 달력 날짜(수업 예외의 날짜)는 수업이 시작하는 날이다.
+    expect(
+      [for (final c in items(schedule).whereType<ClassItem>()) c.date.day],
+      [monday, monday + 1],
+    );
     // 화요일 논리적 하루(04:00부터)에는 들지 않는다.
     expect(items(schedule, day: monday + 1).whereType<ClassItem>(), isEmpty);
+  });
+
+  test('하루 경계를 걸친 수업의 날짜는 잘린 시각이 아니라 수업이 시작하는 날이다', () {
+    final schedule = Schedule(
+      // 월요일 23:00–화요일 05:00. 화요일 논리적 하루에는 04:00–05:00만 든다.
+      classSlots: [slot(1, weekday: 1, startMin: 1380, endMin: 1740)],
+    );
+    final tuesday = items(schedule, day: monday + 1).whereType<ClassItem>();
+    expect(describe(tuesday.toList()), ['수업 04:00–05:00']);
+    expect(tuesday.single.date, DateTime(2026, 11, monday));
   });
 
   test('일정은 종일 일정을 빼고 논리적 하루 안으로 잘라 넣는다', () {
