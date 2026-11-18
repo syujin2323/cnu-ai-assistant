@@ -66,7 +66,6 @@ void main() {
       expect(settings.lmsLastConnectedAt, isNull);
       expect(settings.lmsCredentialRejected, isFalse);
       expect(settings.lmsTimetableImportedAt, isNull);
-      expect(settings.checkinMin, isNull);
       expect(settings.dueTodayTimeSensitive, isFalse);
       expect(settings.showTravelMeal, isTrue);
       expect(settings.onboardingSkipped, isEmpty);
@@ -89,7 +88,6 @@ void main() {
         'lmsLastConnectedAt': null,
         'lmsCredentialRejected': false,
         'lmsTimetableImportedAt': null,
-        'checkinMin': null,
         'dueTodayTimeSensitive': false,
         'showTravelMeal': true,
         'onboardingSkipped': <int>[],
@@ -120,7 +118,6 @@ void main() {
       await writeOk(SettingKeys.lmsCredentialRejected, true);
       final importedAt = DateTime(2026, 11, 15, 14, 20);
       await writeOk(SettingKeys.lmsTimetableImportedAt, importedAt);
-      await writeOk(SettingKeys.checkinMin, 1350);
       await writeOk(SettingKeys.dueTodayTimeSensitive, true);
       await writeOk(SettingKeys.showTravelMeal, false);
       await writeOk(SettingKeys.onboardingSkipped, [3, 4]);
@@ -138,7 +135,6 @@ void main() {
           lmsSessionState: LmsSessionState.reconnectRequired,
           lmsCredentialRejected: true,
           lmsTimetableImportedAt: importedAt,
-          checkinMin: 1350,
           dueTodayTimeSensitive: true,
           showTravelMeal: false,
           onboardingSkipped: [3, 4],
@@ -208,7 +204,6 @@ void main() {
         // 하루 안이어도 고르는 값(03:00·04:00·05:00·06:00)이 아니면 쓰지 않는다.
         (SettingKeys.dayBoundaryMin, 0),
         (SettingKeys.dayBoundaryMin, 1439),
-        (SettingKeys.checkinMin, -1),
         (SettingKeys.aiEnabled, 'true'),
         (SettingKeys.lmsSessionState, 'active'),
         // 없앤 키(자동 로그인 유지, 연결 방식)는 이제 모르는 키다.
@@ -335,7 +330,6 @@ void main() {
       await writeOk(SettingKeys.metricsEnabled, true);
       await putRaw(SettingKeys.dayBoundaryMin, 'not json');
       await putRaw(SettingKeys.aiEnabled, '"yes"');
-      await putRaw(SettingKeys.checkinMin, '1440');
       await putRaw(SettingKeys.lmsSessionState, '"reconnectRequired"');
       await putRaw(SettingKeys.onboardingSkipped, '[1, "x"]');
       await putRaw(SettingKeys.installedAt, '"yesterday"');
@@ -347,6 +341,7 @@ void main() {
       await putRaw('lmsAutoLogin', 'true');
       await putRaw('lmsMode', '"phone"');
       await putRaw('motionLevel', '"off"');
+      await putRaw('checkinMin', '1350');
 
       expect(
         await readOk(),
@@ -490,8 +485,8 @@ void main() {
               .into(other.settings)
               .insertOnConflictUpdate(
                 SettingsCompanion.insert(
-                  key: SettingKeys.checkinMin,
-                  value: '1350',
+                  key: SettingKeys.showTravelMeal,
+                  value: 'false',
                 ),
               );
           locked.complete();
