@@ -225,9 +225,9 @@ void main() {
         (SettingKeys.metricsSuggestedDays, null),
         (SettingKeys.showTravelMeal, null),
         (SettingKeys.onboardingSkipped, null),
-        // 건너뛴 온보딩 단계는 1–5의 중복 없는 오름차순 목록만 쓴다.
+        // 건너뛴 온보딩 단계는 1–4의 중복 없는 오름차순 목록만 쓴다.
         (SettingKeys.onboardingSkipped, [0]),
-        (SettingKeys.onboardingSkipped, [6]),
+        (SettingKeys.onboardingSkipped, [5]),
         (SettingKeys.onboardingSkipped, [3, 3]),
         (SettingKeys.onboardingSkipped, [4, 3]),
       ];
@@ -305,12 +305,13 @@ void main() {
   });
 
   group('settings 읽기', () {
-    test('건너뛴 온보딩 단계는 1–5 밖의 수와 중복을 버리고 오름차순으로 읽는다', () async {
+    test('건너뛴 온보딩 단계는 1–4 밖의 수와 중복을 버리고 오름차순으로 읽는다', () async {
       await putRaw(SettingKeys.onboardingSkipped, '[0, 3, 3, 9]');
       expect((await readOk()).onboardingSkipped, [3]);
 
-      await putRaw(SettingKeys.onboardingSkipped, '[5, 2, 5]');
-      expect((await readOk()).onboardingSkipped, [2, 5]);
+      // 온보딩이 다섯 단계이던 때의 5는 버린다.
+      await putRaw(SettingKeys.onboardingSkipped, '[5, 4, 2, 4]');
+      expect((await readOk()).onboardingSkipped, [2, 4]);
     });
 
     test(

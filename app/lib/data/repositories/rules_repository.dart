@@ -1,11 +1,11 @@
 // 내 규칙 저장소(`rules` 표). docs/architecture.md '내 규칙'.
 //
-// 14 온보딩 3·5단계, 12 내 규칙, 10 나, 06 AI 비서가 함께 쓴다. 저장 정책은 `domain/rules.dart`의 순수
+// 14 온보딩 3단계, 12 내 규칙, 06 AI 비서가 함께 쓴다. 저장 정책은 `domain/rules.dart`의 순수
 // 함수를 따른다. 요일은 [canonicalWeekdays]로 정리해 두고, 하나만 두는 종류는 그 종류의 행 하나에 새 값을
 // 합쳐 켜며, 같은 요일을 대신하는 종류와 과목·종류가 같은 예상 시간은 이전 규칙을 끈다([rulesReplacedBy]).
 // 규칙을 켜거나 끄거나 고치면 `updatedAt`을 지금으로 바꾼다. 한 동작의 쓰기와 되돌리기 기록(`undo_log`
-// 한 행)은 한 트랜잭션이다. 값 검사를 통과하지 못한 값이나 알림 재설계 전에 저장하지 않는 알림 값
-// ([unsavableFields])을 넣으면 [ArgumentError]다. 부르는 쪽은 [paramsToStore]로 합친 값을 [validateRule]과
+// 한 행)은 한 트랜잭션이다. 값 검사를 통과하지 못한 값이나 지금 저장하지 않는 종류(알림,
+// [ruleKindSavable])를 넣으면 [ArgumentError]다. 부르는 쪽은 [paramsToStore]로 합친 값을 [validateRule]과
 // [unsavableFields]로 먼저 보고 되묻는다. 폰 DB를 읽거나 쓰지 못하면 [StorageError]를 담은 [Err]다.
 // 저장된 값을 읽지 못한 규칙([Rule.isUnreadable])은 그 행만 그렇게 읽고 나머지 규칙은 그대로 읽는다. 이런
 // 규칙은 켤 수 없고([ArgumentError]) 끄기·지우기와 새 값으로 고치기만 된다.
@@ -237,14 +237,13 @@ class RulesRepository {
     }
   }
 
-  /// 알림 재설계 전에는 `notify`에서 [savableNotifyFields]만 저장한다([unsavableFields]).
+  /// 알림 재설계 전에는 `notify` 규칙을 저장하지 않는다([ruleKindSavable]). 값이 없어도 받지 않는다.
   static void _checkSavable(RuleKind kind, RuleParams params) {
-    final unsavable = unsavableFields(kind, params);
-    if (unsavable.isNotEmpty) {
+    if (!ruleKindSavable(kind)) {
       throw ArgumentError.value(
-        [for (final field in unsavable) field.name],
-        'params',
-        'notify fields not saved before the notification redesign',
+        [for (final field in unsavableFields(kind, params)) field.name],
+        kind.name,
+        'not saved before the notification redesign',
       );
     }
   }

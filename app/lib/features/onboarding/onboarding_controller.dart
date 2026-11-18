@@ -1,34 +1,31 @@
 // 온보딩의 단계와 동작. docs/screens.md '14 온보딩', docs/architecture.md '온보딩'.
 //
-// 다섯 단계(1 LMS 로그인 · 2 불러온 시간표 확인 · 3 고정 일정 · 4 AI 사용 동의 · 5 아침 브리핑 시각)이고,
-// 5단계를 마치면 `shared_preferences`의 `onboarding_done`을 true로 두고 시작 위치(`/`)로 간다.
+// 네 단계(1 LMS 로그인 · 2 불러온 시간표 확인 · 3 고정 일정 · 4 AI 사용 동의)이고, 4단계를 마치면
+// `shared_preferences`의 `onboarding_done`을 true로 두고 시작 위치(`/`)로 간다(docs/decisions.md 2026-11-19
+// '온보딩은 네 단계이고 브리핑 시각은 정하지 않는다').
 // '건너뛰기'는 3단계에만, 뒤로 가기는 3단계부터 있다. 건너뛴 단계는 `settings`의 `onboardingSkipped`에
 // 단계 번호로 남는다(지금은 3만). 이 값을 쓰는 화면은 문서에 없다(홈 위 카드가 아님). 건너뛴 고정 일정은
 // 나중에 10 나에서 넣는다. 로그아웃 뒤 다시 들어왔으면(`onboarding_done`이 이미 켜져 있음) 1단계에서
-// 로그인하면 2–5단계 없이 시작 위치로 간다([OnboardingController.loggedIn]). 처음 온보딩에서 로그인한 뒤
+// 로그인하면 2–4단계 없이 시작 위치로 간다([OnboardingController.loggedIn]). 처음 온보딩에서 로그인한 뒤
 // 끝내기 전에 앱이 꺼졌으면 다음에 열 때 2단계부터 연다(다시 로그인하지 않음, docs/decisions.md 2026-11-13
 // '로그인한 뒤 온보딩 도중 앱이 꺼지면 2단계부터 연다'). 그래서 처음 열 때 `settings`를 한 번 읽고, 읽기가
-// 끝나기 전에는 상태가 없다. 4단계는 `aiEnabled`·`aiConsentAt`을, 5단계는 브리핑 시각을 내 규칙
-// (`notify`)으로 쓴다. debug 빌드에서는 1단계에 개발용 '로그인 없이 다음으로'가 있다
-// ([OnboardingController.skipLoginForDev]).
+// 끝나기 전에는 상태가 없다. 4단계는 `aiEnabled`·`aiConsentAt`을 쓰고 온보딩을 끝낸다. debug 빌드에서는
+// 1단계에 개발용 '로그인 없이 다음으로'가 있다([OnboardingController.skipLoginForDev]).
 
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/app_settings.dart';
-import 'package:cnu_ai_assistant/domain/models/entry_source.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_session_state.dart';
-import 'package:cnu_ai_assistant/domain/models/rule.dart';
 import 'package:flutter/foundation.dart' show immutable, kDebugMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// 온보딩 단계. [number]는 문서의 단계 번호(1–5)다.
+/// 온보딩 단계. [number]는 문서의 단계 번호(1–4)다.
 enum OnboardingStep {
   login(1, 'LMS 로그인'),
   timetable(2, '불러온 시간표 확인'),
   fixedBlocks(3, '고정 일정'),
-  aiConsent(4, 'AI 사용 동의'),
-  briefingTime(5, '아침 브리핑 시각');
+  aiConsent(4, 'AI 사용 동의');
 
   const OnboardingStep(this.number, this.title);
 
@@ -60,7 +57,7 @@ class OnboardingState {
   /// 지금 단계.
   final OnboardingStep step;
 
-  /// 로그아웃 뒤 다시 들어왔는지(`onboarding_done`이 이미 켜져 있음). 1단계에서 로그인하면 2–5단계 없이
+  /// 로그아웃 뒤 다시 들어왔는지(`onboarding_done`이 이미 켜져 있음). 1단계에서 로그인하면 2–4단계 없이
   /// 시작 위치로 간다.
   final bool reentry;
 
@@ -152,8 +149,8 @@ class OnboardingController extends AsyncNotifier<OnboardingState> {
     );
   }
 
-  /// 4단계 '동의하고 계속': AI를 켜고 동의 시각을 적은 뒤 다음 단계로 간다. 저장하지 못해도 기록만 남기고
-  /// 계속한다(AI는 꺼진 채로 남아 AI 기능을 쓰려 할 때 다시 묻는다).
+  /// 4단계 '동의하고 계속': AI를 켜고 동의 시각을 적은 뒤 온보딩을 끝낸다. 저장하지 못해도 기록만 남기고
+  /// 끝낸다(AI는 꺼진 채로 남아 AI 기능을 쓰려 할 때 다시 묻는다).
   Future<bool> consentToAi() => _whileBusy(() async {
     await _writeSettings({
       SettingKeys.aiEnabled: true,
@@ -162,36 +159,14 @@ class OnboardingController extends AsyncNotifier<OnboardingState> {
     return _next();
   });
 
-  /// 4단계 '동의하지 않고 계속': `aiEnabled` false만 쓰고 다음 단계로 간다(docs/decisions.md 2026-11-06
-  /// 'AI 사용 동의는 선택 동의다'). 저장하지 못해도 계속한다(기본값도 꺼짐).
+  /// 4단계 '동의하지 않고 계속': `aiEnabled` false만 쓰고 온보딩을 끝낸다(docs/decisions.md 2026-11-06
+  /// 'AI 사용 동의는 선택 동의다'). 저장하지 못해도 끝낸다(기본값도 꺼짐).
   Future<bool> declineAi() => _whileBusy(() async {
     await _writeSettings({SettingKeys.aiEnabled: false});
     return _next();
   });
 
-  /// 5단계 '다음': 고른 브리핑 시각([briefingMin], 자정 기준 분)을 내 규칙 `notify`(`source` `manual`)로
-  /// 저장하고 온보딩을 끝낸다. `notify`는 하나만 두는 종류라 이미 있으면 그 행에 합친다. 저장하지 못해도
-  /// 기록만 남기고 끝낸다(브리핑 시각은 기본값을 씀). [briefingMin]은 브리핑 칩의 값이다.
-  Future<bool> finishWithBriefingTime(int briefingMin) => _whileBusy(() async {
-    final saved = await ref
-        .read(rulesRepositoryProvider)
-        .save(
-          kind: RuleKind.notify,
-          params: RuleParams(briefingMin: briefingMin),
-          source: EntrySource.manual,
-          now: ref.read(clockProvider).now(),
-        );
-    if (saved case Err(:final error)) {
-      appLog(
-        'onboarding_briefing_time_save_failed',
-        area: 'onboarding',
-        data: errorLogData(error),
-      );
-    }
-    return _next();
-  });
-
-  /// 1단계 로그인을 마쳤을 때(로그인 폼이 진행 줄을 끝낸 뒤). 로그아웃 뒤 다시 들어왔으면 2–5단계 없이
+  /// 1단계 로그인을 마쳤을 때(로그인 폼이 진행 줄을 끝낸 뒤). 로그아웃 뒤 다시 들어왔으면 2–4단계 없이
   /// 시작 위치로 가고(true), 아니면 2단계로 간다. LMS 상태와 학번·비밀번호는 로그인 흐름이 이미 썼다.
   Future<bool> loggedIn() => _whileBusy(_afterLogin);
 
@@ -228,7 +203,7 @@ class OnboardingController extends AsyncNotifier<OnboardingState> {
     });
   }
 
-  /// 1단계 로그인 뒤. 로그아웃 뒤 다시 들어왔으면 2–5단계를 다시 거치지 않는다.
+  /// 1단계 로그인 뒤. 로그아웃 뒤 다시 들어왔으면 2–4단계를 다시 거치지 않는다.
   Future<bool> _afterLogin() async {
     final current = _current;
     if (!ref.mounted || current == null) return false;

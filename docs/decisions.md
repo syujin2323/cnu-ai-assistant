@@ -885,3 +885,14 @@
   - App Distribution APK에는 기본 설정의 Play Integrity가 App Check 토큰을 주지 않으므로, App Check 강제는 팀원도 Play 빌드로 옮긴 뒤에 한다.
 - 다른 후보: Play 계정을 기다렸다가 첫 테스터 빌드부터 Play 비공개 테스트로 내기(2026-11-15), 실사용자 시작을 날짜로 정하기.
 - 영향: architecture.md '테스트 배포', screens.md '20 시스템'(업데이트 버튼), `Makefile`(`release-android-apk`, `DRY_RUN`), `app/lib/app/config.dart`.
+
+## 2026-11-19 온보딩은 네 단계이고 브리핑 시각은 정하지 않는다 (2026-11-04 '온보딩은 다섯 단계다' 바꿈)
+
+- 결정:
+  - 온보딩은 1 LMS 로그인 → 2 불러온 시간표 확인 → 3 고정 일정 → 4 AI 사용 동의의 네 단계다. 5단계(아침 브리핑 시각)는 없애고, 4단계를 마치면 온보딩을 끝내고 01 아침 브리핑을 연다. 건너뛴 단계 번호(`onboardingSkipped`)는 1–4다.
+  - 아침 브리핑 시각은 정하지 않는다. 10 나의 '알림' 묶음(아침 브리핑 시각 줄)을 빼고, 06 AI 비서와 12 내 규칙도 브리핑 시각을 저장하지 않는다. 그래서 알림 규칙(`notify`)은 어떤 값도 지금 저장하지 않고(`ruleKindSavable`), 06은 '아직 그런 조건은 정할 수 없어요'로 답하며, 12는 새 규칙 종류에 두지 않는다.
+  - 데모 샘플의 브리핑 시각 규칙은 선호 시간대 규칙(매일 19:00–22:00)으로 바꾼다.
+  - `notify` 종류와 그 값 검사, `NotifyConfig`, 기본값 상수는 지우지 않고 알림 재설계 때 다시 본다.
+- 이유: 01 아침 브리핑은 그날 처음 앱을 열 때 뜨므로 시각과 관계가 없고, 브리핑 시각은 알림(재설계 예정)에만 쓰인다. 지금은 골라도 아무것도 바뀌지 않는 자리라, 온보딩 한 단계와 10 나의 줄을 빼 처음 쓰는 흐름을 짧게 한다(관리자 결정).
+- 다른 후보: 온보딩 화면만 빼고 10 나·12에는 브리핑 시각을 남기기(값은 저장되지만 쓰이지 않음).
+- 영향: screens.md '재설계 예정'·'14 온보딩'·'10 나'·'12 내 규칙'·'프로토타입과 다르게 적은 곳', architecture.md '한눈에 보기'·'화면 이동'·'온보딩'·'데모 모드'·'폰 DB'·'내 규칙', lms.md, `app/lib/features/onboarding/`, `app/lib/features/me/me_screen.dart`·`widgets/me_sheets.dart`, `app/lib/domain/rules.dart`·`rule_text.dart`, `app/lib/data/repositories/rules_repository.dart`, `app/lib/data/demo/demo_seed.dart`, `app/lib/domain/models/app_settings.dart`.
