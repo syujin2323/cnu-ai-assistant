@@ -1,5 +1,6 @@
 // 06 AI 비서의 카드: 새 일정, 새 할 일, 되묻기, 안내, 보내지 못함. docs/screens.md '06 AI 비서'의 카드 1·2·7과
-// 되묻기. 문구는 디자인 전 임시 문구이고 최종 프로토타입의 06 문구를 따른다.
+// 되묻기. 수업 변경·바꾸기·지우기는 `change_cards.dart`, 질문 답은 `answer_card.dart`에 있다. 문구는 디자인 전
+// 임시 문구이고 최종 프로토타입의 06 문구를 따른다.
 //
 // 저장하는 카드는 확인 버튼을 눌러야 저장하고, 저장하면 '…에 넣었어요'와 다시 계산한 제안을 적는다. [고치기]와
 // [직접 추가](직접 추가 폼)는 그 폼을 만드는 PR(S8b)에서 붙인다(눌러도 반응 없는 버튼을 두지 않음).
@@ -10,7 +11,6 @@ import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_message.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_reply.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_text.dart';
-import 'package:cnu_ai_assistant/domain/text/josa.dart';
 import 'package:cnu_ai_assistant/domain/text/task_kind_text.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_context.dart';
@@ -108,21 +108,7 @@ class EventCardView extends ConsumerWidget {
             onPlace: saving ? null : () => controller.openPlace(card.id),
             onPrep: saving ? null : () => controller.openPrep(card.id),
           ),
-        if (overlaps case final overlaps?)
-          if (overlaps.isEmpty)
-            const CardOkLine('겹치는 일정이 없어요')
-          else
-            CardNote(
-              icon: AppIconName.warning,
-              alert: true,
-              text:
-                  '${withJosa(overlaps.first.title, Josa.gwaWa)} '
-                  '${durationText(overlaps.first.minutes)} 겹쳐요',
-              sub:
-                  '${overlapWhenText(overlaps.first)}'
-                  '${overlaps.length > 1 ? ' · 그 밖에 ${overlaps.length - 1}개' : ''}'
-                  ' · 막지 않고 알려만 드려요',
-            ),
+        if (overlaps case final overlaps?) OverlapLine(overlaps),
         if (pending)
           CardActions(
             primary: FilledButton(
@@ -391,69 +377,14 @@ class AskCardView extends ConsumerWidget {
             ),
           const SizedBox(height: AppSpace.s8),
           for (final (index, option) in card.options.indexed)
-            _OptionRow(
-              option: option,
+            CardOptionRow(
+              label: option.label,
+              sub: option.sub,
               onTap: () => controller.pick(card.id, index),
             ),
         ] else
           CardDone(text: card.options[picked].label),
       ],
-    );
-  }
-}
-
-/// 되묻기의 고를 것 한 줄.
-class _OptionRow extends StatelessWidget {
-  const _OptionRow({required this.option, required this.onTap});
-
-  final AskOption option;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
-    return Semantics(
-      button: true,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.input),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 52),
-          padding: const EdgeInsets.symmetric(vertical: AppSpace.s8),
-          decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: colors.edge)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 18,
-                height: 18,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: colors.icon, width: 1.5),
-                ),
-              ),
-              const SizedBox(width: AppSpace.s12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      option.label,
-                      style: AppText.body.copyWith(fontWeight: AppText.medium),
-                    ),
-                    if (option.sub case final sub?)
-                      Text(
-                        sub,
-                        style: AppText.caption.copyWith(color: colors.muted),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -492,7 +423,38 @@ class InfoCardView extends StatelessWidget {
       InfoKind.notYet => (
         '다시 말해 주세요',
         '아직 이 말은 처리하지 못해요',
-        '지금은 일정과 할 일을 넣을 수 있어요. 예: 목요일 7시 동아리',
+        '지금은 일정·할 일·수업 변경·일정 바꾸기와 질문을 받아요. 예: 목요일 7시 동아리',
+      ),
+      InfoKind.noClass => (
+        '수업 변경',
+        '2주 안에 그 수업이 없어요',
+        '시간표에 있는 과목인지 확인해 주세요. 시간표는 나 › 시간표·고정 일정에서 고칠 수 있어요.',
+      ),
+      InfoKind.makeupNeedsWhen => (
+        '수업 변경',
+        '보강 날짜와 시간을 알려 주세요',
+        '예: 공학설계 보강 토요일 10시',
+      ),
+      InfoKind.placeNeeded => (
+        '수업 변경',
+        '바뀐 강의실을 알려 주세요',
+        '예: 금요일 공학설계 강의실이 공대 5호관 204로 바뀌었어',
+      ),
+      InfoKind.targetNotFound => (
+        '일정 바꾸기·지우기',
+        '「${card.question ?? ''}」 일정을 찾지 못했어요',
+        '캘린더에 아직 없어요. 먼저 넣어 주세요. 예: 주말마다 2시부터 5시까지 알바 있어',
+      ),
+      InfoKind.changeNeedsHow => (
+        '일정 바꾸기',
+        '어떻게 바꿀지 알려 주세요',
+        '바꿀 시간이나 날짜를 같이 말해 주세요. '
+            '예: ${card.question ?? '알바'} 3시로 바꿔 줘',
+      ),
+      InfoKind.taskChange => (
+        '할 일',
+        '할 일은 아직 말로 바꾸거나 지울 수 없어요',
+        '지금은 일정만 말로 바꾸거나 지울 수 있어요.',
       ),
       InfoKind.aiDeclined => (
         'AI 사용 안 함',

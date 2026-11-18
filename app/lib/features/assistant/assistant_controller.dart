@@ -7,6 +7,9 @@
 // (`data/demo/demo_parse.dart`). 응답은 오전·오후를 말하지 않은 1–7시를 오후로 고친 뒤 카드로 바꾼다
 // (`domain/assistant/assistant_reply.dart`).
 //
+// 수업 변경·일정 바꾸기·지우기는 보낼 때 읽어 둔 폰 DB의 값(과목·수업 칸·수업 예외·고정 일정·오늘부터
+// 60일(임시)의 일정, [AssistantSnapshot])으로 대상을 찾는다.
+//
 // 확인 버튼을 누를 때만 저장하고, 저장할 때마다 되돌리기 토스트를 띄운다. 토스트의 '되돌리기'로 되돌리면 그
 // 카드를 저장 전으로 돌린다. 저장한 뒤에는 바로 다시 계산해 옮겨진 제안이나 놓인 자리를 카드에 적는다. 대화는
 // 화면을 닫으면 버린다(autoDispose). 로그에는 문장·제목을 남기지 않고 의도 이름과 카드 수만 남긴다.
@@ -21,15 +24,20 @@ import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_message.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_reply.dart';
+import 'package:cnu_ai_assistant/domain/assistant/assistant_targets.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_text.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
+import 'package:cnu_ai_assistant/domain/free_slots.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/domain/models/parse_result.dart';
 import 'package:cnu_ai_assistant/domain/parse_checks.dart';
 import 'package:cnu_ai_assistant/domain/planner/plan_range.dart';
+import 'package:cnu_ai_assistant/domain/planner/schedule.dart';
+import 'package:cnu_ai_assistant/domain/rules.dart';
 import 'package:cnu_ai_assistant/domain/text/josa.dart';
+import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// 문장을 지금 보낼 수 있는지.
@@ -92,7 +100,13 @@ class AssistantController extends Notifier<AssistantState> {
   /// 데모 응답을 보이기 전에 기다리는 시간(답을 읽는 것처럼 보이게, 임시).
   static const demoDelay = Duration(milliseconds: 700);
 
+  /// 바꾸거나 지울 일정을 찾는 날 수(오늘부터, 임시).
+  static const targetSearchDays = 60;
+
   int _lastId = 0;
+
+  /// 마지막으로 보낼 때 읽은 폰 DB의 값. 되묻기를 고른 뒤 이어지는 카드도 이것으로 찾는다.
+  AssistantSnapshot _snapshot = const AssistantSnapshot();
 
   int _nextId() => ++_lastId;
 
@@ -184,6 +198,8 @@ class AssistantController extends Notifier<AssistantState> {
     final now = ref.read(clockProvider).now();
     final courses = await _courses();
     if (!ref.mounted) return;
+    _snapshot = await _readSnapshot(courses, now);
+    if (!ref.mounted) return;
     final Result<ParseResult> result;
     if (gate == AiGate.demo) {
       await Future<void>.delayed(demoDelay);
@@ -242,7 +258,49 @@ class AssistantController extends Notifier<AssistantState> {
     now: now,
     ruleMode: ruleMode,
     nextId: _nextId,
+    snapshot: _snapshot,
   );
+
+  /// 수업 변경·바꾸기·지우기가 찾을 폰 DB의 값. 읽지 못한 것은 빈 목록이다(찾지 못한 것으로 안내).
+  Future<AssistantSnapshot> _readSnapshot(
+    List<Course> courses,
+    DateTime now,
+  ) async {
+    final today = _dateOf(now);
+    final slots = switch (await ref.read(classSlotRepositoryProvider).read()) {
+      Ok(:final value) => value,
+      Err(:final error) => _logged(error, const <ClassSlotEntry>[]),
+    };
+    final schedule = switch (await ref
+        .read(scheduleRepositoryProvider)
+        .read(
+          start: today,
+          end: DateTime(today.year, today.month, today.day + targetSearchDays),
+        )) {
+      Ok(:final value) => value,
+      Err(:final error) => _logged<Schedule?>(error, null),
+    };
+    return AssistantSnapshot(
+      courses: courses,
+      slots: slots,
+      exceptions: schedule?.classExceptions ?? const [],
+      fixedBlocks: schedule?.fixedBlocks ?? const [],
+      events: [
+        // 지난 일정은 바꾸지 않는다(오늘 0시 이후에 시작하는 일정만).
+        for (final event in schedule?.events ?? const <Event>[])
+          if (!event.startAt.isBefore(today)) event,
+      ],
+    );
+  }
+
+  T _logged<T>(AppError error, T fallback) {
+    appLog(
+      'assistant_snapshot_failed',
+      area: 'assistant',
+      data: errorLogData(error),
+    );
+    return fallback;
+  }
 
   /// 보내지 못한 까닭의 카드. 오늘 사용량을 다 썼으면(429) 그날을 적어 두고 그날은 다시 보내지 않는다
   /// (docs/decisions.md 2026-11-15 '오늘 AI 사용량을 다 쓴 날을 기억한다').
@@ -291,6 +349,7 @@ class AssistantController extends Notifier<AssistantState> {
       index,
       now: ref.read(clockProvider).now(),
       nextId: _nextId,
+      snapshot: _snapshot,
     );
     state = state.copyWith(
       messages: [
@@ -524,6 +583,241 @@ class AssistantController extends Notifier<AssistantState> {
     ref.read(toastControllerProvider.notifier).show(AppStrings.saveFailed);
   }
 
+  /// 수업 변경 카드를 적용한다(그날 하루만, 출처 `ai`). 이미 그 상태면 쓰지 않고 알린다.
+  Future<void> applyException(int cardId) async {
+    final card = _pendingException(cardId);
+    if (card == null) return;
+    _replace(card.copyWith(status: CardStatus.saving));
+    final before = ref.read(planControllerProvider);
+    final now = ref.read(clockProvider).now();
+    final draft = card.draft;
+    final freeBefore = await _freeMinutesOn(draft.date);
+    if (!ref.mounted) return;
+    final repository = ref.read(classExceptionRepositoryProvider);
+    Result<bool> saved;
+    try {
+      if (draft.kind == ClassExceptionKind.makeup) {
+        saved = switch (await repository.addMakeup(
+          draft.slotId,
+          draft.date,
+          startMin: draft.startMin,
+          endMin: draft.endMin,
+          place: draft.place,
+          source: EntrySource.ai,
+          now: now,
+        )) {
+          Ok() => const Ok(true),
+          Err(:final error) => Err(error),
+        };
+      } else {
+        saved = await repository.setDayChange(
+          draft.slotId,
+          draft.date,
+          kind: draft.kind,
+          place: draft.kind == ClassExceptionKind.cancelled
+              ? null
+              : draft.place,
+          source: EntrySource.ai,
+          now: now,
+        );
+      }
+    } on ArgumentError {
+      saved = const Err(
+        StorageError('assistant.applyException', causeType: 'ArgumentError'),
+      );
+    }
+    if (!ref.mounted) return;
+    final toast = ref.read(toastControllerProvider.notifier);
+    final name = exceptionKindName(draft.kind);
+    switch (saved) {
+      case Err(:final error):
+        appLog(
+          'assistant_save_failed',
+          area: 'assistant',
+          data: errorLogData(error),
+        );
+        _replace(card.copyWith(status: CardStatus.pending));
+        toast.show(AppStrings.saveFailed);
+        return;
+      case Ok(value: false):
+        // 이미 그 상태라 아무것도 쓰지 않았다(되돌릴 것이 없음).
+        _replace(card.copyWith(status: CardStatus.saved, planNote: () => null));
+        toast.show('이미 ${withJosa(name, Josa.euroRo)} 표시돼 있어요');
+        return;
+      case Ok():
+        _replace(card.copyWith(status: CardStatus.saved, planNote: () => null));
+        toast.show(
+          '${draft.date.month}월 ${draft.date.day}일 ${draft.courseName} '
+          '${withJosa(name, Josa.euroRo)} 표시했어요',
+          undoable: true,
+          onUndone: () => _unsave(cardId),
+        );
+    }
+    final after = await _recalculated();
+    if (!ref.mounted) return;
+    final freeAfter = await _freeMinutesOn(draft.date);
+    if (!ref.mounted) return;
+    final freed = freeBefore == null || freeAfter == null
+        ? 0
+        : freeAfter - freeBefore;
+    final notes = [
+      if (freed > 0) '이동·여유 시간까지 빈 시간 ${durationText(freed)}이 생겼어요',
+      ?replanNote(before, after),
+    ];
+    _noteIfSaved(cardId, notes.isEmpty ? null : notes.join(' · '));
+  }
+
+  /// 수업 변경 카드를 적용하지 않는다([취소]) · 바꾸기·지우기 카드를 그대로 둔다([그대로 두기]).
+  void skipCard(int cardId) {
+    switch (_find<AssistantMessage>(cardId)) {
+      case final ExceptionCard card when card.status == CardStatus.pending:
+        _replace(card.copyWith(status: CardStatus.declined));
+      case final ChangeCard card when card.status == CardStatus.pending:
+        _replace(card.copyWith(status: CardStatus.declined));
+      default:
+        break;
+    }
+  }
+
+  /// 바꾸거나 지울 일정이 여럿일 때 [index]번째를 고른다. 고른 일정의 카드를 이어서 붙인다.
+  void pickTarget(int cardId, int index) {
+    final card = _find<TargetPickCard>(cardId);
+    if (card == null || card.picked != null) return;
+    if (index < 0 || index >= card.candidates.length) return;
+    final next = afterTargetPick(card, index, nextId: _nextId);
+    state = state.copyWith(
+      messages: [
+        for (final message in state.messages)
+          message.id == cardId ? card.pick(index) : message,
+        next,
+      ],
+    );
+  }
+
+  /// 바꾸기·지우기 카드를 적용한다. 일정이 그사이 없어졌으면 알린다.
+  Future<void> applyChange(int cardId) async {
+    final card = _pendingChange(cardId);
+    if (card == null) return;
+    _replace(card.copyWith(status: CardStatus.saving));
+    final now = ref.read(clockProvider).now();
+    Result<bool> saved;
+    try {
+      saved = await switch ((card.target, card.after)) {
+        (EventTarget(:final event), _) when card.delete =>
+          ref.read(eventRepositoryProvider).delete(event.id, now: now),
+        (FixedTarget(:final block), _) when card.delete =>
+          ref.read(fixedBlockRepositoryProvider).delete(block.id, now: now),
+        (
+          EventTarget(:final event),
+          EventAfter(:final startAt, :final endAt, :final allDay),
+        ) =>
+          ref
+              .read(eventRepositoryProvider)
+              .update(
+                event.id,
+                title: event.title,
+                startAt: startAt,
+                endAt: endAt,
+                allDay: allDay,
+                place: event.place,
+                prep: event.prep,
+                reminderMinutes: event.reminderMinutes,
+                now: now,
+              ),
+        (
+          FixedTarget(:final block),
+          FixedAfter(:final weekdays, :final startMin, :final endMin),
+        ) =>
+          ref
+              .read(fixedBlockRepositoryProvider)
+              .update(
+                block.id,
+                name: block.name,
+                weekdays: weekdays,
+                startMin: startMin,
+                endMin: endMin,
+                bufferMin: block.bufferMin,
+                kind: block.kind,
+                prep: block.prep,
+                place: block.place,
+                now: now,
+              ),
+        // 카드가 만든 값은 짝이 맞으므로 여기에 오지 않는다.
+        _ => Future.value(
+          const Err<bool>(
+            StorageError('assistant.applyChange', causeType: 'StateError'),
+          ),
+        ),
+      };
+    } on ArgumentError {
+      saved = const Err(
+        StorageError('assistant.applyChange', causeType: 'ArgumentError'),
+      );
+    }
+    if (!ref.mounted) return;
+    final toast = ref.read(toastControllerProvider.notifier);
+    switch (saved) {
+      case Err(:final error):
+        appLog(
+          'assistant_save_failed',
+          area: 'assistant',
+          data: errorLogData(error),
+        );
+        _replace(card.copyWith(status: CardStatus.pending));
+        toast.show(AppStrings.saveFailed);
+      case Ok(value: false):
+        _replace(card.copyWith(status: CardStatus.pending));
+        toast.show('그 일정을 찾지 못했어요 · 이미 지웠을 수 있어요');
+      case Ok():
+        _replace(card.copyWith(status: CardStatus.saved));
+        final title = card.target.title;
+        final after = card.after;
+        toast.show(
+          card.delete || after == null
+              ? '${withJosa(title, Josa.eulReul)} 지웠어요'
+              : '${withJosa(title, Josa.eulReul)} '
+                    '${withJosa(afterWhenText(after, today: _dateOf(now)), Josa.euroRo)} '
+                    '바꿨어요',
+          undoable: true,
+          onUndone: () => _unsave(cardId),
+        );
+    }
+  }
+
+  /// 그날(논리적 하루) 빈 시간의 합(분). 읽지 못하면 null이다.
+  Future<int?> _freeMinutesOn(DateTime date) async {
+    final settings = await ref.read(settingsRepositoryProvider).read();
+    final rules = await ref.read(rulesRepositoryProvider).read();
+    if (!ref.mounted) return null;
+    final boundary = switch (settings) {
+      Ok(:final value) => value.dayBoundaryMin,
+      Err() => Defaults.dayBoundaryMin,
+    };
+    final List<Rule> ruleList;
+    switch (rules) {
+      case Ok(:final value):
+        ruleList = value;
+      case Err():
+        return null;
+    }
+    final day = DateTime(date.year, date.month, date.day);
+    final schedule = await ref
+        .read(scheduleRepositoryProvider)
+        .read(
+          start: logicalDayStart(day, dayBoundaryMin: boundary),
+          end: logicalDayEnd(day, dayBoundaryMin: boundary),
+        );
+    return switch (schedule) {
+      Ok(:final value) => dayAvailability(
+        day,
+        schedule: value,
+        config: PlannerConfig.from(ruleList),
+        dayBoundaryMin: boundary,
+      ).free.fold<int>(0, (sum, span) => sum + span.minutes),
+      Err() => null,
+    };
+  }
+
   /// 대화를 비운다(위 막대의 '새 대화').
   void reset() {
     if (state.sending) return;
@@ -546,6 +840,12 @@ class AssistantController extends Notifier<AssistantState> {
             planNote: () => null,
           ),
         );
+      case final ExceptionCard card when card.status == CardStatus.saved:
+        _replace(
+          card.copyWith(status: CardStatus.pending, planNote: () => null),
+        );
+      case final ChangeCard card when card.status == CardStatus.saved:
+        _replace(card.copyWith(status: CardStatus.pending));
       default:
         break;
     }
@@ -557,6 +857,8 @@ class AssistantController extends Notifier<AssistantState> {
       case final EventCard card when card.status == CardStatus.saved:
         _replace(card.copyWith(planNote: () => note));
       case final TaskCard card when card.status == CardStatus.saved:
+        _replace(card.copyWith(planNote: () => note));
+      case final ExceptionCard card when card.status == CardStatus.saved:
         _replace(card.copyWith(planNote: () => note));
       default:
         break;
@@ -595,6 +897,16 @@ class AssistantController extends Notifier<AssistantState> {
 
   TaskCard? _pendingTask(int cardId) {
     final card = _find<TaskCard>(cardId);
+    return card?.status == CardStatus.pending ? card : null;
+  }
+
+  ExceptionCard? _pendingException(int cardId) {
+    final card = _find<ExceptionCard>(cardId);
+    return card?.status == CardStatus.pending ? card : null;
+  }
+
+  ChangeCard? _pendingChange(int cardId) {
+    final card = _find<ChangeCard>(cardId);
     return card?.status == CardStatus.pending ? card : null;
   }
 
