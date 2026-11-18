@@ -227,7 +227,7 @@ class PlanBlocks extends Table {
   DateTimeColumn get answeredAt =>
       dateTime().nullable().map(const KstDateTimeConverter())();
 
-  /// 01 아침 브리핑에서 확정한 블록. 브리핑에서 다시 확정하면 이 블록을 새 선택으로 바꾼다.
+  /// 01 계획에서 확정한 블록. 브리핑에서 다시 확정하면 이 블록을 새 선택으로 바꾼다.
   BoolColumn get fromBriefing => boolean().withDefault(const Constant(false))();
 
   @override

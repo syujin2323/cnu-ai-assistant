@@ -34,7 +34,7 @@ class MetricsRepository {
 
   final AppDatabase _db;
 
-  /// 앱을 쓴 날(그날 01 아침 브리핑을 본 것으로 적은 논리적 하루) 가운데 [from](`YYYY-MM-DD`)부터의 날짜.
+  /// 앱을 쓴 날(그날 01 계획을 본 것으로 적은 논리적 하루) 가운데 [from](`YYYY-MM-DD`)부터의 날짜.
   Future<Result<List<String>>> activeDaysFrom(String from) => guardStorage(
     'metrics.activeDaysFrom',
     () async => [

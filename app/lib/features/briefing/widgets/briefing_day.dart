@@ -1,4 +1,4 @@
-// 01 아침 브리핑의 '오늘 일정'. docs/screens.md '01 아침 브리핑'.
+// 01 계획의 '오늘 일정'. docs/screens.md '01 계획'.
 //
 // 최종 프로토타입의 작은 세로 시간표(한 시간 40pt, 임시)다. 왼쪽에 시 글자와 줄을 두고, 수업·일정·고정 일정·
 // 이동·점심 카드와 할 일 블록(체크한 할 일과, 확정해도 남는 오늘 블록)을 그린다. 휴강 수업과 종일 일정은 그리지
@@ -29,7 +29,7 @@ final class BriefingDayTask {
   final bool dim;
 }
 
-/// 01 아침 브리핑의 '오늘 일정'.
+/// 01 계획의 '오늘 일정'.
 class BriefingDay extends StatelessWidget {
   const BriefingDay({
     super.key,

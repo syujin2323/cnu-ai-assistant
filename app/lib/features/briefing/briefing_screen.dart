@@ -46,7 +46,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// 01 아침 브리핑.
+/// 01 계획.
 class BriefingScreen extends ConsumerStatefulWidget {
   const BriefingScreen({super.key});
 
