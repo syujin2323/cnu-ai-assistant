@@ -96,6 +96,19 @@ void main() {
     await harness.dispose();
   });
 
+  testWidgets('speech가 false면 일정은 말로 추가하기를 두지 않는다', (tester) async {
+    final harness = await pumpSheetHarness(
+      tester,
+      (context, ref) =>
+          showFreeSlotSheet(context, MotionLevel.off, content, speech: false),
+    );
+    await harness.open();
+    expect(find.text('자료구조 과제'), findsOneWidget);
+    expect(find.text('일정은 말로 추가하기'), findsNothing);
+
+    await harness.dispose();
+  });
+
   testWidgets('놓을 할 일이 없으면 안내와 말로 추가하기만 보인다', (tester) async {
     final harness = await pumpSheet(tester, empty);
     expect(find.text('이 시간에 놓을 남은 할 일이 없어요'), findsOneWidget);
