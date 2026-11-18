@@ -75,6 +75,13 @@ class AppDatabase extends _$AppDatabase {
   /// 메모리에만 있는 DB(테스트용).
   factory AppDatabase.memory() => AppDatabase(NativeDatabase.memory());
 
+  Future<void>? _closing;
+
+  /// 연결을 닫는다. 여러 곳이 불러도(데모 끝내기와 `databaseProvider`의 정리 등) 한 번만 닫고 모두 같은 끝을
+  /// 기다린다. drift의 닫기를 겹쳐 부르면 두 스트림 정리가 같은 목록을 돌며 바꿔 오류가 난다.
+  @override
+  Future<void> close() => _closing ??= super.close();
+
   @override
   int get schemaVersion => 1;
 

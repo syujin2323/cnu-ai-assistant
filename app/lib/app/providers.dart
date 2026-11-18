@@ -187,17 +187,25 @@ class AppModeController extends Notifier<AppMode> {
   }
 
   /// 데모 DB 연결을 닫는다. 닫다가 실패해도(이미 망가진 연결 등) 기록만 남긴다.
+  ///
+  /// 실행기를 먼저 닫아 그 뒤의 문장을 막고, 스트림 정리(`close()`)는 기다리지 않는다. drift는 닫을 때 스트림마다
+  /// 끝 신호가 구독자에게 닿기를 기다리는데, 가려진 탭의 화면이 보는 스트림은 Riverpod이 구독을 멈춰 두어 끝
+  /// 신호가 쌓이기만 하므로(그 탭에 돌아가거나 구독이 취소될 때 닿음) 기다리면 끝내기가 멈춘다. 실행기는 두 번
+  /// 닫아도 된다.
   Future<void> _closeQuietly(AppDatabase demoDatabase) async {
     try {
-      await demoDatabase.close();
+      await demoDatabase.executor.close();
     } catch (error) {
-      appLog(
-        'demo_close_failed',
-        area: 'app',
-        data: {'error': errorKind(error)},
-      );
+      _logCloseFailed(error);
     }
+    unawaited(demoDatabase.close().catchError(_logCloseFailed));
   }
+
+  void _logCloseFailed(Object error) => appLog(
+    'demo_close_failed',
+    area: 'app',
+    data: {'error': errorKind(error)},
+  );
 }
 
 /// 열지 못한 데모 DB 파일을 지우는 것([AppModeController.abandonDemo]). 테스트가 덮어쓴다.
