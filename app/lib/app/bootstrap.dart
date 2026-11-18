@@ -15,6 +15,8 @@
 // 지난 기록 정리는 runApp 뒤에 시작하고 화면은 기다리지 않는다. 위젯 테스트는 Firebase 없이 `RootApp`만
 // 띄우므로 이 파일을 부르지 않는다.
 
+import 'dart:async';
+
 import 'package:cnu_ai_assistant/app/config.dart';
 import 'package:cnu_ai_assistant/app/crash_reports.dart';
 import 'package:cnu_ai_assistant/app/logging.dart';
@@ -27,6 +29,7 @@ import 'package:cnu_ai_assistant/data/secure_storage.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/firebase_options.dart';
 import 'package:cnu_ai_assistant/lms/sync_triggers.dart';
+import 'package:cnu_ai_assistant/platform/background.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -148,7 +151,8 @@ Future<void> _settle(List<Future<Object?>?> futures) async {
 Future<void> runDeferredStartupTasksAfterLaunch(ProviderContainer container) =>
     runDeferredStartupTasks(realDb: container.read(realDatabaseProvider));
 
-/// runApp 뒤에 부른다. Remote Config 값을 받아 적용하고, 끝나면(실패·시간 초과 포함) 알린다.
+/// runApp 뒤에 부른다. Remote Config 값을 받아 적용하고, 끝나면(실패·시간 초과 포함) 알린 뒤 LMS 자동 계기를 걸고
+/// 백그라운드 동기화 작업을 등록한다.
 ///
 /// 오프라인이거나 시간 초과(5초)면 마지막으로 활성화된 값, 그것도 없으면 `setDefaults` 값으로 동작한다.
 Future<void> fetchRemoteConfigAfterLaunch(ProviderContainer container) async {
@@ -164,6 +168,8 @@ Future<void> fetchRemoteConfigAfterLaunch(ProviderContainer container) async {
     container.read(remoteConfigFetchProvider).markDone();
     // 앱 열기·쓰는 동안 계기의 LMS 동기화는 Remote Config를 받은 뒤에 시작한다(docs/lms.md '원격 스위치').
     container.read(lmsAutoSyncProvider).start();
+    // 켤 때마다 등록해 작업 설정을 맞춘다. 던지지 않고, 화면은 기다리지 않는다(platform/background.dart).
+    unawaited(scheduleBackgroundSync());
   }
 }
 
