@@ -1,4 +1,4 @@
-// 10 나의 provider와 동작. docs/screens.md '10 나', docs/lms.md '로그아웃, 데이터 삭제, 내보내기'.
+// 10 나의 provider와 동작. docs/screens.md '10 나', docs/lms.md '로그아웃, 데이터 삭제'.
 //
 // - [maskedStudentIdProvider]: LMS 계정 줄의 가린 학번.
 // - [courseCountProvider]·[weeklyTaskCountProvider]: 학기 카드의 과목 수·이번 주 할 일 수.
