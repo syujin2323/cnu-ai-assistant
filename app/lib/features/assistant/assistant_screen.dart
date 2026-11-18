@@ -23,8 +23,10 @@ import 'package:cnu_ai_assistant/design/widgets/app_toast.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_message.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_args.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_controller.dart';
+import 'package:cnu_ai_assistant/features/assistant/widgets/answer_card.dart';
 import 'package:cnu_ai_assistant/features/assistant/widgets/assistant_cards.dart';
 import 'package:cnu_ai_assistant/features/assistant/widgets/card_parts.dart';
+import 'package:cnu_ai_assistant/features/assistant/widgets/change_cards.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -197,6 +199,16 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
         EventCard(:final say) => _withSay(say, EventCardView(card: message)),
         TaskCard(:final say) => _withSay(say, TaskCardView(card: message)),
         AskCard() => AskCardView(card: message),
+        ExceptionCard(:final say) => _withSay(
+          say,
+          ExceptionCardView(card: message),
+        ),
+        ChangeCard(:final say) => _withSay(say, ChangeCardView(card: message)),
+        TargetPickCard(:final say) => _withSay(
+          say,
+          TargetPickCardView(card: message),
+        ),
+        AnswerCard(:final say) => _withSay(say, AnswerCardView(card: message)),
         InfoCard() => InfoCardView(card: message),
         FailCard(:final text) => FailCardView(
           card: message,
