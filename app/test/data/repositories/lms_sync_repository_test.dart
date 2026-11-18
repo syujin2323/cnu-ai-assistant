@@ -97,7 +97,6 @@ void main() {
       final first = rows.first;
       expect(first.source, SlotSource.auto);
       expect(first.place, '합성관101');
-      expect(first.campus, Campus.daedeok);
       expect(first.online, isFalse);
       expect(
         (
@@ -145,7 +144,6 @@ void main() {
               weekday: weekday,
               startMin: 600,
               endMin: 660,
-              campus: Campus.daedeok,
               online: false,
               source: source,
             ),
@@ -159,6 +157,27 @@ void main() {
 
       expect(read.courseIds, {a});
       expect(read.slots.map((s) => (s.courseId, s.weekday)), [(a, 1)]);
+    });
+
+    test('사용자가 뺀(숨긴) 불러온 수업도 읽는다(새로 고침이 다시 넣지 않게)', () async {
+      final a = await manualCourse('과목A', remoteId: 'A/1', semester: _semester);
+      await db
+          .into(db.classSlots)
+          .insert(
+            ClassSlotsCompanion.insert(
+              courseId: a,
+              weekday: 2,
+              startMin: 600,
+              endMin: 660,
+              online: false,
+              source: SlotSource.auto,
+              hidden: const Value(true),
+            ),
+          );
+
+      final read = await ok(repo.importedSlots(semester: _semester));
+
+      expect(read.slots.map((s) => (s.weekday, s.hidden)), [(2, true)]);
     });
   });
 

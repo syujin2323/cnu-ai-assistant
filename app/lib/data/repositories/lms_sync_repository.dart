@@ -44,7 +44,8 @@ class LmsSyncRepository {
   final AppDatabase _db;
 
   /// 이번 학기([semester]) LMS 과목(`courses.id`)과 그 과목들의 불러온 수업(`source` `auto`). 시간표 새로 고침이
-  /// 견줄 때 쓴다(`domain/timetable_refresh.dart`).
+  /// 견줄 때 쓴다(`domain/timetable_refresh.dart`). 사용자가 뺀(숨긴) 수업도 넣어, 새로 고침이 그 수업을 새 수업으로
+  /// 다시 넣지 않게 한다.
   Future<Result<({Set<int> courseIds, List<ClassSlot> slots})>> importedSlots({
     required String semester,
   }) => guardStorage(
@@ -76,8 +77,8 @@ class LmsSyncRepository {
   /// 돌려주는 값은 넣은 칸 수다.
   ///
   /// 어떤 칸을 넣을지는 견준 결과(`domain/timetable_refresh.dart`의 [TimetableDiff.added])가 정한다. 넣는 칸의 불러온
-  /// 원래 값(`imported*`)은 그 칸의 값과 같고, 캠퍼스는 대덕(시간표에 캠퍼스가 없어 사용자가 13 시간표에서 고침),
-  /// 실시간 온라인은 아님이다. 사용자 동작이 아니므로 되돌리기 기록은 남기지 않는다.
+  /// 원래 값(`imported*`)은 그 칸의 값과 같고, 실시간 온라인은 아님이다(시간표에 없어 사용자가 13 시간표에서 고침).
+  /// 사용자 동작이 아니므로 되돌리기 기록은 남기지 않는다.
   Future<Result<int>> addImportedSlots(
     Map<int, List<ImportedClassSlot>> slotsByCourse,
   ) => guardStorage(
@@ -96,7 +97,6 @@ class LmsSyncRepository {
                   startMin: slot.startMin,
                   endMin: slot.endMin,
                   place: Value(slot.place),
-                  campus: Campus.daedeok,
                   online: false,
                   source: SlotSource.auto,
                   importedWeekday: Value(slot.weekday),

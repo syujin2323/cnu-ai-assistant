@@ -148,14 +148,6 @@ class ClassSlots extends Table with TableInfo {
     requiredDuringInsert: false,
     $customConstraints: 'NULL',
   );
-  late final GeneratedColumn<String> campus = GeneratedColumn<String>(
-    'campus',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL',
-  );
   late final GeneratedColumn<int> online = GeneratedColumn<int>(
     'online',
     aliasedName,
@@ -230,6 +222,15 @@ class ClassSlots extends Table with TableInfo {
     $customConstraints: 'NOT NULL DEFAULT 0 CHECK (online_edited IN (0, 1))',
     defaultValue: const CustomExpression('0'),
   );
+  late final GeneratedColumn<int> hidden = GeneratedColumn<int>(
+    'hidden',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT 0 CHECK (hidden IN (0, 1))',
+    defaultValue: const CustomExpression('0'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -238,7 +239,6 @@ class ClassSlots extends Table with TableInfo {
     startMin,
     endMin,
     place,
-    campus,
     online,
     repeatRule,
     source,
@@ -248,6 +248,7 @@ class ClassSlots extends Table with TableInfo {
     importedPlace,
     placeEdited,
     onlineEdited,
+    hidden,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;

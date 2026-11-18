@@ -28,7 +28,6 @@ void main() {
             weekday: 1,
             startMin: 540,
             endMin: 615,
-            campus: Campus.daedeok,
             online: false,
             source: SlotSource.manual,
           ),

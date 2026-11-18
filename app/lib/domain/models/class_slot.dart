@@ -1,6 +1,3 @@
-/// 캠퍼스.
-enum Campus { daedeok, boun }
-
 /// 시간표 칸을 누가 채웠는지. [auto]는 통합정보시스템에서 받아 채운 값이다.
 enum SlotSource { manual, auto }
 
@@ -16,7 +13,6 @@ class ClassSlot {
     required this.startMin,
     required this.endMin,
     this.place,
-    required this.campus,
     required this.online,
     this.repeatRule,
     required this.source,
@@ -26,6 +22,7 @@ class ClassSlot {
     this.importedPlace,
     this.placeEdited = false,
     this.onlineEdited = false,
+    this.hidden = false,
   });
 
   final int id;
@@ -44,8 +41,6 @@ class ClassSlot {
 
   /// 강의실.
   final String? place;
-
-  final Campus campus;
 
   /// 실시간 비대면 수업이면 true. 이때 수업 앞뒤 버퍼는 0이다.
   final bool online;
@@ -73,4 +68,9 @@ class ClassSlot {
 
   /// 사용자가 실시간 온라인([online])을 고쳤는지. 새로 고침은 고친 값을 덮어쓰지 않는다.
   final bool onlineEdited;
+
+  /// 사용자가 13 시간표에서 뺀 불러온 수업이면 true다. 직접 넣은 수업은 빼면 행을 지우지만 불러온 수업은 행을
+  /// 남기고 숨겨, 새로 고침이 학교 시간표의 그 수업을 새 수업으로 다시 넣지 않게 한다. 숨긴 수업은 화면과 배치에
+  /// 쓰지 않는다(docs/decisions.md 2026-11-19 '뺀 불러온 수업은 숨겨 두고 새로 고침이 다시 넣지 않는다').
+  final bool hidden;
 }

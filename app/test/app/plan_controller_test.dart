@@ -70,7 +70,6 @@ void main() {
             weekday: DateTime.sunday,
             startMin: 540,
             endMin: 600,
-            campus: Campus.daedeok,
             online: false,
             source: SlotSource.manual,
           ),

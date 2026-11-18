@@ -3,7 +3,7 @@ import 'package:cnu_ai_assistant/data/repositories/schedule_repository.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/domain/planner/schedule.dart';
-import 'package:drift/drift.dart' show driftRuntimeOptions;
+import 'package:drift/drift.dart' show Value, driftRuntimeOptions;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -35,7 +35,6 @@ void main() {
           weekday: 4,
           startMin: 540,
           endMin: 615,
-          campus: Campus.daedeok,
           online: false,
           source: SlotSource.manual,
         ),
@@ -121,6 +120,19 @@ void main() {
 
     expect(schedule.classSlots.map((s) => s.id), [slotId]);
     expect(schedule.fixedBlocks.map((b) => b.id), [fixedId]);
+  });
+
+  test('사용자가 뺀(숨긴) 불러온 수업은 읽지 않는다', () async {
+    final courseId = await addCourse();
+    final shown = await addSlot(courseId);
+    final hidden = await addSlot(courseId);
+    await (db.update(db.classSlots)..where((t) => t.id.equals(hidden))).write(
+      const ClassSlotsCompanion(hidden: Value(true)),
+    );
+
+    final schedule = await readOk();
+
+    expect(schedule.classSlots.map((s) => s.id), [shown]);
   });
 
   test('수업 예외는 시작 전날부터 끝 날짜까지만 읽는다', () async {

@@ -130,7 +130,6 @@ Future<_Home> _start({DateTime? now}) async {
           weekday: DateTime.monday,
           startMin: 780,
           endMin: 840,
-          campus: Campus.daedeok,
           online: false,
           source: SlotSource.manual,
         ),
