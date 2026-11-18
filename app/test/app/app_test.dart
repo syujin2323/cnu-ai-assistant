@@ -241,7 +241,7 @@ void main() {
           expect(find.byType(BriefingScreen), findsOneWidget);
           expect(find.byType(AppTabBar), findsNothing);
 
-          await tapText(tester, '오늘로 가기');
+          await tapText(tester, '오늘 시작하기');
           expect(find.byType(TodayScreen), findsOneWidget);
 
           await app.dispose(tester);
@@ -480,7 +480,7 @@ void main() {
           expect(app.router.state.uri.path, Routes.briefing);
 
           // 브리핑으로 가며 탭 셸이 내려가므로, 닫으면 보던 캘린더 탭이 아니라 오늘부터 다시 연다.
-          await tapText(tester, '오늘로 가기');
+          await tapText(tester, '오늘 시작하기');
           expect(find.byType(TodayScreen), findsOneWidget);
           _expectTabs(tester, selected: '오늘');
 
@@ -614,7 +614,7 @@ void main() {
               const Ok(true),
             );
 
-            await tapText(tester, '오늘로 가기');
+            await tapText(tester, '오늘 시작하기');
             await tapTab(tester, '캘린더');
             app.clock.current = DateTime(2026, 11, 14, 12);
             await sendAppToBackgroundAndBack(tester);
@@ -637,17 +637,17 @@ void main() {
               textScale: textScale,
               realBriefingCheck: true,
             );
-            await tapText(tester, '오늘로 가기');
+            await tapText(tester, '오늘 시작하기');
             await tapTab(tester, '나');
             await tapText(tester, '데모 모드 들어가기');
             expect(find.byType(BriefingScreen), findsOneWidget);
-            await tapText(tester, '오늘로 가기');
+            await tapText(tester, '오늘 시작하기');
 
             // 데모 모드 그대로 다음 날 돌아오면 데모의 그날 브리핑이 뜬다(데모 DB에 적힘).
             app.clock.current = nextMorning;
             await sendAppToBackgroundAndBack(tester);
             expect(find.byType(BriefingScreen), findsOneWidget);
-            await tapText(tester, '오늘로 가기');
+            await tapText(tester, '오늘 시작하기');
             await tapText(tester, '끝내기');
             expect(find.byType(MeScreen), findsOneWidget);
             final real = BriefingRepository(app.db);
@@ -808,7 +808,7 @@ void main() {
           expect(find.byType(BriefingScreen), findsOneWidget);
 
           // 03 할 일의 '할 일 추가'처럼, 직접 추가 폼을 할 일로 연다.
-          await tapText(tester, '오늘로 가기');
+          await tapText(tester, '오늘 시작하기');
           await tapTab(tester, '할 일');
           const fromTasks = AssistantArgs(form: DirectAddKind.task);
           app.router.push(Routes.assistant, extra: fromTasks);
@@ -1167,7 +1167,7 @@ void main() {
         final [real] = await app.db.select(app.db.briefings).get();
         expect(real.openedAt, now);
 
-        await tapText(tester, '오늘로 가기');
+        await tapText(tester, '오늘 시작하기');
         await tapTab(tester, '나');
         await tapText(tester, '데모 모드 들어가기');
 

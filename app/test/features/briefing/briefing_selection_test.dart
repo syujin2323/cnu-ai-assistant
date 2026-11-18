@@ -339,7 +339,7 @@ void main() {
     expect(briefing.editCount, 2);
     expect(briefing.confirmedAt, at(mon, 8));
     expect(app.state.edits, 0);
-    expect(app.toast?.text, '할 일 1개를 확정했어요');
+    expect(app.toast?.text, '오늘 할 일 1개를 확정했어요');
     expect(app.toast?.undoable, isTrue);
   });
 
@@ -359,7 +359,7 @@ void main() {
       (await app.blocks()).where((b) => b.id == app.confirmedBlock),
       isEmpty,
     );
-    expect(app.toast?.text, '확정한 할 일을 뺐어요');
+    expect(app.toast?.text, '확정한 할 일을 오늘 일정에서 뺐어요');
   });
 
   test('놓을 빈 자리가 없으면 체크하지 않고 알린다', () async {
