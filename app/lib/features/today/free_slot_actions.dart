@@ -18,14 +18,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// [gap] 빈 시간에 놓기 시트를 연다. [fillAssistant]면 [일정은 말로 추가하기]가 06 AI 비서에 그 빈 시간의
-/// 날짜·시각을 채운다(09 일간). 할 일이나 규칙을 읽지 못했으면 열지 않고, 빈 시간이 이미 지났으면 알린다.
+/// [gap] 빈 시간에 놓기 시트를 연다. 할 일이나 규칙을 읽지 못했으면 열지 않고, 빈 시간이 이미 지났으면 알린다.
+/// 09 일간에서 열 때 [일정은 말로 추가하기]가 06 AI 비서에 날짜·시각을 채우는 것은 09 일간 PR에서 더한다.
 Future<void> openFreeSlotSheet(
   BuildContext context,
   WidgetRef ref,
-  TimeSpan gap, {
-  bool fillAssistant = false,
-}) async {
+  TimeSpan gap,
+) async {
   final entries = ref.read(taskEntriesProvider).value;
   final config = ref.read(plannerConfigProvider);
   if (entries == null || config == null) return;
@@ -58,10 +57,7 @@ Future<void> openFreeSlotSheet(
       return;
     case FreeSlotSpeak():
       if (!context.mounted) return;
-      context.push(
-        Routes.assistant,
-        extra: AssistantArgs(at: fillAssistant ? content.span.start : null),
-      );
+      context.push(Routes.assistant, extra: const AssistantArgs());
     case FreeSlotPlace(:final choice):
       final span = TimeSpan(
         content.span.start,
