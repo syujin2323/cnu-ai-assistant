@@ -3,7 +3,7 @@
 # .github/workflows/functions-check.yml(functions/)도 같은 PR에서 고친다.
 
 .DEFAULT_GOAL := check
-.PHONY: check lint test format gen gen-check db-schema legal-sync release-android release-ios patch-android patch-ios functions-check functions-lint functions-test functions-format
+.PHONY: check lint test format gen gen-check db-schema legal-sync release-android release-android-apk release-ios patch-android patch-ios functions-check functions-lint functions-test functions-format
 
 # PR 전에 돌리는 확인(lint + test). 처음 실패한 단계에서 멈춘다.
 check: lint test
@@ -51,21 +51,28 @@ legal-sync:
 # 테스터·스토어에 내는 빌드(Shorebird release)와 Dart만 고친 패치(docs/architecture.md '테스트 배포'). 관리자 Shorebird
 # 계정으로 `shorebird login`한 Mac에서 돌린다. Flutter는 app/pubspec.yaml의 environment.flutter와 같은 버전으로
 # 빌드한다(Shorebird의 기본값은 가장 새 Flutter라 늘 넘긴다). 패치는 VERSION에 대상 release의 버전(X.Y.Z+N)을 준다.
+# DRY_RUN=1을 붙이면 올리지 않고 검사만 한다(예: make patch-android VERSION=0.1.0+1 DRY_RUN=1).
 FLUTTER_VERSION := $(shell sed -n 's/^  flutter: *\([0-9][0-9.]*\)$$/\1/p' app/pubspec.yaml)
+SHOREBIRD_DRY_RUN := $(if $(DRY_RUN),--dry-run,)
 
+# Play에 올리는 AAB. Play 개발자 계정이 생긴 뒤에 쓴다.
 release-android:
-	cd app && shorebird release android --flutter-version=$(FLUTTER_VERSION)
+	cd app && shorebird release android --flutter-version=$(FLUTTER_VERSION) $(SHOREBIRD_DRY_RUN)
+
+# Play 계정 전 팀원 빌드(App Distribution)용 APK. app/build/app/outputs/flutter-apk/app-release.apk에 만든다.
+release-android-apk:
+	cd app && shorebird release android --artifact apk --flutter-version=$(FLUTTER_VERSION) $(SHOREBIRD_DRY_RUN)
 
 release-ios:
-	cd app && shorebird release ios --flutter-version=$(FLUTTER_VERSION) --export-method=ad-hoc
+	cd app && shorebird release ios --flutter-version=$(FLUTTER_VERSION) --export-method=ad-hoc $(SHOREBIRD_DRY_RUN)
 
 patch-android:
 	@test -n "$(VERSION)" || { echo "make patch-android VERSION=X.Y.Z+N 처럼 대상 release의 버전을 주세요."; exit 1; }
-	cd app && shorebird patch android --release-version=$(VERSION) --track=stable
+	cd app && shorebird patch android --release-version=$(VERSION) --track=stable $(SHOREBIRD_DRY_RUN)
 
 patch-ios:
 	@test -n "$(VERSION)" || { echo "make patch-ios VERSION=X.Y.Z+N 처럼 대상 release의 버전을 주세요."; exit 1; }
-	cd app && shorebird patch ios --release-version=$(VERSION) --track=stable
+	cd app && shorebird patch ios --release-version=$(VERSION) --track=stable $(SHOREBIRD_DRY_RUN)
 
 # functions/(서버)를 바꿨으면 PR 전에 돌리는 확인(lint + test). CI의 functions-check와 같다.
 # 처음 한 번 functions/에서 npm ci로 패키지를 받아 둔다.
