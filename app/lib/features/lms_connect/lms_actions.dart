@@ -13,6 +13,7 @@ import 'package:cnu_ai_assistant/design/widgets/app_sheet.dart';
 import 'package:cnu_ai_assistant/design/widgets/lms_info_sheet.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/lms_status.dart';
+import 'package:cnu_ai_assistant/lms/sync_coordinator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -30,12 +31,13 @@ void openRelogin(BuildContext context, WidgetRef ref) {
   unawaited(context.push<void>(Routes.login));
 }
 
-/// 03 할 일의 LMS 정보 시트를 연다. 시트는 LMS 상태와 할 일이 바뀌면 다시 그린다. [onRefresh]가 없으면(동기화가
-/// 붙기 전) [새로 고침]을 두지 않는다. 새로 고치는 동안 버튼을 막는 것은 동기화를 붙이는 PR에서 더한다.
+/// 03 할 일의 LMS 정보 시트를 연다. 시트는 LMS 상태와 할 일이 바뀌면 다시 그린다. [onRefresh]가 없으면 [새로 고침]을
+/// 두지 않는다. 새로 고치는 동안(`lmsSyncingProvider`) 버튼을 막고, 시트에서 누른 새로 고침이 끝나면 시트를 닫아
+/// 새 상태 줄이 보이게 한다(최종 프로토타입).
 Future<void> openLmsInfoSheet(
   BuildContext context,
   WidgetRef ref, {
-  VoidCallback? onRefresh,
+  Future<void> Function()? onRefresh,
 }) async {
   if (_demoOnly(ref)) return;
   final router = GoRouter.of(context);
@@ -57,10 +59,21 @@ Future<void> openLmsInfoSheet(
               .length,
           now: ref.watch(minuteClockProvider),
           canRefresh: onRefresh != null,
+          busy: ref.watch(lmsSyncingProvider).value ?? false,
           onAction: (action) {
             switch (action) {
               case LmsSheetAction.refresh:
-                onRefresh?.call();
+                final refresh = onRefresh;
+                if (refresh == null) return;
+                unawaited(
+                  refresh().then((_) {
+                    // 그사이 닫았거나 다른 시트가 위에 열렸으면 그대로 둔다.
+                    if (sheetContext.mounted &&
+                        (ModalRoute.of(sheetContext)?.isCurrent ?? false)) {
+                      Navigator.of(sheetContext).pop();
+                    }
+                  }),
+                );
               case LmsSheetAction.login:
                 Navigator.of(sheetContext).pop();
                 if (_demoOnly(ref)) return;
