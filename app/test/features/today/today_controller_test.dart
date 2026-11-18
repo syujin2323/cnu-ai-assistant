@@ -209,6 +209,41 @@ void main() {
     expect((evening.eventsLeft, evening.tasksLeft), (0, 1));
   });
 
+  test('남은 일정에는 휴강한 수업을 넣지 않고 고정 일정을 넣는다', () async {
+    final app = await _start();
+    final slot = await app.db.select(app.db.classSlots).getSingle();
+    await app.db
+        .into(app.db.classExceptions)
+        .insert(
+          ClassExceptionsCompanion.insert(
+            date: '2026-11-16',
+            classSlotId: slot.id,
+            kind: ClassExceptionKind.cancelled,
+            source: EntrySource.manual,
+          ),
+        );
+    await app.db
+        .into(app.db.fixedBlocks)
+        .insert(
+          FixedBlocksCompanion.insert(
+            name: '알바',
+            weekdays: const [DateTime.monday],
+            startMin: 1140,
+            endMin: 1260,
+            bufferMin: 0,
+            kind: FixedBlockKind.work,
+            source: EntrySource.manual,
+          ),
+        );
+    final home = await app.home(
+      (home) =>
+          home.items.any((item) => item is FixedItem) &&
+          home.items.any((item) => item is ClassItem && item.cancelled),
+    );
+    // 일정 하나와 알바(고정 일정). 휴강한 수업은 세지 않는다.
+    expect(home.eventsLeft, 2);
+  });
+
   test('했어요로 답하면 완료·한 만큼·답한 시각을 적고, 카드 안 되돌리기로 시간이 지나도 돌린다', () async {
     final app = await _start();
     await app.answers.answer(await app.block(app.doneBlockId), did: true);
@@ -332,13 +367,15 @@ void main() {
     expect(app.toast?.undoable, isTrue);
     expect((await app.stored(app.laterBlockId)).status, PlanBlockStatus.done);
 
-    await app.home(
+    final checked = await app.home(
       (home) => home.blocks.any(
         (item) =>
             item.block.id == app.laterBlockId &&
             item.block.status == PlanBlockStatus.done,
       ),
     );
+    // 끝낸 블록은 머리의 할 일 수에 넣지 않는다.
+    expect(checked.tasksLeft, 0);
     await app.answers.toggleBlock(await app.block(app.laterBlockId));
     expect(app.toast?.text, '과제 1을 다시 할 일로 돌렸어요');
     expect(

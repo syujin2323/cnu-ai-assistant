@@ -150,6 +150,8 @@ void main() {
       item(1, at(10), at(11), status: PlanBlockStatus.done, answeredAt: at(11)),
       item(3, at(16), at(17)),
       item(2, at(14), at(15)),
+      // 끝난 확정 블록은 남은 블록이 아니다.
+      item(4, at(8), at(9)),
     ];
     final recorded = feedback(
       blocks,
