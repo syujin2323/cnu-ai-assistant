@@ -270,6 +270,32 @@ void main() {
     });
   });
 
+  group('예상 시간 바꾸기', () {
+    test('예상 시간을 바꾸고 되돌리면 전 값으로 돌아간다', () async {
+      final id = await addTask();
+      expect(_ok(await repository.setEstimate(id, 120, now: now)), isTrue);
+      expect((await taskById(id))!.estimateMin, 120);
+      expect(_ok(await repository.setEstimate(id, 90, now: now)), isTrue);
+      expect(_ok(await undo.undoLast(now: now)), isTrue);
+      expect((await taskById(id))!.estimateMin, 120);
+    });
+
+    test('같은 값·영상·없는 할 일은 false이고 기록을 남기지 않으며, 0 이하는 ArgumentError다', () async {
+      final id = await addTask();
+      expect(_ok(await repository.setEstimate(id, 60, now: now)), isTrue);
+      await db.delete(db.undoLog).go();
+      expect(_ok(await repository.setEstimate(id, 60, now: now)), isFalse);
+      final video = await addTask(kind: TaskKind.video);
+      expect(_ok(await repository.setEstimate(video, 60, now: now)), isFalse);
+      expect(_ok(await repository.setEstimate(999, 60, now: now)), isFalse);
+      expect(await db.select(db.undoLog).getSingleOrNull(), isNull);
+      expect(
+        () => repository.setEstimate(id, 0, now: now),
+        throwsArgumentError,
+      );
+    });
+  });
+
   group('끝내기', () {
     test('끝낸 시각을 적고 아직 시작하지 않은 확정 블록만 지우며, 되돌리면 모두 되살린다', () async {
       final id = await addTask();

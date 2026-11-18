@@ -1,7 +1,8 @@
-// 06 AI 비서 카드 문구·예상 시간·다시 계산한 제안 테스트. docs/screens.md '06 AI 비서'(카드 1·2),
+// 06 AI 비서 카드 문구·예상 시간·다시 계산한 제안 테스트. docs/screens.md '06 AI 비서'(카드 1·2·3·5),
 // docs/architecture.md '도메인 기본값과 배치 엔진'(예상 시간의 순서).
 
 import 'package:cnu_ai_assistant/domain/assistant/assistant_message.dart';
+import 'package:cnu_ai_assistant/domain/assistant/assistant_targets.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_text.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
@@ -182,6 +183,28 @@ void main() {
       expect(eventPlanNote(before, null), isNull);
     });
 
+    test('수업 변경·바꾸기 뒤에는 새로 놓인 제안을, 없으면 빠진 제안을 센다', () {
+      final keep = _block(1, DateTime(2026, 11, 19, 13));
+      final other = _block(2, DateTime(2026, 11, 19, 15));
+      final before = _plan([keep, other]);
+      expect(replanNote(before, _plan([keep, other])), isNull);
+      expect(
+        replanNote(
+          before,
+          _plan([
+            keep,
+            _block(2, DateTime(2026, 11, 19, 17)),
+            _block(3, DateTime(2026, 11, 20, 9)),
+          ]),
+        ),
+        '제안 2개를 다시 놓았어요',
+      );
+      expect(replanNote(before, _plan([keep])), '제안 1개를 뺐어요');
+      expect(replanNote(_plan(const []), _plan([keep])), '제안 1개를 다시 놓았어요');
+      expect(replanNote(null, _plan([keep])), isNull);
+      expect(replanNote(before, null), isNull);
+    });
+
     test('할 일을 넣은 뒤 놓인 자리를 적는다', () {
       final draft = TaskDraft(
         title: '과제',
@@ -244,6 +267,123 @@ void main() {
           ),
         ),
         '마감 14일 전부터 빈 시간에 놓아요',
+      );
+    });
+  });
+
+  group('바꾸기 카드의 시각', () {
+    Event event(DateTime start, DateTime end, {bool allDay = false}) => Event(
+      id: 1,
+      title: '스터디',
+      startAt: start,
+      endAt: end,
+      allDay: allDay,
+      source: EventSource.manual,
+    );
+
+    test('일정은 날짜와 시간 범위, 종일이면 종일이다', () {
+      expect(
+        targetWhenText(
+          EventTarget(
+            event(DateTime(2026, 11, 20, 15), DateTime(2026, 11, 20, 16, 30)),
+          ),
+          today: _today,
+        ),
+        '11월 20일 (금) 15:00–16:30',
+      );
+      expect(
+        targetWhenText(
+          EventTarget(
+            event(DateTime(2026, 11, 21), DateTime(2026, 11, 22), allDay: true),
+          ),
+          today: _today,
+        ),
+        '11월 21일 (토) · 종일',
+      );
+      // 자정을 넘으면 실제 시각, 하루를 넘으면 하루 안의 끝까지, 길이가 없으면 시작만 적는다.
+      expect(
+        targetWhenText(
+          EventTarget(
+            event(DateTime(2026, 11, 20, 23), DateTime(2026, 11, 21, 1)),
+          ),
+          today: _today,
+        ),
+        '11월 20일 (금) 23:00–01:00',
+      );
+      expect(
+        targetWhenText(
+          EventTarget(
+            event(DateTime(2026, 11, 20, 9), DateTime(2026, 11, 22, 9)),
+          ),
+          today: _today,
+        ),
+        '11월 20일 (금) 09:00–08:59',
+      );
+      expect(
+        targetWhenText(
+          EventTarget(
+            event(DateTime(2026, 11, 20, 9), DateTime(2026, 11, 20, 9)),
+          ),
+          today: _today,
+        ),
+        '11월 20일 (금) 09:00',
+      );
+    });
+
+    test('고정 일정은 반복 요일과 시간 범위다', () {
+      expect(
+        targetWhenText(
+          const FixedTarget(
+            FixedBlock(
+              id: 5,
+              name: '알바',
+              weekdays: [DateTime.saturday, DateTime.sunday],
+              startMin: 840,
+              endMin: 1020,
+              bufferMin: 0,
+              kind: FixedBlockKind.work,
+              source: EntrySource.manual,
+            ),
+          ),
+          today: _today,
+        ),
+        '주말마다 14:00–17:00',
+      );
+    });
+
+    test('바꾼 뒤도 같은 꼴이다', () {
+      expect(
+        afterWhenText(
+          EventAfter(
+            startAt: DateTime(2026, 11, 23, 10),
+            endAt: DateTime(2026, 11, 23, 11),
+            allDay: false,
+          ),
+          today: _today,
+        ),
+        '11월 23일 (월) 10:00–11:00',
+      );
+      expect(
+        afterWhenText(
+          EventAfter(
+            startAt: DateTime(2026, 11, 28),
+            endAt: DateTime(2026, 11, 29),
+            allDay: true,
+          ),
+          today: _today,
+        ),
+        '11월 28일 (토) · 종일',
+      );
+      expect(
+        afterWhenText(
+          const FixedAfter(
+            weekdays: [DateTime.monday, DateTime.wednesday],
+            startMin: 1320,
+            endMin: 1500,
+          ),
+          today: _today,
+        ),
+        '매주 월·수 22:00–01:00',
       );
     });
   });
