@@ -387,6 +387,41 @@ void main() {
       expect(await blockIds(), {upcoming});
     });
 
+    test('같은 끝내기에 두 번 적어도 되돌리면 끝내기 전 값으로 돌아간다', () async {
+      final id = await addTask();
+      expect(_ok(await repository.complete(id, now: now)), isTrue);
+      final first = now.add(const Duration(seconds: 2));
+      expect(
+        _ok(
+          await repository.recordTook(
+            id,
+            minutes: 30,
+            completed: UndoMark('tasks', now),
+            now: first,
+          ),
+        ),
+        isTrue,
+      );
+      final second = first.add(const Duration(seconds: 2));
+      expect(
+        _ok(
+          await repository.recordTook(
+            id,
+            minutes: 60,
+            completed: UndoMark('tasks', first),
+            now: second,
+          ),
+        ),
+        isTrue,
+      );
+      expect((await taskById(id))!.actualMin, 60);
+
+      expect(_ok(await undo.undoLast(now: second)), isTrue);
+      final task = (await taskById(id))!;
+      expect(task.actualMin, isNull);
+      expect(task.status, TaskStatus.todo);
+    });
+
     test('건너뛰면 걸린 시간은 그대로 두고 기록 시각만 옮긴다', () async {
       final id = await addTask();
       expect(_ok(await repository.complete(id, now: now)), isTrue);
