@@ -39,7 +39,7 @@ void main() {
     });
   }
 
-  testWidgets('Android는 Play 스토어, iOS는 테스터 페이지를 연다', (tester) async {
+  testWidgets('그 OS의 업데이트 주소를 연다', (tester) async {
     for (final (platform, url) in [
       (TargetPlatform.android, AppConfig.androidUpdateUrl),
       (TargetPlatform.iOS, AppConfig.iosUpdateUrl),
@@ -53,5 +53,15 @@ void main() {
       expect(opened, [Uri.parse(url)], reason: '$platform');
       debugDefaultTargetPlatformOverride = null;
     }
+  });
+
+  test('Play로 옮기기 전까지 두 OS 모두 App Distribution 테스터 페이지다', () {
+    // 팀원 빌드는 Play 개발자 계정 전까지 App Distribution(Android APK, iPhone ad hoc)으로 낸다
+    // (docs/decisions.md 2026-11-19). Play로 옮기면 Android 주소와 이 테스트를 함께 바꾼다.
+    expect(
+      AppConfig.androidUpdateUrl,
+      'https://appdistribution.firebase.google.com/testerapps',
+    );
+    expect(AppConfig.iosUpdateUrl, AppConfig.androidUpdateUrl);
   });
 }
