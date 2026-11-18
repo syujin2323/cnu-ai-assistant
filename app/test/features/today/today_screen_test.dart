@@ -6,8 +6,10 @@
 
 import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
+import 'package:cnu_ai_assistant/design/widgets/free_slot_sheet.dart';
 import 'package:cnu_ai_assistant/design/widgets/lms_status_line.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
+import 'package:cnu_ai_assistant/features/assistant/assistant_screen.dart';
 import 'package:cnu_ai_assistant/features/lms_connect/relogin_screen.dart';
 import 'package:cnu_ai_assistant/features/today/today_controller.dart';
 import 'package:cnu_ai_assistant/features/briefing/briefing_screen.dart';
@@ -103,6 +105,11 @@ Future<PlanBlockStatus> statusOf(AppDatabase db, int id) async =>
     (await (db.select(
       db.planBlocks,
     )..where((block) => block.id.equals(id))).getSingle()).status;
+
+/// 블록 [id]의 저장된 행.
+Future<PlanBlock> blockOf(AppDatabase db, int id) => (db.select(
+  db.planBlocks,
+)..where((block) => block.id.equals(id))).getSingle();
 
 /// 위 하루를 넣은 02 홈을 띄운다.
 Future<(TestApp, ({int past, int later}))> pumpHome(
@@ -233,8 +240,7 @@ void main() {
         expect(find.textContaining('오늘 16:00–17:00 · 1시간'), findsOneWidget);
         expect(find.widgetWithText(FilledButton, '완료'), findsOneWidget);
         expect(find.widgetWithText(OutlinedButton, '지우기'), findsOneWidget);
-        // 옮기기 시트가 붙기 전에는 [옮기기]를 두지 않는다.
-        expect(find.text('옮기기'), findsNothing);
+        expect(find.widgetWithText(OutlinedButton, '옮기기'), findsOneWidget);
 
         await tester.tap(find.widgetWithText(FilledButton, '완료'));
         await tester.pumpAndSettle();
@@ -254,6 +260,82 @@ void main() {
         await tester.pumpAndSettle();
         expect(await statusOf(app.db, ids.later), PlanBlockStatus.dismissed);
         expect(find.textContaining('과제 1을 지웠어요'), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('근거 시트의 옮기기는 옮기기 시트를 열고, 고른 자리로 옮긴 뒤 되돌린다', (tester) async {
+        final (app, ids) = await pumpHome(tester, textScale: textScale);
+
+        await scrollTo(tester, find.text('과제 1'));
+        await tester.tap(find.text('과제 1'));
+        await tester.pumpAndSettle();
+        await tapText(tester, '옮기기');
+        expect(find.text('어디로 옮길까요?'), findsOneWidget);
+        expect(find.text('과제 1 · 1시간 · 금요일 18:00 마감'), findsOneWidget);
+        expect(find.byType(Radio<int>), findsNWidgets(3));
+
+        final cta = find.ancestor(
+          of: find.textContaining(RegExp(r'^\d\d:\d\d(으로|로) 옮기기$')),
+          matching: find.byType(FilledButton),
+        );
+        await scrollTo(tester, cta);
+        await tester.tap(cta);
+        await tester.pumpAndSettle();
+        expect(find.text('어디로 옮길까요?'), findsNothing);
+        final moved = await blockOf(app.db, ids.later);
+        expect(moved.startAt, isNot(at(16)));
+        expect(moved.status, PlanBlockStatus.confirmed);
+        expect(moved.source, BlockSource.manual);
+        expect(
+          moved.endAt.difference(moved.startAt).inMinutes,
+          inInclusiveRange(25, 60),
+        );
+        expect(find.textContaining(RegExp('^과제 1을 .+ 옮겼어요\$')), findsOneWidget);
+
+        await tester.tap(find.text('되돌리기'));
+        await tester.pumpAndSettle();
+        final back = await blockOf(app.db, ids.later);
+        expect((back.startAt, back.endAt), (at(16), at(17)));
+
+        await app.dispose(tester);
+      });
+
+      testWidgets('빈 시간 카드를 누르면 빈 시간에 놓기 시트를 열고, 고른 할 일을 놓은 뒤 되돌린다', (
+        tester,
+      ) async {
+        final (app, ids) = await pumpHome(tester, textScale: textScale);
+
+        await tapText(tester, '빈 시간 1시간 48분');
+        expect(find.text('11:05–12:50 · 1시간 45분 비어 있어요'), findsOneWidget);
+        expect(find.text('과제 · 금요일 18:00 마감'), findsOneWidget);
+
+        await tester.tap(
+          find.descendant(
+            of: find.byType(FreeSlotSheet),
+            matching: find.text('과제 1'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('11:05–12:50 · 1시간 45분 비어 있어요'), findsNothing);
+        expect(find.text('과제 1을 11:05–12:05에 놓았어요'), findsOneWidget);
+        final placed = await (app.db.select(
+          app.db.planBlocks,
+        )..where((block) => block.startAt.equals(at(11, 5)))).getSingle();
+        expect(placed.endAt, at(12, 5));
+        expect(placed.status, PlanBlockStatus.confirmed);
+        expect(placed.source, BlockSource.manual);
+        expect(placed.reason, isNull);
+
+        await tester.tap(find.text('되돌리기'));
+        await tester.pumpAndSettle();
+        expect(
+          await (app.db.select(
+            app.db.planBlocks,
+          )..where((block) => block.id.equals(placed.id))).getSingleOrNull(),
+          isNull,
+        );
+        expect(await statusOf(app.db, ids.later), PlanBlockStatus.confirmed);
 
         await app.dispose(tester);
       });
@@ -371,6 +453,15 @@ void main() {
 
         expect(find.text('오늘 놓은 할 일이 없어요'), findsOneWidget);
         expect(find.textContaining('가장 가까운 빈 시간은 11:05'), findsOneWidget);
+
+        // [빈 시간에 할 일 놓기]는 가장 가까운 빈 시간의 시트를 열고, 놓을 할 일이 없으면 말로 추가하기만 둔다.
+        await tapText(tester, '빈 시간에 할 일 놓기');
+        expect(find.textContaining(RegExp(r'^11:05–')), findsOneWidget);
+        expect(find.text('이 시간에 놓을 남은 할 일이 없어요'), findsOneWidget);
+
+        await tapText(tester, '일정은 말로 추가하기');
+        expect(find.byType(AssistantScreen), findsOneWidget);
+        expect(app.router.state.uri.path, Routes.assistant);
 
         await app.dispose(tester);
       });
