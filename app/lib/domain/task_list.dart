@@ -392,7 +392,7 @@ TaskRow _row(
       dueAt != null &&
       isDueSoon(dueDayOffset(dueAt, now: now, dayBoundaryMin: dayBoundaryMin));
   final lms = _isLms(entry);
-  final kicker = _kicker(entry, courseSort: courseSort);
+  final kicker = taskKicker(entry, courseSort: courseSort);
   final dueChange = lms
       ? _dueChange(entry, dueChanges, now: now, dayBoundaryMin: dayBoundaryMin)
       : null;
@@ -433,7 +433,7 @@ TaskRow _row(
     dueUrgent: urgent,
     dueChange: dueChange,
     folded: folded,
-    video: task.kind == TaskKind.video ? _videoText(entry) : null,
+    video: task.kind == TaskKind.video ? taskVideoText(entry) : null,
     plan: _planLine(
       entry,
       blocks: blocks,
@@ -446,8 +446,8 @@ TaskRow _row(
   );
 }
 
-/// 줄 머리. 과목별 정렬에서는 묶음 이름이 과목이므로 과목을 빼고 쓴다.
-String _kicker(TaskEntry entry, {required bool courseSort}) {
+/// 줄 머리('{과목} · {종류}', '개인'). 과목별 정렬에서는 묶음 이름이 과목이므로 과목을 빼고 쓴다. 작은 할 일 시트도 쓴다.
+String taskKicker(TaskEntry entry, {bool courseSort = false}) {
   final task = entry.task;
   final course = _courseName(entry);
   if (!_isLms(entry) && course == null) {
@@ -490,8 +490,8 @@ String? _dueChange(
   return '마감이 $amount ${days > 0 ? '늦춰졌어요' : '당겨졌어요'}';
 }
 
-/// 영상 길이. LMS는 본 시간을 알려 주지 않아 길이와 출석 인정 시간만 적는다.
-String _videoText(TaskEntry entry) {
+/// 영상 길이. LMS는 본 시간을 알려 주지 않아 길이와 출석 인정 시간만 적는다. 작은 할 일 시트도 쓴다.
+String taskVideoText(TaskEntry entry) {
   final item = entry.lmsItem;
   final required = item?.requiredMin;
   final video = item?.videoMin;
