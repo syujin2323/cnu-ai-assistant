@@ -56,4 +56,29 @@ void main() {
     expect(triggers, hasLength(5));
     expect(auto.started, isFalse);
   });
+
+  testWidgets('앱으로 돌아오면 백그라운드 작업이 쓴 표를 다시 읽게 한 뒤 앱 열기 계기를 준다', (tester) async {
+    final events = <String>[];
+    final auto = LmsAutoSync((trigger) async {
+      events.add(trigger.name);
+      return const SyncResult(SyncResultKind.skipped);
+    }, onResumed: () => events.add('resumed'));
+    addTearDown(auto.dispose);
+
+    auto.start();
+    expect(events, ['open']);
+
+    for (final state in const [
+      AppLifecycleState.inactive,
+      AppLifecycleState.hidden,
+      AppLifecycleState.paused,
+      AppLifecycleState.hidden,
+      AppLifecycleState.inactive,
+      AppLifecycleState.resumed,
+    ]) {
+      tester.binding.handleAppLifecycleStateChanged(state);
+    }
+    expect(events, ['open', 'resumed', 'open']);
+    auto.dispose();
+  });
 }

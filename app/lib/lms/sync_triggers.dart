@@ -1,10 +1,12 @@
 // LMS 동기화의 자동 계기(docs/lms.md '동기화'의 표). 앱을 열 때(처음 실행과 앱으로 돌아올 때)와 앱을 쓰는 동안
 // 일정 간격으로 갱신(`list`)을 부른다. 실제로 LMS를 부를지는 코디네이터가 호출 예산(마지막 성공 뒤 간격 등)으로
 // 정하므로 여기서는 계기만 준다. bootstrap이 Remote Config를 받은 뒤 [LmsAutoSync.start]를 한 번 부른다(앱 열기
-// 계기의 동기화는 `fetchAndActivate()`가 끝난 뒤에만 시작한다).
+// 계기의 동기화는 `fetchAndActivate()`가 끝난 뒤에만 시작한다). 앱으로 돌아올 때는 계기를 주기 전에, 백그라운드
+// 작업(다른 엔진의 연결, `platform/background.dart`)이 썼을 수 있는 표를 화면이 다시 읽게 한다.
 
 import 'dart:async';
 
+import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/domain/models/sync_run.dart';
 import 'package:cnu_ai_assistant/lms/sync_coordinator.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
@@ -12,9 +14,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// 앱 열기·쓰는 동안 계기.
 class LmsAutoSync {
-  LmsAutoSync(this._run, {this.tick = const Duration(minutes: 15)});
+  LmsAutoSync(
+    this._run, {
+    this.tick = const Duration(minutes: 15),
+    this._onResumed,
+  });
 
   final Future<SyncResult> Function(SyncTrigger trigger) _run;
+
+  /// 앱으로 돌아올 때 계기를 주기 전에 부른다(백그라운드 작업이 쓴 표를 다시 읽게 함).
+  final void Function()? _onResumed;
 
   /// 앱이 화면에 있는 동안 '쓰는 동안' 계기를 주는 간격. 실제 간격은 호출 예산의 `foregroundPollMin`이다.
   final Duration tick;
@@ -34,6 +43,7 @@ class LmsAutoSync {
   }
 
   void _onResume() {
+    _onResumed?.call();
     _fire(SyncTrigger.open);
     _startTimer();
   }
@@ -64,6 +74,9 @@ final lmsAutoSyncProvider = Provider<LmsAutoSync>((ref) {
     (trigger) => ref
         .read(syncCoordinatorProvider)
         .run(trigger: trigger, scope: SyncScope.list),
+    // 백그라운드 작업은 실제 DB에만 쓴다(데모 모드에서도 LMS 데이터와 상태는 실제 DB).
+    onResumed: () =>
+        ref.read(realDatabaseProvider).markBackgroundWritesUpdated(),
   );
   ref.onDispose(auto.dispose);
   return auto;

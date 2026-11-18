@@ -107,7 +107,8 @@ void main() {
     // Linux의 디버그 Dart VM(flutter test, CI)에서는 VM이 보내는 신호가 C의 잠(usleep·nanosleep)을 곧바로
     // 깨워(2026-11-15 CI에서 usleep(500ms)이 0 ms 만에 -1), SQLite의 기다림이 busy_timeout과 관계없이 60 ms쯤에
     // 끝난다. 그래서 기다림 자체는 그 신호가 없는 macOS에서만 시험하고, busy_timeout이 걸렸는지는 위 테스트가
-    // 모든 플랫폼에서 본다. release(AOT) 앱에는 이 신호가 없다. R1 백그라운드 PR은 Android 빌드에서 확인한다.
+    // 모든 플랫폼에서 본다. flutter 도구가 붙지 않은 앱에는 이 신호가 없다(Android에서 홈 화면으로 켠 debug·profile·
+    // release 빌드는 기다린다. 2026-11-18 백그라운드 동기화 PR에서 확인, docs/architecture.md '앱 코드 규약').
     skip: Platform.isLinux
         ? 'Linux 디버그 VM의 신호가 SQLite의 기다림(sleep)을 끊는다'
         : false,
