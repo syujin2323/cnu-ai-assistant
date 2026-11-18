@@ -72,9 +72,17 @@ final class LmsSheetCopy {
     ),
     LmsStatusKind.connectionFailed => const LmsSheetCopy(
       title: 'LMS에 연결할 수 없어요',
-      description: '네트워크 연결을 확인해 주세요',
+      description: 'LMS가 응답하지 않거나 연결이 끊겼어요',
       schedule: '정해진 시간마다 · 연결되면 바로',
       note: '받아 둔 할 일은 그대로 있어요. 연결되면 다시 확인할게요.',
+      action: LmsSheetAction.account,
+      actionLabel: 'LMS 계정 보기',
+    ),
+    LmsStatusKind.offline => const LmsSheetCopy(
+      title: '인터넷에 연결되지 않았어요',
+      description: '폰에 저장된 정보로 그대로 쓸 수 있어요',
+      schedule: '정해진 시간마다 · 연결되면 바로',
+      note: '받아 둔 할 일은 그대로 있어요. 인터넷에 연결되면 다시 확인할게요.',
       action: LmsSheetAction.account,
       actionLabel: 'LMS 계정 보기',
     ),

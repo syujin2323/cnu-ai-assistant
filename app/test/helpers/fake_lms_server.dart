@@ -44,17 +44,22 @@ class FakeLmsResponse {
     this.contentType,
     this.setCookies = const [],
     this.location,
-  }) : networkFailure = false;
+  }) : networkFailure = false,
+       failureType = DioExceptionType.connectionError,
+       failureCause = null;
 
-  /// 연결 실패(응답 없음)를 흉내 낸다.
-  const FakeLmsResponse.networkFailure()
-    : status = 0,
-      body = '',
-      bodyBytes = null,
-      contentType = null,
-      setCookies = const [],
-      location = null,
-      networkFailure = true;
+  /// 연결 실패(응답 없음)를 흉내 낸다. dio가 던지는 실패의 종류([failureType])와 원인([failureCause],
+  /// 예: 주소 해석 실패의 `SocketException`)을 고를 수 있다.
+  const FakeLmsResponse.networkFailure({
+    this.failureType = DioExceptionType.connectionError,
+    this.failureCause,
+  }) : status = 0,
+       body = '',
+       bodyBytes = null,
+       contentType = null,
+       setCookies = const [],
+       location = null,
+       networkFailure = true;
 
   final int status;
 
@@ -71,6 +76,12 @@ class FakeLmsResponse {
   final String? location;
 
   final bool networkFailure;
+
+  /// 연결 실패일 때 dio가 던지는 실패의 종류.
+  final DioExceptionType failureType;
+
+  /// 연결 실패의 원인. null이면 원인 없이 던진다.
+  final Object? failureCause;
 }
 
 /// 가짜 서버. 경로는 `'GET /path'`처럼 방법과 경로로 고르고, 없으면 404다.
@@ -123,7 +134,8 @@ class FakeLmsServer implements HttpClientAdapter {
     if (response.networkFailure) {
       throw DioException(
         requestOptions: options,
-        type: DioExceptionType.connectionError,
+        type: response.failureType,
+        error: response.failureCause,
       );
     }
     return ResponseBody.fromBytes(
