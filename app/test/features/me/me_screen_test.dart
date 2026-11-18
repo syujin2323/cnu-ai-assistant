@@ -1,5 +1,4 @@
-// 10 나 화면 테스트. docs/screens.md '10 나'·'AI 사용 동의'·'이동·점심 시간 표시', docs/lms.md '로그아웃, 데이터 삭제,
-// 내보내기'.
+// 10 나 화면 테스트. docs/screens.md '10 나'·'AI 사용 동의'·'이동·점심 시간 표시', docs/lms.md '로그아웃, 데이터 삭제'.
 //
 // 2026-11-16(월) 10:00이고, 실제 모드에서 LMS에 로그인해 있다(저장된 학번 202412345).
 
@@ -411,6 +410,37 @@ void main() {
         await app.dispose(tester);
       });
 
+      testWidgets('사용 지표 보내기는 켜면 어제를 보낸 날로 적고, 끄면 적어 둔 제안 날짜를 비운다', (
+        tester,
+      ) async {
+        final app = await pumpMe(
+          tester,
+          textScale: textScale,
+          settings: {
+            SettingKeys.metricsSuggestedDays: ['2026-11-15'],
+          },
+        );
+        final row = switchRow('사용 지표 보내기');
+        await scrollTo(tester, row);
+        expect(tester.widget<MeSwitchRow>(row).value, isFalse);
+
+        await tapFinder(tester, row);
+        var settings = await readSettings(app.db);
+        expect(settings.metricsEnabled, isTrue);
+        // 2026-11-16(월) 10:00의 어제. 켠 날(오늘)부터의 숫자만 보낸다.
+        expect(settings.metricsLastSentOn, '2026-11-15');
+        expect(find.textContaining('사용 지표를 보내요'), findsOneWidget);
+        expect(tester.widget<MeSwitchRow>(row).value, isTrue);
+
+        await tapFinder(tester, row);
+        settings = await readSettings(app.db);
+        expect(settings.metricsEnabled, isFalse);
+        expect(settings.metricsSuggestedDays, isEmpty);
+        expect(find.textContaining('사용 지표를 보내지 않아요'), findsOneWidget);
+
+        await app.dispose(tester);
+      });
+
       testWidgets('동의 문구 다시 보기는 같은 문구를 보이고, 켜져 있으면 동의한 날을 보인다', (tester) async {
         final app = await pumpMe(
           tester,
@@ -490,6 +520,10 @@ void main() {
     await tapFinder(tester, find.text('06:00'));
     expect((await readSettings(app.demoDb)).dayBoundaryMin, 360);
     expect((await readSettings(app.db)).dayBoundaryMin, 240);
+
+    // 사용 지표는 실제 모드의 숫자만 보내므로 데모에서는 스위치를 두지 않는다.
+    await scrollTo(tester, find.text('동의 문구 다시 보기'));
+    expect(find.text('사용 지표 보내기'), findsNothing);
 
     await scrollTo(tester, find.text('데모 모드 끝내기'));
     expect(find.text('데이터 삭제'), findsNothing);

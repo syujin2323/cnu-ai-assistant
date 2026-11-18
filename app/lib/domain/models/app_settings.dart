@@ -21,6 +21,7 @@ abstract final class SettingKeys {
   static const privacyConsentAt = 'privacyConsentAt';
   static const metricsEnabled = 'metricsEnabled';
   static const metricsLastSentOn = 'metricsLastSentOn';
+  static const metricsSuggestedDays = 'metricsSuggestedDays';
   static const lmsSessionState = 'lmsSessionState';
   static const lmsLastSuccessAt = 'lmsLastSuccessAt';
   static const lmsLastConnectedAt = 'lmsLastConnectedAt';
@@ -41,6 +42,7 @@ abstract final class SettingKeys {
     privacyConsentAt,
     metricsEnabled,
     metricsLastSentOn,
+    metricsSuggestedDays,
     lmsSessionState,
     lmsLastSuccessAt,
     lmsLastConnectedAt,
@@ -64,6 +66,7 @@ class AppSettings {
     required this.privacyConsentAt,
     required this.metricsEnabled,
     required this.metricsLastSentOn,
+    required this.metricsSuggestedDays,
     required this.lmsSessionState,
     required this.lmsLastSuccessAt,
     required this.lmsLastConnectedAt,
@@ -85,6 +88,7 @@ class AppSettings {
     privacyConsentAt: null,
     metricsEnabled: false,
     metricsLastSentOn: null,
+    metricsSuggestedDays: [],
     lmsSessionState: LmsSessionState.disconnected,
     lmsLastSuccessAt: null,
     lmsLastConnectedAt: null,
@@ -119,6 +123,9 @@ class AppSettings {
       metricsLastSentOn:
           _isoDateOrNull(values[SettingKeys.metricsLastSentOn]) ??
           d.metricsLastSentOn,
+      metricsSuggestedDays:
+          _isoDatesOrNull(values[SettingKeys.metricsSuggestedDays]) ??
+          d.metricsSuggestedDays,
       lmsSessionState:
           tryEnumFromSnake(
             LmsSessionState.values,
@@ -177,8 +184,14 @@ class AppSettings {
   /// (R1) 지표 전송을 켰는지. AI 동의와 별개다.
   final bool metricsEnabled;
 
-  /// (R1) 마지막으로 지표를 보낸 날짜(`YYYY-MM-DD`).
+  /// (R1) 마지막으로 지표를 보낸 논리적 하루(`YYYY-MM-DD`). 이 날까지는 다시 보내지 않는다. 지표를 켤 때
+  /// 어제로 적어 켠 날부터의 숫자만 보낸다.
   final String? metricsLastSentOn;
+
+  /// (R1) 배치 엔진의 제안이 있던 논리적 하루(`YYYY-MM-DD`, 오름차순, 겹치지 않음). 지난 날의 제안 블록은 다음
+  /// 재계산이 지우므로, 지표를 켠 동안 앱이 그날 본 것을 적어 두었다가 지표의 `todaySuggested`에 쓴다. 지표를 끄면
+  /// 비운다.
+  final List<String> metricsSuggestedDays;
 
   /// LMS 세션 상태.
   final LmsSessionState lmsSessionState;
@@ -246,6 +259,7 @@ class AppSettings {
       SettingKeys.lmsSessionState => snakeName(
         _require<LmsSessionState>(key, value),
       ),
+      SettingKeys.metricsSuggestedDays => _requireIsoDates(key, value),
       SettingKeys.onboardingSkipped => _requireOnboardingSteps(key, value),
       _ => throw ArgumentError.value(key, 'key', 'Unknown settings key'),
     };
@@ -264,6 +278,7 @@ class AppSettings {
     SettingKeys.privacyConsentAt => privacyConsentAt,
     SettingKeys.metricsEnabled => metricsEnabled,
     SettingKeys.metricsLastSentOn => metricsLastSentOn,
+    SettingKeys.metricsSuggestedDays => metricsSuggestedDays,
     SettingKeys.lmsSessionState => lmsSessionState,
     SettingKeys.lmsLastSuccessAt => lmsLastSuccessAt,
     SettingKeys.lmsLastConnectedAt => lmsLastConnectedAt,
@@ -286,6 +301,7 @@ class AppSettings {
     Object? privacyConsentAt = _keep,
     bool? metricsEnabled,
     Object? metricsLastSentOn = _keep,
+    List<String>? metricsSuggestedDays,
     LmsSessionState? lmsSessionState,
     Object? lmsLastSuccessAt = _keep,
     Object? lmsLastConnectedAt = _keep,
@@ -313,6 +329,7 @@ class AppSettings {
       metricsLastSentOn: identical(metricsLastSentOn, _keep)
           ? this.metricsLastSentOn
           : metricsLastSentOn as String?,
+      metricsSuggestedDays: metricsSuggestedDays ?? this.metricsSuggestedDays,
       lmsSessionState: lmsSessionState ?? this.lmsSessionState,
       lmsLastSuccessAt: identical(lmsLastSuccessAt, _keep)
           ? this.lmsLastSuccessAt
@@ -348,6 +365,7 @@ class AppSettings {
       other.privacyConsentAt == privacyConsentAt &&
       other.metricsEnabled == metricsEnabled &&
       other.metricsLastSentOn == metricsLastSentOn &&
+      _sameStrings(other.metricsSuggestedDays, metricsSuggestedDays) &&
       other.lmsSessionState == lmsSessionState &&
       other.lmsLastSuccessAt == lmsLastSuccessAt &&
       other.lmsLastConnectedAt == lmsLastConnectedAt &&
@@ -368,6 +386,7 @@ class AppSettings {
     privacyConsentAt,
     metricsEnabled,
     metricsLastSentOn,
+    Object.hashAll(metricsSuggestedDays),
     lmsSessionState,
     lmsLastSuccessAt,
     lmsLastConnectedAt,
@@ -393,6 +412,35 @@ int? _minuteOfDayOrNull(Object? value) =>
 
 String? _isoDateOrNull(Object? value) =>
     value is String && tryParseIsoDate(value) != null ? value : null;
+
+/// 날짜 목록을 읽는다. 문자열이 아닌 값이 섞였으면 형이 다른 것으로 보고 null(기본값)이고, 꼴이 맞지 않는 날짜와
+/// 중복은 버리고 오름차순으로 둔다(쓰기는 엄격하게, 읽기는 너그럽게).
+List<String>? _isoDatesOrNull(Object? value) {
+  if (value is! List || !value.every((element) => element is String)) {
+    return null;
+  }
+  final days = {
+    for (final day in value.cast<String>())
+      if (tryParseIsoDate(day) != null) day,
+  }.toList()..sort();
+  return List<String>.unmodifiable(days);
+}
+
+/// 날짜 목록은 `YYYY-MM-DD`의 중복 없는 오름차순 목록만 쓴다.
+List<String> _requireIsoDates(String key, Object? value) {
+  final days = _require<List<String>>(key, value);
+  for (var i = 0; i < days.length; i++) {
+    final valid = tryParseIsoDate(days[i]) != null;
+    if (!valid || (i > 0 && days[i].compareTo(days[i - 1]) <= 0)) {
+      throw ArgumentError.value(
+        days,
+        key,
+        'Expected unique YYYY-MM-DD dates in order',
+      );
+    }
+  }
+  return List<String>.of(days);
+}
 
 /// 온보딩 단계 수(docs/screens.md '14 온보딩'). `features/onboarding/`의 `OnboardingStep`과 같아야 한다.
 const int _onboardingStepCount = 5;
@@ -459,6 +507,14 @@ String _requireIsoDate(String key, Object? value) {
 }
 
 bool _sameInts(List<int> a, List<int> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
+bool _sameStrings(List<String> a, List<String> b) {
   if (a.length != b.length) return false;
   for (var i = 0; i < a.length; i++) {
     if (a[i] != b[i]) return false;

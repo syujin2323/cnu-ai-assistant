@@ -24,6 +24,7 @@ import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/startup.dart';
 import 'package:cnu_ai_assistant/app/startup_failure.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
+import 'package:cnu_ai_assistant/data/metrics_reporter.dart';
 import 'package:cnu_ai_assistant/data/remote_config.dart';
 import 'package:cnu_ai_assistant/data/secure_storage.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
@@ -155,8 +156,8 @@ Future<void> _settle(List<Future<Object?>?> futures) async {
 Future<void> runDeferredStartupTasksAfterLaunch(ProviderContainer container) =>
     runDeferredStartupTasks(realDb: container.read(realDatabaseProvider));
 
-/// runApp 뒤에 부른다. Remote Config 값을 받아 적용하고, 끝나면(실패·시간 초과 포함) 알린 뒤 LMS 자동 계기를 걸고
-/// 백그라운드 동기화 작업을 등록하며 서버 신호 푸시의 구독을 맞춘다.
+/// runApp 뒤에 부른다. Remote Config 값을 받아 적용하고, 끝나면(실패·시간 초과 포함) 알린 뒤 LMS 자동 계기와 사용
+/// 지표 보내기 계기를 걸고 백그라운드 동기화 작업을 등록하며 서버 신호 푸시의 구독을 맞춘다.
 ///
 /// 오프라인이거나 시간 초과(5초)면 마지막으로 활성화된 값, 그것도 없으면 `setDefaults` 값으로 동작한다.
 Future<void> fetchRemoteConfigAfterLaunch(ProviderContainer container) async {
@@ -172,6 +173,8 @@ Future<void> fetchRemoteConfigAfterLaunch(ProviderContainer container) async {
     container.read(remoteConfigFetchProvider).markDone();
     // 앱 열기·쓰는 동안 계기의 LMS 동기화는 Remote Config를 받은 뒤에 시작한다(docs/lms.md '원격 스위치').
     container.read(lmsAutoSyncProvider).start();
+    // 사용 지표는 켠 사람만 보내고, 앱을 켤 때와 돌아올 때 지난 날의 숫자를 보낸다(data/metrics_reporter.dart).
+    container.read(metricsAutoSendProvider).start();
     // 켤 때마다 등록해 작업 설정을 맞춘다. 던지지 않고, 화면은 기다리지 않는다(platform/background.dart).
     unawaited(scheduleBackgroundSync());
     // 서버 신호 푸시의 토픽 구독을 지금 상태(원격 스위치, 앱 모드, LMS 상태)에 맞추고, 바뀔 때마다 다시 맞춘다.
