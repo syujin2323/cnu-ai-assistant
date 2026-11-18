@@ -258,6 +258,17 @@ void main() {
       ]);
     });
 
+    test("'N일'이 이번 달에 이미 지났으면 다음 두 달이다", () {
+      final ask =
+          _reply(_events([_event(date: _day(11, 5), dateExpression: '5일')]))
+                  .single
+              as AskCard;
+      expect(ask.options.map((option) => option.items.single.date), [
+        _day(12, 5),
+        DateTime(2027, 1, 5),
+      ]);
+    });
+
     test('주말이면 토·일과 이틀 모두를 고르게 하고, 이틀 모두면 카드 둘이다', () {
       final ask =
           _reply(_events([_event(date: _day(11, 21), dateExpression: '이번 주말')]))
@@ -379,6 +390,13 @@ void main() {
         ('11월 20일 (금)', '내일'),
       ]);
       expect(_draftOf(_pick(ask, 0).single).date, _day(11, 24));
+    });
+
+    test('지난 날짜의 같은 요일이 오늘이면 같은 요일을 따로 두지 않는다', () {
+      final ask =
+          _reply(_events([_event(date: _day(11, 12), weekday: 4)])).single
+              as AskCard;
+      expect(ask.options.map((option) => option.sub), ['오늘', '내일']);
     });
 
     test('오늘 지난 시각이면 다음 주 같은 요일이나 그대로를 고르게 하고, 그대로면 다시 묻지 않는다', () {

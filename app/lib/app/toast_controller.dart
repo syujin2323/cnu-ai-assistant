@@ -54,10 +54,11 @@ class ToastController extends Notifier<ToastState?> {
 
   /// [text]를 띄운다. [undoable]이면 '되돌리기'를 달고 10초, 아니면 3.4초 보인다. 보이던 토스트는 바꿔
   /// 끼우고 보이는 시간을 다시 잰다. [onUndone]은 이 토스트의 '되돌리기'가 되돌린 뒤에 부른다(06 AI 비서가
-  /// 저장한 카드를 저장 전으로 돌림). 되돌리지 못했거나 다른 토스트로 바뀌었으면 부르지 않는다.
+  /// 저장한 카드를 저장 전으로 돌림). 되돌리지 못했거나 다른 토스트로 바뀌었으면 부르지 않고, 되돌리기가 없는
+  /// 토스트에서는 되돌리지 않으므로 부르지 않는다.
   void show(String text, {bool undoable = false, VoidCallback? onUndone}) {
     _timer?.cancel();
-    _onUndone = undoable ? onUndone : null;
+    _onUndone = onUndone;
     state = ToastState(text: text, undoable: undoable, visible: true);
     _timer = Timer(undoable ? AppMotion.toastWithUndo : AppMotion.toast, hide);
   }
