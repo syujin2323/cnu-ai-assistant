@@ -3,6 +3,7 @@
 //
 // - [suggestSlots]: 옮기기 시트('어디로 옮길까요?')의 다른 시간 몇 개.
 // - [retrySlot]: 02 홈 피드백 카드에서 '못 했어요' 뒤 [다시 놓기]가 놓을 자리.
+// - [briefingSlot]: 01 아침 브리핑에서 체크한 할 일을 놓을 오늘 자리.
 //
 // 둘 다 저장하지 않고 시트·카드를 열 때 계산하는 순수 함수이고, 같은 입력이면 늘 같은 답을 낸다. 빈 시간은 배치
 // 엔진과 같은 `dayAvailability`로 구하되 옮기거나 다시 놓을 블록은 일정에서 빼고 본다(그 블록이 비킨 자리도 빈
@@ -85,7 +86,7 @@ List<SlotOption> suggestSlots({
   if (blockMin <= 0 || count < 1) return const [];
   final target = _Target(
     entry,
-    block: block,
+    excluded: {block.id},
     schedule: schedule,
     now: now,
     dayBoundaryMin: dayBoundaryMin,
@@ -176,7 +177,7 @@ TimeSpan? retrySlot({
       .clamp(Defaults.minChunkMin, Defaults.maxBlockMin);
   final target = _Target(
     entry,
-    block: block,
+    excluded: {block.id},
     schedule: schedule,
     now: now,
     dayBoundaryMin: dayBoundaryMin,
@@ -206,6 +207,99 @@ TimeSpan? retrySlot({
   return null;
 }
 
+/// 01 아침 브리핑에서 [entry]를 체크했을 때 놓을 오늘(논리적 하루) 자리. 없으면 null이다(docs/screens.md
+/// '01 아침 브리핑').
+///
+/// [preferred](오늘 제안 시각)가 비었으면 그 자리, 아니면 지금 뒤 [minutes]가 한 번에 들어가는 가장 이른 자리
+/// ([Defaults.maxBlockMin]까지, 5분 단위), 그다음 그 할 일의 최소 조각(25분, 영상·퀴즈 10분) 이상 들어가는 가장
+/// 이른 자리(들어가는 만큼)다. [replaced]는 확정하면 지울 블록(오늘 시작 전인 자동 확정 블록과 전에 브리핑에서
+/// 확정한 블록)이라 자리를 막지 않고, [taken]은 이 브리핑에서 이미 체크한 다른 것의 자리다. 남은 확정·완료
+/// 블록과 [taken]은 [Defaults.blockGapMin]을 띄우고, 그 할 일의 지운 자리는 빼며, 마감 전·영상 공개 뒤·지금
+/// 뒤만 본다. 하루 최대 공부량은 막지 않는다(넘으면 화면이 합계로 알림). [schedule]은 오늘의 일정이다.
+///
+/// 고른 자리의 이유는 배치 엔진과 같은 점수로 매기고([scoreSlot]), 근거를 새로 계산할 때 쓴다.
+SlotOption? briefingSlot({
+  required DateTime now,
+  required TaskEntry entry,
+  required int minutes,
+  TimeSpan? preferred,
+  required Schedule schedule,
+  required Set<int> replaced,
+  required List<TimeSpan> taken,
+  required PlannerConfig config,
+  required int dayBoundaryMin,
+}) {
+  if (minutes <= 0) throw ArgumentError.value(minutes, 'minutes');
+  final target = _Target(
+    entry,
+    excluded: replaced,
+    schedule: schedule,
+    now: now,
+    dayBoundaryMin: dayBoundaryMin,
+  );
+  final day = target.day(0, config: config);
+  if (day == null) return null;
+  final blocked = [
+    ...withBlockGap([
+      for (final other in target.others)
+        if (other.status == PlanBlockStatus.confirmed ||
+            other.status == PlanBlockStatus.done)
+          TimeSpan(other.startAt, other.endAt),
+      ...taken,
+    ]),
+    ...target.dismissed,
+  ];
+  final segments = [
+    for (final free in day.free) ...subtractSpans(free, blocked),
+  ];
+  final preferredSpansToday = preferredSpans(
+    day.date,
+    config: config,
+    dayBoundaryMin: dayBoundaryMin,
+  );
+  SlotOption pick(TimeSpan segment, TimeSpan slot) {
+    final scored = scoreSlot(
+      segment: segment,
+      slot: slot,
+      whole: slot.minutes >= minutes,
+      lessons: day.lessons,
+      preferred: preferredSpansToday,
+    );
+    return SlotOption(
+      span: slot,
+      gapMin: segment.minutes,
+      factor: scored.factor,
+    );
+  }
+
+  if (preferred != null) {
+    for (final segment in segments) {
+      if (!preferred.start.isBefore(segment.start) &&
+          !preferred.end.isAfter(segment.end)) {
+        return pick(segment, preferred);
+      }
+    }
+  }
+  final whole = math.min(minutes, Defaults.maxBlockMin);
+  for (final segment in segments) {
+    final from = roundUpToFive(segment.start);
+    final end = from.add(Duration(minutes: whole));
+    if (!end.isAfter(segment.end)) return pick(segment, TimeSpan(from, end));
+  }
+  final least = minChunkMinFor(entry.task.kind);
+  for (final segment in segments) {
+    final from = roundUpToFive(segment.start);
+    final until = roundDownToFive(segment.end);
+    final room = until.difference(from).inMinutes;
+    if (room < least) continue;
+    return pick(
+      segment,
+      TimeSpan(from, from.add(Duration(minutes: math.min(whole, room)))),
+    );
+  }
+  return null;
+}
+
 /// 자리를 찾을 블록과 그 할 일.
 final class _Target {
   _Target._({
@@ -219,9 +313,10 @@ final class _Target {
     required this.rest,
   });
 
+  /// [excluded]는 일정에서 빼고 볼 블록(옮기거나 다시 놓을 블록, 브리핑이 바꿔 끼울 블록)의 id다.
   factory _Target(
     TaskEntry entry, {
-    required PlanBlock block,
+    required Set<int> excluded,
     required Schedule schedule,
     required DateTime now,
     required int dayBoundaryMin,
@@ -231,7 +326,7 @@ final class _Target {
     final dueAt = entry.task.dueAt;
     final others = [
       for (final other in schedule.planBlocks)
-        if (other.id != block.id) other,
+        if (!excluded.contains(other.id)) other,
     ];
     return _Target._(
       entry: entry,
@@ -272,13 +367,13 @@ final class _Target {
   /// 마감이 든 논리적 하루의 날짜. 마감이 없으면 null이다.
   final DateTime? dueDate;
 
-  /// 이 블록을 뺀 블록.
+  /// 뺀 블록을 뺀 블록.
   final List<PlanBlock> others;
 
   /// 이 할 일의 지운 블록 자리.
   final List<TimeSpan> dismissed;
 
-  /// 이 블록을 뺀 일정.
+  /// 뺀 블록을 뺀 일정.
   final Schedule rest;
 
   /// 오늘부터 [offset]일 뒤의 하루. 그날 시작 전에 마감이 지났으면 null이다.
