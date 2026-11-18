@@ -12,8 +12,6 @@ import 'package:cnu_ai_assistant/app/theme.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_toast.dart';
-import 'package:cnu_ai_assistant/design/widgets/demo_band.dart';
-import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -81,7 +79,7 @@ class _RootAppState extends ConsumerState<RootApp> {
             data: media,
             // ignore: deprecated_member_use
             child: MaterialUiCompatibilityBridge(
-              child: _ToastFrame(child: _DemoFrame(child: child!)),
+              child: _ToastFrame(child: child!),
             ),
           ),
         );
@@ -113,38 +111,6 @@ class _ToastFrame extends ConsumerWidget {
                   : null,
             ),
       child: child,
-    );
-  }
-}
-
-/// 데모 모드면 화면 위에 데모 띠를 늘 보여 준다. 띠가 생기고 없어져도 아래 화면(Navigator)의
-/// 상태는 그대로 둔다.
-class _DemoFrame extends ConsumerWidget {
-  const _DemoFrame({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final demo = ref.watch(appModeProvider) == AppMode.demo;
-    final exit = ref.watch(demoExitProvider);
-    return Column(
-      children: [
-        if (demo)
-          DemoBand(
-            onExit: () => ref.read(demoExitProvider.notifier).exit(),
-            exiting: exit == DemoExitState.exiting,
-            failed: exit == DemoExitState.failed,
-          ),
-        Expanded(
-          key: const ValueKey('app-navigator'),
-          child: MediaQuery.removePadding(
-            context: context,
-            removeTop: demo,
-            child: child,
-          ),
-        ),
-      ],
     );
   }
 }
