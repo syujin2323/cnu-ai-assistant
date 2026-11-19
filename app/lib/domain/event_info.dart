@@ -41,9 +41,13 @@ final class EventInfoContent {
     this.changeLabel,
     this.lockText,
     this.canEditBySpeech = false,
+    this.courseId,
   });
 
   final EventInfoKind kind;
+
+  /// 수업이면 그 과목(`courses.id`). 시트가 과목 색을 고르는 데 쓴다.
+  final int? courseId;
 
   /// 머리 띠(수업·휴강·시험·장소 변경·보강·개인 일정·고정 일정).
   final String kicker;
@@ -116,6 +120,7 @@ EventInfoContent eventInfoContent(
           : null;
       return EventInfoContent(
         kind: EventInfoKind.classItem,
+        courseId: item.slot.courseId,
         kicker: item.makeup ? '보강' : change?.label ?? '수업',
         title: courseName,
         time: timeLine(item.slot.online ? '실시간 온라인' : item.place),

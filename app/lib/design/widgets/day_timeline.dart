@@ -15,6 +15,7 @@
 // [DayTimeline.onItemTap](일정 정보 시트), 빈 시간 → [DayTimeline.onFreeTap](빈 시간에 놓기 시트). 넘기지 않은 쪽은
 // 누를 수 없다.
 
+import 'package:cnu_ai_assistant/design/course_colors.dart';
 import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/motion/press.dart';
 import 'package:cnu_ai_assistant/design/motion/rise.dart';
@@ -180,50 +181,53 @@ typedef _Look = ({
   AppIconName? icon,
 });
 
-_Look _lookOf(DayItem item, AppColors colors) => switch (item) {
-  ClassItem(cancelled: true) => (
-    background: colors.surface,
-    border: colors.edge,
-    dashed: false,
-    width: 1,
-    ink: colors.muted,
-    icon: AppIconName.calendar,
-  ),
-  ClassItem() => (
-    background: colors.classTint,
-    border: colors.classLine,
-    dashed: false,
-    width: 1,
-    ink: colors.classInk,
-    icon: AppIconName.calendar,
-  ),
-  EventItem() || FixedItem() => (
-    background: colors.personalTint,
-    border: colors.personalLine,
-    dashed: false,
-    width: 1,
-    ink: colors.personalInk,
-    icon: item is FixedItem && item.block.kind == FixedBlockKind.exercise
-        ? AppIconName.exercise
-        : AppIconName.person,
-  ),
-  BlockItem(:final block) => (
-    background: block.status == PlanBlockStatus.suggested ? null : colors.bg,
-    border: colors.taskInk,
-    dashed: true,
-    width: 1.5,
-    ink: colors.taskInk,
-    icon: null,
-  ),
-  TravelItem() || MealItem() => (
-    background: colors.surface,
-    border: colors.edge2,
-    dashed: false,
-    width: 1,
-    ink: colors.muted,
-    icon: null,
-  ),
-};
+_Look _lookOf(BuildContext context, DayItem item, AppColors colors) =>
+    switch (item) {
+      ClassItem(cancelled: true) => (
+        background: colors.surface,
+        border: colors.edge,
+        dashed: false,
+        width: 1,
+        ink: colors.muted,
+        icon: AppIconName.calendar,
+      ),
+      ClassItem(:final slot) => (
+        background: CourseColors.of(context, slot.courseId).tint,
+        border: CourseColors.of(context, slot.courseId).line,
+        dashed: false,
+        width: 1,
+        ink: CourseColors.of(context, slot.courseId).ink,
+        icon: AppIconName.calendar,
+      ),
+      EventItem() || FixedItem() => (
+        background: colors.personalTint,
+        border: colors.personalLine,
+        dashed: false,
+        width: 1,
+        ink: colors.personalInk,
+        icon: item is FixedItem && item.block.kind == FixedBlockKind.exercise
+            ? AppIconName.exercise
+            : AppIconName.person,
+      ),
+      BlockItem(:final block) => (
+        background: block.status == PlanBlockStatus.suggested
+            ? null
+            : colors.bg,
+        border: colors.taskInk,
+        dashed: true,
+        width: 1.5,
+        ink: colors.taskInk,
+        icon: null,
+      ),
+      TravelItem() || MealItem() => (
+        background: colors.surface,
+        border: colors.edge2,
+        dashed: false,
+        width: 1,
+        ink: colors.muted,
+        icon: null,
+      ),
+    };
 
 /// 카드의 종류 글자(덧붙임 앞).
 String _label(DayItem item) => switch (item) {
@@ -276,7 +280,7 @@ class _ItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
     final item = card.item;
-    final look = _lookOf(item, colors);
+    final look = _lookOf(context, item, colors);
     final label = _label(item);
     final sub = _sub(item);
     final range = _range(item.span);

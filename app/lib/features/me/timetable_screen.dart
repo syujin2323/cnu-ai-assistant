@@ -9,6 +9,7 @@
 // 아래에 [+ 수업 추가]/[+ 고정 일정 추가]를 둔다. 문구는 최종 프로토타입을 따른 임시 문구다.
 
 import 'package:cnu_ai_assistant/app/providers.dart';
+import 'package:cnu_ai_assistant/design/course_colors.dart';
 import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
@@ -233,8 +234,8 @@ class _TimetableTabBody extends ConsumerWidget {
             children: [
               for (final group in groups)
                 _ListRow(
-                  tint: colors.classTint,
-                  ink: colors.classInk,
+                  tint: CourseColors.of(context, group.course.id).tint,
+                  ink: CourseColors.of(context, group.course.id).ink,
                   icon: AppIconName.school,
                   title: group.course.name,
                   sub: group.recorded
