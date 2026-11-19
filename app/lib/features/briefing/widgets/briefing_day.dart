@@ -39,6 +39,7 @@ class BriefingDay extends StatelessWidget {
     required this.items,
     required this.tasks,
     required this.windowEndMin,
+    this.dayBoundaryMin = 240,
     required this.courseNames,
     required this.semanticsLabel,
   });
@@ -53,8 +54,11 @@ class BriefingDay extends StatelessWidget {
 
   final List<BriefingDayTask> tasks;
 
-  /// 하루 창 끝(그날 0시부터 분). 23:00보다 이르면 23:00까지 그린다.
+  /// 하루 창 끝(그날 0시부터 분).
   final int windowEndMin;
+
+  /// 하루 경계(자정 기준 분). 시간표는 이 시각부터 다음 날 이 시각까지 그린다(지난 시간은 위에서 줄임).
+  final int dayBoundaryMin;
 
   /// 수업 칸의 과목 id에서 과목 이름으로.
   final Map<int, String> courseNames;
@@ -86,13 +90,17 @@ class BriefingDay extends StatelessWidget {
       for (final task in tasks)
         if (task.span.end.isAfter(now)) _minuteOf(task.span.start),
     ];
+    final boundaryHour = dayBoundaryMin ~/ 60;
     final startHour = nowMin < 600
-        ? 8
-        : math.max(8, ([...live, nowMin].reduce(math.min)) ~/ 60);
+        ? boundaryHour
+        : math.max(boundaryHour, ([...live, nowMin].reduce(math.min)) ~/ 60);
     final top = startHour * 60;
     // 자정이 지나 하루 경계 전(논리적 하루의 끝, 그날 0시부터 1440분 넘음)에는 남은 일정이 없으면 위가 지금
     // 시각까지 내려오므로, 아래 끝을 늘 위보다 한 시간 뒤로 둔다(그러지 않으면 높이가 음수).
-    final end = math.max(math.max(1380, windowEndMin), top + 60);
+    final end = math.max(
+      math.max(boundaryHour * 60 + 1440, windowEndMin),
+      top + 60,
+    );
     double toY(int minute) => (minute - top) / 60 * hourHeight;
     final showNow = nowMin >= top && nowMin <= end;
 
