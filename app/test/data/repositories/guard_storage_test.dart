@@ -146,6 +146,123 @@ void main() {
     );
   });
 
+  group('저장 공간 부족', () {
+    tearDown(StorageFullSignal.take);
+
+    test('저장 공간이 부족해 실패하면 isFull이고 신호에 한 번 적는다', () async {
+      final db = AppDatabase.memory();
+      addTearDown(db.close);
+      // 지금 크기보다 커지지 못하게 막아 저장 공간 부족(SQLITE_FULL 13)을 낸다.
+      final pages = await db.customSelect('PRAGMA page_count').getSingle();
+      await db.customStatement(
+        'PRAGMA max_page_count = ${pages.read<int>('page_count')}',
+      );
+
+      final result = await guardStorage(
+        'test.write',
+        () => db.customStatement(
+          "INSERT INTO settings (key, value) VALUES ('big', ?)",
+          ['x' * 200000],
+        ),
+      );
+
+      final error = _errorOf(result);
+      expect(
+        error,
+        const StorageError(
+          'test.write',
+          causeType: 'SqliteException',
+          code: 13,
+        ),
+      );
+      expect((error! as StorageError).isFull, isTrue);
+      expect(StorageFullSignal.take(), isTrue);
+      expect(StorageFullSignal.take(), isFalse);
+    });
+
+    test('트랜잭션 안에서 저장 공간이 부족하면 되돌리기 실패의 포장을 벗겨 원인을 담는다', () async {
+      for (final background in [false, true]) {
+        final db = background
+            ? AppDatabase(
+                NativeDatabase.createBackgroundConnection(
+                  await _tempDatabaseFile(),
+                ),
+              )
+            : AppDatabase.memory();
+        addTearDown(db.close);
+        final pages = await db.customSelect('PRAGMA page_count').getSingle();
+        await db.customStatement(
+          'PRAGMA max_page_count = ${pages.read<int>('page_count')}',
+        );
+
+        final result = await guardStorage(
+          'test.write',
+          () => db.transaction(
+            () => db.customStatement(
+              "INSERT INTO settings (key, value) VALUES ('big', ?)",
+              ['x' * 200000],
+            ),
+          ),
+        );
+
+        expect(
+          _errorOf(result),
+          const StorageError(
+            'test.write',
+            causeType: 'SqliteException',
+            code: 13,
+          ),
+          reason: background ? '백그라운드 연결' : '메모리',
+        );
+        expect(StorageFullSignal.take(), isTrue);
+      }
+    });
+
+    test('그 밖의 실패는 신호에 적지 않는다', () async {
+      final db = AppDatabase.memory();
+      addTearDown(db.close);
+      await guardStorage(
+        'test.read',
+        () => db.customSelect('SELECT * FROM no_such_table').get(),
+      );
+      await guardStorage<void>(
+        'test.write',
+        () async => throw const FileSystemException('disk'),
+      );
+      expect(StorageFullSignal.take(), isFalse);
+    });
+
+    test('isFull은 확장 결과 코드의 아래 8비트가 13인지로 본다', () {
+      bool full(int? code) => StorageError(
+        'test.write',
+        causeType: 'SqliteException',
+        code: code,
+      ).isFull;
+      expect([full(13), full(13 | 0x100)], [true, true]);
+      expect([
+        full(null),
+        full(5),
+        full(1),
+        full(10 | 0x300),
+      ], everyElement(isFalse));
+    });
+
+    test('적은 지 window가 지난 표시는 버린다', () {
+      final original = StorageFullSignal.elapsed;
+      addTearDown(() => StorageFullSignal.elapsed = original);
+      var now = Duration.zero;
+      StorageFullSignal.elapsed = () => now;
+
+      StorageFullSignal.mark();
+      now = StorageFullSignal.window;
+      expect(StorageFullSignal.take(), isTrue);
+
+      StorageFullSignal.mark();
+      now += StorageFullSignal.window + const Duration(milliseconds: 1);
+      expect(StorageFullSignal.take(), isFalse);
+    });
+  });
+
   test('ArgumentError·TypeError 같은 프로그래밍 오류는 그대로 던진다', () async {
     await expectLater(
       guardStorage<void>('test.write', () async => throw ArgumentError('key')),
