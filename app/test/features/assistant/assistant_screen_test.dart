@@ -531,7 +531,7 @@ void main() {
       reply: (_) => const Err(ApiError(null, 'timeout')),
     );
     await _say(tester, '내일 오후 3시 회의');
-    expect(find.text('AI가 5초 안에 답하지 않았어요'), findsOneWidget);
+    expect(find.text('AI가 8초 안에 답하지 않았어요'), findsOneWidget);
 
     parse.reply = _meeting;
     await tapText(tester, '다시 보내기');

@@ -24,14 +24,14 @@ class ServerApi {
     this.demo = false,
     TokenSource? appCheckToken,
     TokenSource? installToken,
-    this.totalTimeout = const Duration(seconds: 5),
+    this.totalTimeout = const Duration(seconds: 8),
     HttpClientAdapter? adapter,
   }) : _dio = Dio(
          BaseOptions(
            baseUrl: baseUrl,
-           // 연결 3초, 수신 5초. 콜드 스타트를 포함한 요청 하나의 전체 상한은 [totalTimeout]이다.
+           // 연결 3초, 수신 8초. 콜드 스타트를 포함한 요청 하나의 전체 상한은 [totalTimeout]이다.
            connectTimeout: const Duration(seconds: 3),
-           receiveTimeout: const Duration(seconds: 5),
+           receiveTimeout: const Duration(seconds: 8),
            contentType: 'application/json; charset=utf-8',
            responseType: ResponseType.json,
          ),

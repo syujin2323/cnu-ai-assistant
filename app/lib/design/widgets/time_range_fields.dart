@@ -5,6 +5,7 @@
 
 import 'package:cnu_ai_assistant/design/motion/press.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
+import 'package:cnu_ai_assistant/design/widgets/time_wheel_sheet.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -19,6 +20,7 @@ class TimeRangeFields extends StatelessWidget {
     this.startHigh = 1425,
     this.endHigh = 1440,
     this.step = 15,
+    this.pickStep,
   });
 
   final int startMin;
@@ -38,6 +40,10 @@ class TimeRangeFields extends StatelessWidget {
   /// 한 번 누를 때 옮기는 분.
   final int step;
 
+  /// null이 아니면 시각을 누를 때 시·분 휠 시트를 열어 이 분 단위로 고른다(직접 추가 폼. 단계 버튼으로 맞추기
+  /// 어려운 시각용).
+  final int? pickStep;
+
   /// 끝 시각 'HH:MM'. 자정을 넘으면 '다음 날 HH:MM'이다.
   static String endText(int endMin) =>
       endMin <= 1440 ? hhmmText(endMin) : '다음 날 ${hhmmText(endMin - 1440)}';
@@ -51,6 +57,32 @@ class TimeRangeFields extends StatelessWidget {
       onChanged?.call(start, end > endHigh ? endHigh : end);
     }
 
+    final pickStep = this.pickStep;
+    final canPick = onChanged != null && pickStep != null;
+    Future<void> pickStart() async {
+      final picked = await showTimeWheelSheet(
+        context,
+        title: '시작',
+        initial: startMin,
+        low: startLow,
+        high: startHigh,
+        step: pickStep!,
+      );
+      if (picked != null) setStart(picked);
+    }
+
+    Future<void> pickEnd() async {
+      final picked = await showTimeWheelSheet(
+        context,
+        title: '끝',
+        initial: endMin,
+        low: startMin + pickStep!,
+        high: endHigh,
+        step: pickStep,
+      );
+      if (picked != null) onChanged?.call(startMin, picked);
+    }
+
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colors.surface,
@@ -62,6 +94,7 @@ class TimeRangeFields extends StatelessWidget {
           StepperRow(
             label: '시작',
             value: hhmmText(startMin),
+            onValueTap: canPick ? pickStart : null,
             decLabel: '시작 $step분 앞당기기',
             incLabel: '시작 $step분 늦추기',
             onDec: onChanged != null && startMin - step >= startLow
@@ -75,6 +108,7 @@ class TimeRangeFields extends StatelessWidget {
           StepperRow(
             label: '끝',
             value: endText(endMin),
+            onValueTap: canPick ? pickEnd : null,
             decLabel: '끝 $step분 앞당기기',
             incLabel: '끝 $step분 늦추기',
             onDec: onChanged != null && endMin - step > startMin
@@ -100,7 +134,11 @@ class StepperRow extends StatelessWidget {
     required this.incLabel,
     required this.onDec,
     required this.onInc,
+    this.onValueTap,
   });
+
+  /// 값을 누르면 부른다(시각 휠 열기). null이면 값은 누를 수 없다.
+  final VoidCallback? onValueTap;
 
   final String label;
 
@@ -139,16 +177,33 @@ class StepperRow extends StatelessWidget {
               width: valueWidth,
               child: Semantics(
                 liveRegion: true,
+                button: onValueTap != null,
                 label: '$label $value',
+                hint: onValueTap != null ? '눌러서 시각 고르기' : null,
                 excludeSemantics: true,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    value,
-                    textAlign: TextAlign.center,
-                    style: AppText.bodyLarge.copyWith(
-                      fontWeight: AppText.semibold,
-                      fontFeatures: const [FontFeature.tabularFigures()],
+                onTap: onValueTap,
+                child: InkWell(
+                  onTap: onValueTap,
+                  borderRadius: BorderRadius.circular(AppRadius.input),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minHeight: AppSize.minTouch,
+                    ),
+                    child: Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          value,
+                          textAlign: TextAlign.center,
+                          style: AppText.bodyLarge.copyWith(
+                            fontWeight: AppText.semibold,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                            color: onValueTap != null
+                                ? AppColors.of(context).accent
+                                : null,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),

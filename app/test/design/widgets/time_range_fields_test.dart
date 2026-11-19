@@ -2,6 +2,8 @@
 
 import 'package:cnu_ai_assistant/app/theme.dart';
 import 'package:cnu_ai_assistant/design/widgets/time_range_fields.dart';
+import 'package:cnu_ai_assistant/design/widgets/time_wheel_sheet.dart';
+import 'package:cupertino_ui/cupertino_ui.dart' show CupertinoPicker;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -31,7 +33,14 @@ Future<void> _pump(
 
 /// 상태를 들고 [TimeRangeFields]를 그린다.
 class _Holder extends StatefulWidget {
-  const _Holder({required this.start, required this.end, this.endHigh = 1440});
+  const _Holder({
+    required this.start,
+    required this.end,
+    this.endHigh = 1440,
+    this.pickStep,
+  });
+
+  final int? pickStep;
 
   final int start;
   final int end;
@@ -50,6 +59,8 @@ class _HolderState extends State<_Holder> {
     startMin: start,
     endMin: end,
     endHigh: widget.endHigh,
+    step: widget.pickStep == null ? 15 : 30,
+    pickStep: widget.pickStep,
     onChanged: (s, e) => setState(() {
       start = s;
       end = e;
@@ -130,5 +141,56 @@ void main() {
     expect(TimeRangeFields.endText(615), '10:15');
     expect(TimeRangeFields.endText(1440), '24:00');
     expect(TimeRangeFields.endText(1560), '다음 날 02:00');
+  });
+
+  testWidgets('시각을 누르면 시·분 휠로 5분 단위까지 고른다(직접 추가 폼)', (tester) async {
+    await _pump(tester, const _Holder(start: 910, end: 1000, pickStep: 5));
+    // 끝 16:40을 눌러 17:00으로: 시 휠을 한 칸, 분 휠을 여덟 칸(40분 → 00분) 옮긴다.
+    await tester.tap(find.bySemanticsLabel('끝 16:40'));
+    await tester.pumpAndSettle();
+    expect(find.text('끝 16:40'), findsOneWidget);
+    final wheels = find.byType(CupertinoPicker);
+    await tester.drag(
+      wheels.first,
+      const Offset(0, -TimeWheelSheet.itemExtent),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(
+      wheels.last,
+      const Offset(0, TimeWheelSheet.itemExtent * 8),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('끝 17:00'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, '확인'));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('끝 17:00'), findsOneWidget);
+    expect(find.bySemanticsLabel('시작 15:10'), findsOneWidget);
+
+    // 시작을 끝보다 늦게 고르면 끝도 함께 옮긴다. 시트를 그냥 닫으면 그대로다.
+    await tester.tap(find.bySemanticsLabel('시작 15:10'));
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byType(CupertinoPicker).first,
+      const Offset(0, -TimeWheelSheet.itemExtent * 3),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '확인'));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('시작 18:10'), findsOneWidget);
+    expect(find.bySemanticsLabel('끝 18:40'), findsOneWidget);
+  });
+
+  test('휠의 값은 범위 안의 단위 값으로 맞춘다', () {
+    expect(snapTimeWheel(1002, low: 0, high: 1440), 1000);
+    expect(snapTimeWheel(100, low: 915, high: 1800), 915);
+    expect(snapTimeWheel(2000, low: 915, high: 1800), 1800);
+    expect(snapTimeWheel(912, low: 912, high: 1800), 915);
+  });
+
+  testWidgets('단계 버튼만 쓰는 곳(13·14)은 시각을 눌러도 휠을 열지 않는다', (tester) async {
+    await _pump(tester, const _Holder(start: 600, end: 660));
+    await tester.tap(find.bySemanticsLabel('끝 11:00'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CupertinoPicker), findsNothing);
   });
 }
