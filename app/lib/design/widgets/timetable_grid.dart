@@ -27,7 +27,7 @@ class TimetableGrid extends StatelessWidget {
   /// 그릴 수업 칸(숨긴 수업은 넣지 않는다).
   final List<ClassSlotEntry> entries;
 
-  /// 오늘 요일(1–7). 그 열을 칠한다.
+  /// 오늘 요일(1–7). 그 요일 이름을 강조한다(열은 칠하지 않는다).
   final int today;
 
   /// 칸을 누르면 받는다. null이면 누를 수 없다.
@@ -40,14 +40,13 @@ class TimetableGrid extends StatelessWidget {
   final Widget? empty;
 
   /// 한 시간 높이(임시, 최종 프로토타입).
-  static const double hourHeight = 56;
+  static const double hourHeight = 64;
 
   /// 열 사이 간격.
   static const double columnGap = 3;
 
   @override
   Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
     final layout = timetableGridLayout(entries);
     final scaler = MediaQuery.textScalerOf(context);
     final labelWidth = scaler.scale(AppText.caption.fontSize!) * 1.5 + 6;
@@ -55,21 +54,9 @@ class TimetableGrid extends StatelessWidget {
     final empty = this.empty;
 
     Widget column(int day) {
-      final isToday = day == today;
       return Expanded(
-        child: Container(
+        child: SizedBox(
           height: bodyHeight,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.input),
-            gradient: isToday
-                ? LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [colors.tint, colors.tint.withValues(alpha: 0)],
-                    stops: const [0, .85],
-                  )
-                : null,
-          ),
           child: Stack(
             clipBehavior: Clip.none,
             children: [
@@ -290,33 +277,45 @@ class _ClassBlock extends StatelessWidget {
             onTap: tap,
             child: Padding(
               padding: const EdgeInsets.all(AppSpace.s4),
-              child: Text.rich(
-                TextSpan(
-                  children: [
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // 칸에 온전히 들어가는 줄만 쓴다(반쯤 잘린 줄을 두지 않음). 넘치는 글은 '…'로 줄인다.
+                  final lineHeight =
+                      MediaQuery.textScalerOf(context)
+                          .scale(AppText.caption.fontSize!) *
+                      AppText.caption.height!;
+                  final lines = (constraints.maxHeight / lineHeight).floor();
+                  return Text.rich(
                     TextSpan(
-                      text: entry.course.name,
-                      style: AppText.caption.copyWith(
-                        fontWeight: AppText.semibold,
-                        color: colors.ink,
-                      ),
-                    ),
-                    if (showTime)
-                      TextSpan(
-                        text: '\n$time',
-                        style: AppText.caption.copyWith(
-                          color: colors.ink2,
-                          fontFeatures: const [FontFeature.tabularFigures()],
+                      children: [
+                        TextSpan(
+                          text: entry.course.name,
+                          style: AppText.caption.copyWith(
+                            fontWeight: AppText.semibold,
+                            color: colors.ink,
+                          ),
                         ),
-                      ),
-                    if (place != null && place.isNotEmpty)
-                      TextSpan(
-                        text: '\n$place',
-                        style: AppText.caption.copyWith(color: look.ink),
-                      ),
-                  ],
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 4,
+                        if (showTime)
+                          TextSpan(
+                            text: '\n$time',
+                            style: AppText.caption.copyWith(
+                              color: colors.ink2,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                          ),
+                        if (place != null && place.isNotEmpty)
+                          TextSpan(
+                            text: '\n$place',
+                            style: AppText.caption.copyWith(color: look.ink),
+                          ),
+                      ],
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: lines < 1 ? 1 : lines,
+                  );
+                },
               ),
             ),
           ),
