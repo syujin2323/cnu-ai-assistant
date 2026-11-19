@@ -1,6 +1,7 @@
 // 온보딩 2단계(불러온 시간표 확인) 테스트. docs/screens.md '14 온보딩'의 2단계. 과목·강의실은 합성 값이다.
 
 import 'package:cnu_ai_assistant/data/db/database.dart';
+import 'package:cnu_ai_assistant/design/widgets/form_parts.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/features/onboarding/steps/timetable_step.dart';
 import 'package:drift/drift.dart' show Value;
@@ -62,10 +63,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('월·수 09:00–10:15 · 불러온 시간표'), findsOneWidget);
     expect(find.text('과목'), findsNothing);
-    await tester.tapAt(const Offset(20, 20));
+    // 녹화 강의로 표시하면 격자에서 빠지고 아래 줄로 남는다.
+    final recorded = find.descendant(
+      of: find.widgetWithText(FormSwitchRow, '녹화 강의'),
+      matching: find.byType(Switch),
+    );
+    await tester.ensureVisible(recorded);
     await tester.pumpAndSettle();
+    await tester.tap(recorded);
+    await tester.pump();
+    final save = find.widgetWithText(FilledButton, '저장');
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    expect(find.text('수업 1개 · 주 0회'), findsOneWidget);
+    expect(find.bySemanticsLabel('선형대수, 녹화 강의'), findsOneWidget);
+    expect(find.text('아직 수업이 없어요'), findsNothing);
 
-    await tester.ensureVisible(find.text('맞아요'));
+    // 아래 버튼은 내용이 길면 스크롤해야 만들어진다.
+    await tester.dragUntilVisible(
+      find.text('맞아요'),
+      find.byType(CustomScrollView),
+      const Offset(0, -200),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('맞아요'));
     expect(confirmed, 1);
     await app.dispose();

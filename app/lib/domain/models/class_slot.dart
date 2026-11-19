@@ -23,6 +23,7 @@ class ClassSlot {
     this.placeEdited = false,
     this.onlineEdited = false,
     this.hidden = false,
+    this.recorded = false,
   });
 
   final int id;
@@ -73,4 +74,10 @@ class ClassSlot {
   /// 남기고 숨겨, 새로 고침이 학교 시간표의 그 수업을 새 수업으로 다시 넣지 않게 한다. 숨긴 수업은 화면과 배치에
   /// 쓰지 않는다(docs/decisions.md 2026-11-19 '뺀 불러온 수업은 숨겨 두고 새로 고침이 다시 넣지 않는다').
   final bool hidden;
+
+  /// 녹화 강의(정해진 시간 없이 듣는 온라인 수업)면 true다. 이때 [online]도 true다. 녹화 강의는 13 시간표·고정
+  /// 일정의 수업 목록에만 남고, 시간표 격자와 하루 화면에 그리지 않으며 배치에서 시간을 막지 않는다
+  /// (docs/decisions.md 2026-11-19 '녹화 강의는 시간표에 그리지 않고 시간도 막지 않는다'). 불러오기는 이 값을
+  /// 알지 못하므로 사용자가 정한 값이 남는다.
+  final bool recorded;
 }

@@ -3,6 +3,7 @@
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/class_slot_repository.dart';
 import 'package:cnu_ai_assistant/design/widgets/class_slot_sheet.dart';
+import 'package:cnu_ai_assistant/design/widgets/form_parts.dart';
 import 'package:cnu_ai_assistant/design/widgets/weekday_picker.dart';
 import 'package:cnu_ai_assistant/domain/class_groups.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
@@ -57,6 +58,11 @@ Future<ClassGroup> _onlyGroup(AppDatabase db) async {
 Future<List<ClassSlot>> _rows(AppDatabase db) => (db.select(
   db.classSlots,
 )..orderBy([(t) => OrderingTerm(expression: t.id)])).get();
+
+Finder _switchOf(String label) => find.descendant(
+  of: find.widgetWithText(FormSwitchRow, label),
+  matching: find.byType(Switch),
+);
 
 Finder _day(String label) =>
     find.descendant(of: find.byType(WeekdayPicker), matching: find.text(label));
@@ -234,8 +240,7 @@ void main() {
     expect(app.toast, isNull);
 
     await app.open();
-    await tester.tap(find.byType(Switch));
-    await tester.pump();
+    await _tapIn(tester, _switchOf('실시간 온라인'));
     expect(find.byType(TextField), findsNothing);
     await tester.tap(find.widgetWithText(FilledButton, '저장'));
     await tester.pumpAndSettle();
@@ -246,6 +251,79 @@ void main() {
       (true, true, '합성관101'),
     ]);
     expect(app.toast, '선형대수를 실시간 온라인으로 표시했어요');
+    await app.dispose();
+  });
+
+  testWidgets('14 온보딩 2단계: 녹화 강의로 표시하면 실시간 온라인·장소 칸을 숨기고 온라인으로 적는다', (
+    tester,
+  ) async {
+    late ClassGroup group;
+    final app = await pumpSheetHarness(
+      tester,
+      (context, ref) => showClassSlotSheet(
+        context,
+        ref,
+        group: group,
+        mode: ClassSheetMode.placeOnly,
+      ),
+      seed: (db) async {
+        await _seedImported(db);
+        group = await _onlyGroup(db);
+      },
+    );
+    await app.open();
+
+    await _tapIn(tester, _switchOf('녹화 강의'));
+    expect(find.text('실시간 온라인'), findsNothing);
+    expect(find.byType(TextField), findsNothing);
+    await _tapIn(tester, find.widgetWithText(FilledButton, '저장'));
+    await tester.pumpAndSettle();
+
+    var rows = await _rows(app.db);
+    expect(rows.map((r) => (r.recorded, r.online, r.onlineEdited, r.place)), [
+      (true, true, true, '합성관101'),
+      (true, true, true, '합성관101'),
+    ]);
+    expect(app.toast, '선형대수를 녹화 강의로 표시했어요');
+
+    // 다시 열어 끄면 강의실 수업으로 돌아온다.
+    group = await _onlyGroup(app.db);
+    await app.open();
+    await _tapIn(tester, _switchOf('녹화 강의'));
+    await _tapIn(tester, find.widgetWithText(FilledButton, '저장'));
+    await tester.pumpAndSettle();
+    rows = await _rows(app.db);
+    expect(rows.map((r) => (r.recorded, r.online)), [
+      (false, false),
+      (false, false),
+    ]);
+    expect(app.toast, '선형대수를 강의실 수업으로 돌렸어요');
+    await app.dispose();
+  });
+
+  testWidgets('14 온보딩 2단계: [시간표에서 빼기]는 불러온 수업을 숨긴다', (tester) async {
+    late ClassGroup group;
+    final app = await pumpSheetHarness(
+      tester,
+      (context, ref) => showClassSlotSheet(
+        context,
+        ref,
+        group: group,
+        mode: ClassSheetMode.placeOnly,
+      ),
+      seed: (db) async {
+        await _seedImported(db);
+        group = await _onlyGroup(db);
+      },
+    );
+    await app.open();
+
+    await _tapIn(tester, find.widgetWithText(OutlinedButton, '시간표에서 빼기'));
+    await tester.pumpAndSettle();
+
+    expect((await _rows(app.db)).every((r) => r.hidden), isTrue);
+    expect(app.toast, '선형대수를 시간표에서 뺐어요');
+    expect(app.result, isTrue);
     await app.dispose();
   });
 

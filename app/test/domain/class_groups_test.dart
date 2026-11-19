@@ -14,6 +14,7 @@ ClassSlotEntry _entry(
   int end = 615,
   String? place = '합성관101',
   bool online = false,
+  bool recorded = false,
   SlotSource source = SlotSource.auto,
 }) {
   final c = course ?? _course(1, '과목A');
@@ -25,7 +26,8 @@ ClassSlotEntry _entry(
       startMin: start,
       endMin: end,
       place: place,
-      online: online,
+      online: online || recorded,
+      recorded: recorded,
       source: source,
     ),
     course: c,
@@ -56,6 +58,17 @@ void main() {
       expect(groups.first.whenText, '월·수 09:00–10:15');
       expect(groups.first.place, '합성관101');
       expect(groups.first.source, SlotSource.auto);
+    });
+
+    test('녹화 강의로 바꾼 칸은 다른 수업으로 묶는다', () {
+      final groups = groupClassSlots([
+        _entry(1, weekday: 1),
+        _entry(2, weekday: 3, recorded: true),
+      ]);
+      expect(groups.map((g) => (g.slotIds.single, g.recorded)), [
+        (1, false),
+        (2, true),
+      ]);
     });
 
     test('같은 첫 요일·시각이면 과목 이름, 그다음 첫 칸 id 순서다', () {
@@ -97,6 +110,16 @@ void main() {
       expect(layout.byDay[6]!.map((e) => e.slot.id), [2]);
     });
 
+    test('녹화 강의는 격자에 두지 않고, 시간대와 요일 열도 늘리지 않는다', () {
+      final layout = timetableGridLayout([
+        _entry(1),
+        _entry(2, weekday: 6, start: 420, end: 1320, recorded: true),
+      ]);
+      expect(layout.days, [1, 2, 3, 4, 5]);
+      expect((layout.firstHour, layout.lastHour), (9, 18));
+      expect(layout.byDay.keys, [1]);
+    });
+
     test('자정을 넘는 칸은 24시에서 자른다', () {
       final layout = timetableGridLayout([_entry(1, start: 1320, end: 1500)]);
 
@@ -129,6 +152,18 @@ void main() {
           endMin: 630,
         ).map((e) => e.slot.id),
         [1, 3],
+      );
+    });
+
+    test('녹화 강의는 시간을 차지하지 않으므로 겹침으로 보지 않는다', () {
+      expect(
+        overlappingClasses(
+          [_entry(1, recorded: true), _entry(2)],
+          weekdays: {1},
+          startMin: 540,
+          endMin: 615,
+        ).map((e) => e.slot.id),
+        [2],
       );
     });
 

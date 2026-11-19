@@ -93,6 +93,7 @@ class TimetableRefreshRepository {
       now.endMin == before.endMin &&
       now.place == before.place &&
       now.online == before.online &&
+      now.recorded == before.recorded &&
       now.placeEdited == before.placeEdited &&
       now.hidden == before.hidden &&
       now.source == before.source &&

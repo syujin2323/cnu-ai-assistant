@@ -35,6 +35,9 @@ final class ClassGroup {
 
   bool get online => _first.online;
 
+  /// 녹화 강의인지([ClassSlot.recorded]).
+  bool get recorded => _first.recorded;
+
   SlotSource get source => _first.source;
 
   /// 묶음의 `class_slots.id`.
@@ -49,7 +52,10 @@ final class ClassGroup {
 /// 첫 칸 id 순서다.
 List<ClassGroup> groupClassSlots(List<ClassSlotEntry> entries) {
   final groups =
-      <(int, int, int, String?, bool, SlotSource), List<ClassSlotEntry>>{};
+      <
+        (int, int, int, String?, bool, bool, SlotSource),
+        List<ClassSlotEntry>
+      >{};
   final sorted = [...entries]..sort(_byDayThenTime);
   for (final entry in sorted) {
     final slot = entry.slot;
@@ -59,6 +65,7 @@ List<ClassGroup> groupClassSlots(List<ClassSlotEntry> entries) {
       slot.endMin,
       slot.place,
       slot.online,
+      slot.recorded,
       slot.source,
     );
     (groups[key] ??= []).add(entry);
@@ -111,7 +118,7 @@ abstract final class TimetableGridDefaults {
   static const int lastHour = 18;
 }
 
-/// [entries]의 격자 배치. 자정을 넘는 칸은 24시에서 자른다.
+/// [entries]의 격자 배치. 자정을 넘는 칸은 24시에서 자른다. 녹화 강의는 격자에 두지 않는다.
 TimetableGridLayout timetableGridLayout(List<ClassSlotEntry> entries) {
   var first = TimetableGridDefaults.firstHour;
   var last = TimetableGridDefaults.lastHour;
@@ -119,6 +126,7 @@ TimetableGridLayout timetableGridLayout(List<ClassSlotEntry> entries) {
   final byDay = <int, List<ClassSlotEntry>>{};
   for (final entry in [...entries]..sort(_byDayThenTime)) {
     final slot = entry.slot;
+    if (slot.recorded) continue;
     if (slot.weekday >= DateTime.saturday) weekend = true;
     final startHour = slot.startMin ~/ 60;
     final endHour = ((slot.endMin < 1440 ? slot.endMin : 1440) + 59) ~/ 60;
@@ -142,7 +150,7 @@ TimetableGridLayout timetableGridLayout(List<ClassSlotEntry> entries) {
 }
 
 /// [weekdays]의 [startMin]–[endMin]과 겹치는 수업 칸. [exceptIds]의 칸(지금 고치는 수업)은 뺀다. 요일·시작 시각
-/// 순서다. 같은 달력 요일 안에서만 견준다.
+/// 순서다. 같은 달력 요일 안에서만 견준다. 녹화 강의는 시간을 차지하지 않으므로 견주지 않는다.
 List<ClassSlotEntry> overlappingClasses(
   List<ClassSlotEntry> entries, {
   required Iterable<int> weekdays,
@@ -154,6 +162,7 @@ List<ClassSlotEntry> overlappingClasses(
   return [
     for (final entry in [...entries]..sort(_byDayThenTime))
       if (!exceptIds.contains(entry.slot.id) &&
+          !entry.slot.recorded &&
           days.contains(entry.slot.weekday) &&
           entry.slot.startMin < endMin &&
           startMin < entry.slot.endMin)

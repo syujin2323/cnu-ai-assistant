@@ -1,10 +1,14 @@
 // 수업 시트. docs/screens.md '13 시간표·고정 일정'의 수업 시트, '14 온보딩'의 2단계.
 //
 // 한 수업(`domain/class_groups.dart`의 [ClassGroup]: 과목·시각·장소가 같은 요일별 칸의 묶음)을 넣고 고치고 뺀다.
-// - [ClassSheetMode.full](13): 과목(LMS 과목 칩이나 [직접 입력]), 요일, 시간(15분 단위), 실시간 온라인, 장소.
+// - [ClassSheetMode.full](13): 과목(LMS 과목 칩이나 [직접 입력]), 요일, 시간(15분 단위), 녹화 강의, 실시간 온라인,
+//   장소.
 //   겹치는 수업은 알리기만 한다. 캠퍼스는 두지 않는다(docs/decisions.md 2026-11-19 '캠퍼스를 두지 않는다'). 반복
 //   [매주 | 격주 | 특정 주]는 격주·특정 주가 R1이라 그때 더한다(지금은 매주뿐).
-// - [ClassSheetMode.placeOnly](14 온보딩 2단계): 불러온 수업의 실시간 온라인과 장소만 고친다.
+// - [ClassSheetMode.placeOnly](14 온보딩 2단계): 불러온 수업의 녹화 강의·실시간 온라인과 장소만 고치고, [시간표에서
+//   빼기]로 뺀다.
+// 녹화 강의는 정해진 시간이 없는 수업이라 시간표에 그리지 않고 시간도 비워 두지 않는다(13의 수업 목록에는 남는다.
+// docs/decisions.md 2026-11-19 '녹화 강의는 시간표에 그리지 않고 시간도 막지 않는다').
 // 저장·빼기는 `ClassSlotRepository`의 `saveGroup`·`removeGroup`이 한 동작으로 하고(되돌리기 한 번), 시트는
 // 되돌리기 토스트를 띄운 뒤 닫는다. 불러온 수업을 빼면 숨겨 두어 새로 고침이 다시 넣지 않는다(저장소). 시간
 // 범위와 문구는 최종 프로토타입의 값이다(임시).
@@ -32,7 +36,7 @@ enum ClassSheetMode {
   /// 13 시간표·고정 일정: 모든 칸.
   full,
 
-  /// 14 온보딩 2단계: 실시간 온라인과 장소만.
+  /// 14 온보딩 2단계: 녹화 강의·실시간 온라인과 장소, 시간표에서 빼기.
   placeOnly,
 }
 
@@ -85,7 +89,9 @@ class _ClassSlotSheetState extends ConsumerState<ClassSlotSheet> {
   late Set<int> _weekdays = {...?widget.group?.weekdays};
   late int _start = widget.group?.startMin ?? ClassSheetLimits.newStart;
   late int _end = widget.group?.endMin ?? ClassSheetLimits.newEnd;
-  late bool _online = widget.group?.online ?? false;
+  late bool _recorded = widget.group?.recorded ?? false;
+  late bool _online =
+      (widget.group?.online ?? false) && !(widget.group?.recorded ?? false);
   late final _place = TextEditingController(text: widget.group?.place ?? '');
   bool _busy = false;
   bool _failed = false;
@@ -152,6 +158,7 @@ class _ClassSlotSheetState extends ConsumerState<ClassSlotSheet> {
             endMin: _end,
             place: _placeValue,
             online: _online,
+            recorded: _recorded,
             now: ref.read(clockProvider).now(),
           ),
       '${withJosa(name, Josa.eulReul)} ${editing ? '고쳤어요' : '넣었어요'}',
@@ -173,12 +180,19 @@ class _ClassSlotSheetState extends ConsumerState<ClassSlotSheet> {
     final group = _group!;
     final place = _placeValue;
     final name = group.course.name;
-    final onlineChanged = _online != group.online;
-    if (!onlineChanged && (_online || place == group.place || place == null)) {
+    final wasOnline = group.online && !group.recorded;
+    final recordedChanged = _recorded != group.recorded;
+    final onlineChanged = !_recorded && _online != wasOnline;
+    final remote = _recorded || _online;
+    if (!recordedChanged &&
+        !onlineChanged &&
+        (remote || place == group.place || place == null)) {
       Navigator.of(context).pop(false);
       return;
     }
-    final toast = onlineChanged
+    final toast = _recorded && recordedChanged
+        ? '${withJosa(name, Josa.eulReul)} 녹화 강의로 표시했어요'
+        : recordedChanged || onlineChanged
         ? _online
               ? '${withJosa(name, Josa.eulReul)} 실시간 온라인으로 표시했어요'
               : '${withJosa(name, Josa.eulReul)} 강의실 수업으로 돌렸어요'
@@ -192,8 +206,9 @@ class _ClassSlotSheetState extends ConsumerState<ClassSlotSheet> {
             weekdays: {...group.weekdays},
             startMin: group.startMin,
             endMin: group.endMin,
-            place: _online ? group.place : place ?? group.place,
+            place: remote ? group.place : place ?? group.place,
             online: _online,
+            recorded: _recorded,
             now: ref.read(clockProvider).now(),
           ),
       toast,
@@ -329,12 +344,21 @@ class _ClassSlotSheetState extends ConsumerState<ClassSlotSheet> {
       ],
       const SizedBox(height: AppSpace.s16),
       FormSwitchRow(
-        label: '실시간 온라인',
-        sub: '장소와 이동 여유 없이 계산해요',
-        value: _online,
-        onChanged: _busy ? null : (value) => setState(() => _online = value),
+        label: '녹화 강의',
+        sub: '정해진 시간 없이 듣는 수업이에요. 시간표에 그리지 않고 시간도 비워 두지 않아요',
+        value: _recorded,
+        onChanged: _busy ? null : (value) => setState(() => _recorded = value),
       ),
-      if (!_online) ...[
+      if (!_recorded) ...[
+        const SizedBox(height: AppSpace.s8),
+        FormSwitchRow(
+          label: '실시간 온라인',
+          sub: '장소와 이동 여유 없이 계산해요',
+          value: _online,
+          onChanged: _busy ? null : (value) => setState(() => _online = value),
+        ),
+      ],
+      if (!_recorded && !_online) ...[
         const FormLabel('장소'),
         TextField(
           controller: _place,
@@ -347,9 +371,23 @@ class _ClassSlotSheetState extends ConsumerState<ClassSlotSheet> {
         const FormNote('저장하지 못했어요. 다시 눌러 주세요', icon: AppIconName.warning),
       const SizedBox(height: AppSpace.s20),
       if (placeOnly)
-        FilledButton(
-          onPressed: _busy ? null : _savePlace,
-          child: const Text('저장'),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _busy ? null : _remove,
+                icon: const AppIcon(AppIconName.trash, size: 18),
+                label: const Text('시간표에서 빼기'),
+              ),
+            ),
+            const SizedBox(width: AppSpace.s8),
+            Expanded(
+              child: FilledButton(
+                onPressed: _busy ? null : _savePlace,
+                child: const Text('저장'),
+              ),
+            ),
+          ],
         )
       else if (group == null)
         FilledButton(

@@ -135,6 +135,19 @@ void main() {
     expect(schedule.classSlots.map((s) => s.id), [shown]);
   });
 
+  test('녹화 강의는 읽지 않는다(그리지도, 시간을 막지도 않음)', () async {
+    final courseId = await addCourse();
+    final shown = await addSlot(courseId);
+    final recorded = await addSlot(courseId);
+    await (db.update(db.classSlots)..where((t) => t.id.equals(recorded))).write(
+      const ClassSlotsCompanion(online: Value(true), recorded: Value(true)),
+    );
+
+    final schedule = await readOk();
+
+    expect(schedule.classSlots.map((s) => s.id), [shown]);
+  });
+
   test('수업 예외는 시작 전날부터 끝 날짜까지만 읽는다', () async {
     final slotId = await addSlot(await addCourse());
     await addException(slotId, '2026-10-27');
