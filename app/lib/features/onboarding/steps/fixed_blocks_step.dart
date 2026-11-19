@@ -1,11 +1,12 @@
 // 온보딩 3단계: 고정 일정. docs/screens.md '14 온보딩'의 '3단계 · 고정 일정'.
 //
-// '빠르게 더하기'(점심·알바·운동·통학·기타)를 누르면 그 아래에 작은 폼이 열리고, 넣은 시간에는 할 일을 놓지 않는다.
-// - 점심·알바·운동·기타는 고정 일정(`fixed_blocks`)이다. 폼은 이름·요일·시간·준비물이고(`design/widgets/
-//   fixed_block_sheet.dart`의 [FixedBlockFormMode.quick]), 종류와 앞뒤 여유는 고른 칩의 처음 값이다
+// '빠르게 더하기'(알바·운동·통학·기타)를 누르면 그 아래에 작은 폼이 열리고, 넣은 시간에는 할 일을 놓지 않는다.
+// 점심은 두지 않는다(배치 엔진이 점심을 기본으로 비워 둠. 관리자 결정 2026-11-19).
+// - 알바·운동·기타는 고정 일정(`fixed_blocks`)이다. 폼은 이름·요일·시간이고(`design/widgets/
+//   fixed_block_sheet.dart`의 [FixedBlockFormMode.quick]), 종류·앞뒤 여유·준비물은 고른 칩의 처음 값이다
 //   (`domain/fixed_block_templates.dart`. 운동의 준비물 기본값은 '운동복').
-// - '통학'은 시간 칩(20·30·40·60분, 기본 40분, 임시)으로 골라 내 규칙의 이동 시간(`travel`, 하루 첫 수업 전·
-//   마지막 수업 뒤)으로 저장하며, 13 시간표·고정 일정의 '통학'(매주 정해진 시각의 고정 일정)과 다르다.
+// - '통학'은 돌려서 고르는 휠(5분 단위 5분–3시간, 기본 40분, 임시)로 골라 내 규칙의 이동 시간(`travel`, 하루 첫
+//   수업 전·마지막 수업 뒤)으로 저장하며, 13 시간표·고정 일정의 '통학'(매주 정해진 시각의 고정 일정)과 다르다.
 // 넣은 것은 위 목록에 보이고, 고정 일정은 지우고 통학은 고친다(되돌리기 토스트). 온보딩에서 건너뛸 수 있는 단계는
 // 이 단계뿐이고, 건너뛰면 4단계로 가며 고정 일정은 나중에 10 나에서 넣는다. 문구는 최종 프로토타입의 문구다(임시).
 
@@ -14,6 +15,7 @@ import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/fixed_block_sheet.dart';
 import 'package:cnu_ai_assistant/design/widgets/form_parts.dart';
+import 'package:cnu_ai_assistant/design/widgets/minute_wheel.dart';
 import 'package:cnu_ai_assistant/domain/class_groups.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/fixed_block_templates.dart';
@@ -29,7 +31,6 @@ import 'package:material_ui/material_ui.dart';
 
 /// '빠르게 더하기' 칩. [commute]는 고정 일정이 아니라 내 규칙의 이동 시간이다.
 enum QuickAdd {
-  meal('점심', AppIconName.meal, FixedBlockKind.meal),
   work('알바', AppIconName.work, FixedBlockKind.work),
   exercise('운동', AppIconName.exercise, FixedBlockKind.exercise),
   commute('통학', AppIconName.bus, null),
@@ -45,10 +46,18 @@ enum QuickAdd {
   final FixedBlockKind? kind;
 }
 
-/// 통학 시간 칩(분, 임시)과 처음 값.
+/// 통학 시간 휠의 값(분, 임시)과 처음 값.
 abstract final class CommuteChoices {
-  static const List<int> minutes = [20, 30, 40, 60];
+  static const int step = 5;
+  static const int min = 5;
+  static const int max = 180;
   static const int initial = 40;
+
+  static final List<int> minutes = [for (var m = min; m <= max; m += step) m];
+
+  /// [minutes]에 가장 가까운 휠 값(저장된 값이 5분 단위가 아닐 때).
+  static int nearest(int value) =>
+      ((value / step).round() * step).clamp(min, max).toInt();
 }
 
 /// 3단계.
@@ -98,7 +107,9 @@ class _FixedBlocksStepState extends ConsumerState<FixedBlocksStep> {
       final kind? => fixedBlockTemplate(kind),
       null => null,
     };
-    _commuteMin = commute?.params.minutes ?? CommuteChoices.initial;
+    _commuteMin = CommuteChoices.nearest(
+      commute?.params.minutes ?? CommuteChoices.initial,
+    );
   });
 
   Future<void> _run(
@@ -291,19 +302,14 @@ class _FixedBlocksStepState extends ConsumerState<FixedBlocksStep> {
                     style: AppText.small.copyWith(color: colors.muted),
                   ),
                   const SizedBox(height: AppSpace.s12),
-                  Wrap(
-                    spacing: AppSpace.s8,
-                    runSpacing: AppSpace.s8,
-                    children: [
-                      for (final minutes in CommuteChoices.minutes)
-                        ChoiceChipButton(
-                          label: durationText(minutes),
-                          selected: _commuteMin == minutes,
-                          onTap: _busy
-                              ? null
-                              : () => setState(() => _commuteMin = minutes),
-                        ),
-                    ],
+                  MinuteWheel(
+                    key: ValueKey(open),
+                    label: '통학 시간',
+                    values: CommuteChoices.minutes,
+                    value: _commuteMin,
+                    enabled: !_busy,
+                    onChanged: (minutes) =>
+                        setState(() => _commuteMin = minutes),
                   ),
                 ] else
                   FixedBlockForm(

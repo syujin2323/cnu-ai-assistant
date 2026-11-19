@@ -105,7 +105,7 @@ class _DeclineAiSheet extends StatelessWidget {
           const SizedBox(height: AppSpace.s8),
           Text(
             '동의하지 않으면 AI 비서에게 말로 일정·할 일·규칙을 넣을 수 없어요. '
-            '직접 추가는 그대로 쓸 수 있고, 나중에 나 › AI에서 켤 수 있어요.',
+            '직접 추가는 그대로 쓸 수 있고, 나중에 ‘나’ 탭 › AI에서 켤 수 있어요.',
             style: AppText.body.copyWith(color: AppColors.of(context).ink2),
           ),
           const SizedBox(height: AppSpace.s24),
