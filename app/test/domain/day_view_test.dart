@@ -266,6 +266,47 @@ void main() {
     );
   });
 
+  test('공휴일은 날짜 줄에서 붉게 쓰고, 그날이면 이름과 안내를 카드로 둔다', () {
+    // 2026-12-25(금)은 성탄절이다.
+    final christmas = DateTime(2026, 12, 25);
+    DayItem classAt(int hour, {bool cancelled = false}) => ClassItem(
+      TimeSpan(DateTime(2026, 12, 25, hour), DateTime(2026, 12, 25, hour + 1)),
+      slot: const ClassSlot(
+        id: 1,
+        courseId: 1,
+        weekday: DateTime.friday,
+        startMin: 600,
+        endMin: 660,
+        online: false,
+        source: SlotSource.manual,
+      ),
+      cancelled: cancelled,
+    );
+
+    final week = view(christmas);
+    expect(
+      [for (final d in week.strip) d.holiday],
+      [null, null, null, null, '성탄절', null, null],
+    );
+    expect(
+      [for (final d in week.strip) d.red],
+      [false, false, false, false, true, false, true],
+    );
+    expect(week.holiday!.name, '성탄절');
+    expect(week.holiday!.meta, '공휴일');
+
+    // 공휴일에도 수업은 그대로라, 수업이 있으면 휴강으로 바꾸는 길을 알린다(휴강한 수업은 세지 않음).
+    expect(
+      view(christmas, items: [classAt(10)]).holiday!.meta,
+      '공휴일 · 쉬는 수업은 눌러서 휴강으로 바꿔요',
+    );
+    expect(
+      view(christmas, items: [classAt(10, cancelled: true)]).holiday!.meta,
+      '공휴일',
+    );
+    expect(view(DateTime(2026, 11, 19)).holiday, isNull);
+  });
+
   test('종일 일정은 장소가 없으면 하루 종일이라고 쓴다', () {
     final result = view(
       DateTime(2026, 11, 19),
