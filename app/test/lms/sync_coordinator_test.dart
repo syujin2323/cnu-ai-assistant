@@ -1225,18 +1225,54 @@ void main() {
       ], isNot(contains('/api/synthetic-done')));
     });
 
-    test('상세만 부르면 끝낸 목록만 받아 detail 행 하나를 남긴다', () async {
+    test('상세만 부르면 끝낸 목록만 받아 detail 행 하나를 남기고 마지막 확인 시각은 그대로 둔다', () async {
       final server = FakeLmsServer(doneRoutes((_) => doneList({'R1'})));
       await manual(coordinator(server));
+      final listedAt = (await readSettings()).lmsLastSuccessAt;
 
       final detail = await coordinator(
         server,
+        now: _now.add(const Duration(minutes: 5)),
         config: config,
       ).run(trigger: SyncTrigger.manual, scope: SyncScope.detail);
 
       expect((detail.kind, detail.changedCount), (SyncResultKind.normal, 1));
       expect(await rows(), ['manual list normal 2', 'manual detail normal 1']);
       expect(await lmsDone('R1'), (true, null));
+      expect(listedAt, isNotNull);
+      expect((await readSettings()).lmsLastSuccessAt, listedAt);
+    });
+
+    test('자동 계기가 상세만 부르면 목록과 따로 상세의 하루 횟수로 막는다', () async {
+      final server = FakeLmsServer(doneRoutes((_) => doneList({'R1'})));
+      Future<void> autoRow(SyncScope scope) => syncRuns.add(
+        startedAt: _now.subtract(const Duration(hours: 1)),
+        trigger: SyncTrigger.periodic,
+        scope: scope,
+        result: SyncResultKind.normal,
+        changedCount: 0,
+        elapsedMs: 1,
+      );
+      Future<SyncResult> autoDetail() => coordinator(
+        server,
+        config: config,
+      ).run(trigger: SyncTrigger.open, scope: SyncScope.detail);
+
+      // 목록의 하루 횟수를 다 썼어도 상세는 받는다(폰 DB에 없는 항목은 넣지 않으므로 바뀐 것은 없다).
+      for (var i = 0; i < config.budget.listMaxPerDay; i++) {
+        await autoRow(SyncScope.list);
+      }
+      expect((await autoDetail()).kind, SyncResultKind.normal);
+      expect((await rows()).last, 'open detail normal 0');
+      expect(await db.select(db.lmsItems).get(), isEmpty);
+
+      // 상세의 하루 횟수(2)를 다 썼으면 건너뛴다.
+      await autoRow(SyncScope.detail);
+      final skipped = await autoDetail();
+      expect(
+        (skipped.kind, skipped.detail),
+        (SyncResultKind.skipped, SyncRunDetail.budget),
+      );
     });
 
     test(

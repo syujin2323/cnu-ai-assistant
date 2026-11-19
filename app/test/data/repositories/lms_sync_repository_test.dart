@@ -690,6 +690,29 @@ void main() {
       final kept = await item('2');
       expect((kept.goneAt, kept.missCount), (null, 0));
     });
+
+    test('이미 끝낸 것으로 적힌 채 사라진 항목도 되살리고 바뀐 수로 센다', () async {
+      await ok(repo.applyTodoList([_todo('1')], semester: _semester, now: now));
+      final old = await item('1');
+      // 이 규칙 전에 끝낸 채 목록에서 빠져 사라진 것으로 본 항목.
+      await (db.update(db.lmsItems)..where((i) => i.id.equals(old.id))).write(
+        LmsItemsCompanion(
+          submitted: const Value(true),
+          missCount: const Value(Defaults.lmsGoneMissCount),
+          goneAt: Value(now),
+        ),
+      );
+
+      expect(
+        await ok(
+          repo.applyCompletion([_todo('1')], semester: _semester, now: now),
+        ),
+        1,
+      );
+      final revived = await item('1');
+      expect((revived.goneAt, revived.missCount), (null, 0));
+      expect(await changes(), isEmpty);
+    });
   });
 
   test('fnv1a64Hex는 표준 FNV-1a 64비트 값과 같다', () {
