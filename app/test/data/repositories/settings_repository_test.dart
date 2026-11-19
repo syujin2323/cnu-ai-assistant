@@ -83,6 +83,7 @@ void main() {
         'metricsEnabled': false,
         'metricsLastSentOn': null,
         'metricsSuggestedDays': <String>[],
+        'metricsConfirmedDays': <String>[],
         'lmsSessionState': 'disconnected',
         'lmsLastSuccessAt': null,
         'lmsLastConnectedAt': null,
@@ -111,6 +112,7 @@ void main() {
         '2026-10-27',
         '2026-10-28',
       ]);
+      await writeOk(SettingKeys.metricsConfirmedDays, ['2026-10-28']);
       await writeOk(
         SettingKeys.lmsSessionState,
         LmsSessionState.reconnectRequired,
@@ -132,6 +134,7 @@ void main() {
           privacyConsentAt: privacyAt,
           metricsLastSentOn: '2026-10-28',
           metricsSuggestedDays: ['2026-10-27', '2026-10-28'],
+          metricsConfirmedDays: ['2026-10-28'],
           lmsSessionState: LmsSessionState.reconnectRequired,
           lmsCredentialRejected: true,
           lmsTimetableImportedAt: importedAt,
@@ -218,6 +221,8 @@ void main() {
         (SettingKeys.metricsSuggestedDays, ['2026-11-18', '2026-11-18']),
         (SettingKeys.metricsSuggestedDays, ['2026-11-31']),
         (SettingKeys.metricsSuggestedDays, null),
+        (SettingKeys.metricsConfirmedDays, ['2026-11-18', '2026-11-17']),
+        (SettingKeys.metricsConfirmedDays, null),
         (SettingKeys.showTravelMeal, null),
         (SettingKeys.onboardingSkipped, null),
         // 건너뛴 온보딩 단계는 1–4의 중복 없는 오름차순 목록만 쓴다.
@@ -323,6 +328,16 @@ void main() {
 
         await putRaw(SettingKeys.metricsSuggestedDays, '["2026-11-18", 1]');
         expect((await readOk()).metricsSuggestedDays, isEmpty);
+
+        // 확정한 날도 같은 규칙으로 읽는다.
+        await putRaw(
+          SettingKeys.metricsConfirmedDays,
+          '["2026-11-19", "2026-11-18", "2026-11-19"]',
+        );
+        expect((await readOk()).metricsConfirmedDays, [
+          '2026-11-18',
+          '2026-11-19',
+        ]);
       },
     );
 
@@ -406,6 +421,39 @@ void main() {
       await putRaw(SettingKeys.lmsLastSuccessAt, '"2026-10-29"');
       expect(await advance(ten), isTrue);
       expect((await readOk()).lmsLastSuccessAt, ten);
+    });
+  });
+
+  group('addMetricsConfirmedDay', () {
+    // docs/architecture.md '앱과 서버 사이 약속 (API)'의 지표: 지표를 켠 동안만 적고, 오래된 날은 버린다.
+    Future<bool> add(String day) async => switch (await repo
+        .addMetricsConfirmedDay(day, earliest: '2026-11-13')) {
+      Ok(:final value) => value,
+      Err(:final error) => fail('저장소가 실패했다: $error'),
+    };
+
+    test('지표를 끈 동안에는 적지 않는다', () async {
+      expect(await add('2026-11-19'), isFalse);
+      expect((await readOk()).metricsConfirmedDays, isEmpty);
+      expect(await rawRows(), isEmpty);
+    });
+
+    test('지표를 켠 동안 날을 더하고, 겹친 날은 하나로, 가장 이른 날보다 앞은 버린다', () async {
+      await writeOk(SettingKeys.metricsEnabled, true);
+      await writeOk(SettingKeys.metricsConfirmedDays, [
+        '2026-11-10',
+        '2026-11-17',
+      ]);
+
+      expect(await add('2026-11-19'), isTrue);
+      expect(await add('2026-11-19'), isTrue);
+      expect(await add('2026-11-13'), isTrue);
+
+      expect((await readOk()).metricsConfirmedDays, [
+        '2026-11-13',
+        '2026-11-17',
+        '2026-11-19',
+      ]);
     });
   });
 

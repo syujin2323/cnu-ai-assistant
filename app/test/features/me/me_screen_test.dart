@@ -392,7 +392,7 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('사용 지표 보내기는 켜면 어제를 보낸 날로 적고, 끄면 적어 둔 제안 날짜를 비운다', (
+      testWidgets('사용 지표 보내기는 켜면 어제를 보낸 날로 적고, 끄면 적어 둔 제안·확정 날짜를 비운다', (
         tester,
       ) async {
         final app = await pumpMe(
@@ -400,6 +400,7 @@ void main() {
           textScale: textScale,
           settings: {
             SettingKeys.metricsSuggestedDays: ['2026-11-15'],
+            SettingKeys.metricsConfirmedDays: ['2026-11-15'],
           },
         );
         final row = switchRow('사용 지표 보내기');
@@ -418,6 +419,7 @@ void main() {
         settings = await readSettings(app.db);
         expect(settings.metricsEnabled, isFalse);
         expect(settings.metricsSuggestedDays, isEmpty);
+        expect(settings.metricsConfirmedDays, isEmpty);
         expect(find.textContaining('사용 지표를 보내지 않아요'), findsOneWidget);
 
         await app.dispose(tester);

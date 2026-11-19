@@ -72,6 +72,7 @@ SyncRun run(
 MetricsReport report({
   Briefing? briefing,
   bool suggested = false,
+  bool confirmedOutsidePlan = false,
   List<TaskEntry> tasks = const [],
   List<SyncRun> syncRuns = const [],
   DateTime? installedAt,
@@ -81,6 +82,7 @@ MetricsReport report({
   dayBoundaryMin: 240,
   briefing: briefing,
   suggested: suggested,
+  confirmedOutsidePlan: confirmedOutsidePlan,
   tasks: tasks,
   syncRuns: syncRuns,
   installedAt: installedAt,
@@ -129,6 +131,27 @@ void main() {
       );
       expect(seen.briefingOpened, isTrue);
       expect(seen.planConfirmed, isFalse);
+      expect(seen.confirmSeconds, isNull);
+      expect(seen.editsBeforeConfirm, 2);
+    });
+
+    test('09 일간·근거 시트에서 확정한 날도 확정한 날이고, 확정까지의 초는 01 계획만 잰다', () {
+      final viewsOnly = report(confirmedOutsidePlan: true);
+      expect(viewsOnly.planConfirmed, isTrue);
+      expect(viewsOnly.confirmSeconds, isNull);
+      expect(viewsOnly.toJson()['planConfirmed'], 1);
+
+      final seen = report(
+        briefing: Briefing(
+          id: 1,
+          date: '2026-11-18',
+          createdAt: at(18, 9),
+          openedAt: at(18, 9),
+          editCount: 2,
+        ),
+        confirmedOutsidePlan: true,
+      );
+      expect(seen.planConfirmed, isTrue);
       expect(seen.confirmSeconds, isNull);
       expect(seen.editsBeforeConfirm, 2);
     });

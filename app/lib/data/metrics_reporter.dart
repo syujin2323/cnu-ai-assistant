@@ -6,6 +6,8 @@
 //    다음 재계산이 지우므로 그날 본 것을 적어 둔다.
 // 2. 앱을 쓴 지난 날(브리핑 기록이 있는 논리적 하루) 가운데 아직 보내지 않은 날을 오래된 순서로 하나씩 보내고, 보낼
 //    때마다 `metricsLastSentOn`을 그날로 올린다. 실패하면 거기서 멈추고 다음 계기에 다시 보낸다.
+// 09 일간의 '모두 확정'과 근거 시트의 [확정]은 확정한 뒤 [MetricsReporter.noteConfirmed]로 그날을
+// `metricsConfirmedDays`에 적고, 보낼 때 그날의 `planConfirmed`에 넣는다(01 계획의 확정은 `briefings` 행).
 // 데모 모드에서는 서버 클라이언트가 보내지 않으므로(`ApiError(null, 'demo')`) 실제 모드로 돌아온 뒤 보낸다. 지표는
 // 실제 모드의 숫자만 보내므로 늘 실제 DB를 읽는다. 로그에는 결과와 이름 꼴 값만 남긴다.
 
@@ -18,6 +20,7 @@ import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/metrics_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/task_repository.dart';
+import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/metrics.dart';
@@ -36,11 +39,16 @@ class MetricsReporter {
     required AppDatabase realDb,
     required this._send,
     required this._clock,
-  }) : _db = realDb;
+    bool Function()? isDemo,
+  }) : _db = realDb,
+       _isDemo = isDemo ?? _never;
 
   final AppDatabase _db;
   final MetricsSend _send;
   final Clock _clock;
+
+  /// 지금 데모 모드인지. 데모에서 한 확정은 적지 않는다(지표는 실제 모드의 숫자만).
+  final bool Function() _isDemo;
   Future<void>? _running;
 
   /// 한 번 돈다. 돌고 있으면 그 Future를 돌려준다. 던지지 않는다.
@@ -132,6 +140,7 @@ class MetricsReporter {
         day: day,
         dayBoundaryMin: boundary,
         briefing: source.briefings[dayText],
+        confirmedOutsidePlan: settings.metricsConfirmedDays.contains(dayText),
         suggested:
             suggestedDays.contains(dayText) ||
             source.autoBlockStarts.any(
@@ -162,6 +171,34 @@ class MetricsReporter {
     _log('metrics_sent', {'days': days.length});
   }
 
+  /// 09 일간의 '모두 확정'이나 근거 시트의 [확정]으로 블록을 확정한 뒤 부른다. 지표를 켠 동안 오늘(논리적 하루)을
+  /// `metricsConfirmedDays`에 적어, 그날을 보낼 때 `planConfirmed`에 넣는다. 데모 모드에서는 적지 않는다. 던지지 않는다.
+  Future<void> noteConfirmed() async {
+    if (_isDemo()) return;
+    final settingsRepository = SettingsRepository(_db);
+    final int boundary;
+    switch (await settingsRepository.read()) {
+      case Ok(:final value):
+        if (!value.metricsEnabled) return;
+        boundary = value.dayBoundaryMin;
+      case Err(:final error):
+        _log('metrics_confirmed_failed', errorLogData(error));
+        return;
+    }
+    final today = logicalDate(_clock.now(), dayBoundaryMin: boundary);
+    final saved = await settingsRepository.addMetricsConfirmedDay(
+      isoDate(today),
+      earliest: isoDate(
+        today.subtract(const Duration(days: metricsLookbackDays)),
+      ),
+    );
+    if (saved case Err(:final error)) {
+      _log('metrics_confirmed_failed', errorLogData(error));
+    }
+  }
+
+  static bool _never() => false;
+
   /// [today]에서 [metricsLookbackDays]일 전보다 오래된 날을 버리고 정렬한 날짜 목록.
   static List<String> _recent(List<String> days, DateTime today) {
     final earliest = isoDate(
@@ -185,6 +222,7 @@ final metricsReporterProvider = Provider<MetricsReporter>(
         .read(apiProvider)
         .postJson(ServerTokenInterceptor.metricsPath, body),
     clock: ref.watch(clockProvider),
+    isDemo: () => ref.read(appModeProvider) == AppMode.demo,
   ),
 );
 
