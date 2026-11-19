@@ -132,6 +132,12 @@ Future<(TestApp, ({int past, int later}))> pumpHome(
   return (app, ids);
 }
 
+/// 맨 위로 올린다. 버튼을 누르려고 스크롤하면(`tapText`) 시간표가 길어 위 카드가 화면 밖으로 나간다.
+Future<void> toTop(WidgetTester tester) async {
+  await tester.drag(find.byType(ListView).first, const Offset(0, 5000));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   for (final textScale in [1.0, 2.0]) {
     group('글자 배율 $textScale', () {
@@ -190,6 +196,7 @@ void main() {
           (at(11, 5), at(12, 5), PlanBlockStatus.confirmed, BlockSource.manual),
         );
         // 답이 끝나 카드는 다음 할 일로 돌아간다.
+        await toTop(tester);
         expect(find.text('다음 할 일'), findsOneWidget);
         expect(find.text('11:05 과제 1'), findsOneWidget);
 
@@ -203,6 +210,7 @@ void main() {
         await tapText(tester, '오늘은 괜찮아요');
 
         expect(find.text('오늘은 다시 놓지 않을게요'), findsOneWidget);
+        await toTop(tester);
         expect(find.text('16:00 과제 1'), findsOneWidget);
         final blocks = await app.db.select(app.db.planBlocks).get();
         expect(blocks.map((block) => block.id), [ids.past, ids.later]);
@@ -418,6 +426,7 @@ void main() {
         await tapTab(tester, '오늘');
 
         expect(find.text('기록했어요'), findsNothing);
+        await toTop(tester);
         expect(find.text('다음 할 일'), findsOneWidget);
         expect(await statusOf(app.db, ids.past), PlanBlockStatus.done);
         expect(await app.db.select(app.db.undoLog).get(), isEmpty);
@@ -437,6 +446,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('기록했어요'), findsNothing);
+        await toTop(tester);
         expect(find.text('다음 할 일'), findsOneWidget);
 
         await app.dispose(tester);

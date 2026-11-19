@@ -43,16 +43,16 @@ double height(WidgetTester tester) =>
     tester.getSize(find.byType(BriefingDay)).height;
 
 void main() {
-  testWidgets('저녁에는 남은 일정이 없어도 23시까지 그린다', (tester) async {
+  testWidgets('저녁에는 남은 일정이 없어도 다음 날 하루 경계(04시)까지 그린다', (tester) async {
     await pump(tester, now: DateTime(2026, 11, 18, 21, 30));
 
     expect(tester.takeException(), isNull);
     expect(find.text('21:30'), findsOneWidget);
-    // 21시부터 23시까지 두 시간 + 아래 여백.
-    expect(height(tester), 2 * BriefingDay.hourHeight + 8);
+    // 21시부터 다음 날 04시까지 일곱 시간 + 아래 여백.
+    expect(height(tester), 7 * BriefingDay.hourHeight + 8);
   });
 
-  testWidgets('자정이 지나 하루 경계 전이면 지금 시각부터 한 시간을 그리고 넘치지 않는다', (tester) async {
+  testWidgets('자정이 지나 하루 경계 전이면 지금 시부터 하루 경계까지 그리고 넘치지 않는다', (tester) async {
     // 논리적 하루(11/18) 0시부터 1445분. 남은 일정이 없어 위가 24시가 된다.
     for (final now in [
       DateTime(2026, 11, 19, 0, 5),
@@ -61,7 +61,11 @@ void main() {
       await pump(tester, now: now);
 
       expect(tester.takeException(), isNull, reason: '$now');
-      expect(height(tester), BriefingDay.hourHeight + 8, reason: '$now');
+      expect(
+        height(tester),
+        (4 - now.hour) * BriefingDay.hourHeight + 8,
+        reason: '$now',
+      );
       expect(
         find.text(
           '${now.hour.toString().padLeft(2, '0')}:'
@@ -91,6 +95,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('밤 과제'), findsOneWidget);
-    expect(height(tester), BriefingDay.hourHeight + 8);
+    // 24시부터 28시(다음 날 04시)까지.
+    expect(height(tester), 4 * BriefingDay.hourHeight + 8);
   });
 }

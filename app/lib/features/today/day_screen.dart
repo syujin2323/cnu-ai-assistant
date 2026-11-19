@@ -136,6 +136,7 @@ class DayScreen extends ConsumerWidget {
       now: home.now,
       today: isToday,
       windowEndMin: home.windowEndMin,
+      dayBoundaryMin: home.dayBoundaryMin,
       showPast: true,
       showTravelMeal: home.showTravelMeal,
       slots: true,

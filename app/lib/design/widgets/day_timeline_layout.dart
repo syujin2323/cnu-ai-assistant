@@ -169,7 +169,8 @@ final class TimelineLayout {
 
 /// 논리적 하루 [day]의 시간표 자리를 계산한다. [items]는 `dayItems`, [free]는 그날의 빈 시간이다.
 /// [windowEndMin]은 하루 창 끝(그날 0시 기준 분, 자정을 넘으면 1440 이상)이다. [today]면 [now]로 지난 항목을
-/// 접고([showPast]면 펼침) 지금 선을 그린다.
+/// 접고([showPast]면 펼침) 지금 선을 그린다. 시간표는 논리적 하루 전체를 보인다: 하루 경계([dayBoundaryMin],
+/// 기본 04:00)부터 다음 날 하루 경계까지다(지난 항목을 접었으면 위는 지금 시각이나 남은 첫 항목부터).
 TimelineLayout layoutDayTimeline({
   required DateTime day,
   required List<DayItem> items,
@@ -177,6 +178,7 @@ TimelineLayout layoutDayTimeline({
   required DateTime now,
   required bool today,
   required int windowEndMin,
+  int dayBoundaryMin = 240,
   bool showPast = false,
   bool showTravelMeal = true,
   bool slots = false,
@@ -195,6 +197,7 @@ TimelineLayout layoutDayTimeline({
       if (showTravelMeal || (item is! TravelItem && item is! MealItem)) item,
   ];
   final collapse = today && !showPast;
+  final boundaryHour = dayBoundaryMin ~/ 60;
   final firstLive = visible
       .where((item) => !today || minuteOf(item.span.end) > nowMin)
       .firstOrNull;
@@ -206,9 +209,9 @@ TimelineLayout layoutDayTimeline({
               : (minuteOf(firstLive.span.start) / 60).floor(),
         )
       : math.min(
-          8,
+          boundaryHour,
           visible.isEmpty
-              ? 8
+              ? boundaryHour
               : (minuteOf(visible.first.span.start) / 60).floor(),
         );
   final lastEnd = kept.fold<int>(
@@ -216,8 +219,8 @@ TimelineLayout layoutDayTimeline({
     (latest, item) => math.max(latest, minuteOf(item.span.end)),
   );
   final endHour = math.max(
-    (windowEndMin / 60).ceil(),
-    math.min(25, (lastEnd / 60).ceil()),
+    math.max((windowEndMin / 60).ceil(), boundaryHour + 24),
+    (lastEnd / 60).ceil(),
   );
   if (startHour >= endHour) startHour = endHour - 1;
   final top0 = startHour * 60;

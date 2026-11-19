@@ -1096,6 +1096,15 @@
 - 평가: 고쳐 말하기 사례 13개(`followup`)를 더해 142개. 결과는 PR 본문에 적는다.
 - 영향: architecture.md '앱과 서버 사이 약속 (API)'·평가 세트, screens.md '06 AI 비서', `functions/src/ai/`(요청 스키마·프롬프트), `functions/eval/cases.jsonl`, `app/lib/domain/assistant/follow_up.dart`, `app/lib/data/api/parse_client.dart`, `app/lib/features/assistant/assistant_controller.dart`.
 
+## 2026-11-19 하루 시간표는 하루 경계부터 다음 날 하루 경계까지 보인다
+
+- 결정: 02 홈·09 일간의 세로 시간표와 01 계획의 '오늘 일정'은 하루 경계(`dayBoundaryMin`, 기본 04:00)부터 다음 날 하루 경계까지를 보인다. 오늘이고 지난 일정을 접었을 때 위쪽이 지금 시각이나 남은 첫 일정에서 시작하는 것은 그대로다.
+- 이유: 지금까지는 08시부터 하루 창 끝(23시)까지만 보였다. 하루가 04시에 바뀌는데 화면은 23시에 끝나, 밤 시간이 화면에 없었다(관리자 결정).
+- 바꾸지 않은 것: 할 일을 놓는 시간대(하루 창, 기본 08:00–23:00, `work_window` 규칙)는 그대로다. 하루 창 밖의 시간은 보이기만 하고 빈 시간 카드나 제안을 두지 않는다.
+- 받아들인 점: 시간표가 길어져 02 홈에서 시간표 아래 내용까지 더 많이 스크롤한다. 밤 시간은 대개 비어 보인다.
+- 다른 후보: 보이는 범위만이 아니라 하루 창도 04–04로 넓히기(새벽에도 할 일을 놓게 됨).
+- 영향: screens.md '02 홈', `app/lib/design/widgets/day_timeline_layout.dart`, `app/lib/features/briefing/widgets/briefing_day.dart`, `app/lib/features/today/`.
+
 ## 2026-11-19 데모 시간표는 월–금에만 수업을 둔다
 
 - 결정: 데모 모드의 샘플 시간표는 월–금에만 수업을 둔다. 샘플은 지금처럼 넣는 날을 기준으로 어제부터 닷새의 요일에 수업을 놓되, 그 닷새 가운데 토·일에 걸린 날의 수업은 닷새에 들지 않은 평일로 옮긴다. 휴강·시험 같은 수업 예외는 그 수업이 실제로 열리는 날에 둔다.

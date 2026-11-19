@@ -25,6 +25,7 @@ import 'package:cnu_ai_assistant/design/widgets/app_toast.dart';
 import 'package:cnu_ai_assistant/design/widgets/lms_status_line.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/briefing.dart';
+import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/lms_status.dart';
 import 'package:cnu_ai_assistant/domain/models/plan_block.dart';
 import 'package:cnu_ai_assistant/domain/models/sync_run.dart';
@@ -452,6 +453,9 @@ class _TodaySchedule extends ConsumerWidget {
           items: items,
           tasks: tasks,
           windowEndMin: sameDay ? home.windowEndMin : 1380,
+          dayBoundaryMin: sameDay
+              ? home.dayBoundaryMin
+              : Defaults.dayBoundaryMin,
           courseNames: sameDay ? home.courseNames : const {},
           semanticsLabel:
               '오늘 일정. 수업 $classes개, 빈 시간 ${durationText(freeMin)}, '
