@@ -1,9 +1,9 @@
 // 06 AI 비서의 질문 답 카드. docs/screens.md '06 AI 비서'의 카드 6(마감·하루 계획·빈 시간을 폰 안 데이터로 답함).
 //
 // 답의 내용은 `answerContentProvider`가 폰 DB로 그때그때 계산한다(할 일을 끝내거나 블록을 확정하면 카드도 바뀜).
-// 할 일 블록 줄을 누르면 근거 시트를 열고, 아래 링크는 03 할 일·02 홈·09 일간으로 간다(06은 닫힘). 빈 시간
-// 줄의 [놓기](빈 시간에 놓기 시트)는 그 시트가 생기면 붙인다. 문구는 디자인 전 임시 문구이고 최종 프로토타입의
-// 06 문구를 따른다.
+// 할 일 블록 줄을 누르면 근거 시트를 열고, 빈 시간 줄의 [놓기]는 빈 시간에 놓기 시트를 연다(06 안이라 [일정은
+// 말로 추가하기]는 두지 않음). 아래 링크는 03 할 일·02 홈·09 일간으로 간다(06은 닫힘). 문구는 디자인 전 임시
+// 문구이고 최종 프로토타입의 06 문구를 따른다.
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
@@ -17,6 +17,7 @@ import 'package:cnu_ai_assistant/features/assistant/assistant_context.dart';
 import 'package:cnu_ai_assistant/features/assistant/widgets/card_parts.dart';
 import 'package:cnu_ai_assistant/features/tasks/task_list_screen.dart';
 import 'package:cnu_ai_assistant/features/today/block_actions.dart';
+import 'package:cnu_ai_assistant/features/today/free_slot_actions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -58,9 +59,15 @@ class AnswerCardView extends ConsumerWidget {
         for (final row in content.rows)
           _AnswerRowView(
             row: row,
-            onTap: switch (row.block) {
-              final block? => () => openBlockSheet(context, ref, block),
-              null => null,
+            onTap: switch ((row.block, row.gap)) {
+              (final block?, _) => () => openBlockSheet(context, ref, block),
+              (_, final gap?) => () => openFreeSlotSheet(
+                context,
+                ref,
+                gap,
+                speech: false,
+              ),
+              _ => null,
             },
           ),
         if (content.rows.isEmpty)
@@ -151,14 +158,14 @@ class _AnswerRowView extends StatelessWidget {
               ],
             ),
           ),
-          if (row.right case final right?) ...[
+          if (row.gap != null || row.right != null) ...[
             const SizedBox(width: AppSpace.s8),
             Flexible(
               child: Text(
-                right,
+                row.gap != null ? '놓기' : row.right!,
                 textAlign: TextAlign.end,
                 style: AppText.caption.copyWith(
-                  color: colors.ink2,
+                  color: row.gap != null ? colors.accent : colors.ink2,
                   fontWeight: AppText.semibold,
                 ),
               ),

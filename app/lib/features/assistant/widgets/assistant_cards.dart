@@ -2,8 +2,9 @@
 // 되묻기. 수업 변경·바꾸기·지우기는 `change_cards.dart`, 질문 답은 `answer_card.dart`에 있다. 문구는 디자인 전
 // 임시 문구이고 최종 프로토타입의 06 문구를 따른다.
 //
-// 저장하는 카드는 확인 버튼을 눌러야 저장하고, 저장하면 '…에 넣었어요'와 다시 계산한 제안을 적는다. [고치기]와
-// [직접 추가](직접 추가 폼)는 그 폼을 만드는 PR(S8b)에서 붙인다(눌러도 반응 없는 버튼을 두지 않음).
+// 저장하는 카드는 확인 버튼을 눌러야 저장하고, 저장하면 '…에 넣었어요'와 다시 계산한 제안을 적는다. 일정·할 일
+// 카드의 [고치기]와 못 알아들음·찾지 못함·보내지 못함의 [직접 추가]는 직접 추가 폼을 연다(여는 것은 화면이 함).
+// 폼으로 넣거나 고쳐 넣은 카드는 카드 위 이름과 저장한 줄이 다르다('직접 추가'·'고친 일정', '직접 넣었어요').
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/design/icons.dart';
@@ -24,9 +25,12 @@ import 'package:material_ui/material_ui.dart';
 
 /// 새 일정 카드.
 class EventCardView extends ConsumerWidget {
-  const EventCardView({super.key, required this.card});
+  const EventCardView({super.key, required this.card, this.onEdit});
 
   final EventCard card;
+
+  /// [고치기](직접 추가 폼). null이면 두지 않는다.
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -47,7 +51,12 @@ class EventCardView extends ConsumerWidget {
         : null;
     return AssistantCardFrame(
       icon: AppIconName.calendar,
-      kicker: '새 일정${weekdays == null ? '' : ' · 반복'}',
+      kicker:
+          '${switch (card.origin) {
+            CardOrigin.ai => '새 일정',
+            CardOrigin.edited => '고친 일정',
+            CardOrigin.manual => '직접 추가',
+          }}${weekdays == null ? '' : ' · 반복'}',
       tag: weekdays == null ? '개인 일정' : '고정 일정',
       children: [
         CardTitle(draft.title),
@@ -118,10 +127,18 @@ class EventCardView extends ConsumerWidget {
               onPressed: saving ? null : () => controller.saveEvent(card.id),
               child: Text(draft.timeUnknown ? '시간 없이 넣기' : '캘린더에 추가'),
             ),
+            secondary: onEdit == null
+                ? null
+                : OutlinedButton(
+                    onPressed: saving ? null : onEdit,
+                    child: const Text('고치기'),
+                  ),
           )
         else
           CardDone(
-            text: '캘린더에 넣었어요 · ${eventWhenText(draft, today: today)}',
+            text:
+                '${card.origin == CardOrigin.manual ? '직접 넣었어요' : '캘린더에 넣었어요'} · '
+                '${eventWhenText(draft, today: today)}',
             note: card.planNote,
           ),
       ],
@@ -216,9 +233,12 @@ class _OptionalFields extends StatelessWidget {
 
 /// 새 할 일 카드.
 class TaskCardView extends ConsumerWidget {
-  const TaskCardView({super.key, required this.card});
+  const TaskCardView({super.key, required this.card, this.onEdit});
 
   final TaskCard card;
+
+  /// [고치기](직접 추가 폼). null이면 두지 않는다.
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -249,7 +269,11 @@ class TaskCardView extends ConsumerWidget {
     final note = estimateNote(estimate.source, draft.kind);
     return AssistantCardFrame(
       icon: AppIconName.checkSquare,
-      kicker: '새 할 일',
+      kicker: switch (card.origin) {
+        CardOrigin.ai => '새 할 일',
+        CardOrigin.edited => '고친 할 일',
+        CardOrigin.manual => '직접 추가 · 할 일',
+      },
       tag: courseName ?? '개인',
       children: [
         CardTitle(draft.title),
@@ -336,13 +360,20 @@ class TaskCardView extends ConsumerWidget {
               onPressed: saving ? null : () => controller.saveTask(card.id),
               child: const Text('할 일에 추가'),
             ),
+            secondary: onEdit == null
+                ? null
+                : OutlinedButton(
+                    onPressed: saving ? null : onEdit,
+                    child: const Text('고치기'),
+                  ),
           )
         else
           CardDone(
-            text: estimate.minutes == null
-                ? '할 일에 넣었어요'
-                : '할 일에 넣었어요 · ${durationText(estimate.minutes!)} '
-                      '걸린다고 보고 놓아요',
+            text: [
+              card.origin == CardOrigin.manual ? '직접 넣었어요' : '할 일에 넣었어요',
+              if (estimate.minutes case final minutes?)
+                '${durationText(minutes)} 걸린다고 보고 놓아요',
+            ].join(' · '),
             note: card.planNote,
           ),
       ],
@@ -394,12 +425,20 @@ class AskCardView extends ConsumerWidget {
 
 /// 안내 카드.
 class InfoCardView extends StatelessWidget {
-  const InfoCardView({super.key, required this.card, this.onExample});
+  const InfoCardView({
+    super.key,
+    required this.card,
+    this.onExample,
+    this.onDirect,
+  });
 
   final InfoCard card;
 
   /// 정할 수 없는 규칙 안내의 예시 칩을 누르면 그 문장을 입력창에 넣는다. null이면 칩을 두지 않는다.
   final ValueChanged<String>? onExample;
+
+  /// 못 알아들음·찾지 못함 안내의 [직접 추가](직접 추가 폼). null이면 두지 않는다.
+  final VoidCallback? onDirect;
 
   @override
   Widget build(BuildContext context) {
@@ -519,17 +558,33 @@ class InfoCardView extends StatelessWidget {
                 ],
               ),
             ),
+        if (onDirect case final onDirect?)
+          if (card.kind == InfoKind.notUnderstood ||
+              card.kind == InfoKind.targetNotFound)
+            CardActions(
+              primary: OutlinedButton.icon(
+                onPressed: onDirect,
+                icon: const AppIcon(AppIconName.plus, size: 16),
+                label: const Text('직접 추가'),
+              ),
+            ),
       ],
     );
   }
 }
 
-/// 보내지 못한 카드. [다시 보내기]가 같은 문장을 다시 보낸다.
+/// 보내지 못한 카드. [다시 보내기]가 같은 문장을 다시 보내고, [직접 추가]는 그 문장과 함께 직접 추가 폼을 연다.
 class FailCardView extends StatelessWidget {
-  const FailCardView({super.key, required this.card, required this.onRetry});
+  const FailCardView({
+    super.key,
+    required this.card,
+    required this.onRetry,
+    this.onDirect,
+  });
 
   final FailCard card;
   final VoidCallback? onRetry;
+  final VoidCallback? onDirect;
 
   @override
   Widget build(BuildContext context) {
@@ -562,6 +617,9 @@ class FailCardView extends StatelessWidget {
             onPressed: onRetry,
             child: const Text('다시 보내기'),
           ),
+          secondary: onDirect == null
+              ? null
+              : OutlinedButton(onPressed: onDirect, child: const Text('직접 추가')),
         ),
       ],
     );

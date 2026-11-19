@@ -7,26 +7,36 @@
 // screens.md '들어오는 길'의 곳에서 push로 열고, 닫으면 연 화면으로 돌아간다. 받은 인자([AssistantArgs]) 가운데
 // 미리 채울 문장은 입력창에 넣고, 01 계획의 말로 추가처럼 바로 보내라고 하면 열자마자 보낸다. AI 사용에
 // 동의하지 않았으면 보내기 전에 AI 사용 동의 시트를 열어 그 문장을 '동의하면 보낼 문장'으로 보인다. 대화와 카드
-// 동작은 `assistant_controller.dart`가 한다. 직접 추가 폼([직접 추가], 카드의 [고치기], AI를 못 쓸 때 여는 폼,
-// [AssistantArgs.form])과 날짜·시각 채우기([AssistantArgs.at])는 그 폼을 만드는 PR(S8b)에서 붙인다.
+// 동작은 `assistant_controller.dart`가 한다.
+//
+// 직접 추가 폼(`widgets/direct_add_form.dart`)은 [직접 추가](대화가 없을 때의 안내, 대화가 시작되면 위 막대),
+// 카드의 [고치기], 못 알아들음·찾지 못함 안내와 보내지 못한 카드의 [직접 추가], AI를 쓸 수 없어 보내지 못했을 때
+// (동의 안 함, 오늘 사용량 다 씀, AI 닫힘, 오프라인. 그 까닭과 보내려던 문장을 함께) 대화 위에 덮개로 연다.
+// 폼으로 열라는 인자([AssistantArgs.form])를 받았거나 AI가 아직 닫혀 있으면(Remote Config `ai_open`, 데모 모드는
+// 아님) 이 화면 자체가 폼이다. 그 폼에서는 AI를 쓸 수 있으면 '말로 넣기'로 대화로 가고, 동의하지 않았으면
+// [AI 켜기]로 동의를 묻는다. 새 폼의 처음 날짜·시각은 받은 [AssistantArgs.at]이 있으면 그것이다.
 
 import 'dart:async';
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
+import 'package:cnu_ai_assistant/design/motion/layer_route.dart';
 import 'package:cnu_ai_assistant/design/motion/press.dart';
 import 'package:cnu_ai_assistant/design/motion/rise.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/ai_consent_sheet.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_toast.dart';
+import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_message.dart';
+import 'package:cnu_ai_assistant/domain/assistant/direct_add.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_args.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_controller.dart';
 import 'package:cnu_ai_assistant/features/assistant/widgets/answer_card.dart';
 import 'package:cnu_ai_assistant/features/assistant/widgets/assistant_cards.dart';
 import 'package:cnu_ai_assistant/features/assistant/widgets/card_parts.dart';
 import 'package:cnu_ai_assistant/features/assistant/widgets/change_cards.dart';
+import 'package:cnu_ai_assistant/features/assistant/widgets/direct_add_form.dart';
 import 'package:cnu_ai_assistant/features/assistant/widgets/rule_cards.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -51,22 +61,43 @@ class AssistantScreen extends ConsumerStatefulWidget {
 
 class _AssistantScreenState extends ConsumerState<AssistantScreen> {
   final _input = TextEditingController();
+  final _inputFocus = FocusNode();
   final _scroll = ScrollController();
 
   /// 대화 줄마다의 키(새 줄이 붙으면 그 줄로 내림).
   final _keys = <int, GlobalKey>{};
+
+  /// 이 화면 자체가 직접 추가 폼인지('말로 넣기'나 [AI 켜기]로 대화로 가면 false).
+  late bool _formRoot;
+
+  /// 화면 자체인 폼의 처음 값과 그 위에 보일 보내려던 문장(AI가 닫혀 있는데 문장을 받았을 때).
+  late final DirectAddDraft _rootInitial;
+  String? _rootQuote;
 
   bool get _ruleMode => widget.args.mode == AssistantMode.rule;
 
   @override
   void initState() {
     super.initState();
-    final prefill = widget.args.prefill;
+    final args = widget.args;
+    final closed =
+        ref.read(appModeProvider) != AppMode.demo &&
+        !ref.read(parseClientProvider).isOpen;
+    _formRoot = args.form != null || closed;
+    _rootInitial = DirectAddDraft.initial(
+      args.form ?? DirectAddKind.event,
+      now: ref.read(clockProvider).now(),
+      at: args.at,
+    );
+    final prefill = args.prefill;
     if (prefill != null && prefill.isNotEmpty) {
       _input.text = String.fromCharCodes(
         prefill.runes.take(AssistantScreen.maxLength),
       );
-      if (widget.args.sendNow) {
+      if (closed) {
+        // AI가 닫혀 있으면 보내지 않고 폼 위에 그 문장을 보인다.
+        _rootQuote = _input.text;
+      } else if (args.sendNow) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) unawaited(_send());
         });
@@ -77,8 +108,79 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
   @override
   void dispose() {
     _input.dispose();
+    _inputFocus.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// 직접 추가 폼을 대화 위에 덮개로 연다. [initial]이 없으면 일정 폼의 처음 값([AssistantArgs.at]이 있으면 그 날짜·
+  /// 시각)이다.
+  void _openForm({
+    DirectAddDraft? initial,
+    DirectAddOrigin origin = DirectAddOrigin.chat,
+    int? cardId,
+    DirectAddNotice? notice,
+    String? quote,
+  }) {
+    FocusScope.of(context).unfocus();
+    final draft =
+        initial ??
+        DirectAddDraft.initial(
+          DirectAddKind.event,
+          now: ref.read(clockProvider).now(),
+          at: widget.args.at,
+        );
+    unawaited(
+      Navigator.of(context).push(
+        layerRoute<void>(
+          motion: MotionScope.of(context),
+          builder: (_) => DirectAddForm(
+            initial: draft,
+            origin: origin,
+            cardId: cardId,
+            notice: notice,
+            quote: quote,
+            ruleMode: _ruleMode,
+            onAiOn: () => unawaited(_turnAiOn(quote, layer: true)),
+            onRules: _ruleMode ? _leave : null,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 폼의 [AI 켜기]: 동의를 묻고, 동의하면 대화로 가서 보내려던 [quote]를 보낸다.
+  Future<void> _turnAiOn(String? quote, {required bool layer}) async {
+    final route = ModalRoute.of(context);
+    final yes = await showAiConsentSheet(
+      context,
+      ref.read(motionLevelProvider),
+      pendingText: quote,
+    );
+    if (!mounted || !yes) return;
+    final controller = ref.read(assistantControllerProvider.notifier);
+    if (!await controller.acceptConsent() || !mounted) return;
+    if (layer) {
+      Navigator.of(context).popUntil((other) => other == route);
+    } else {
+      setState(() => _formRoot = false);
+    }
+    if (quote != null && quote.isNotEmpty) unawaited(_send(quote));
+  }
+
+  /// 규칙 띠: 위에 연 폼까지 닫고 이 화면을 닫는다(12 내 규칙으로 돌아감).
+  void _leave() {
+    final route = ModalRoute.of(context);
+    Navigator.of(context).popUntil((other) => other == route);
+    context.pop();
+  }
+
+  /// 화면 자체인 폼의 '말로 넣기': 대화로 가서 입력창에 둔다.
+  void _toChat() {
+    setState(() => _formRoot = false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _inputFocus.requestFocus();
+    });
   }
 
   /// 예시 문장을 입력창에 넣는다(보내지 않음).
@@ -107,12 +209,15 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
       if (!yes) {
         if (text == null) _input.clear();
         controller.decline(sentence);
+        _openForm(notice: DirectAddNotice.aiOff, quote: sentence);
         return;
       }
       if (!await controller.acceptConsent() || !mounted) return;
     }
     if (text == null) _input.clear();
-    await controller.send(sentence, ruleMode: _ruleMode);
+    final notice = await controller.send(sentence, ruleMode: _ruleMode);
+    // AI를 쓸 수 없어 보내지 못했으면 그 까닭과 문장으로 직접 추가 폼을 연다.
+    if (notice != null && mounted) _openForm(notice: notice, quote: sentence);
   }
 
   /// 새로 붙은 줄 가운데 첫 줄이 화면 위에 오게 내린다(대화가 짧으면 맨 아래까지만). 보낸 문장과 카드의
@@ -145,6 +250,32 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
       if (added.firstOrNull case final first?) _reveal(first.id);
       _keys.removeWhere((id, _) => !next.any((message) => message.id == id));
     });
+    if (_formRoot) {
+      final gate = ref.watch(aiGateProvider);
+      return DirectAddForm(
+        initial: _rootInitial,
+        origin: DirectAddOrigin.screen,
+        notice: switch (gate) {
+          AiGate.closed => DirectAddNotice.closed,
+          AiGate.needsConsent || AiGate.declined => DirectAddNotice.aiOff,
+          AiGate.limitReached => DirectAddNotice.limit,
+          AiGate.open || AiGate.demo || null => null,
+        },
+        quote: _rootQuote,
+        ruleMode: _ruleMode,
+        onChat: gate == AiGate.open || gate == AiGate.demo ? _toChat : null,
+        onAiOn: () => unawaited(_turnAiOn(_rootQuote, layer: false)),
+        onRules: _ruleMode ? () => context.pop() : null,
+      );
+    }
+    final now = ref.watch(clockProvider).now();
+    // 안내 카드의 [직접 추가]가 보일 문장: 그 카드 앞의 마지막 사용자 말.
+    final saidBefore = <int, String>{};
+    String? lastSaid;
+    for (final message in state.messages) {
+      if (message is UserMessage) lastSaid = message.text;
+      if (lastSaid != null) saidBefore[message.id] = lastSaid;
+    }
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -152,13 +283,14 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
           children: [
             _Header(
               sub: _ruleMode ? '내 규칙을 말로 정해요' : '말로 일정과 규칙을 정해요',
+              onDirect: state.messages.isEmpty || _ruleMode ? null : _openForm,
               onReset: state.messages.isEmpty || state.sending
                   ? null
                   : ref.read(assistantControllerProvider.notifier).reset,
             ),
             Expanded(
               child: state.messages.isEmpty
-                  ? _Empty(ruleMode: _ruleMode)
+                  ? _Empty(ruleMode: _ruleMode, onDirect: _openForm)
                   // 대화는 길지 않으므로 모두 그려 두고(카드의 위치로 내리려고) 한 번에 스크롤한다.
                   : SingleChildScrollView(
                       controller: _scroll,
@@ -177,7 +309,12 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
                               padding: EdgeInsets.only(
                                 top: index == 0 ? 0 : AppSpace.s12 + 2,
                               ),
-                              child: _message(message, sending: state.sending),
+                              child: _message(
+                                message,
+                                sending: state.sending,
+                                now: now,
+                                said: saidBefore[message.id],
+                              ),
                             ),
                         ],
                       ),
@@ -186,6 +323,7 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
             ToastAnchor(
               child: _Composer(
                 controller: _input,
+                focusNode: _inputFocus,
                 sending: state.sending,
                 hint: _ruleMode ? '예: 하루 공부는 4시간까지만' : '예: 목요일 7시 동아리',
                 onSend: () => unawaited(_send()),
@@ -201,38 +339,69 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
     );
   }
 
-  Widget _message(AssistantMessage message, {required bool sending}) =>
-      switch (message) {
-        UserMessage(:final text) => UserBubble(text),
-        WaitingMessage() => const WaitingBubble(),
-        EventCard(:final say) => _withSay(say, EventCardView(card: message)),
-        TaskCard(:final say) => _withSay(say, TaskCardView(card: message)),
-        AskCard() => AskCardView(card: message),
-        ExceptionCard(:final say) => _withSay(
-          say,
-          ExceptionCardView(card: message),
+  Widget _message(
+    AssistantMessage message, {
+    required bool sending,
+    required DateTime now,
+    required String? said,
+  }) => switch (message) {
+    UserMessage(:final text) => UserBubble(text),
+    WaitingMessage() => const WaitingBubble(),
+    EventCard(:final say) => _withSay(
+      say,
+      EventCardView(
+        card: message,
+        onEdit: () => _openForm(
+          initial: DirectAddDraft.fromEvent(message.draft, now: now),
+          origin: DirectAddOrigin.card,
+          cardId: message.id,
         ),
-        ChangeCard(:final say) => _withSay(say, ChangeCardView(card: message)),
-        TargetPickCard(:final say) => _withSay(
-          say,
-          TargetPickCardView(card: message),
+      ),
+    ),
+    TaskCard(:final say) => _withSay(
+      say,
+      TaskCardView(
+        card: message,
+        onEdit: () => _openForm(
+          initial: DirectAddDraft.fromTask(message.draft, now: now),
+          origin: DirectAddOrigin.card,
+          cardId: message.id,
         ),
-        AnswerCard(:final say) => _withSay(say, AnswerCardView(card: message)),
-        RuleCard(:final say) => _withSay(say, RuleCardView(card: message)),
-        RuleRemoveCard(:final say) => _withSay(
-          say,
-          RuleRemoveCardView(card: message),
-        ),
-        RulePickCard(:final say) => _withSay(
-          say,
-          RulePickCardView(card: message),
-        ),
-        InfoCard() => InfoCardView(card: message, onExample: _fill),
-        FailCard(:final text) => FailCardView(
-          card: message,
-          onRetry: sending ? null : () => unawaited(_send(text)),
-        ),
-      };
+      ),
+    ),
+    AskCard() => AskCardView(card: message),
+    ExceptionCard(:final say) => _withSay(
+      say,
+      ExceptionCardView(card: message),
+    ),
+    ChangeCard(:final say) => _withSay(say, ChangeCardView(card: message)),
+    TargetPickCard(:final say) => _withSay(
+      say,
+      TargetPickCardView(card: message),
+    ),
+    AnswerCard(:final say) => _withSay(say, AnswerCardView(card: message)),
+    RuleCard(:final say) => _withSay(say, RuleCardView(card: message)),
+    RuleRemoveCard(:final say) => _withSay(
+      say,
+      RuleRemoveCardView(card: message),
+    ),
+    RulePickCard(:final say) => _withSay(say, RulePickCardView(card: message)),
+    InfoCard() => InfoCardView(
+      card: message,
+      onExample: _fill,
+      onDirect: _ruleMode ? null : () => _openForm(quote: said),
+    ),
+    FailCard(:final text, :final kind) => FailCardView(
+      card: message,
+      onRetry: sending ? null : () => unawaited(_send(text)),
+      onDirect: () => _openForm(
+        notice: kind == FailKind.offline
+            ? DirectAddNotice.offline
+            : DirectAddNotice.failed,
+        quote: text,
+      ),
+    ),
+  };
 
   Widget _withSay(String? say, Widget card) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -240,11 +409,16 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
   );
 }
 
-/// 머리: 뒤로, 'AI 비서'와 한 줄 설명, '새 대화'.
+/// 머리: 뒤로, 'AI 비서'와 한 줄 설명, [직접 추가](대화가 시작되면), '새 대화'.
 class _Header extends StatelessWidget {
-  const _Header({required this.sub, required this.onReset});
+  const _Header({
+    required this.sub,
+    required this.onDirect,
+    required this.onReset,
+  });
 
   final String sub;
+  final VoidCallback? onDirect;
   final VoidCallback? onReset;
 
   @override
@@ -278,6 +452,12 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
+          if (onDirect != null)
+            TextButton.icon(
+              onPressed: onDirect,
+              icon: AppIcon(AppIconName.plus, size: 15, color: colors.accent),
+              label: const Text('직접 추가'),
+            ),
           if (onReset != null)
             IconButton(
               tooltip: '새 대화',
@@ -290,11 +470,12 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// 대화가 없을 때의 한 줄 안내. 규칙 모드면 [폼으로 정하기](12 내 규칙으로 돌아감)를 둔다.
+/// 대화가 없을 때의 한 줄 안내와 [직접 추가]. 규칙 모드면 [폼으로 정하기](12 내 규칙으로 돌아감)를 둔다.
 class _Empty extends StatelessWidget {
-  const _Empty({required this.ruleMode});
+  const _Empty({required this.ruleMode, required this.onDirect});
 
   final bool ruleMode;
+  final VoidCallback onDirect;
 
   @override
   Widget build(BuildContext context) {
@@ -319,13 +500,18 @@ class _Empty extends StatelessWidget {
                       style: AppText.bodyLarge.copyWith(color: colors.ink2),
                     ),
                   ),
-                if (ruleMode) ...[
-                  const SizedBox(height: AppSpace.s16),
+                const SizedBox(height: AppSpace.s16),
+                if (ruleMode)
                   OutlinedButton(
                     onPressed: () => context.pop(),
                     child: const Text('폼으로 정하기'),
+                  )
+                else
+                  OutlinedButton.icon(
+                    onPressed: onDirect,
+                    icon: const AppIcon(AppIconName.plus, size: 16),
+                    label: const Text('직접 추가'),
                   ),
-                ],
               ],
             ),
           ),
@@ -339,12 +525,14 @@ class _Empty extends StatelessWidget {
 class _Composer extends StatefulWidget {
   const _Composer({
     required this.controller,
+    required this.focusNode,
     required this.sending,
     required this.hint,
     required this.onSend,
   });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
   final bool sending;
   final String hint;
   final VoidCallback onSend;
@@ -396,6 +584,7 @@ class _ComposerState extends State<_Composer> {
                   Expanded(
                     child: TextField(
                       controller: widget.controller,
+                      focusNode: widget.focusNode,
                       minLines: 1,
                       maxLines: 4,
                       maxLength: AssistantScreen.maxLength,

@@ -14,9 +14,14 @@
 // 문장이 경로 문자열에 실려 로그에 섞이지 않게 하기 위해서다(architecture.md '앱 코드 규약'의 로그 규칙).
 // 같은 까닭으로 [AssistantArgs]에는 `toJson`을 두지 않는다. go_router는 경로 정보를 플랫폼에 알릴 때
 // extra를 JSON으로 바꿔 보고, 바꿀 수 없으면 그 값만 빼고 알린다(화면에는 그대로 간다).
-// 받은 인자를 화면이 어떻게 쓸지(언제 보내는지, 폼을 어떻게 채우는지)는 AI 비서 PR에서 정한다.
+// 직접 추가 폼의 종류([DirectAddKind])는 폼의 값과 함께 `domain/assistant/direct_add.dart`에 있고 여기서 다시
+// 내보낸다(여는 곳이 이 파일만 import하게).
 
+import 'package:cnu_ai_assistant/domain/assistant/direct_add.dart';
 import 'package:flutter/foundation.dart' show immutable;
+
+export 'package:cnu_ai_assistant/domain/assistant/direct_add.dart'
+    show DirectAddKind;
 
 /// 06 AI 비서의 모드.
 enum AssistantMode {
@@ -25,18 +30,6 @@ enum AssistantMode {
 
   /// 규칙. 12 내 규칙의 '말로 정하기'로 연다. [직접 추가] 대신 [폼으로 정하기]를 둔다.
   rule,
-}
-
-/// 직접 추가 폼의 종류(screens.md '직접 추가 폼'의 [일정 | 반복 일정 | 할 일]).
-enum DirectAddKind {
-  /// 일정.
-  event,
-
-  /// 반복 일정(고정 일정으로 저장).
-  repeating,
-
-  /// 할 일.
-  task,
 }
 
 /// 06 AI 비서를 여는 인자. 기본값은 탭바 옆 버튼으로 연 것과 같다.
