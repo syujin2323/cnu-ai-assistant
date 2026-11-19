@@ -392,38 +392,43 @@ void main() {
         await app.dispose(tester);
       });
 
-      testWidgets('사용 지표 보내기는 켜면 어제를 보낸 날로 적고, 끄면 적어 둔 제안·확정 날짜를 비운다', (
-        tester,
-      ) async {
-        final app = await pumpMe(
-          tester,
-          textScale: textScale,
-          settings: {
-            SettingKeys.metricsSuggestedDays: ['2026-11-15'],
-            SettingKeys.metricsConfirmedDays: ['2026-11-15'],
-          },
-        );
-        final row = switchRow('사용 지표 보내기');
-        await scrollTo(tester, row);
-        expect(tester.widget<MeSwitchRow>(row).value, isFalse);
+      testWidgets(
+        '사용 지표 보내기는 처음부터 켜져 있고, 끄면 적어 둔 제안·확정 날짜를 비우고, 다시 켜면 어제를 보낸 날로 적는다',
+        (tester) async {
+          final app = await pumpMe(
+            tester,
+            textScale: textScale,
+            settings: {
+              SettingKeys.metricsSuggestedDays: ['2026-11-15'],
+              SettingKeys.metricsConfirmedDays: ['2026-11-15'],
+            },
+          );
+          final row = switchRow('사용 지표 보내기');
+          await scrollTo(tester, row);
+          // 기본은 켜짐이고, 처음부터 켜진 설치는 보낸 날 기록이 없다(설치한 날부터 보냄).
+          expect(tester.widget<MeSwitchRow>(row).value, isTrue);
+          var settings = await readSettings(app.db);
+          expect(settings.metricsEnabled, isTrue);
+          expect(settings.metricsLastSentOn, isNull);
 
-        await tapFinder(tester, row);
-        var settings = await readSettings(app.db);
-        expect(settings.metricsEnabled, isTrue);
-        // 2026-11-16(월) 10:00의 어제. 켠 날(오늘)부터의 숫자만 보낸다.
-        expect(settings.metricsLastSentOn, '2026-11-15');
-        expect(find.textContaining('사용 지표를 보내요'), findsOneWidget);
-        expect(tester.widget<MeSwitchRow>(row).value, isTrue);
+          await tapFinder(tester, row);
+          settings = await readSettings(app.db);
+          expect(settings.metricsEnabled, isFalse);
+          expect(settings.metricsSuggestedDays, isEmpty);
+          expect(settings.metricsConfirmedDays, isEmpty);
+          expect(find.textContaining('사용 지표를 보내지 않아요'), findsOneWidget);
+          expect(tester.widget<MeSwitchRow>(row).value, isFalse);
 
-        await tapFinder(tester, row);
-        settings = await readSettings(app.db);
-        expect(settings.metricsEnabled, isFalse);
-        expect(settings.metricsSuggestedDays, isEmpty);
-        expect(settings.metricsConfirmedDays, isEmpty);
-        expect(find.textContaining('사용 지표를 보내지 않아요'), findsOneWidget);
+          await tapFinder(tester, row);
+          settings = await readSettings(app.db);
+          expect(settings.metricsEnabled, isTrue);
+          // 2026-11-16(월) 10:00의 어제. 다시 켠 날(오늘)부터의 숫자만 보낸다.
+          expect(settings.metricsLastSentOn, '2026-11-15');
+          expect(find.textContaining('사용 지표를 보내요'), findsOneWidget);
 
-        await app.dispose(tester);
-      });
+          await app.dispose(tester);
+        },
+      );
 
       testWidgets('동의 문구 다시 보기는 같은 문구를 보이고, 켜져 있으면 동의한 날을 보인다', (tester) async {
         final app = await pumpMe(

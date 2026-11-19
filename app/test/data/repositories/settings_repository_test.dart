@@ -58,7 +58,7 @@ void main() {
       expect(settings.aiConsentAt, isNull);
       expect(settings.aiLimitReachedOn, isNull);
       expect(settings.privacyConsentAt, isNull);
-      expect(settings.metricsEnabled, isFalse);
+      expect(settings.metricsEnabled, isTrue);
       expect(settings.metricsLastSentOn, isNull);
       expect(settings.metricsSuggestedDays, isEmpty);
       expect(settings.lmsSessionState, LmsSessionState.disconnected);
@@ -80,7 +80,7 @@ void main() {
         'aiConsentAt': null,
         'aiLimitReachedOn': null,
         'privacyConsentAt': null,
-        'metricsEnabled': false,
+        'metricsEnabled': true,
         'metricsLastSentOn': null,
         'metricsSuggestedDays': <String>[],
         'metricsConfirmedDays': <String>[],
@@ -433,9 +433,10 @@ void main() {
     };
 
     test('지표를 끈 동안에는 적지 않는다', () async {
+      await writeOk(SettingKeys.metricsEnabled, false);
       expect(await add('2026-11-19'), isFalse);
       expect((await readOk()).metricsConfirmedDays, isEmpty);
-      expect(await rawRows(), isEmpty);
+      expect((await rawRows()).length, 1);
     });
 
     test('지표를 켠 동안 날을 더하고, 겹친 날은 하나로, 가장 이른 날보다 앞은 버린다', () async {
