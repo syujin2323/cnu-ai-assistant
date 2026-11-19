@@ -54,16 +54,20 @@ TaskEntry entry({
   );
 }
 
-SyncRun run(DateTime startedAt, SyncTrigger trigger, SyncResultKind result) =>
-    SyncRun(
-      id: ++_id,
-      startedAt: startedAt,
-      trigger: trigger,
-      scope: SyncScope.list,
-      result: result,
-      changedCount: 0,
-      elapsedMs: 100,
-    );
+SyncRun run(
+  DateTime startedAt,
+  SyncTrigger trigger,
+  SyncResultKind result, {
+  SyncScope scope = SyncScope.list,
+}) => SyncRun(
+  id: ++_id,
+  startedAt: startedAt,
+  trigger: trigger,
+  scope: scope,
+  result: result,
+  changedCount: 0,
+  elapsedMs: 100,
+);
 
 MetricsReport report({
   Briefing? briefing,
@@ -172,7 +176,7 @@ void main() {
       expect(result.missedDeadlines, 3);
     });
 
-    test('동기화는 그 논리적 하루에 LMS를 부른 것을 계기마다 세고, 정상·빈 결과·일부를 성공으로 센다', () {
+    test('동기화는 그 논리적 하루에 할 일 목록을 받은 것을 계기마다 세고, 정상·빈 결과·일부를 성공으로 센다', () {
       final result = report(
         syncRuns: [
           // 하루의 시작(04:00)은 그날이다.
@@ -182,6 +186,25 @@ void main() {
           run(at(19, 2), SyncTrigger.background, SyncResultKind.partial),
           run(at(18, 20), SyncTrigger.manual, SyncResultKind.skipped),
           run(at(18, 21), SyncTrigger.manual, SyncResultKind.parseFailure),
+          run(
+            at(18, 22),
+            SyncTrigger.login,
+            SyncResultKind.normal,
+            scope: SyncScope.full,
+          ),
+          // 목록에 이어서 받은 끝낸 할 일 목록(detail)은 세지 않는다.
+          run(
+            at(18, 21, 1),
+            SyncTrigger.manual,
+            SyncResultKind.serverError,
+            scope: SyncScope.detail,
+          ),
+          run(
+            at(18, 4, 1),
+            SyncTrigger.open,
+            SyncResultKind.normal,
+            scope: SyncScope.detail,
+          ),
           // 그날 밖.
           run(at(18, 3), SyncTrigger.login, SyncResultKind.normal),
           run(at(19, 4), SyncTrigger.login, SyncResultKind.normal),
@@ -192,11 +215,13 @@ void main() {
         SyncTrigger.periodic: 1,
         SyncTrigger.background: 1,
         SyncTrigger.manual: 1,
+        SyncTrigger.login: 1,
       });
       expect(result.syncSuccesses, {
         SyncTrigger.open: 1,
         SyncTrigger.periodic: 1,
         SyncTrigger.background: 1,
+        SyncTrigger.login: 1,
       });
     });
 

@@ -17,6 +17,7 @@ import 'package:cnu_ai_assistant/domain/models/class_slot.dart';
 import 'package:cnu_ai_assistant/domain/models/imported_class_slot.dart';
 import 'package:cnu_ai_assistant/domain/models/lms_item_change.dart';
 import 'package:cnu_ai_assistant/domain/models/task.dart';
+import 'package:cnu_ai_assistant/domain/models/lms_item.dart' show LmsItemKind;
 import 'package:cnu_ai_assistant/domain/models/value_codec.dart';
 import 'package:cnu_ai_assistant/domain/timetable_refresh.dart';
 import 'package:cnu_ai_assistant/lms/parsers/course_list_parser.dart';
@@ -185,7 +186,8 @@ class LmsSyncRepository {
   ///   내용(제목·종류 코드·과목명·마감·마감 시각 모름, [lmsListContentHash])이 바뀌었으면 그 값도 고치고, 마감이
   ///   바뀌었으면 `lms_item_changes`에 남긴다(값은 [encodeDateTime] 꼴, 없으면 null).
   /// - 이 학기 항목 가운데 목록에 없는 것은 연속 미발견 횟수를 1 올리고, [Defaults.lmsGoneMissCount]가 되면
-  ///   사라진 때를 적는다. 다른 학기 항목은 건드리지 않는다.
+  ///   사라진 때를 적는다. LMS가 제출·출석 인정을 알려 준 항목은 끝나서 목록에서 빠질 수 있으므로 세지 않는다.
+  ///   다른 학기 항목은 건드리지 않는다.
   /// - 과목 목록에 없던 과목의 항목이면 그 과목을 만든다(갱신은 과목 목록을 받지 않으므로).
   /// - 마지막에 [tasksFromLmsItems]로 할 일을 만들거나 복사 열을 다시 복사한다.
   Future<Result<LmsListApplied>> applyTodoList(
@@ -284,6 +286,8 @@ class LmsSyncRepository {
 
       for (final item in existing.values) {
         if (seen.contains(item.remoteKey)) continue;
+        // 끝낸 항목은 '진행 중' 목록에서 빠져도 사라진 것이 아니다(끝낸 목록이 다시 본 것으로 적음).
+        if (item.submitted == true || item.officiallyDone == true) continue;
         final missCount = item.missCount + 1;
         final goneNow =
             item.goneAt == null && missCount >= Defaults.lmsGoneMissCount;
@@ -306,6 +310,62 @@ class LmsSyncRepository {
         changedCount: changed,
         changedCourseIds: changedCourses,
       );
+    }),
+  );
+
+  /// 끝낸 할 일 목록(할 일 목록을 '완료' 필터로 받은 것, docs/lms.md '동기화')을 쓴다. 바뀐 항목 수를 돌려준다.
+  ///
+  /// - 목록의 항목 가운데 이미 받은 이 학기 항목만 LMS가 끝냈다고 적는다. 영상은 출석 인정(`officiallyDone`), 그 밖은
+  ///   제출(`submitted`)이고, 바뀌면 `lms_item_changes`에 남긴다(`true`).
+  /// - 그 항목은 LMS에 있으므로 다시 본 것으로 둔다(연속 미발견 0, 사라진 때 지움).
+  /// - 받은 적 없는 항목은 넣지 않는다(끝낸 일을 새 할 일로 만들지 않음). 목록에 없다고 끝냄을 되돌리지 않는다.
+  Future<Result<int>> applyCompletion(
+    List<LmsTodoRecord> done, {
+    required String semester,
+    required DateTime now,
+  }) => guardStorage(
+    'lmsSync.applyCompletion',
+    () => _db.transaction(() async {
+      final keys = {for (final todo in done) todo.remoteKey(semester)};
+      if (keys.isEmpty) return 0;
+      final items = await (_db.select(
+        _db.lmsItems,
+      )..where((i) => i.remoteKey.isIn(keys))).get();
+      var changed = 0;
+      for (final item in items) {
+        final video = item.kind == LmsItemKind.video;
+        final already = video ? item.officiallyDone : item.submitted;
+        final markDone = already != true;
+        final restored = item.goneAt != null;
+        var update = LmsItemsCompanion(
+          lastSeenAt: Value(now),
+          missCount: const Value(0),
+          goneAt: const Value(null),
+        );
+        if (markDone) {
+          update = video
+              ? update.copyWith(officiallyDone: const Value(true))
+              : update.copyWith(submitted: const Value(true));
+          await _db
+              .into(_db.lmsItemChanges)
+              .insert(
+                LmsItemChangesCompanion.insert(
+                  remoteKey: item.remoteKey,
+                  field: video
+                      ? LmsItemChangeField.officiallyDone
+                      : LmsItemChangeField.submitted,
+                  oldValue: Value(already?.toString()),
+                  newValue: const Value('true'),
+                  changedAt: now,
+                ),
+              );
+        }
+        await (_db.update(
+          _db.lmsItems,
+        )..where((i) => i.id.equals(item.id))).write(update);
+        if (markDone || restored) changed++;
+      }
+      return changed;
     }),
   );
 

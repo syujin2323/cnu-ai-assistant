@@ -164,6 +164,50 @@ void main() {
     }
   });
 
+  test('끝낸 할 일 목록 요청(completed)은 빼도 되고, 있으면 할 일 목록과 같은 규칙으로 읽는다', () {
+    expect(parse(syntheticSyncParamsCopy()).params!.sync!.completed, isNull);
+
+    Map<String, Object?> completed(Object? body, {String? url}) => withValue(
+      ['sync', 'completed'],
+      {
+        'method': 'POST',
+        'url': url ?? 'https://example.invalid/api/synthetic-done',
+        'body': body,
+      },
+    );
+    final encrypted = {
+      'encrypted': {
+        'cipher': 'body',
+        'field': 'e',
+        'json': {'year': '{termYear}', 'term': '{termCode}', 'type': 'C'},
+      },
+    };
+    final sync = parse(completed(encrypted)).params!.sync!;
+    expect(sync.completed?.method, LmsMethod.post);
+    expect(sync.completed?.body, isA<LmsEncryptedBody>());
+    // 같은 설정이면 같고, 끝낸 목록만 달라도 다르다.
+    expect(parse(completed(encrypted)).params!.sync, sync);
+    expect(parse(syntheticSyncParamsCopy()).params!.sync, isNot(sync));
+
+    // 모르는 변수·학번·비밀번호는 못 쓰고, 학교 도메인 밖이면 안 된다.
+    for (final name in ['unknown', 'studentId', 'password']) {
+      expectProblem(
+        completed({
+          'encrypted': {
+            'cipher': 'body',
+            'field': 'e',
+            'json': {'x': '{$name}'},
+          },
+        }),
+        LmsConfigProblem.field,
+      );
+    }
+    expectProblem(
+      completed(encrypted, url: 'https://example.com/api'),
+      LmsConfigProblem.domain,
+    );
+  });
+
   test('요청이 빠졌거나 학교 도메인 밖이면 설정 없음이다', () {
     expectProblem(
       withValue(['sync', 'courses'], _remove),

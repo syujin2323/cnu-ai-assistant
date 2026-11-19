@@ -276,6 +276,7 @@ final class LmsSyncSpec {
     this.steps = const [],
     required this.courses,
     required this.todos,
+    this.completed,
   });
 
   /// 학기마다 콘솔에서 바꾸는 값(학년도·학기 코드 등). 요청 틀의 변수로 쓴다.
@@ -293,6 +294,10 @@ final class LmsSyncSpec {
   /// 할 일 목록 조회.
   final LmsRequestSpec todos;
 
+  /// 끝낸 할 일 목록 조회(할 일 목록을 '완료' 필터로 받음. 응답은 할 일 목록과 같은 꼴). 받은 항목은 LMS가 제출·출석
+  /// 인정한 것으로 적는다(docs/lms.md '동기화'). 없으면 이 조회를 하지 않는다.
+  final LmsRequestSpec? completed;
+
   @override
   bool operator ==(Object other) =>
       other is LmsSyncSpec &&
@@ -300,7 +305,8 @@ final class LmsSyncSpec {
       other.semester == semester &&
       listEquals(other.steps, steps) &&
       other.courses == courses &&
-      other.todos == todos;
+      other.todos == todos &&
+      other.completed == completed;
 
   @override
   int get hashCode => Object.hash(
@@ -311,6 +317,7 @@ final class LmsSyncSpec {
     Object.hashAll(steps),
     courses,
     todos,
+    completed,
   );
 }
 
@@ -851,10 +858,14 @@ LmsSyncSpec _sync(
   ];
   final courses = _request(object['courses'], domain, ciphers);
   final todos = _request(object['todos'], domain, ciphers);
+  final rawCompleted = object['completed'];
+  final completed = rawCompleted == null
+      ? null
+      : _request(rawCompleted, domain, ciphers);
 
   final known = vars.keys.toSet();
   final reserved = vars.keys.toSet();
-  for (final spec in [...steps, courses, todos]) {
+  for (final spec in [...steps, courses, todos, ?completed]) {
     _checkSpec(spec, known, ciphers, reserved: reserved);
   }
   return LmsSyncSpec(
@@ -863,6 +874,7 @@ LmsSyncSpec _sync(
     steps: steps,
     courses: courses,
     todos: todos,
+    completed: completed,
   );
 }
 

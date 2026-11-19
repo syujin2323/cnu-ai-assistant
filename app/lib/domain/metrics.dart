@@ -97,7 +97,8 @@ final class MetricsReport {
 ///   본 것을 적어 둔 값과 남은 자동 블록으로 정한다(부르는 쪽).
 /// - [tasks]는 모든 할 일이다. 마감이 그 논리적 하루 안이고 숨기거나 LMS에서 사라지지 않은 일 가운데, 아직 끝내지
 ///   않았거나 마감 뒤에 끝낸 일을 놓친 마감으로 센다.
-/// - [syncRuns]는 동기화 기록이다. 시작 시각이 그 논리적 하루 안인 것만 센다.
+/// - [syncRuns]는 동기화 기록이다. 할 일 목록을 받은(`full`·`list`) 기록 가운데 시작 시각이 그 논리적 하루 안인
+///   것만 센다(목록에 이어서 받은 `detail` 행은 세지 않음).
 MetricsReport metricsReport({
   required DateTime day,
   required int dayBoundaryMin,
@@ -135,7 +136,9 @@ MetricsReport metricsReport({
   final attempts = <SyncTrigger, int>{};
   final successes = <SyncTrigger, int>{};
   for (final run in syncRuns) {
-    if (run.result == SyncResultKind.skipped || !inDay(run.startedAt)) {
+    if (!run.scope.listsTodos ||
+        run.result == SyncResultKind.skipped ||
+        !inDay(run.startedAt)) {
       continue;
     }
     attempts.update(run.trigger, (n) => n + 1, ifAbsent: () => 1);
