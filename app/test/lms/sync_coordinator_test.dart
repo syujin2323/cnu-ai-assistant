@@ -1115,6 +1115,243 @@ void main() {
     });
   });
 
+  group('끝낸 할 일 목록(제출·출석 인정)', () {
+    // 합성 설정에 할 일 목록과 같은 꼴의 '끝낸 할 일 목록' 요청을 더한다(주소·값은 지어낸 것).
+    final withCompleted = parseLmsRequestParams(
+      jsonEncode(
+        syntheticSyncParamsCopy()..update('sync', (sync) {
+          (sync as Map<String, Object?>)['completed'] = {
+            'method': 'POST',
+            'url': 'https://example.invalid/api/synthetic-done',
+            'body': {
+              'encrypted': {
+                'cipher': 'body',
+                'field': 'e',
+                'json': {'year': '{termYear}', 'term': '{termCode}'},
+              },
+            },
+          };
+          return sync;
+        }),
+      ),
+      schoolDomain: syntheticSchoolDomain,
+    ).params!;
+    final config = LmsConfig(enabled: true, requestParams: withCompleted);
+
+    /// [todos] 가운데 [keep]만 남긴 할 일 목록 응답(fixture의 항목: 과제 R1, 영상 V1).
+    FakeLmsResponse doneList(Set<String> keep) {
+      final json = jsonDecode(todosBody()) as Map<String, Object?>;
+      final body = json['body']! as Map<String, Object?>;
+      body['todo_list'] = [
+        for (final raw in body['todo_list']! as List<Object?>)
+          if (raw case final Map<String, Object?> item
+              when keep.contains(
+                (item['item_id'] ?? item['contents_id']).toString(),
+              ))
+            item,
+      ];
+      return FakeLmsResponse(
+        200,
+        contentType: 'application/json',
+        body: jsonEncode(json),
+      );
+    }
+
+    Map<String, FakeLmsResponse Function(FakeLmsRequest)> doneRoutes(
+      FakeLmsResponse Function(FakeLmsRequest) done,
+    ) => {...routes(), 'POST /api/synthetic-done': done};
+
+    Future<List<String>> rows() async => [
+      for (final r in await runs())
+        '${r.trigger.name} ${r.scope.name} ${r.result.name} ${r.changedCount}',
+    ];
+
+    Future<(bool?, bool?)> lmsDone(String itemId) async {
+      final item = await (db.select(
+        db.lmsItems,
+      )..where((i) => i.remoteKey.like('%:$itemId'))).getSingle();
+      return (item.submitted, item.officiallyDone);
+    }
+
+    test('새로 고침은 목록 뒤 끝낸 목록을 받아 제출·출석 인정을 적고 detail 행을 따로 남긴다', () async {
+      final server = FakeLmsServer(doneRoutes((_) => doneList({'R1', 'V1'})));
+
+      final result = await coordinator(
+        server,
+        config: config,
+      ).run(trigger: SyncTrigger.manual, scope: SyncScope.list);
+
+      expect(result.kind, SyncResultKind.normal);
+      expect(await rows(), ['manual list normal 2', 'manual detail normal 2']);
+      expect(await lmsDone('R1'), (true, null));
+      expect(await lmsDone('V1'), (null, true));
+      expect([
+        for (final r in server.requests) r.url.path,
+      ], contains('/api/synthetic-done'));
+    });
+
+    test('전체는 과목·할 일 목록 뒤 끝낸 목록을 받고, 끝낸 목록이 실패해도 목록 결과는 그대로다', () async {
+      final server = FakeLmsServer(
+        doneRoutes((_) => const FakeLmsResponse(503)),
+      );
+
+      final result = await coordinator(
+        server,
+        config: config,
+      ).run(trigger: SyncTrigger.login, scope: SyncScope.full);
+
+      expect(result.kind, SyncResultKind.normal);
+      expect(await rows(), [
+        'login full normal 2',
+        'login detail serverError 0',
+      ]);
+      expect(await lmsDone('R1'), (null, null));
+      expect((await readSettings()).lmsLastSuccessAt, _now);
+    });
+
+    test('끝낸 목록 요청이 없는 설정이면 목록만 받고, 상세만 부르면 설정 없음으로 건너뛴다', () async {
+      final server = FakeLmsServer(doneRoutes((_) => doneList({'R1'})));
+
+      await manual(coordinator(server));
+      final detail = await manual(coordinator(server), scope: SyncScope.detail);
+
+      expect(
+        (detail.kind, detail.detail),
+        (SyncResultKind.skipped, SyncRunDetail.configMissing),
+      );
+      expect(await rows(), ['manual list normal 2', 'manual detail skipped 0']);
+      expect([
+        for (final r in server.requests) r.url.path,
+      ], isNot(contains('/api/synthetic-done')));
+    });
+
+    test('상세만 부르면 끝낸 목록만 받아 detail 행 하나를 남기고 마지막 확인 시각은 그대로 둔다', () async {
+      final server = FakeLmsServer(doneRoutes((_) => doneList({'R1'})));
+      await manual(coordinator(server));
+      final listedAt = (await readSettings()).lmsLastSuccessAt;
+
+      final detail = await coordinator(
+        server,
+        now: _now.add(const Duration(minutes: 5)),
+        config: config,
+      ).run(trigger: SyncTrigger.manual, scope: SyncScope.detail);
+
+      expect((detail.kind, detail.changedCount), (SyncResultKind.normal, 1));
+      expect(await rows(), ['manual list normal 2', 'manual detail normal 1']);
+      expect(await lmsDone('R1'), (true, null));
+      expect(listedAt, isNotNull);
+      expect((await readSettings()).lmsLastSuccessAt, listedAt);
+    });
+
+    test('자동 계기가 상세만 부르면 목록과 따로 상세의 하루 횟수로 막는다', () async {
+      final server = FakeLmsServer(doneRoutes((_) => doneList({'R1'})));
+      Future<void> autoRow(SyncScope scope) => syncRuns.add(
+        startedAt: _now.subtract(const Duration(hours: 1)),
+        trigger: SyncTrigger.periodic,
+        scope: scope,
+        result: SyncResultKind.normal,
+        changedCount: 0,
+        elapsedMs: 1,
+      );
+      Future<SyncResult> autoDetail() => coordinator(
+        server,
+        config: config,
+      ).run(trigger: SyncTrigger.open, scope: SyncScope.detail);
+
+      // 목록의 하루 횟수를 다 썼어도 상세는 받는다(폰 DB에 없는 항목은 넣지 않으므로 바뀐 것은 없다).
+      for (var i = 0; i < config.budget.listMaxPerDay; i++) {
+        await autoRow(SyncScope.list);
+      }
+      expect((await autoDetail()).kind, SyncResultKind.normal);
+      expect((await rows()).last, 'open detail normal 0');
+      expect(await db.select(db.lmsItems).get(), isEmpty);
+
+      // 상세의 하루 횟수(2)를 다 썼으면 건너뛴다.
+      await autoRow(SyncScope.detail);
+      final skipped = await autoDetail();
+      expect(
+        (skipped.kind, skipped.detail),
+        (SyncResultKind.skipped, SyncRunDetail.budget),
+      );
+    });
+
+    test(
+      '끝낸 목록을 해석하지 못하면 detail 행에 남기고 필드 이름만 알리며, 그사이 스위치가 꺼지면 멈춘다',
+      () async {
+        final odd = FakeLmsServer(
+          doneRoutes(
+            (_) => FakeLmsResponse(
+              200,
+              contentType: 'application/json',
+              body: lmsFixture('parse_failure_missing_list.json'),
+            ),
+          ),
+        );
+        await coordinator(
+          odd,
+          config: config,
+        ).run(trigger: SyncTrigger.manual, scope: SyncScope.list);
+        expect((await rows()).last, 'manual detail parseFailure 0');
+        expect(
+          events.where((e) => e.$1 == 'lms_parse_failure').single.$2['scope'],
+          SyncScope.detail.name,
+        );
+
+        // 목록까지 받은 뒤 원격 스위치가 꺼지면 끝낸 목록은 받지 않고 멈춘다.
+        var calls = 0;
+        final server = FakeLmsServer(doneRoutes((_) => doneList({'R1'})));
+        await coordinator(
+          server,
+          configNow: () =>
+              LmsConfig(enabled: ++calls <= 2, requestParams: withCompleted),
+        ).run(trigger: SyncTrigger.manual, scope: SyncScope.list);
+        final last = (await runs()).last;
+        expect(
+          (last.scope, last.result, last.detail),
+          (SyncScope.detail, SyncResultKind.cancelled, SyncRunDetail.switchOff),
+        );
+        expect([
+          for (final r in server.requests) r.url.path,
+        ], isNot(contains('/api/synthetic-done')));
+      },
+    );
+
+    test('자동 계기의 갱신은 그날 자동으로 받은 끝낸 목록이 하루 횟수보다 적을 때만 받는다', () async {
+      final server = FakeLmsServer(doneRoutes((_) => doneList({'R1'})));
+      Future<void> autoDetailRow() => syncRuns.add(
+        startedAt: _now.subtract(const Duration(hours: 1)),
+        trigger: SyncTrigger.periodic,
+        scope: SyncScope.detail,
+        result: SyncResultKind.normal,
+        changedCount: 0,
+        elapsedMs: 1,
+      );
+
+      // 오늘 자동으로 한 번 받았으면(하루 2회 중 1회) 이번에도 받는다.
+      await autoDetailRow();
+      await coordinator(
+        server,
+        config: config,
+      ).run(trigger: SyncTrigger.open, scope: SyncScope.list);
+      expect(await rows(), [
+        'periodic detail normal 0',
+        'open list normal 2',
+        'open detail normal 1',
+      ]);
+
+      // 하루 횟수(2)를 다 썼으면 목록만 받는다.
+      expect(
+        await settings.write(SettingKeys.lmsLastSuccessAt, null),
+        isA<Ok<void>>(),
+      );
+      await coordinator(
+        server,
+        config: config,
+      ).run(trigger: SyncTrigger.open, scope: SyncScope.list);
+      expect((await rows()).skip(3), ['open list normal 0']);
+    });
+  });
+
   group('호출 예산(자동 계기)', () {
     Future<SyncResult> open(
       FakeLmsServer server, {

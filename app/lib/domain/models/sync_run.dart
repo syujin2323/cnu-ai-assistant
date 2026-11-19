@@ -1,10 +1,20 @@
 /// 동기화를 시작한 계기. docs/lms.md '동기화'.
 enum SyncTrigger { login, open, periodic, background, manual }
 
-/// 동기화 범위. [full]은 과목 목록 → 할 일 목록 → 과목별 상세, [list]는 할 일 목록과
-/// 바뀐 과목의 상세, [detail]은 과목별 상세 조회다. [timetable]은 시간표 불러오기(통합정보시스템)이고 LMS 세션 처리만
-/// 동기화와 함께 쓰며 `sync_runs`에는 남기지 않는다(LMS 상태 줄과 호출 예산은 할 일 동기화만 본다).
-enum SyncScope { full, list, detail, timetable }
+/// 동기화 범위. [full]은 과목 목록 → 할 일 목록, [list]는 할 일 목록이고, 둘 다 이어서 [detail]을 받을 수 있다.
+/// [detail]은 할 일 목록 뒤에 받는 상세이고 지금은 끝낸 할 일 목록(제출·출석 인정)이다(과목별 상세 조회는 출시
+/// 뒤). 목록에 이어서 받으면 `detail` 행을 따로 남긴다. [timetable]은 시간표 불러오기(통합정보시스템)이고 LMS 세션
+/// 처리만 동기화와 함께 쓰며 `sync_runs`에는 남기지 않는다(LMS 상태 줄과 호출 예산은 할 일 동기화만 본다).
+enum SyncScope {
+  full,
+  list,
+  detail,
+  timetable;
+
+  /// 할 일 목록을 받는 범위(`full`·`list`)인지. LMS 상태 줄, 03 할 일 안내, 사용 지표의 동기화 수는 이 범위의
+  /// 기록만 본다(이어서 받은 `detail`이 실패해도 받아 둔 할 일 목록은 새것이다).
+  bool get listsTodos => this == full || this == list;
+}
 
 /// 동기화 결과의 종류(docs/lms.md의 `SyncResult.kind`). 응답 판별 일곱 가지에
 /// [partial](일부 과목 실패), [skipped], [cancelled]를 더한 열 가지다.

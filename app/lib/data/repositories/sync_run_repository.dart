@@ -34,6 +34,12 @@ class SyncRunRepository {
     SyncResultKind.partial,
   };
 
+  /// 할 일 목록을 받는 범위([SyncScope.listsTodos]). 마지막 시도·성공은 이 범위의 기록만 본다.
+  static final listScopes = [
+    for (final scope in SyncScope.values)
+      if (scope.listsTodos) scope,
+  ];
+
   static final _namePattern = RegExp(r'^[A-Za-z0-9_.,]+$');
 
   /// 동기화 한 번(범위 하나)의 기록을 넣고 id를 돌려준다. [changedCount]·[elapsedMs]가 음수이거나
@@ -75,17 +81,21 @@ class SyncRunRepository {
     );
   }
 
-  /// 마지막 시도(건너뛴 기록 제외)를 지금 읽고 기록이 바뀔 때마다 다시 읽는다. LMS 상태 줄의 실패
-  /// 상태(점검·연결 실패)에 쓴다. 기록이 없으면 null이다.
-  Stream<SyncRun?> watchLatestAttempt() =>
-      _latest(_db.syncRuns.result.equalsValue(SyncResultKind.skipped).not())
-          .watchSingleOrNull();
+  /// 할 일 목록을 받은(`full`·`list`) 마지막 시도(건너뛴 기록 제외)를 지금 읽고 기록이 바뀔 때마다 다시
+  /// 읽는다. LMS 상태 줄의 실패 상태(점검·연결 실패)에 쓴다. 목록에 이어서 받은 `detail` 행은 보지 않는다.
+  /// 기록이 없으면 null이다.
+  Stream<SyncRun?> watchLatestAttempt() => _latest(
+    _db.syncRuns.scope.isInValues(listScopes) &
+        _db.syncRuns.result.equalsValue(SyncResultKind.skipped).not(),
+  ).watchSingleOrNull();
 
-  /// 마지막으로 성공한(`normal`·`empty`·`partial`) 기록을 지금 읽고 바뀔 때마다 다시 읽는다. LMS 상태
-  /// 줄의 '방금'(계기가 `manual`)과 '확인 못 함'(`partial`의 `failedCourseIds`)에 쓴다.
-  Stream<SyncRun?> watchLatestSuccess() =>
-      _latest(_db.syncRuns.result.isInValues(successResults))
-          .watchSingleOrNull();
+  /// 할 일 목록을 받은(`full`·`list`) 마지막 성공(`normal`·`empty`·`partial`) 기록을 지금 읽고 바뀔 때마다
+  /// 다시 읽는다. LMS 상태 줄의 '방금'(계기가 `manual`)과 03 할 일 안내의 '확인 못 함'(`partial`의
+  /// `failedCourseIds`)에 쓴다. 목록에 이어서 받은 `detail` 행은 보지 않는다.
+  Stream<SyncRun?> watchLatestSuccess() => _latest(
+    _db.syncRuns.scope.isInValues(listScopes) &
+        _db.syncRuns.result.isInValues(successResults),
+  ).watchSingleOrNull();
 
   /// 마지막 자동 계기(`open`·`periodic`·`background`)의 `list` 기록(건너뛴 기록 제외). 호출 예산의
   /// '실패 뒤 다시 조회하기까지의 최소 간격'에 쓴다. 없으면 null이다.
