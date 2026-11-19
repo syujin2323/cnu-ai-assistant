@@ -247,7 +247,7 @@ TimelineLayout layoutDayTimeline({
   final entries = <TimelineEntry>[];
   var lastBottom = -99.0;
   var pastCount = 0;
-  for (final entry in stream) {
+  for (final (index, entry) in stream.indexed) {
     final item = entry.item;
     if (collapse && entry.end <= nowMin) {
       if (item != null && item is! TravelItem && item is! MealItem) {
@@ -266,15 +266,24 @@ TimelineLayout layoutDayTimeline({
       lastBottom = top + height;
       entries.add(TimelineFree(entry.free!, top: top, height: height));
       if (slots && full - height > TimelineMetrics.slotRoom) {
-        // 카드 아래(6pt 띄움) 처음 오는 정시부터, 30분 넘게 남은 시마다 하나씩.
+        // 카드 아래(6pt 띄움) 처음 오는 정시부터, 30분 넘게 남은 시마다 하나씩. 빈 시간 안에서 시작하는 다른
+        // 카드(시간을 막지 않는 휴강 수업 등)는 줄인 카드 바로 아래로 오므로, 그 카드가 시작하는 시각까지만 둔다.
+        var limit = entry.end;
+        for (final later in stream.skip(index + 1)) {
+          if (later.start >= entry.end) break;
+          if (later.free == null) {
+            limit = later.start;
+            break;
+          }
+        }
         final below =
             top0 + (top + height + 6) / TimelineMetrics.hourHeight * 60;
         for (
           var hour = (below / 60).ceil() * 60;
-          hour + 30 <= entry.end;
+          hour + 30 <= limit;
           hour += 60
         ) {
-          final end = math.min(hour + 60, entry.end);
+          final end = math.min(hour + 60, limit);
           entries.add(
             TimelineSlot(
               TimeSpan(base.add(Duration(minutes: hour)), entry.free!.end),
