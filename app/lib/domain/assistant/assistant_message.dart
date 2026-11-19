@@ -639,7 +639,7 @@ final class RulePickCard extends AssistantMessage {
 
 /// 보내지 못한 까닭.
 enum FailKind {
-  /// 5초(임시) 안에 답이 없었다.
+  /// 8초(임시) 안에 답이 없었다.
   timeout,
 
   /// 서버에 연결하지 못했다(오프라인 등).

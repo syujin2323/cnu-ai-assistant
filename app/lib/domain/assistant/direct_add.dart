@@ -37,8 +37,11 @@ abstract final class DirectAddLimits {
   /// 일정 날짜와 마감 날짜 칩의 날 수(오늘부터).
   static const int dateDays = 14;
 
-  /// 시각 칸의 단위(분).
+  /// 시각 칸의 단추(−·+) 단위(분).
   static const int step = 30;
+
+  /// 시각을 눌러 여는 휠의 단위(분).
+  static const int pickStep = 5;
 
   /// 시작 시각의 범위(05:00–23:30). 끝은 다음 날 06:00까지 받아 자정을 넘는 일정도 넣는다.
   static const int startLow = 300;

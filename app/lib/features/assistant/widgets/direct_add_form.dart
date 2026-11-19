@@ -20,6 +20,7 @@ import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_toast.dart';
 import 'package:cnu_ai_assistant/design/widgets/form_parts.dart';
 import 'package:cnu_ai_assistant/design/widgets/time_range_fields.dart';
+import 'package:cnu_ai_assistant/design/widgets/time_wheel_sheet.dart';
 import 'package:cnu_ai_assistant/design/widgets/weekday_picker.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_text.dart';
 import 'package:cnu_ai_assistant/domain/assistant/direct_add.dart';
@@ -444,7 +445,7 @@ class _DirectAddFormState extends ConsumerState<DirectAddForm> {
     ];
   }
 
-  /// 시작·끝 칸(30분 단위, 끝은 다음 날 06:00까지이고 시작에서 하루를 넘지 않음).
+  /// 시작·끝 칸(단추는 30분 단위, 시각을 누르면 5분 단위 휠. 끝은 다음 날 06:00까지이고 시작에서 하루를 넘지 않음).
   Widget _timeFields(DirectAddDraft draft, {required bool enabled}) {
     const step = DirectAddLimits.step;
     final endHigh = draft.startMin + 1440 - step < DirectAddLimits.endHigh
@@ -457,6 +458,7 @@ class _DirectAddFormState extends ConsumerState<DirectAddForm> {
       startHigh: DirectAddLimits.startHigh,
       endHigh: endHigh,
       step: step,
+      pickStep: DirectAddLimits.pickStep,
       onChanged: enabled && !_busy
           ? (start, end) => _set(draft.copyWith(startMin: start, endMin: end))
           : null,
@@ -512,6 +514,21 @@ class _DirectAddFormState extends ConsumerState<DirectAddForm> {
           child: StepperRow(
             label: '마감 시각',
             value: hhmmText(draft.dueTimeMin),
+            onValueTap: _busy
+                ? null
+                : () async {
+                    final picked = await showTimeWheelSheet(
+                      context,
+                      title: '마감 시각',
+                      initial: draft.dueTimeMin,
+                      low: 0,
+                      high: 1435,
+                      step: DirectAddLimits.pickStep,
+                    );
+                    if (picked != null && mounted) {
+                      _set(draft.copyWith(dueTimeMin: picked));
+                    }
+                  },
             decLabel: '마감 30분 앞당기기',
             incLabel: '마감 30분 늦추기',
             onDec: _busy
