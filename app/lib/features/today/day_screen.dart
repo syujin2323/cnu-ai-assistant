@@ -7,12 +7,13 @@
 // 돌아간다'). 02 홈과 06 AI 비서에서 열면 넘기지 않고, 뒤로 가면 02 홈이다. 날짜를 넘길 때(날짜 줄, ‹ ›로 지난주·
 // 다음 주 같은 요일, 화면을 옆으로 밀기, '오늘')는 `replace`로 이 화면만 바꿔 끼워 뒤로가 지난 날을 거치지 않게 한다.
 //
-// 위에서부터 위 막대(뒤로, 주 범위와 '오늘', ‹ ›), 날짜 줄 7칸, 머리(날짜와 요약 줄), 종일 일정, '모두 확정' 띠,
+// 위에서부터 위 막대(뒤로, 주 범위와 '오늘', ‹ ›), 날짜 줄 7칸, 머리(날짜와 요약 줄), 공휴일, 종일 일정, '모두 확정' 띠,
 // 빈 날 카드, 마감 줄, 시간표다. 시간표는 02 홈과 같은 `DayTimeline`이고 제안 블록('제안')도 그리며, 지난 일정을
 // 접지 않고 지난 날에는 빈 시간 카드를 그리지 않는다. 누르면: 블록 → 근거 시트, 체크 → 블록 완료, 수업·일정 →
 // 일정 정보 시트, 빈 시간·'HH:MM에 놓기'(빈 시간 카드 아래 정시마다) → 빈 시간에 놓기 시트(그 [일정은 말로 추가하기]는
 // 06 AI 비서에 날짜·시각을 넘김), 마감 줄 → 작은 할 일 시트. 보일 것은 `domain/day_view.dart`가 정하고, 모양은
-// 최종 프로토타입(09 일간)을 따른다. 공휴일 이름은 H1의 표로 그 PR에서 더한다.
+// 최종 프로토타입(09 일간)을 따른다. 공휴일은 `domain/holidays.dart`의 표로 날짜 줄에서 붉게 쓰고 머리 아래 카드로
+// 알린다(공휴일에도 수업은 그대로라 누를 곳은 없다).
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
@@ -174,6 +175,11 @@ class DayScreen extends ConsumerWidget {
             ),
           ),
         ),
+        if (view.holiday case final holiday?)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpace.s8),
+            child: _HolidayCard(holiday: holiday),
+          ),
         for (final allDay in view.allDay)
           Padding(
             padding: const EdgeInsets.only(top: AppSpace.s8),
@@ -422,6 +428,7 @@ class _Strip extends StatelessWidget {
                 label:
                     '${day.date.month}월 ${day.date.day}일 '
                     '(${weekdayText(day.date.weekday)})'
+                    '${day.holiday == null ? '' : ', ${day.holiday}'}'
                     '${day.today ? ', 오늘' : ''}',
                 excludeSemantics: true,
                 onTap: () => onPick(day.date),
@@ -471,7 +478,7 @@ class _Strip extends StatelessWidget {
                                   ],
                                   color: day.selected
                                       ? colors.onStrong
-                                      : day.sunday
+                                      : day.red
                                       ? colors.alert
                                       : colors.ink,
                                 ),
@@ -486,6 +493,72 @@ class _Strip extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// 공휴일 카드(달력 표시, 이름, '공휴일'). 누를 곳은 없다.
+class _HolidayCard extends StatelessWidget {
+  const _HolidayCard({required this.holiday});
+
+  final DayHoliday holiday;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    return Semantics(
+      container: true,
+      label: '${holiday.name}, ${holiday.meta}',
+      excludeSemantics: true,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.timetableBlock),
+          border: Border.all(color: colors.edge),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 10, 14, 10),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: colors.alertSoft,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: AppIcon(
+                  AppIconName.calendar,
+                  size: 20,
+                  color: colors.alert,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      holiday.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.body.copyWith(
+                        fontWeight: AppText.semibold,
+                        color: colors.alert,
+                      ),
+                    ),
+                    Text(
+                      holiday.meta,
+                      style: AppText.caption.copyWith(color: colors.muted),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

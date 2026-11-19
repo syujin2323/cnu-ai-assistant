@@ -1,7 +1,7 @@
 // 09 일간의 데이터. docs/screens.md '09 일간'.
 //
 // 시간표는 02 홈과 같은 계산을 그 날짜로 한 `dayHomeProvider`(제안 블록 포함)이고, 시간표 밖(주 범위·날짜 줄·머리·
-// 종일 일정·'모두 확정'·빈 날 카드·마감 줄)은 `domain/day_view.dart`의 [dayView]가 정한다.
+// 공휴일·종일 일정·'모두 확정'·빈 날 카드·마감 줄)은 `domain/day_view.dart`의 [dayView]가 정한다.
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/domain/day_view.dart';
