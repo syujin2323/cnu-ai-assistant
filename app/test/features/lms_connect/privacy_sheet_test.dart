@@ -40,9 +40,9 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('처리방침 전체 보기', skipOffstage: false), findsOneWidget);
-      // 사용 지표는 10 나에서 켤 수 있는 빌드부터 적는다(켠 사람만 보냄).
+      // 사용 지표는 기본으로 보내고 10 나에서 끌 수 있다고 적는다.
       expect(
-        find.textContaining('사용 지표 보내기를 켜면', skipOffstage: false),
+        find.textContaining('사용 지표 보내기에서 언제든 끌 수 있어요', skipOffstage: false),
         findsOneWidget,
       );
       // 서버 신호 푸시 줄은 원격 스위치가 켜졌을 때만이다(기본은 꺼짐).
