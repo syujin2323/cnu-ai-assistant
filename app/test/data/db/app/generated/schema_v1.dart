@@ -231,6 +231,15 @@ class ClassSlots extends Table with TableInfo {
     $customConstraints: 'NOT NULL DEFAULT 0 CHECK (hidden IN (0, 1))',
     defaultValue: const CustomExpression('0'),
   );
+  late final GeneratedColumn<int> recorded = GeneratedColumn<int>(
+    'recorded',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT 0 CHECK (recorded IN (0, 1))',
+    defaultValue: const CustomExpression('0'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -249,6 +258,7 @@ class ClassSlots extends Table with TableInfo {
     placeEdited,
     onlineEdited,
     hidden,
+    recorded,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -272,6 +282,7 @@ class ClassSlots extends Table with TableInfo {
     'CHECK(weekday BETWEEN 1 AND 7)',
     'CHECK(start_min BETWEEN 0 AND 1439)',
     'CHECK(end_min > start_min AND end_min < start_min + 1440)',
+    'CHECK(recorded = 0 OR online = 1)',
     'CHECK(imported_weekday BETWEEN 1 AND 7)',
     'CHECK(imported_start_min BETWEEN 0 AND 1439)',
     'CHECK(imported_end_min > imported_start_min AND imported_end_min < imported_start_min + 1440)',
