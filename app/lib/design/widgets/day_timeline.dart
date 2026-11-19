@@ -149,6 +149,10 @@ class DayTimeline extends StatelessWidget {
       span: span,
       onTap: onFreeTap == null ? null : () => onFreeTap!(span),
     ),
+    TimelineSlot(:final span) =>
+      onFreeTap == null
+          ? const SizedBox.shrink()
+          : _SlotButton(span: span, onTap: () => onFreeTap!(span)),
   };
 
   String _title(DayItem item) => switch (item) {
@@ -777,4 +781,66 @@ class _DashLinePainter extends CustomPainter {
   @override
   bool shouldRepaint(_DashLinePainter oldDelegate) =>
       oldDelegate.color != color;
+}
+
+/// 09 일간 빈 시간 카드 아래의 'HH:MM에 놓기' 칸. 글자는 오른쪽에 두고, 누르면 그 시부터 빈 시간에 놓기 시트를
+/// 연다(최종 프로토타입). 누르는 동안 옅은 바탕과 테두리를 보인다.
+class _SlotButton extends StatelessWidget {
+  const _SlotButton({required this.span, required this.onTap});
+
+  final TimeSpan span;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final time = hhmmText(span.start.hour * 60 + span.start.minute);
+    return Semantics(
+      container: true,
+      button: true,
+      label: '$time부터 빈 시간, 할 일 놓기',
+      excludeSemantics: true,
+      onTap: onTap,
+      child: Material(
+        color: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.input),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          highlightColor: colors.surface,
+          child: ClipRect(
+            child: OverflowBox(
+              minHeight: 0,
+              maxHeight: double.infinity,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    AppIcon(AppIconName.plus, size: 12, color: colors.accent),
+                    const SizedBox(width: 3),
+                    Flexible(
+                      child: Text(
+                        '$time에 놓기',
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.caption.copyWith(
+                          fontWeight: AppText.semibold,
+                          color: colors.accent,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

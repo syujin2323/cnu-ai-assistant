@@ -52,6 +52,7 @@ TimelineLayout layout(
   bool showPast = false,
   bool showTravelMeal = true,
   int windowEndMin = 1380,
+  bool slots = false,
 }) => layoutDayTimeline(
   day: day,
   items: items,
@@ -61,6 +62,7 @@ TimelineLayout layout(
   windowEndMin: windowEndMin,
   showPast: showPast,
   showTravelMeal: showTravelMeal,
+  slots: slots,
 );
 
 /// 놓인 것을 '종류 top height 모양' 꼴로.
@@ -72,6 +74,8 @@ List<String> describe(TimelineLayout result) => [
             '${past ? ' 지남' : ''}${current ? ' 지금' : ''}',
       TimelineSoft() => '흐림 ${entry.top.round()} ${entry.height.round()}',
       TimelineFree() => '빈 ${entry.top.round()} ${entry.height.round()}',
+      TimelineSlot(:final span) =>
+        '칸 ${span.start.hour}시 ${entry.top.round()} ${entry.height.round()}',
     },
 ];
 
@@ -206,5 +210,40 @@ void main() {
     expect(layout([task(at(10), at(11))]).empty, isTrue);
     expect(layout([lesson(at(10), at(11), cancelled: true)]).empty, isTrue);
     expect(layout([lesson(at(10), at(11))]).empty, isFalse);
+  });
+
+  group('09 일간의 HH:MM에 놓기 칸', () {
+    test('빈 시간 카드는 112pt까지이고 그 아래 정시마다 칸을 둔다', () {
+      // 08시부터 그리므로 09:00은 60pt. 카드는 63–175pt이고 그 아래 첫 정시는 12시다.
+      final result = layout(
+        const [],
+        free: [TimeSpan(at(9), at(13, 30))],
+        today: false,
+        slots: true,
+      );
+
+      expect(describe(result), ['빈 63 112', '칸 12시 243 54', '칸 13시 303 24']);
+      final slots = result.entries.whereType<TimelineSlot>().toList();
+      expect(slots.first.span, TimeSpan(at(12), at(13, 30)));
+      expect(slots.last.span, TimeSpan(at(13), at(13, 30)));
+    });
+
+    test('30분이 안 남은 시나 카드 아래 남은 높이가 40pt 이하면 칸을 두지 않는다', () {
+      String shape(TimeSpan span) =>
+          describe(layout(const [], free: [span], today: false, slots: true))
+              .join(', ');
+
+      // 13:29까지: 13시 칸은 30분이 안 남는다.
+      expect(shape(TimeSpan(at(9), at(13, 29))), '빈 63 112, 칸 12시 243 54');
+      // 카드 아래 남은 높이 40pt 이하.
+      expect(shape(TimeSpan(at(9), at(11, 40))), '빈 63 112');
+      // 칸을 두지 않으면(02 홈) 카드가 빈 시간을 다 차지한다.
+      expect(
+        describe(
+          layout(const [], free: [TimeSpan(at(9), at(13, 30))], today: false),
+        ),
+        ['빈 63 264'],
+      );
+    });
   });
 }
