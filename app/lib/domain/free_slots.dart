@@ -268,7 +268,7 @@ TimeSpan? _mealSpan(TimeSpan window, int minutes, List<TimeSpan> free) {
 ///
 /// `day_edges` 이동 시간은 그 논리적 하루의 대면 수업 가운데 하루 첫 수업(시작이 가장 이른 수업) 앞과
 /// 마지막 수업(끝이 가장 늦은 수업) 뒤에 건다. 시작이나 끝이 같으면 수업 칸 id로 가려, 수업이 겹치거나
-/// 입력 순서가 달라도 같은 결과를 낸다.
+/// 입력 순서가 달라도 같은 결과를 낸다. 다른 수업 시간과 겹치는 이동은 놓지 않는다.
 List<BusySpan> _classSpans(
   List<DateTime> dates,
   DateTime day,
@@ -336,6 +336,14 @@ List<BusySpan> _classSpans(
     sourceId: c.slot.id,
   );
 
+  // 다른 수업 시간과 겹치는 이동은 놓지 않는다(대면 수업 바로 뒤에 실시간 온라인 수업이 이어지는 날처럼 이동할
+  // 틈이 없는 때. docs/decisions.md 2026-11-19 '수업과 겹치는 이동 시간은 놓지 않는다').
+  bool clear(BusySpan travelSpan) => !classes.any(
+    (other) =>
+        other.span.start.isBefore(travelSpan.span.end) &&
+        travelSpan.span.start.isBefore(other.span.end),
+  );
+
   return [
     for (final c in classes) ...[
       BusySpan(c.span, BusyKind.classTime, sourceId: c.slot.id),
@@ -347,11 +355,15 @@ List<BusySpan> _classSpans(
         if (travel.position == TravelPosition.everyClass
             ? inPerson.contains(c)
             : c == firstClass)
-          before(c, travel.minutes, BusyKind.travel),
+          if (before(c, travel.minutes, BusyKind.travel) case final span
+              when clear(span))
+            span,
         if (travel.position == TravelPosition.everyClass
             ? inPerson.contains(c)
             : c == lastClass)
-          after(c, travel.minutes, BusyKind.travel),
+          if (after(c, travel.minutes, BusyKind.travel) case final span
+              when clear(span))
+            span,
       ],
     ],
   ];

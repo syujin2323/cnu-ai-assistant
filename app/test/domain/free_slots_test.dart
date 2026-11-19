@@ -264,6 +264,49 @@ void main() {
       ]);
     });
 
+    test('다른 수업 시간과 겹치는 이동은 놓지 않는다', () {
+      // 14:00–15:00 대면 수업 바로 뒤 15:00–17:00 실시간 온라인 수업: 마지막 대면 수업 뒤의 이동은 놓지 않는다.
+      final thenOnline = Schedule(
+        classSlots: [
+          classSlot(id: 1, startMin: 840, endMin: 900),
+          classSlot(id: 2, startMin: 900, endMin: 1020, online: true),
+        ],
+      );
+      final day = availability(
+        thenOnline,
+        rules: [travel(TravelPosition.dayEdges)],
+      );
+      expect(
+        [
+          for (final busy in day.busy)
+            if (busy.kind == BusyKind.travel) busy.span,
+        ],
+        [span(at(monday, 13), at(monday, 14))],
+      );
+      // 온라인 수업이 30분 뒤에 시작해 이동(60분)과 일부만 겹쳐도 놓지 않는다.
+      final gap = Schedule(
+        classSlots: [
+          classSlot(id: 1, startMin: 840, endMin: 900),
+          classSlot(id: 2, startMin: 930, endMin: 1020, online: true),
+        ],
+      );
+      expect(free(gap, rules: [travel(TravelPosition.dayEdges)]), [
+        span(at(monday, 9), at(monday, 13)),
+        span(at(monday, 15, 10), at(monday, 15, 30)),
+        span(at(monday, 17), at(monday, 18)),
+      ]);
+      // 붙어 있는 대면 수업 사이의 이동(매 수업 앞뒤)도 놓지 않는다.
+      final backToBack = Schedule(
+        classSlots: [
+          classSlot(id: 1, startMin: 600, endMin: 660),
+          classSlot(id: 2, startMin: 660, endMin: 720),
+        ],
+      );
+      expect(free(backToBack, rules: [travel(TravelPosition.everyClass)]), [
+        span(at(monday, 13), at(monday, 18)),
+      ]);
+    });
+
     test('실시간 비대면 수업만 있는 날은 쓰지 않는다', () {
       final online = Schedule(
         classSlots: [classSlot(startMin: 600, endMin: 660, online: true)],
