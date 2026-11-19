@@ -78,6 +78,11 @@ void main() {
     await tester.tap(save);
     await tester.pumpAndSettle();
     expect(find.text('수업 1개 · 주 0회'), findsOneWidget);
+    await tester.dragUntilVisible(
+      find.bySemanticsLabel('선형대수, 녹화 강의'),
+      find.byType(CustomScrollView),
+      const Offset(0, -200),
+    );
     expect(find.bySemanticsLabel('선형대수, 녹화 강의'), findsOneWidget);
     expect(find.text('아직 수업이 없어요'), findsNothing);
 
