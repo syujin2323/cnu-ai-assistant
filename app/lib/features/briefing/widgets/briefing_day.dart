@@ -7,6 +7,7 @@
 
 import 'dart:math' as math;
 
+import 'package:cnu_ai_assistant/design/course_colors.dart';
 import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/domain/planner/day_items.dart';
@@ -292,9 +293,9 @@ class _ItemContent extends StatelessWidget {
           title: courseNames[slot.courseId] ?? '수업',
           time: range,
           sub: place == null ? range : '$range · $place',
-          tint: colors.classTint,
-          line: colors.classLine,
-          ink: colors.classInk,
+          tint: CourseColors.of(context, slot.courseId).tint,
+          line: CourseColors.of(context, slot.courseId).line,
+          ink: CourseColors.of(context, slot.courseId).ink,
         );
       case EventItem(:final event):
         return _Colored(
