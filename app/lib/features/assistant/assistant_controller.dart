@@ -7,8 +7,9 @@
 // (`data/demo/demo_parse.dart`). 응답은 오전·오후를 말하지 않은 1–7시를 오후로 고친 뒤 카드로 바꾼다
 // (`domain/assistant/assistant_reply.dart`).
 //
-// 수업 변경·일정 바꾸기·지우기는 보낼 때 읽어 둔 폰 DB의 값(과목·수업 칸·수업 예외·고정 일정·오늘부터
-// 60일(임시)의 일정, [AssistantSnapshot])으로 대상을 찾는다.
+// 수업 변경·일정 바꾸기·지우기·내 규칙은 보낼 때 읽어 둔 폰 DB의 값(과목·수업 칸·수업 예외·고정 일정·오늘부터
+// 60일(임시)의 일정·내 규칙, [AssistantSnapshot])으로 대상과 지금 값을 찾는다. 내 규칙을 저장하면 저장 전과
+// 뒤의 배치 설정으로 새 규칙과 겹치게 된 확정 블록을 찾아 카드에서 [옮기기]·[그대로 두기]를 묻는다.
 //
 // 확인 버튼을 누를 때만 저장하고, 저장할 때마다 되돌리기 토스트를 띄운다. 토스트의 '되돌리기'로 되돌리면 그
 // 카드를 저장 전으로 돌린다. 저장한 뒤에는 바로 다시 계산해 옮겨진 제안이나 놓인 자리를 카드에 적는다. 대화는
@@ -24,6 +25,7 @@ import 'package:cnu_ai_assistant/design/strings.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_message.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_reply.dart';
+import 'package:cnu_ai_assistant/domain/assistant/assistant_rules.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_targets.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_text.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
@@ -35,7 +37,9 @@ import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/domain/models/parse_result.dart';
 import 'package:cnu_ai_assistant/domain/parse_checks.dart';
 import 'package:cnu_ai_assistant/domain/planner/plan_range.dart';
+import 'package:cnu_ai_assistant/domain/planner/rule_conflicts.dart';
 import 'package:cnu_ai_assistant/domain/planner/schedule.dart';
+import 'package:cnu_ai_assistant/domain/rule_text.dart';
 import 'package:cnu_ai_assistant/domain/rules.dart';
 import 'package:cnu_ai_assistant/domain/text/josa.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
@@ -276,7 +280,9 @@ class AssistantController extends Notifier<AssistantState> {
       Ok(:final value) => value,
       Err(:final error) => _logged<Schedule?>(error, null),
     };
+    final rules = await _rules() ?? const <Rule>[];
     return AssistantSnapshot(
+      rules: rules,
       courses: courses,
       slots: slots,
       exceptions: schedule?.classExceptions ?? const [],
@@ -667,16 +673,309 @@ class AssistantController extends Notifier<AssistantState> {
     _noteIfSaved(cardId, notes.isEmpty ? null : notes.join(' · '));
   }
 
-  /// 수업 변경 카드를 적용하지 않는다([취소]) · 바꾸기·지우기 카드를 그대로 둔다([그대로 두기]).
+  /// 수업 변경·내 규칙 카드를 적용하지 않는다([취소]) · 바꾸기·지우기·규칙 지우기 카드를 그대로 둔다
+  /// ([그대로 두기]).
   void skipCard(int cardId) {
     switch (_find<AssistantMessage>(cardId)) {
       case final ExceptionCard card when card.status == CardStatus.pending:
         _replace(card.copyWith(status: CardStatus.declined));
       case final ChangeCard card when card.status == CardStatus.pending:
         _replace(card.copyWith(status: CardStatus.declined));
+      case final RuleCard card when card.status == CardStatus.pending:
+        _replace(card.copyWith(status: CardStatus.declined));
+      case final RuleRemoveCard card when card.status == CardStatus.pending:
+        _replace(card.copyWith(status: CardStatus.declined));
       default:
         break;
     }
+  }
+
+  /// 내 규칙 카드를 저장한다(출처 `ai`, 사용자가 보낸 문장과 함께). 저장한 뒤 다시 계산하고, 새 규칙과
+  /// 겹치게 된 확정 블록을 찾아 카드에 적는다.
+  Future<void> saveRule(int cardId) async {
+    final card = _pendingRule(cardId);
+    if (card == null) return;
+    _replace(card.copyWith(status: CardStatus.saving));
+    final draft = card.draft;
+    final before = ref.read(planControllerProvider);
+    final beforeRules = await _rules();
+    if (!ref.mounted) return;
+    final now = ref.read(clockProvider).now();
+    Result<Rule> saved;
+    try {
+      saved = await ref
+          .read(rulesRepositoryProvider)
+          .save(
+            kind: draft.kind,
+            params: draft.params,
+            weekdays: draft.weekdays,
+            source: EntrySource.ai,
+            sentence: _sentenceBefore(cardId),
+            now: now,
+          );
+    } on ArgumentError {
+      saved = const Err(
+        StorageError('assistant.saveRule', causeType: 'ArgumentError'),
+      );
+    }
+    if (!ref.mounted) return;
+    final toast = ref.read(toastControllerProvider.notifier);
+    if (saved case Err(:final error)) {
+      appLog(
+        'assistant_save_failed',
+        area: 'assistant',
+        data: errorLogData(error),
+      );
+      _replace(card.copyWith(status: CardStatus.pending));
+      toast.show(AppStrings.saveFailed);
+      return;
+    }
+    _replace(
+      card.copyWith(
+        status: CardStatus.saved,
+        planNote: () => null,
+        conflicts: const [],
+      ),
+    );
+    toast.show(
+      '${withJosa(ruleKindName(draft.kind), Josa.eulReul)} 저장했어요',
+      undoable: true,
+      onUndone: () => _unsave(cardId),
+    );
+    final after = await _recalculated();
+    if (!ref.mounted) return;
+    final afterRules = await _rules();
+    if (!ref.mounted) return;
+    final conflicts = beforeRules == null || afterRules == null
+        ? const <RuleConflict>[]
+        : await _conflicts(beforeRules, afterRules);
+    if (!ref.mounted) return;
+    if (_find<RuleCard>(cardId) case final current?
+        when current.status == CardStatus.saved) {
+      _replace(
+        current.copyWith(
+          planNote: () => replanNote(before, after),
+          conflicts: conflicts,
+        ),
+      );
+    }
+  }
+
+  /// 새 규칙과 겹치게 된 확정 블록([옮기기])을 지우고 다시 계산한다. 그 할 일의 다음 제안을 카드에 적는다.
+  Future<void> moveConflict(int cardId, int blockId) async {
+    final conflict = _askingConflict(cardId, blockId);
+    if (conflict == null) return;
+    final now = ref.read(clockProvider).now();
+    final dismissed = await ref
+        .read(planBlockRepositoryProvider)
+        .dismiss(blockId, now: now);
+    if (!ref.mounted) return;
+    final toast = ref.read(toastControllerProvider.notifier);
+    switch (dismissed) {
+      case Err(:final error):
+        appLog(
+          'assistant_save_failed',
+          area: 'assistant',
+          data: errorLogData(error),
+        );
+        toast.show(AppStrings.saveFailed);
+        return;
+      case Ok(value: false):
+        // 그사이 끝냈거나 지운 블록이다. 옮길 것이 없으므로 그대로 둔 것으로 적는다.
+        _answerConflict(cardId, conflict.answered(ConflictAnswer.kept));
+        return;
+      case Ok():
+        break;
+    }
+    toast.show(
+      '${withJosa(conflict.title, Josa.eulReul)} 다른 빈 시간에 다시 놓았어요',
+      undoable: true,
+      onUndone: () => _answerConflict(cardId, conflict),
+    );
+    _answerConflict(cardId, conflict.answered(ConflictAnswer.moved));
+    final after = await _recalculated();
+    if (!ref.mounted) return;
+    final next = [
+      for (final block in after?.blocks ?? const <BlockDraft>[])
+        // 지금 시작하는 제안도 든다(배치는 지금부터 놓음).
+        if (block.taskId == conflict.block.taskId &&
+            !block.startAt.isBefore(now))
+          block,
+    ]..sort((a, b) => a.startAt.compareTo(b.startAt));
+    if (next.firstOrNull case final first?) {
+      final current = _find<RuleCard>(cardId)?.conflicts
+          .where((item) => item.block.id == blockId)
+          .firstOrNull;
+      if (current?.answer == ConflictAnswer.moved) {
+        _answerConflict(
+          cardId,
+          conflict.answered(
+            ConflictAnswer.moved,
+            movedStart: first.startAt,
+            movedEnd: first.endAt,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 새 규칙과 겹치게 된 확정 블록을 그대로 둔다([그대로 두기]).
+  void keepConflict(int cardId, int blockId) {
+    final conflict = _askingConflict(cardId, blockId);
+    if (conflict != null) {
+      _answerConflict(cardId, conflict.answered(ConflictAnswer.kept));
+    }
+  }
+
+  /// 내 규칙 지우기 카드를 적용한다. 그사이 규칙이 없어졌으면 알린다.
+  Future<void> removeRule(int cardId) async {
+    final card = _pendingRuleRemove(cardId);
+    if (card == null) return;
+    _replace(card.copyWith(status: CardStatus.saving));
+    final before = ref.read(planControllerProvider);
+    final now = ref.read(clockProvider).now();
+    final deleted = await ref
+        .read(rulesRepositoryProvider)
+        .delete(card.rule.id, now: now);
+    if (!ref.mounted) return;
+    final toast = ref.read(toastControllerProvider.notifier);
+    switch (deleted) {
+      case Err(:final error):
+        appLog(
+          'assistant_save_failed',
+          area: 'assistant',
+          data: errorLogData(error),
+        );
+        _replace(card.copyWith(status: CardStatus.pending));
+        toast.show(AppStrings.saveFailed);
+        return;
+      case Ok(value: false):
+        _replace(card.copyWith(status: CardStatus.pending));
+        toast.show('그 규칙을 찾지 못했어요 · 이미 지웠을 수 있어요');
+        return;
+      case Ok():
+        _replace(card.copyWith(status: CardStatus.saved, planNote: () => null));
+        toast.show(
+          '${ruleKindName(card.rule.kind)} 규칙을 지웠어요',
+          undoable: true,
+          onUndone: () => _unsave(cardId),
+        );
+    }
+    final after = await _recalculated();
+    if (!ref.mounted) return;
+    _noteIfSaved(cardId, replanNote(before, after));
+  }
+
+  /// 지울 규칙이 여럿일 때 [index]번째를 고른다. 고른 규칙의 지우기 카드를 이어서 붙인다.
+  void pickRule(int cardId, int index) {
+    final card = _find<RulePickCard>(cardId);
+    if (card == null || card.picked != null) return;
+    if (index < 0 || index >= card.rules.length) return;
+    final next = afterRulePick(card, index, nextId: _nextId);
+    state = state.copyWith(
+      messages: [
+        for (final message in state.messages)
+          message.id == cardId ? card.pick(index) : message,
+        next,
+      ],
+    );
+  }
+
+  /// 저장 전과 뒤의 규칙으로, 새 규칙과 겹치게 된 확정 블록(오늘부터 배치 지평). 읽지 못하면 빈 목록이다.
+  Future<List<RuleConflict>> _conflicts(
+    List<Rule> before,
+    List<Rule> after,
+  ) async {
+    final now = ref.read(clockProvider).now();
+    final boundary = switch (await ref
+        .read(settingsRepositoryProvider)
+        .read()) {
+      Ok(:final value) => value.dayBoundaryMin,
+      Err() => Defaults.dayBoundaryMin,
+    };
+    final today = logicalDate(now, dayBoundaryMin: boundary);
+    final schedule = await ref
+        .read(scheduleRepositoryProvider)
+        .read(
+          start: logicalDayStart(today, dayBoundaryMin: boundary),
+          end: logicalDayEnd(
+            DateTime(
+              today.year,
+              today.month,
+              today.day + Defaults.planHorizonDays - 1,
+            ),
+            dayBoundaryMin: boundary,
+          ),
+        );
+    final Schedule range;
+    switch (schedule) {
+      case Ok(:final value):
+        range = value;
+      case Err(:final error):
+        return _logged(error, const <RuleConflict>[]);
+    }
+    final titles = switch (await ref.read(taskRepositoryProvider).read()) {
+      Ok(:final value) => {
+        for (final entry in value) entry.task.id: entry.task.title,
+      },
+      Err() => const <int, String>{},
+    };
+    final broken = blocksBrokenBy(
+      range,
+      before: PlannerConfig.from(before),
+      after: PlannerConfig.from(after),
+      now: now,
+      dayBoundaryMin: boundary,
+    );
+    return [
+      for (final block in broken)
+        RuleConflict(block: block, title: titles[block.taskId] ?? '할 일'),
+    ];
+  }
+
+  RuleConflict? _askingConflict(int cardId, int blockId) {
+    final card = _find<RuleCard>(cardId);
+    if (card == null || card.status != CardStatus.saved) return null;
+    return card.conflicts
+        .where(
+          (conflict) =>
+              conflict.block.id == blockId &&
+              conflict.answer == ConflictAnswer.ask,
+        )
+        .firstOrNull;
+  }
+
+  void _answerConflict(int cardId, RuleConflict answered) {
+    final card = _find<RuleCard>(cardId);
+    if (card == null) return;
+    _replace(
+      card.copyWith(
+        conflicts: [
+          for (final conflict in card.conflicts)
+            conflict.block.id == answered.block.id ? answered : conflict,
+        ],
+      ),
+    );
+  }
+
+  /// 내 규칙 전부. 읽지 못하면 null이다.
+  Future<List<Rule>?> _rules() async {
+    switch (await ref.read(rulesRepositoryProvider).read()) {
+      case Ok(:final value):
+        return value;
+      case Err(:final error):
+        return _logged<List<Rule>?>(error, null);
+    }
+  }
+
+  /// [cardId] 카드를 만든 사용자 문장(그 카드 앞의 마지막 문장). 없으면 null이다.
+  String? _sentenceBefore(int cardId) {
+    String? sentence;
+    for (final message in state.messages) {
+      if (message.id == cardId) return sentence;
+      if (message is UserMessage) sentence = message.text;
+    }
+    return null;
   }
 
   /// 바꾸거나 지울 일정이 여럿일 때 [index]번째를 고른다. 고른 일정의 카드를 이어서 붙인다.
@@ -846,6 +1145,18 @@ class AssistantController extends Notifier<AssistantState> {
         );
       case final ChangeCard card when card.status == CardStatus.saved:
         _replace(card.copyWith(status: CardStatus.pending));
+      case final RuleCard card when card.status == CardStatus.saved:
+        _replace(
+          card.copyWith(
+            status: CardStatus.pending,
+            planNote: () => null,
+            conflicts: const [],
+          ),
+        );
+      case final RuleRemoveCard card when card.status == CardStatus.saved:
+        _replace(
+          card.copyWith(status: CardStatus.pending, planNote: () => null),
+        );
       default:
         break;
     }
@@ -859,6 +1170,8 @@ class AssistantController extends Notifier<AssistantState> {
       case final TaskCard card when card.status == CardStatus.saved:
         _replace(card.copyWith(planNote: () => note));
       case final ExceptionCard card when card.status == CardStatus.saved:
+        _replace(card.copyWith(planNote: () => note));
+      case final RuleRemoveCard card when card.status == CardStatus.saved:
         _replace(card.copyWith(planNote: () => note));
       default:
         break;
@@ -907,6 +1220,16 @@ class AssistantController extends Notifier<AssistantState> {
 
   ChangeCard? _pendingChange(int cardId) {
     final card = _find<ChangeCard>(cardId);
+    return card?.status == CardStatus.pending ? card : null;
+  }
+
+  RuleCard? _pendingRule(int cardId) {
+    final card = _find<RuleCard>(cardId);
+    return card?.status == CardStatus.pending ? card : null;
+  }
+
+  RuleRemoveCard? _pendingRuleRemove(int cardId) {
+    final card = _find<RuleRemoveCard>(cardId);
     return card?.status == CardStatus.pending ? card : null;
   }
 

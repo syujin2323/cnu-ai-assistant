@@ -12,10 +12,11 @@
 // 기간과 과목만 정해 두고 답은 화면이 폰 안 데이터로 그때그때 계산한다.
 //
 // AI가 카드 대신 질문만 돌려주면(한 문장에 의도 둘, 대상 모름) 그 질문을 안내 카드로 보인다. 그 답을 앞 문장과
-// 함께 이어 받는 것은 K2(아니요 뒤 고쳐 말하기)와 같은 장치로 만든다(관리자 2026-11-19). 내 규칙 카드는 다음
-// PR에서 붙이고, 그때까지는 안내 카드다. 문구는 디자인 전 임시 문구다.
+// 함께 이어 받는 것은 K2(아니요 뒤 고쳐 말하기)와 같은 장치로 만든다(관리자 2026-11-19). 내 규칙 카드는
+// `assistant_rules.dart`가 만든다. 문구는 디자인 전 임시 문구다.
 
 import 'package:cnu_ai_assistant/domain/assistant/assistant_message.dart';
+import 'package:cnu_ai_assistant/domain/assistant/assistant_rules.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_targets.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_text.dart';
 import 'package:cnu_ai_assistant/domain/models/class_exception.dart';
@@ -85,7 +86,12 @@ List<AssistantMessage> replyCards(
     case ParseIntent.other:
       return [InfoCard(nextId(), InfoKind.notUnderstood)];
     case ParseIntent.setRule:
-      return [InfoCard(nextId(), InfoKind.notYet)];
+      return ruleReplyCards(
+        result,
+        now: now,
+        nextId: nextId,
+        snapshot: snapshot,
+      );
   }
 }
 
@@ -97,6 +103,15 @@ List<AssistantMessage> afterPick(
   required int Function() nextId,
   AssistantSnapshot snapshot = const AssistantSnapshot(),
 }) {
+  if (card.intent == ParseIntent.setRule) {
+    return ruleCardsAfterPick(
+      card,
+      index,
+      now: now,
+      nextId: nextId,
+      snapshot: snapshot,
+    );
+  }
   final ctx = _Ctx(now, nextId, snapshot);
   final option = card.options[index];
   final answered = {...card.answered, ..._answeredBy(card.topic)};
@@ -159,6 +174,7 @@ Set<AskTopic> _answeredBy(AskTopic topic) => switch (topic) {
   },
   AskTopic.weekdayMismatch => {AskTopic.weekdayMismatch},
   AskTopic.meridiem => {AskTopic.meridiem},
+  AskTopic.rulePosition => {AskTopic.rulePosition},
   AskTopic.pastDate => {
     AskTopic.pastDate,
     AskTopic.dayOnly,
@@ -696,6 +712,9 @@ AskCard _ask(
     case AskTopic.session:
       // 수업 고르기는 수업 변경 카드를 만들 때 2주 안의 수업으로 만든다(_exceptionCard).
       throw StateError('session asks come from the class exception flow');
+    case AskTopic.rulePosition:
+      // 이동 시간의 자리는 내 규칙 카드를 만들 때 묻는다(assistant_rules.dart).
+      throw StateError('rule asks come from the rule flow');
     case AskTopic.pastTime:
       final time = (isTask ? item.dueTimeMin : item.startMin)!;
       final nowMin = now.hour * 60 + now.minute;
