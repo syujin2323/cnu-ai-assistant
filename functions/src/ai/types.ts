@@ -122,4 +122,8 @@ export interface ParseInput {
   weekday: KoreanWeekday;
   now: string;
   courses: { name: string }[];
+  /** (선택) 고쳐 말하기: 아직 저장하지 않은 카드를 만든 앞 문장들(오래된 순서). */
+  previous?: string[];
+  /** (선택) 앞 문장에 AI가 되물은 질문. previous가 있을 때만 쓴다. */
+  question?: string;
 }

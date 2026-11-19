@@ -597,6 +597,115 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('카드가 떠 있을 때 이어 쓴 말은 앞 문장과 함께 보내고, 고친 카드로 바꾼다', (tester) async {
+    final (app, parse) = await _open(
+      tester,
+      reply: (request) => request.previous.isEmpty
+          ? _meeting(request)
+          : Ok(
+              ParseResult(
+                intent: ParseIntent.createEvent,
+                items: [
+                  ParseItem(
+                    title: '회의',
+                    kind: ParseItemKind.event,
+                    category: ParseCategory.personal,
+                    date: DateTime(2026, 11, 20),
+                    weekday: 5,
+                    dateExpression: '내일',
+                    timeExpression: '오후 3시부터 5시까지',
+                    startMin: 15 * 60,
+                    endMin: 17 * 60,
+                  ),
+                ],
+              ),
+            ),
+    );
+    await _say(tester, '내일 오후 3시 회의');
+    expect(parse.requests.single.previous, isEmpty);
+    expect(find.text('15:00–16:00 · 1시간'), findsOneWidget);
+
+    await _say(tester, '5시까지');
+    expect(parse.requests.last.previous, ['내일 오후 3시 회의']);
+    expect(parse.requests.last.question, isNull);
+    expect(parse.requests.last.toJson()['previous'], ['내일 오후 3시 회의']);
+    // 앞의 저장 전 카드는 고친 카드로 바뀐다.
+    expect(find.text('15:00–16:00 · 1시간'), findsNothing);
+    expect(find.text('15:00–17:00 · 2시간'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '캘린더에 추가'), findsOneWidget);
+
+    // 또 고치면 앞 문장 둘을 함께 보낸다.
+    await _say(tester, '아니 6시까지');
+    expect(parse.requests.last.previous, ['내일 오후 3시 회의', '5시까지']);
+
+    // 저장한 뒤에 쓴 말은 새 문장이다.
+    await tapText(tester, '캘린더에 추가');
+    expect((await _events(app.db)).single.endAt, DateTime(2026, 11, 20, 17));
+    await _say(tester, '모레 2시 약속');
+    expect(parse.requests.last.previous, isEmpty);
+    await app.dispose(tester);
+  });
+
+  testWidgets('카드가 떠 있어도 다른 것을 새로 말하면 앞 카드는 그대로 두고, 그 문장부터 다시 잇는다', (
+    tester,
+  ) async {
+    final (app, parse) = await _open(
+      tester,
+      reply: (request) => request.text.contains('과제')
+          ? Ok(
+              ParseResult(
+                intent: ParseIntent.createTask,
+                items: [
+                  ParseItem(
+                    title: '과제',
+                    kind: ParseItemKind.task,
+                    category: ParseCategory.personal,
+                    due: DateTime(2026, 11, 20),
+                    weekday: 5,
+                    dateExpression: '금요일까지',
+                  ),
+                ],
+              ),
+            )
+          : _meeting(request),
+    );
+    await _say(tester, '내일 오후 3시 회의');
+    await _say(tester, '금요일까지 과제');
+    expect(parse.requests.last.previous, ['내일 오후 3시 회의']);
+    expect(find.text('15:00–16:00 · 1시간'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '캘린더에 추가'), findsOneWidget);
+
+    await _say(tester, '금요일 말고 목요일까지 과제');
+    expect(parse.requests.last.previous, ['금요일까지 과제']);
+    await app.dispose(tester);
+  });
+
+  testWidgets('AI가 되물은 질문에 이어 쓴 답은 앞 문장·질문과 함께 보낸다', (tester) async {
+    const question = '두 가지를 한 번에 하기는 어려워요. 먼저 독서 모임을 넣을까요?';
+    final (app, parse) = await _open(
+      tester,
+      reply: (request) => request.previous.isEmpty
+          ? const Ok(
+              ParseResult(
+                intent: ParseIntent.createEvent,
+                needsClarification: true,
+                clarification: ParseClarification(
+                  field: ParseClarificationField.intent,
+                  question: question,
+                ),
+              ),
+            )
+          : _meeting(request),
+    );
+    await _say(tester, '목요일 7시 독서 모임 넣고 하루 공부는 3시간까지만');
+    await _say(tester, '응');
+    expect(parse.requests.last.previous, ['목요일 7시 독서 모임 넣고 하루 공부는 3시간까지만']);
+    expect(parse.requests.last.question, question);
+    expect(parse.requests.last.toJson()['question'], question);
+    expect(find.widgetWithText(FilledButton, '캘린더에 추가'), findsOneWidget);
+    await app.dispose(tester);
+  });
+
   testWidgets('열자마자 보내라고 하면 채운 문장을 보낸다', (tester) async {
     final (app, parse) = await _open(
       tester,

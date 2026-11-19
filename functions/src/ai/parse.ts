@@ -43,6 +43,12 @@ function inputOf(body: ParseInput): ParseInput {
     weekday: body.weekday,
     now: body.now,
     courses: body.courses.map((course) => ({ name: course.name })),
+    ...(body.previous !== undefined && body.previous.length > 0
+      ? {
+          previous: [...body.previous],
+          ...(body.question !== undefined ? { question: body.question } : {}),
+        }
+      : {}),
   };
 }
 

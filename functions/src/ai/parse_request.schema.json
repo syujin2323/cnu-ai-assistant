@@ -24,6 +24,18 @@
       "type": "string",
       "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
     },
+    "previous": {
+      "description": "(선택) 고쳐 말하기. 아직 저장하지 않은 카드를 만든 앞 문장들(오래된 순서, 3개까지, 300자까지). text는 이 문장들에 이어 쓴 말이다.",
+      "type": "array",
+      "maxItems": 3,
+      "items": { "type": "string", "minLength": 1, "maxLength": 300 }
+    },
+    "question": {
+      "description": "(선택) 앞 문장에 AI가 되물은 질문. previous와 함께 보낸다. 300자까지.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
     "courses": {
       "description": "과목 이름. 20개까지, 이름은 40자까지.",
       "type": "array",

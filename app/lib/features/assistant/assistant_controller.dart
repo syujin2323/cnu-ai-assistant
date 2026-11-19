@@ -34,6 +34,7 @@ import 'package:cnu_ai_assistant/domain/assistant/assistant_rules.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_targets.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_text.dart';
 import 'package:cnu_ai_assistant/domain/assistant/direct_add.dart';
+import 'package:cnu_ai_assistant/domain/assistant/follow_up.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
@@ -166,6 +167,9 @@ class AssistantController extends Notifier<AssistantState> {
   /// 마지막으로 보낼 때 읽은 폰 DB의 값. 되묻기를 고른 뒤 이어지는 카드도 이것으로 찾는다.
   AssistantSnapshot _snapshot = const AssistantSnapshot();
 
+  /// 지금 열려 있는 카드를 만든 문장들(오래된 순서). 이어 쓴 말과 함께 보낸다(고쳐 말하기).
+  List<String> _thread = const [];
+
   int _nextId() => ++_lastId;
 
   @override
@@ -257,6 +261,9 @@ class AssistantController extends Notifier<AssistantState> {
       case AiGate.open || AiGate.demo:
         break;
     }
+    // 앞 답의 카드가 아직 열려 있으면 이어 쓴 말로 보고 앞 문장과 함께 보낸다(고쳐 말하기).
+    final followUp = followUpOf(state.messages);
+    final previous = followUp == null ? const <String>[] : _thread;
     final waiting = WaitingMessage(_nextId());
     state = state.copyWith(
       sending: true,
@@ -286,6 +293,8 @@ class AssistantController extends Notifier<AssistantState> {
               text,
               now: now,
               courseNames: [for (final course in courses) course.name],
+              previous: previous,
+              question: followUp?.question,
             ),
           );
     }
@@ -307,11 +316,39 @@ class AssistantController extends Notifier<AssistantState> {
         'ms': watch.elapsedMilliseconds,
       },
     );
+    // 답이 같은 종류의 카드로 왔으면 앞의 열린 카드는 고친 카드로 바꾼다. 다른 것을 새로 말했으면 그대로 둔다.
+    final replaced = switch (result) {
+      Ok(:final value) when followUp != null && previous.isNotEmpty =>
+        replacedByFollowUp(
+          state.messages,
+          openIds: followUp.openIds,
+          intent: value.intent,
+        ),
+      _ => const <int>{},
+    };
+    if (result case Ok(:final value)) {
+      // 열린 카드가 있었는데 다른 종류의 답이 왔으면 새로 말한 것이다. 그 문장부터 다시 잇는다.
+      final fresh =
+          previous.isEmpty ||
+          (followUp != null &&
+              followUp.openIds.isNotEmpty &&
+              replaced.isEmpty &&
+              value.intent != ParseIntent.other);
+      if (fresh) {
+        _thread = [text];
+      } else if (value.intent != ParseIntent.other) {
+        final texts = [...previous, text];
+        _thread = texts.length > maxPreviousTexts
+            ? texts.sublist(texts.length - maxPreviousTexts)
+            : texts;
+      }
+    }
     state = state.copyWith(
       sending: false,
       messages: [
         for (final message in state.messages)
-          if (message.id != waiting.id) message,
+          if (message.id != waiting.id && !replaced.contains(message.id))
+            message,
         ...replies,
       ],
     );
@@ -1415,6 +1452,7 @@ class AssistantController extends Notifier<AssistantState> {
   /// 대화를 비운다(위 막대의 '새 대화').
   void reset() {
     if (state.sending) return;
+    _thread = const [];
     state = state.copyWith(messages: const []);
   }
 

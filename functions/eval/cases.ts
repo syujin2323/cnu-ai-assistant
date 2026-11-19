@@ -18,6 +18,7 @@ export const EVAL_TAGS = [
   "query",
   "edit",
   "chat",
+  "followup",
 ] as const;
 
 export type EvalTag = (typeof EVAL_TAGS)[number];
