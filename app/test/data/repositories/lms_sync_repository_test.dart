@@ -575,6 +575,146 @@ void main() {
     });
   });
 
+  group('applyCompletion', () {
+    Future<LmsItem> item(String remoteKeySuffix) async => (await (db.select(
+      db.lmsItems,
+    )..where((i) => i.remoteKey.like('%:$remoteKeySuffix'))).getSingle());
+
+    Future<List<String>> changes() async => [
+      for (final c in await (db.select(
+        db.lmsItemChanges,
+      )..orderBy([(c) => OrderingTerm(expression: c.id)])).get())
+        '${c.field} ${c.oldValue} ${c.newValue}',
+    ];
+
+    test('받은 항목만 영상은 출석 인정, 그 밖은 제출로 적고 바뀜을 남긴다', () async {
+      await ok(
+        repo.applyTodoList(
+          [
+            _todo('1', dueAt: due),
+            _todo('2', kindCode: 'K9', kind: LmsItemKind.video),
+          ],
+          semester: _semester,
+          now: now,
+        ),
+      );
+      final later = now.add(const Duration(hours: 1));
+
+      // 받은 적 없는 항목('3')은 넣지 않는다.
+      expect(
+        await ok(
+          repo.applyCompletion(
+            [
+              _todo('1', dueAt: due),
+              _todo('2', kindCode: 'K9', kind: LmsItemKind.video),
+              _todo('3'),
+            ],
+            semester: _semester,
+            now: later,
+          ),
+        ),
+        2,
+      );
+      final assignment = await item('1');
+      expect((assignment.submitted, assignment.officiallyDone), (true, null));
+      expect(assignment.lastSeenAt, later);
+      final video = await item('2');
+      expect((video.submitted, video.officiallyDone), (null, true));
+      expect(await db.select(db.lmsItems).get(), hasLength(2));
+      expect(await changes(), [
+        '${LmsItemChangeField.submitted} null true',
+        '${LmsItemChangeField.officiallyDone} null true',
+      ]);
+
+      // 이미 끝낸 항목은 다시 적지 않고, 다른 학기 키는 보지 않는다.
+      expect(
+        await ok(
+          repo.applyCompletion(
+            [_todo('1', dueAt: due)],
+            semester: _semester,
+            now: later,
+          ),
+        ),
+        0,
+      );
+      expect(
+        await ok(
+          repo.applyCompletion([_todo('2')], semester: _older, now: later),
+        ),
+        0,
+      );
+      expect(await changes(), hasLength(2));
+      expect(
+        await ok(
+          repo.applyCompletion(const [], semester: _semester, now: later),
+        ),
+        0,
+      );
+    });
+
+    test('끝낸 항목은 목록에서 빠져도 사라진 것으로 세지 않고, 사라진 것으로 본 항목은 되살린다', () async {
+      await ok(
+        repo.applyTodoList(
+          [_todo('1'), _todo('2')],
+          semester: _semester,
+          now: now,
+        ),
+      );
+      // '2'가 세 번 빠져 사라진 것이 된다.
+      for (var i = 0; i < Defaults.lmsGoneMissCount; i++) {
+        await ok(
+          repo.applyTodoList([_todo('1')], semester: _semester, now: now),
+        );
+      }
+      expect((await item('2')).goneAt, isNotNull);
+
+      // 끝낸 목록에 있으면 LMS에 있는 것이라 되살린다.
+      expect(
+        await ok(
+          repo.applyCompletion([_todo('2')], semester: _semester, now: now),
+        ),
+        1,
+      );
+      final restored = await item('2');
+      expect(
+        (restored.goneAt, restored.missCount, restored.submitted),
+        (null, 0, true),
+      );
+
+      // 끝낸 항목은 '진행 중' 목록에서 빠져도 세지 않는다.
+      for (var i = 0; i < Defaults.lmsGoneMissCount; i++) {
+        await ok(
+          repo.applyTodoList([_todo('1')], semester: _semester, now: now),
+        );
+      }
+      final kept = await item('2');
+      expect((kept.goneAt, kept.missCount), (null, 0));
+    });
+
+    test('이미 끝낸 것으로 적힌 채 사라진 항목도 되살리고 바뀐 수로 센다', () async {
+      await ok(repo.applyTodoList([_todo('1')], semester: _semester, now: now));
+      final old = await item('1');
+      // 이 규칙 전에 끝낸 채 목록에서 빠져 사라진 것으로 본 항목.
+      await (db.update(db.lmsItems)..where((i) => i.id.equals(old.id))).write(
+        LmsItemsCompanion(
+          submitted: const Value(true),
+          missCount: const Value(Defaults.lmsGoneMissCount),
+          goneAt: Value(now),
+        ),
+      );
+
+      expect(
+        await ok(
+          repo.applyCompletion([_todo('1')], semester: _semester, now: now),
+        ),
+        1,
+      );
+      final revived = await item('1');
+      expect((revived.goneAt, revived.missCount), (null, 0));
+      expect(await changes(), isEmpty);
+    });
+  });
+
   test('fnv1a64Hex는 표준 FNV-1a 64비트 값과 같다', () {
     expect(fnv1a64Hex(''), 'cbf29ce484222325');
     expect(fnv1a64Hex('a'), 'af63dc4c8601ec8c');

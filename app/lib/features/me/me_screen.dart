@@ -379,8 +379,8 @@ class _AiGroup extends ConsumerWidget {
     );
   }
 
-  /// 사용 지표 보내기를 켜고 끈다. 켤 때는 어제를 보낸 날로 적어 켠 날부터의 숫자만 보내고, 끌 때는 적어 둔 제안
-  /// 날짜를 비운다.
+  /// 사용 지표 보내기를 켜고 끈다. 켤 때는 어제를 보낸 날로 적어 켠 날부터의 숫자만 보내고, 끌 때는 적어 둔 제안·
+  /// 확정 날짜를 비운다.
   Future<void> _setMetrics(WidgetRef ref, bool on, int dayBoundaryMin) async {
     final repository = SettingsRepository(ref.read(realDatabaseProvider));
     final yesterday = logicalDate(
@@ -396,6 +396,7 @@ class _AiGroup extends ConsumerWidget {
           : {
               SettingKeys.metricsEnabled: false,
               SettingKeys.metricsSuggestedDays: const <String>[],
+              SettingKeys.metricsConfirmedDays: const <String>[],
             },
     );
     ref.read(toastControllerProvider.notifier).show(switch (saved) {

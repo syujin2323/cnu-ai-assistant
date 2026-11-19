@@ -110,6 +110,43 @@ void main() {
     },
   );
 
+  test(
+    '마지막 시도·성공은 할 일 목록을 받은 기록(full·list)만 보고 이어서 받은 detail 행은 보지 않는다',
+    () async {
+      final attempts = <SyncRun?>[];
+      final successes = <SyncRun?>[];
+      final a = repository.watchLatestAttempt().listen(attempts.add);
+      final b = repository.watchLatestSuccess().listen(successes.add);
+      await pumpEventQueue();
+      final full = await add(
+        now.subtract(const Duration(hours: 1)),
+        trigger: SyncTrigger.login,
+        scope: SyncScope.full,
+      );
+      await add(
+        now.subtract(const Duration(minutes: 59)),
+        trigger: SyncTrigger.login,
+        scope: SyncScope.detail,
+        result: SyncResultKind.serverError,
+      );
+      await pumpEventQueue();
+      expect((attempts.last?.id, successes.last?.id), (full, full));
+
+      final list = await add(now, trigger: SyncTrigger.manual);
+      await add(
+        now.add(const Duration(seconds: 2)),
+        trigger: SyncTrigger.manual,
+        scope: SyncScope.detail,
+      );
+      await pumpEventQueue();
+      await a.cancel();
+      await b.cancel();
+      // 사용자 새로 고침 뒤 '방금'은 목록 기록의 시작 시각으로 가른다.
+      expect((attempts.last?.id, successes.last?.id), (list, list));
+      expect(successes.last?.startedAt, now);
+    },
+  );
+
   test('마지막 자동 list 기록은 자동 계기·list·건너뛰지 않은 것만 본다', () async {
     expect(_ok(await repository.lastAutoList()), isNull);
     final periodic = await add(

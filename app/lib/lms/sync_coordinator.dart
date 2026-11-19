@@ -10,18 +10,22 @@
 //    성공이 간격 안이면 기록 없이 끝내고, 자동 조회가 실패한 뒤 최소 간격 안이거나 오늘 횟수를 다 썼으면
 //    `skipped`(`budget`)다. 사용자 새로 고침과 로그인 직후는 예산을 보지 않는다.
 // 3. 잠금을 잡고(못 잡으면 `skipped`(`lease`)) 금고의 쿠키와 User-Agent로 준비 요청 → (전체면) 과목 목록 → 할 일
-//    목록을 묻고 판별해 [LmsSyncRepository]로 쓴다. 도중에 데모 모드에 들어가거나 원격 스위치가 꺼지면 다음 조회
-//    앞에서 멈추고 `cancelled`(이유 코드)로 남긴다.
+//    목록을 묻고 판별해 [LmsSyncRepository]로 쓴다. 목록을 받았고 요청 상수에 끝낸 할 일 목록(`sync.completed`)이
+//    있으면 이어서 받아 제출·출석 인정을 적는다(전체·사용자 새로 고침은 늘, 자동 계기는 그날 자동으로 받은 횟수가
+//    `detailMaxPerDay`보다 적을 때만). 도중에 데모 모드에 들어가거나 원격 스위치가 꺼지면 다음 조회 앞에서 멈추고
+//    `cancelled`(이유 코드)로 남긴다.
 // 4. '재로그인 필요'·'복원 필요'면 `restoring`으로 바꾸고 세션 복원 1단계(홈 요청)를 한 뒤 그 조회를 한 번 다시
 //    한다. 그래도 끊겨 있으면 3단계로 저장된 학번·비밀번호로 화면 없이 한 번 다시 로그인하고, 새 쿠키로 준비 요청부터
 //    다시 해 묻는다. 시작할 때 `restoring`이거나 위의 `reconnectRequired`면 복원부터 한다. 다시 받은 조회가 정상·빈
 //    목록이면 `active`다. 저장된 값이 없거나, 거절 표시가 있거나, 다시 로그인이 '학번·비밀번호 틀림'(거절 표시를
 //    남김)·'해석 실패'이거나, 다시 로그인한 뒤에도 끊겨 있으면 `reconnectRequired`다. 네트워크 실패·서버 오류면
 //    `restoring`에 두고 다음 계기에 1단계부터 다시 한다(숨은 WebView 2단계는 L0 실험 뒤).
-// 5. 범위마다 `sync_runs`에 한 줄을 남기고, 정상·빈 목록이면 `lmsLastSuccessAt`을 올리며, 요청에서 받은 쿠키를 금고에
-//    다시 쓴다. 해석 실패는 필드 이름만 담아 오류 보고(Crashlytics 비치명)로도 보낸다.
+// 5. 범위마다 `sync_runs`에 한 줄을 남기고(목록에 이어서 받은 끝낸 할 일 목록은 `detail` 행을 따로 남김), 할 일
+//    목록이 정상·빈 목록이면 `lmsLastSuccessAt`을 올리며(`detail`은 올리지 않음), 요청에서 받은 쿠키를 금고에 다시
+//    쓴다. 해석 실패는 필드 이름만 담아 오류 보고(Crashlytics 비치명)로도 보낸다.
 //
-// 과목별 상세 조회(`detail`)는 상세 응답의 꼴을 확인한 뒤 더한다. 그전까지 전체(`full`)는 과목 목록과 할 일 목록이다.
+// 상세(`detail`)는 지금 끝낸 할 일 목록(할 일 목록을 '완료' 필터로 받음)이다. 과목별 상세 조회는 상세 응답의 꼴을
+// 확인한 뒤(출시 뒤) 더한다. 그전까지 전체(`full`)는 과목 목록과 할 일 목록이다.
 //
 // 시간표 불러오기(`timetable`, docs/lms.md '시간표 (통합정보시스템)')도 같은 차례(설정·상태·잠금·세션 복원)를 지난다.
 // 과목 목록을 묻고 쓴 뒤 과목마다 강의계획서 요청(LMS. 세션이 끊겼는지 여기서 가림)과 그 뒤 요청(통합정보시스템)을 차례로
@@ -237,7 +241,8 @@ class SyncCoordinator {
         sync == null ||
         parse == null ||
         (scope == SyncScope.timetable &&
-            (params.timetable == null || parse.timetableSlot == null))) {
+            (params.timetable == null || parse.timetableSlot == null)) ||
+        (scope == SyncScope.detail && sync.completed == null)) {
       return finish(
         SyncResultKind.skipped,
         detail: SyncRunDetail.configMissing,
@@ -292,9 +297,28 @@ class SyncCoordinator {
       }
       if (await _syncRuns.countAutoCallsToday(now: startedAt)
           case Ok(:final value)
-          when value[SyncScope.list]! >= budget.listMaxPerDay) {
+          when scope == SyncScope.detail
+              ? value[SyncScope.detail]! >= budget.detailMaxPerDay
+              : value[SyncScope.list]! >= budget.listMaxPerDay) {
         return finish(SyncResultKind.skipped, detail: SyncRunDetail.budget);
       }
+    }
+
+    // 목록에 이어서 끝낸 할 일 목록을 받을지(docs/lms.md '동기화'). 전체와 사용자 새로 고침은 늘 받고, 자동 계기의
+    // 갱신은 그날 자동으로 받은 횟수가 `detailMaxPerDay`보다 적을 때만 받는다.
+    var withCompletion =
+        sync.completed != null &&
+        (scope == SyncScope.full || scope == SyncScope.list);
+    if (withCompletion &&
+        scope == SyncScope.list &&
+        SyncRunRepository.autoTriggers.contains(trigger)) {
+      withCompletion = switch (await _syncRuns.countAutoCallsToday(
+        now: startedAt,
+      )) {
+        Ok(:final value) =>
+          value[SyncScope.detail]! < config.budget.detailMaxPerDay,
+        Err() => false,
+      };
     }
 
     final LmsSession session;
@@ -342,6 +366,7 @@ class SyncCoordinator {
         startedAt: startedAt,
         state: state,
         credentialRejected: settings.lmsCredentialRejected,
+        withCompletion: withCompletion,
       );
       if (attempt.kind == SyncResultKind.parseFailure) {
         _reportEvent('lms_parse_failure', {
@@ -349,7 +374,8 @@ class SyncCoordinator {
           'field': ?attempt.field,
         });
       }
-      if (scope != SyncScope.timetable &&
+      // 마지막 확인 시각은 할 일 목록을 받았을 때만 올린다(상세만 받은 것은 목록이 새것이라는 뜻이 아님).
+      if (scope.listsTodos &&
           (attempt.kind == SyncResultKind.normal ||
               attempt.kind == SyncResultKind.empty)) {
         final advanced = await _settings.advanceLmsLastSuccessAt(startedAt);
@@ -361,13 +387,17 @@ class SyncCoordinator {
           );
         }
       }
-      return await finish(
+      final result = await finish(
         attempt.kind,
         changed: attempt.changed,
         detail: attempt.field,
         failedCourseIds: attempt.failedCourseIds,
         timetableChanges: attempt.timetableChanges,
       );
+      if (attempt.completion case final done?) {
+        await _recordCompletion(done, trigger: trigger);
+      }
+      return result;
     } finally {
       await _saveCookies(connection.jar, connection.userAgent, params);
       dio.close(force: true);
@@ -394,6 +424,7 @@ class SyncCoordinator {
     required DateTime startedAt,
     required LmsSessionState state,
     required bool credentialRejected,
+    bool withCompletion = false,
   }) async {
     // 다시 로그인 필요에서 온 계기(저장된 값이 있고 거절되지 않음)는 복원부터 한다.
     if (state == LmsSessionState.reconnectRequired) {
@@ -423,6 +454,7 @@ class SyncCoordinator {
             vars: vars,
             scope: scope,
             startedAt: startedAt,
+            withCompletion: withCompletion,
           );
 
     var restoring = state != LmsSessionState.active;
@@ -642,8 +674,9 @@ class SyncCoordinator {
     return null;
   }
 
-  /// (전체면) 과목 목록과 할 일 목록을 묻고 쓴다. 데모 모드에 들어갔거나 원격 스위치가 꺼졌으면 그 자리에서
-  /// 멈춘다.
+  /// (전체면) 과목 목록과 할 일 목록을 묻고 쓴다. [withCompletion]이면 그 뒤 끝낸 할 일 목록도 받아
+  /// [_Attempt.completion]에 담는다. 범위가 상세(`detail`)면 끝낸 할 일 목록만 받는다. 데모 모드에 들어갔거나 원격
+  /// 스위치가 꺼졌으면 그 자리에서 멈춘다.
   Future<_Attempt> _query({
     required LmsRequestRunner runner,
     required LmsResponseClassifier classifier,
@@ -652,7 +685,18 @@ class SyncCoordinator {
     required Map<String, String> vars,
     required SyncScope scope,
     required DateTime startedAt,
+    bool withCompletion = false,
   }) async {
+    if (scope == SyncScope.detail) {
+      final done = await _queryCompletion(
+        runner: runner,
+        classifier: classifier,
+        sync: sync,
+        parse: parse,
+        vars: vars,
+      );
+      return _Attempt(done.kind, changed: done.changed, field: done.field);
+    }
     if (scope == SyncScope.full) {
       if (await _stopReason() case final reason?) {
         return _Attempt(SyncResultKind.cancelled, field: reason);
@@ -694,10 +738,105 @@ class SyncCoordinator {
       now: startedAt,
     )) {
       case Ok(:final value):
-        return _Attempt(todos.kind, changed: value.changedCount);
+        return _Attempt(
+          todos.kind,
+          changed: value.changedCount,
+          completion: withCompletion
+              ? await _queryCompletion(
+                  runner: runner,
+                  classifier: classifier,
+                  sync: sync,
+                  parse: parse,
+                  vars: vars,
+                )
+              : null,
+        );
       case Err(:final error):
         appLog('lms_sync_store_failed', area: 'lms', data: errorLogData(error));
         return const _Attempt(SyncResultKind.parseFailure, field: 'storage');
+    }
+  }
+
+  /// 끝낸 할 일 목록(할 일 목록을 '완료' 필터로 받음)을 묻고 쓴다(docs/lms.md '동기화'). 받은 항목은 LMS가 제출·출석
+  /// 인정한 것으로 적는다([LmsSyncRepository.applyCompletion]). 세션이 끊겼다는 판별도 그대로 결과로 두고 복원은 하지
+  /// 않는다(다음 갱신이 복원함).
+  Future<_Completion> _queryCompletion({
+    required LmsRequestRunner runner,
+    required LmsResponseClassifier classifier,
+    required LmsSyncSpec sync,
+    required LmsParseConfig parse,
+    required Map<String, String> vars,
+  }) async {
+    final startedAt = _clock.now();
+    final stopwatch = Stopwatch()..start();
+    _Completion done(SyncResultKind kind, {int changed = 0, String? field}) =>
+        _Completion(
+          kind,
+          changed: changed,
+          field: field,
+          startedAt: startedAt,
+          elapsedMs: stopwatch.elapsedMilliseconds,
+        );
+    if (await _stopReason() case final reason?) {
+      return done(SyncResultKind.cancelled, field: reason);
+    }
+    final completed = await _request(
+      runner,
+      classifier,
+      sync.completed!,
+      vars,
+      todoListSchema(parse),
+    );
+    final records = completed.records;
+    if (records == null) return done(completed.kind, field: completed.field);
+    switch (await _store.applyCompletion(
+      records,
+      semester: sync.semester,
+      now: startedAt,
+    )) {
+      case Ok(:final value):
+        return done(completed.kind, changed: value);
+      case Err(:final error):
+        appLog('lms_sync_store_failed', area: 'lms', data: errorLogData(error));
+        return done(SyncResultKind.parseFailure, field: 'storage');
+    }
+  }
+
+  /// 목록에 이어서 받은 끝낸 할 일 목록의 결과를 `detail` 행으로 남긴다. 해석 실패면 필드 이름만 오류 보고로
+  /// 보낸다. 마지막 확인 시각은 목록이 올렸으므로 건드리지 않는다.
+  Future<void> _recordCompletion(
+    _Completion done, {
+    required SyncTrigger trigger,
+  }) async {
+    final added = await _syncRuns.add(
+      startedAt: done.startedAt,
+      trigger: trigger,
+      scope: SyncScope.detail,
+      result: done.kind,
+      changedCount: done.changed,
+      elapsedMs: done.elapsedMs,
+      detail: done.field,
+    );
+    if (added case Err(:final error)) {
+      appLog('sync_run_write_failed', area: 'lms', data: errorLogData(error));
+    }
+    appLog(
+      'lms_sync',
+      area: 'lms',
+      data: {
+        'trigger': trigger.name,
+        'scope': SyncScope.detail.name,
+        'kind': done.kind.name,
+        'changed': done.changed,
+        'ms': done.elapsedMs,
+        'detail': ?done.field,
+      },
+    );
+    if (done.kind == SyncResultKind.parseFailure) {
+      _reportEvent('lms_parse_failure', {
+        'scope': SyncScope.detail.name,
+        'field': ?done.field,
+      });
     }
   }
 
@@ -988,10 +1127,14 @@ final class _Attempt {
     this.failedCourseIds = const [],
     this.slots = const [],
     this.timetableChanges = const [],
+    this.completion,
   });
 
   final SyncResultKind kind;
   final int changed;
+
+  /// 목록에 이어서 받은 끝낸 할 일 목록의 결과. 받지 않았으면 null이다.
+  final _Completion? completion;
 
   /// 해석 실패의 필드 이름이나 멈춘 이유 코드.
   final String? field;
@@ -1009,6 +1152,26 @@ final class _Attempt {
   bool get sessionLost =>
       kind == SyncResultKind.reloginRequired ||
       kind == SyncResultKind.restoreRequired;
+}
+
+/// 목록에 이어서 받은 끝낸 할 일 목록의 결과. `detail` 행 하나로 남긴다.
+final class _Completion {
+  const _Completion(
+    this.kind, {
+    this.changed = 0,
+    this.field,
+    required this.startedAt,
+    required this.elapsedMs,
+  });
+
+  final SyncResultKind kind;
+  final int changed;
+
+  /// 해석 실패의 필드 이름이나 멈춘 이유 코드, 오프라인이면 [SyncRunDetail.offline].
+  final String? field;
+
+  final DateTime startedAt;
+  final int elapsedMs;
 }
 
 /// 동기화 한 번이 LMS에 보내는 요청의 쿠키 상자·User-Agent·실행기. 세션 복원 3단계에서 다시 로그인하면 새것으로

@@ -7,11 +7,15 @@
 // - 시트·대화 상자가 열릴 때([ToastPopupObserver]). 토스트는 화면 맨 위에 그려지므로 시트 아래쪽 버튼을
 //   가리지 않게 한다.
 // - 앱 모드가 바뀔 때(데모에 들어가거나 나옴). 되돌릴 기록은 앞 모드의 폰 DB에 있다.
+//
+// 폰 DB가 방금 저장 공간 부족으로 실패했으면(`StorageFullSignal`), 되돌리기 없는 다음 토스트(그 동작의 실패 토스트)를
+// [ToastController.storageFullText]로 바꿔 띄운다(docs/screens.md '20 시스템').
 
 import 'dart:async';
 
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
+import 'package:cnu_ai_assistant/data/repositories/guard_storage.dart';
 import 'package:cnu_ai_assistant/data/repositories/undo_repository.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
@@ -40,6 +44,10 @@ class ToastController extends Notifier<ToastState?> {
   /// 되돌리지 못했을 때(시간이 지났거나 기록이 없음, 폰 DB를 읽거나 쓰지 못함)의 문구. 디자인 전 임시 문구다.
   static const String undoFailedText = '되돌리지 못했어요';
 
+  /// 저장 공간이 부족해 저장하지 못했을 때 그 동작의 실패 토스트 대신 띄우는 문구(docs/screens.md '20 시스템').
+  /// 디자인 전 임시 문구다.
+  static const String storageFullText = '저장 공간이 부족해 저장하지 못했어요 · 이전 데이터는 그대로예요';
+
   Timer? _timer;
 
   /// 보이는 되돌리기 토스트의 '되돌리기'가 되돌린 뒤 부를 것([show]의 `onUndone`).
@@ -55,11 +63,16 @@ class ToastController extends Notifier<ToastState?> {
   /// [text]를 띄운다. [undoable]이면 '되돌리기'를 달고 10초, 아니면 3.4초 보인다. 보이던 토스트는 바꿔
   /// 끼우고 보이는 시간을 다시 잰다. [onUndone]은 이 토스트의 '되돌리기'가 되돌린 뒤에 부른다(06 AI 비서가
   /// 저장한 카드를 저장 전으로 돌림). 되돌리지 못했거나 다른 토스트로 바뀌었으면 부르지 않고, 되돌리기가 없는
-  /// 토스트에서는 되돌리지 않으므로 부르지 않는다.
+  /// 토스트에서는 되돌리지 않으므로 부르지 않는다. 폰 DB가 방금(`StorageFullSignal.window` 안) 저장 공간
+  /// 부족으로 실패했으면 되돌리기 없는 토스트는 [storageFullText]로 바꿔 띄운다(되돌리기가 있는 토스트는 저장에
+  /// 성공한 뒤의 것이라 바꾸지 않음).
   void show(String text, {bool undoable = false, VoidCallback? onUndone}) {
     _timer?.cancel();
     _onUndone = onUndone;
-    state = ToastState(text: text, undoable: undoable, visible: true);
+    final shown = !undoable && StorageFullSignal.take()
+        ? storageFullText
+        : text;
+    state = ToastState(text: shown, undoable: undoable, visible: true);
     _timer = Timer(undoable ? AppMotion.toastWithUndo : AppMotion.toast, hide);
   }
 

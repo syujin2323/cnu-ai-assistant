@@ -1077,10 +1077,12 @@ void main() {
           app.router.go(Routes.day(day, from: DayViewFrom.week));
           await tester.pumpAndSettle();
 
-          await tapText(tester, '다음 날');
-          await tapText(tester, '다음 날');
+          // 날짜 줄에서 고르면 이 화면만 바꿔 끼운다.
+          await tester.tap(find.bySemanticsLabel(RegExp('^11월 15일 ')));
+          await tester.pumpAndSettle();
           expect(shown(), DateTime(2026, 11, 15));
-          await tapText(tester, '전날');
+          await tester.tap(find.bySemanticsLabel(RegExp('^11월 14일 ')));
+          await tester.pumpAndSettle();
           expect(shown(), DateTime(2026, 11, 14));
           expect(app.router.state.uri.path, Routes.day(DateTime(2026, 11, 14)));
 

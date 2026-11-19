@@ -44,8 +44,7 @@ final class MetricsReport {
   /// 그날 배치 엔진의 제안이 하나라도 있었는지.
   final bool todaySuggested;
 
-  /// 그날 블록을 하나 이상 확정했는지. 지금은 01 계획의 확정만 센다(09 일간 '모두 확정'·근거 시트
-  /// '확정'은 그 화면 PR에서 기록 자리를 더한다).
+  /// 그날 블록을 하나 이상 확정했는지(01 계획의 'N개 확정하기', 09 일간의 '모두 확정', 근거 시트의 [확정]).
   final bool planConfirmed;
 
   /// 01 계획을 연 때부터 확정할 때까지의 초. 01에서 확정하지 않았으면 null이다.
@@ -93,16 +92,20 @@ final class MetricsReport {
 /// 논리적 하루 [day](그날 0시)의 지표를 만든다.
 ///
 /// - [briefing]은 그날의 `briefings` 행(없으면 null)이다.
+/// - [confirmedOutsidePlan]은 그날 09 일간의 '모두 확정'이나 근거 시트의 [확정]으로 블록을 확정했는지다(부르는
+///   쪽이 `metricsConfirmedDays`로 정함). 01 계획의 확정은 [briefing]의 `confirmedAt`으로 본다.
 /// - [suggested]는 그날 배치 엔진의 제안이 있었는지다. 지난 날의 제안 블록은 다음 재계산이 지우므로, 그날 앱이
 ///   본 것을 적어 둔 값과 남은 자동 블록으로 정한다(부르는 쪽).
 /// - [tasks]는 모든 할 일이다. 마감이 그 논리적 하루 안이고 숨기거나 LMS에서 사라지지 않은 일 가운데, 아직 끝내지
 ///   않았거나 마감 뒤에 끝낸 일을 놓친 마감으로 센다.
-/// - [syncRuns]는 동기화 기록이다. 시작 시각이 그 논리적 하루 안인 것만 센다.
+/// - [syncRuns]는 동기화 기록이다. 할 일 목록을 받은(`full`·`list`) 기록 가운데 시작 시각이 그 논리적 하루 안인
+///   것만 센다(목록에 이어서 받은 `detail` 행은 세지 않음).
 MetricsReport metricsReport({
   required DateTime day,
   required int dayBoundaryMin,
   required Briefing? briefing,
   required bool suggested,
+  required bool confirmedOutsidePlan,
   required List<TaskEntry> tasks,
   required List<SyncRun> syncRuns,
   required DateTime? installedAt,
@@ -135,7 +138,9 @@ MetricsReport metricsReport({
   final attempts = <SyncTrigger, int>{};
   final successes = <SyncTrigger, int>{};
   for (final run in syncRuns) {
-    if (run.result == SyncResultKind.skipped || !inDay(run.startedAt)) {
+    if (!run.scope.listsTodos ||
+        run.result == SyncResultKind.skipped ||
+        !inDay(run.startedAt)) {
       continue;
     }
     attempts.update(run.trigger, (n) => n + 1, ifAbsent: () => 1);
@@ -155,7 +160,7 @@ MetricsReport metricsReport({
     date: isoDate(day),
     briefingOpened: openedAt != null,
     todaySuggested: suggested,
-    planConfirmed: confirmedAt != null,
+    planConfirmed: confirmedAt != null || confirmedOutsidePlan,
     confirmSeconds: confirmSeconds,
     editsBeforeConfirm: (briefing?.editCount ?? 0)
         .clamp(0, metricsCountMax)

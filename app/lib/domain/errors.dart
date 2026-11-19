@@ -152,6 +152,12 @@ final class StorageError extends AppError {
   /// SQLite 확장 결과 코드(예: 잠김 5, 디스크 가득 13). 원인이 SQLite 오류가 아니면 null.
   final int? code;
 
+  /// 저장 공간이 부족해 실패했는지(SQLite `SQLITE_FULL` 13. 확장 결과 코드의 아래 8비트로 본다).
+  bool get isFull {
+    final value = code;
+    return value != null && (value & 0xff) == 13;
+  }
+
   @override
   bool operator ==(Object other) =>
       other is StorageError &&

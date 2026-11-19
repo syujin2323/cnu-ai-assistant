@@ -8,6 +8,7 @@ import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/toast_controller.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/event_repository.dart';
+import 'package:cnu_ai_assistant/data/repositories/guard_storage.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_sheet.dart';
 import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
@@ -84,6 +85,63 @@ Matcher _toast(String text, {required bool visible, bool undoable = false}) =>
 
 void main() {
   setUpAll(() => driftRuntimeOptions.dontWarnAboutMultipleDatabases = true);
+
+  group('저장 공간 부족', () {
+    tearDown(StorageFullSignal.take);
+
+    testWidgets('방금 저장 공간 부족으로 실패했으면 되돌리기 없는 다음 토스트 하나만 저장 공간 문구로 바꾼다', (
+      tester,
+    ) async {
+      final toasts = await _start();
+      StorageFullSignal.mark();
+
+      // 되돌리기가 있는 토스트는 저장에 성공한 뒤의 것이라 바꾸지 않는다.
+      toasts.controller.show('확정했어요', undoable: true);
+      expect(toasts.state, _toast('확정했어요', visible: true, undoable: true));
+      toasts.controller.show('바꾸지 못했어요. 다시 해 주세요');
+      expect(
+        toasts.state,
+        _toast(ToastController.storageFullText, visible: true),
+      );
+      toasts.controller.show('기록했어요');
+      expect(toasts.state, _toast('기록했어요', visible: true));
+
+      await toasts.dispose();
+    });
+
+    testWidgets('저장소가 저장 공간 부족으로 실패하면 그 실패 토스트가 바뀐다', (tester) async {
+      final toasts = await _start();
+      final pages = await toasts.db
+          .customSelect('PRAGMA page_count')
+          .getSingle();
+      await toasts.db.customStatement(
+        'PRAGMA max_page_count = ${pages.read<int>('page_count')}',
+      );
+
+      final result = await EventRepository(toasts.db).add(
+        title: '스터디' * 30000,
+        startAt: DateTime(2026, 11, 16, 19),
+        endAt: DateTime(2026, 11, 16, 20),
+        source: EventSource.manual,
+        now: _now,
+      );
+      expect(
+        result,
+        isA<Err<int>>().having(
+          (err) => (err.error as StorageError).isFull,
+          'isFull',
+          isTrue,
+        ),
+      );
+      toasts.controller.show('저장하지 못했어요');
+      expect(
+        toasts.state,
+        _toast(ToastController.storageFullText, visible: true),
+      );
+
+      await toasts.dispose();
+    });
+  });
 
   testWidgets('처음에는 토스트가 없다', (tester) async {
     final toasts = await _start();

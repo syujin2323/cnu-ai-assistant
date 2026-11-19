@@ -6,15 +6,19 @@
 
 import 'dart:async';
 
+import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/metrics_reporter.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
+import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart' show AppLifecycleState;
+import 'package:shared_preferences/shared_preferences.dart';
 
 DateTime at(int date, int hour, [int minute = 0]) =>
     DateTime(2026, 11, date, hour, minute);
@@ -147,6 +151,72 @@ void main() {
       '2026-11-18',
       '2026-11-19',
     ]);
+  });
+
+  test('09 일간·근거 시트의 확정은 누른 논리적 하루를 적어 두고, 그날을 보낼 때 확정한 날로 보낸다', () async {
+    // 11/19 02:00은 하루 경계(04:00) 전이라 11/18이다.
+    final dawn = MetricsReporter(
+      realDb: db,
+      send: server.send,
+      clock: _FixedClock(at(19, 2)),
+    );
+    await dawn.noteConfirmed();
+    expect((await settings()).metricsConfirmedDays, ['2026-11-18']);
+
+    await reporter.run();
+
+    final day18 = server.bodies.last;
+    expect(day18['date'], '2026-11-18');
+    expect(day18['planConfirmed'], 1);
+    expect(day18['confirmSeconds'], isNull, reason: '01 계획에서 확정하지 않음');
+  });
+
+  test('확정한 날을 적을 때 6일보다 오래된 날은 버린다', () async {
+    await SettingsRepository(db)
+        .write(SettingKeys.metricsConfirmedDays, ['2026-11-10', '2026-11-17']);
+
+    await reporter.noteConfirmed();
+
+    expect((await settings()).metricsConfirmedDays, [
+      '2026-11-17',
+      '2026-11-19',
+    ]);
+  });
+
+  test('데모 모드이거나 지표를 껐으면 확정한 날을 적지 않는다', () async {
+    final demo = MetricsReporter(
+      realDb: db,
+      send: server.send,
+      clock: _FixedClock(at(19, 10)),
+      isDemo: () => true,
+    );
+    await demo.noteConfirmed();
+    expect((await settings()).metricsConfirmedDays, isEmpty);
+
+    await SettingsRepository(db).write(SettingKeys.metricsEnabled, false);
+    await reporter.noteConfirmed();
+    expect((await settings()).metricsConfirmedDays, isEmpty);
+  });
+
+  test('앱의 지표 보내기는 데모 모드에서 한 확정을 적지 않는다', () async {
+    Future<List<String>> confirmedIn(AppMode mode) async {
+      SharedPreferences.setMockInitialValues({PrefKeys.appMode: mode.name});
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(
+            await SharedPreferences.getInstance(),
+          ),
+          realDatabaseProvider.overrideWithValue(db),
+          clockProvider.overrideWithValue(_FixedClock(at(19, 10))),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(metricsReporterProvider).noteConfirmed();
+      return (await settings()).metricsConfirmedDays;
+    }
+
+    expect(await confirmedIn(AppMode.demo), isEmpty);
+    expect(await confirmedIn(AppMode.real), ['2026-11-19']);
   });
 
   test('지표를 끄면 보내지 않고 아무것도 적지 않는다', () async {

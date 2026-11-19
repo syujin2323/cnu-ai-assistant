@@ -1,6 +1,7 @@
 // 기기의 남은 저장 공간. docs/architecture.md '플랫폼 프로젝트 설정'.
 //
-// 20 시스템의 '저장 공간 부족'(R1)이 쓴다. 채널을 부르는 곳은 이 파일 하나다. 네이티브 쪽은 Android
+// 20 시스템의 '저장 공간 부족'은 실패 토스트 문구로만 알리기로 해 지금은 쓰는 곳이 없다(docs/decisions.md
+// 2026-11-19 '저장 공간 부족은 실패 토스트 문구로 알리고 루팅·탈옥 경고는 두지 않는다'). 네이티브라 첫 테스터 release에 남아 있다. 채널을 부르는 곳은 이 파일 하나다. 네이티브 쪽은 Android
 // `StorageSpaceChannel.kt`(`StatFs.availableBytes`), iOS `AppDelegate.swift`
 // (`volumeAvailableCapacityForImportantUsage`)이다.
 
