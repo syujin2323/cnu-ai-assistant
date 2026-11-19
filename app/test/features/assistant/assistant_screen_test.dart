@@ -1268,4 +1268,376 @@ void main() {
     expect(block.bufferMin, 10);
     await app.dispose(tester);
   });
+
+  group('내 규칙', () {
+    Result<ParseResult> Function(ParseRequest) ruleReply(
+      List<ParsedRule> rules, {
+      UnsupportedRuleKind? unsupported,
+    }) =>
+        (_) => Ok(
+          ParseResult(
+            intent: ParseIntent.setRule,
+            rules: rules,
+            unsupportedRule: unsupported,
+          ),
+        );
+    const blackout = ParsedRule(
+      kind: RuleKind.blackout,
+      remove: false,
+      startMin: 19 * 60,
+      endMin: 22 * 60,
+      timeExpression: '저녁 7시부터 10시',
+    );
+    Future<List<Rule>> rules(AppDatabase db) => db.select(db.rules).get();
+    Future<void> seedRule(
+      AppDatabase db,
+      RuleKind kind,
+      RuleParams params, {
+      List<int>? weekdays,
+    }) => db
+        .into(db.rules)
+        .insert(
+          RulesCompanion.insert(
+            kind: kind,
+            params: params,
+            weekdays: Value(weekdays),
+            active: true,
+            source: EntrySource.manual,
+            createdAt: _now,
+            updatedAt: _now,
+          ),
+        );
+
+    for (final textScale in [1.0, 2.0]) {
+      testWidgets(
+        '글자 배율 $textScale: 규칙을 미리보기로 보이고, 저장하면 문장과 함께 적으며 되돌리면 저장 전으로 돌린다',
+        (tester) async {
+          final (app, _) = await _open(
+            tester,
+            textScale: textScale,
+            reply: ruleReply([blackout]),
+          );
+          await _say(tester, '저녁 7시부터 10시는 비워 줘');
+          expect(find.text('내 규칙 · 미리보기'), findsOneWidget);
+          expect(find.text('오후 7시부터 오후 10시까지는 할 일을 놓지 않아요'), findsOneWidget);
+          expect(find.text('피할 시간 · 매일'), findsOneWidget);
+          expect(await rules(app.db), isEmpty);
+
+          await tapText(tester, '저장');
+          final saved = (await rules(app.db)).single;
+          expect(saved.kind, RuleKind.blackout);
+          expect((saved.params.startMin, saved.params.endMin), (1140, 1320));
+          expect(saved.source, EntrySource.ai);
+          expect(saved.sentence, '저녁 7시부터 10시는 비워 줘');
+          expect(find.text('내 규칙 · 저장함'), findsOneWidget);
+          expect(find.text('저장했어요 · 바로 다시 계산했어요'), findsOneWidget);
+          expect(find.text('피할 시간을 저장했어요'), findsOneWidget);
+
+          await tester.tap(find.text('되돌리기'));
+          await tester.pumpAndSettle();
+          expect(await rules(app.db), isEmpty);
+          expect(find.widgetWithText(FilledButton, '저장'), findsOneWidget);
+          await app.dispose(tester);
+        },
+      );
+    }
+
+    testWidgets('취소하면 저장하지 않는다', (tester) async {
+      final (app, _) = await _open(tester, reply: ruleReply([blackout]));
+      await _say(tester, '저녁 7시부터 10시는 비워 줘');
+      await tapText(tester, '취소');
+      expect(find.text('저장하지 않았어요'), findsOneWidget);
+      expect(await rules(app.db), isEmpty);
+      await app.dispose(tester);
+    });
+
+    Future<void> seedConfirmed(AppDatabase db) async {
+      final taskId = await db
+          .into(db.tasks)
+          .insert(
+            TasksCompanion.insert(
+              title: '보고서',
+              kind: TaskKind.personal,
+              dueAt: Value(DateTime(2026, 11, 22, 12)),
+              dueTimeUnknown: false,
+              status: TaskStatus.todo,
+              estimateMin: const Value(60),
+            ),
+          );
+      await db
+          .into(db.planBlocks)
+          .insert(
+            PlanBlocksCompanion.insert(
+              taskId: taskId,
+              startAt: DateTime(2026, 11, 19, 20),
+              endAt: DateTime(2026, 11, 19, 21),
+              status: PlanBlockStatus.confirmed,
+              source: BlockSource.manual,
+            ),
+          );
+    }
+
+    testWidgets('저장한 규칙과 겹치는 확정 블록을 옮기면 그 블록을 지운다', (tester) async {
+      final (app, _) = await _open(
+        tester,
+        seed: seedConfirmed,
+        reply: ruleReply([blackout]),
+      );
+      await _say(tester, '저녁 7시부터 10시는 비워 줘');
+      await tapText(tester, '저장');
+      expect(find.text('확정한 블록이 새 규칙과 겹쳐요'), findsOneWidget);
+      expect(find.text('보고서 · 오늘 20:00–21:00 · 확정'), findsOneWidget);
+
+      await tapText(tester, '옮기기');
+      final block = (await app.db.select(app.db.planBlocks).get())
+          .where((block) => block.startAt == DateTime(2026, 11, 19, 20))
+          .single;
+      expect(block.status, PlanBlockStatus.dismissed);
+      expect(find.textContaining('옮겼어요 · '), findsOneWidget);
+      expect(find.text('보고서를 다른 빈 시간에 다시 놓았어요'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, '옮기기'), findsNothing);
+
+      await tester.tap(find.text('되돌리기'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(FilledButton, '옮기기'), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('겹치는 확정 블록을 그대로 두면 블록을 바꾸지 않는다', (tester) async {
+      final (app, _) = await _open(
+        tester,
+        seed: seedConfirmed,
+        reply: ruleReply([blackout]),
+      );
+      await _say(tester, '저녁 7시부터 10시는 비워 줘');
+      await tapText(tester, '저장');
+      await tapText(tester, '그대로 두기');
+      expect(find.text('그대로 뒀어요 · 겹친 채로 둬요'), findsOneWidget);
+      final block = (await app.db.select(app.db.planBlocks).get()).single;
+      expect(block.status, PlanBlockStatus.confirmed);
+      await app.dispose(tester);
+    });
+
+    testWidgets('이동 시간의 자리를 되묻고, 고른 자리로 저장한다', (tester) async {
+      final (app, _) = await _open(
+        tester,
+        reply: ruleReply(const [
+          ParsedRule(kind: RuleKind.travel, remove: false, minutes: 40),
+        ]),
+      );
+      await _say(tester, '학교에서 집까지 40분 걸려');
+      expect(find.text('매 수업 앞뒤인가요, 하루 첫 수업 전과 마지막 수업 뒤인가요?'), findsOneWidget);
+      await tapText(tester, '하루 첫 수업 전·마지막 수업 뒤');
+      expect(find.text('하루 첫 대면 수업 전과 마지막 대면 수업 뒤에 40분씩 비워요'), findsOneWidget);
+      await tapText(tester, '저장');
+      final saved = (await rules(app.db)).single;
+      expect(saved.params.position, TravelPosition.dayEdges);
+      expect(saved.params.minutes, 40);
+      await app.dispose(tester);
+    });
+
+    testWidgets('하나만 두는 종류는 지금 값을 바꾼다고 알린다', (tester) async {
+      final (app, _) = await _open(
+        tester,
+        seed: (db) =>
+            seedRule(db, RuleKind.classBuffer, const RuleParams(minutes: 10)),
+        reply: ruleReply(const [
+          ParsedRule(kind: RuleKind.classBuffer, remove: false, minutes: 15),
+        ]),
+      );
+      await _say(tester, '수업 앞뒤 여유 15분');
+      expect(find.text('지금 값 「10분」을 이 값으로 바꿔요'), findsOneWidget);
+      await tapText(tester, '저장');
+      final saved = (await rules(app.db)).single;
+      expect(saved.params.minutes, 15);
+      await app.dispose(tester);
+    });
+
+    testWidgets('규칙을 지우고 되돌리면 되살린다', (tester) async {
+      final (app, _) = await _open(
+        tester,
+        seed: (db) =>
+            seedRule(db, RuleKind.dailyCap, const RuleParams(minutes: 240)),
+        reply: ruleReply(const [
+          ParsedRule(kind: RuleKind.dailyCap, remove: true),
+        ]),
+      );
+      await _say(tester, '하루 최대 공부량은 없애 줘');
+      expect(find.text('내 규칙 · 지우기'), findsOneWidget);
+      expect(find.text('하루에 4시간까지만 할 일을 놓아요'), findsOneWidget);
+      await tapText(tester, '지우기');
+      expect(await rules(app.db), isEmpty);
+      expect(find.text('지웠어요 · 바로 다시 계산했어요'), findsOneWidget);
+      expect(find.text('하루 최대 공부량 규칙을 지웠어요'), findsOneWidget);
+
+      await tester.tap(find.text('되돌리기'));
+      await tester.pumpAndSettle();
+      expect(await rules(app.db), hasLength(1));
+      expect(find.widgetWithText(FilledButton, '지우기'), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('지울 규칙이 여럿이면 고르게 하고, 고른 것만 지운다', (tester) async {
+      final (app, _) = await _open(
+        tester,
+        seed: (db) async {
+          await seedRule(
+            db,
+            RuleKind.blackout,
+            const RuleParams(startMin: 1140, endMin: 1260),
+          );
+          await seedRule(
+            db,
+            RuleKind.blackout,
+            const RuleParams(startMin: 600, endMin: 660),
+          );
+        },
+        reply: ruleReply(const [
+          ParsedRule(kind: RuleKind.blackout, remove: true),
+        ]),
+      );
+      await _say(tester, '피할 시간 지워 줘');
+      expect(find.text('켜진 피할 시간 규칙이 2개 있어요.'), findsOneWidget);
+      expect(find.text('어느 규칙을 지울까요?'), findsOneWidget);
+      await tapText(tester, '오전 10시부터 오전 11시까지는 할 일을 놓지 않아요');
+      await tapText(tester, '지우기');
+      final left = (await rules(app.db)).single;
+      expect(left.params.startMin, 1140);
+      await app.dispose(tester);
+    });
+
+    testWidgets('정할 수 없는 조건은 안내하고, 예시 칩을 누르면 입력창에 넣는다', (tester) async {
+      final (app, parse) = await _open(
+        tester,
+        reply: ruleReply(const [], unsupported: UnsupportedRuleKind.mode),
+      );
+      await _say(tester, '시험 기간에는 공부 시간을 늘려 줘');
+      expect(find.text('아직 그런 조건은 정할 수 없어요'), findsOneWidget);
+      expect(
+        find.text('시험 기간·방학 모드는 다음 버전에 넣을 예정이에요. 지금은 아래 조건으로 정해 주세요.'),
+        findsOneWidget,
+      );
+      await tapText(tester, '하루 최대 공부량');
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.controller!.text, '하루 공부는 4시간까지만');
+      // 넣기만 하고 보내지 않는다.
+      expect(parse.requests, hasLength(1));
+      await app.dispose(tester);
+    });
+
+    testWidgets('옮길 블록이 그사이 끝났으면 그대로 둔 것으로 적는다', (tester) async {
+      final (app, _) = await _open(
+        tester,
+        seed: seedConfirmed,
+        reply: ruleReply([blackout]),
+      );
+      await _say(tester, '저녁 7시부터 10시는 비워 줘');
+      await tapText(tester, '저장');
+      await (app.db.update(
+        app.db.planBlocks,
+      )).write(const PlanBlocksCompanion(status: Value(PlanBlockStatus.done)));
+      await tapText(tester, '옮기기');
+      expect(find.text('그대로 뒀어요 · 겹친 채로 둬요'), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('지울 규칙이 그사이 없어졌으면 알리고 카드를 그대로 둔다', (tester) async {
+      final (app, _) = await _open(
+        tester,
+        seed: (db) =>
+            seedRule(db, RuleKind.dailyCap, const RuleParams(minutes: 240)),
+        reply: ruleReply(const [
+          ParsedRule(kind: RuleKind.dailyCap, remove: true),
+        ]),
+      );
+      await _say(tester, '하루 최대 공부량은 없애 줘');
+      await app.db.delete(app.db.rules).go();
+      await tapText(tester, '지우기');
+      expect(find.text('그 규칙을 찾지 못했어요 · 이미 지웠을 수 있어요'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, '지우기'), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    for (final kind in [
+      UnsupportedRuleKind.specificDate,
+      UnsupportedRuleKind.priority,
+    ]) {
+      testWidgets('$kind 조건에는 예시 칩을 두지 않는다', (tester) async {
+        final (app, _) = await _open(
+          tester,
+          reply: ruleReply(const [], unsupported: kind),
+        );
+        await _say(tester, '그 조건');
+        expect(find.text('아직 그런 조건은 정할 수 없어요'), findsOneWidget);
+        expect(find.byType(ActionChip), findsNothing);
+        await app.dispose(tester);
+      });
+    }
+
+    testWidgets('규칙이 제안 자리를 막으면 다시 놓은 제안을 적는다', (tester) async {
+      late DateTime start;
+      final (app, _) = await _open(
+        tester,
+        seed: (db) async {
+          await _seedDesign(db);
+          await db
+              .into(db.tasks)
+              .insert(
+                TasksCompanion.insert(
+                  title: '보고서',
+                  kind: TaskKind.personal,
+                  dueAt: Value(DateTime(2026, 11, 22, 12)),
+                  dueTimeUnknown: false,
+                  status: TaskStatus.todo,
+                  estimateMin: const Value(60),
+                ),
+              );
+        },
+        reply: (_) {
+          final from = start.hour * 60 + start.minute;
+          return Ok(
+            ParseResult(
+              intent: ParseIntent.setRule,
+              rules: [
+                ParsedRule(
+                  kind: RuleKind.blackout,
+                  remove: false,
+                  startMin: from,
+                  endMin: from + 60,
+                ),
+              ],
+            ),
+          );
+        },
+      );
+      await app.container.read(planControllerProvider.notifier).recalculate();
+      await tester.pumpAndSettle();
+      final suggested =
+          await (app.db.select(app.db.planBlocks)..where(
+                (block) => block.status.equalsValue(PlanBlockStatus.suggested),
+              ))
+              .get();
+      start = suggested.first.startAt;
+      await _say(tester, '그 시간은 비워 줘');
+      await tapText(tester, '저장');
+      expect(find.textContaining('다시 놓았어요'), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('겹친 블록을 옮기면 다시 놓인 제안 자리를 적는다', (tester) async {
+      final (app, _) = await _open(
+        tester,
+        seed: (db) async {
+          await _seedDesign(db);
+          await seedConfirmed(db);
+        },
+        reply: ruleReply([blackout]),
+      );
+      await _say(tester, '저녁 7시부터 10시는 비워 줘');
+      await tapText(tester, '저장');
+      await tapText(tester, '옮기기');
+      expect(find.textContaining('에 다시 제안했어요'), findsOneWidget);
+      await app.dispose(tester);
+    });
+  });
 }

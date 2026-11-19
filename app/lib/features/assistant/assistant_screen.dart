@@ -27,6 +27,7 @@ import 'package:cnu_ai_assistant/features/assistant/widgets/answer_card.dart';
 import 'package:cnu_ai_assistant/features/assistant/widgets/assistant_cards.dart';
 import 'package:cnu_ai_assistant/features/assistant/widgets/card_parts.dart';
 import 'package:cnu_ai_assistant/features/assistant/widgets/change_cards.dart';
+import 'package:cnu_ai_assistant/features/assistant/widgets/rule_cards.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -78,6 +79,14 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
     _input.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// 예시 문장을 입력창에 넣는다(보내지 않음).
+  void _fill(String text) {
+    _input.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
   }
 
   /// 입력창의 문장(없으면 [text])을 보낸다. AI 사용에 동의하지 않았으면 먼저 동의 시트를 연다.
@@ -209,7 +218,16 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
           TargetPickCardView(card: message),
         ),
         AnswerCard(:final say) => _withSay(say, AnswerCardView(card: message)),
-        InfoCard() => InfoCardView(card: message),
+        RuleCard(:final say) => _withSay(say, RuleCardView(card: message)),
+        RuleRemoveCard(:final say) => _withSay(
+          say,
+          RuleRemoveCardView(card: message),
+        ),
+        RulePickCard(:final say) => _withSay(
+          say,
+          RulePickCardView(card: message),
+        ),
+        InfoCard() => InfoCardView(card: message, onExample: _fill),
         FailCard(:final text) => FailCardView(
           card: message,
           onRetry: sending ? null : () => unawaited(_send(text)),

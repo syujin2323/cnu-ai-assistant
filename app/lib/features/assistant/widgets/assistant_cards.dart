@@ -10,7 +10,10 @@ import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_message.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_reply.dart';
+import 'package:cnu_ai_assistant/domain/assistant/assistant_rules.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_text.dart';
+import 'package:cnu_ai_assistant/domain/models/parse_result.dart';
+import 'package:cnu_ai_assistant/domain/rule_text.dart';
 import 'package:cnu_ai_assistant/domain/text/task_kind_text.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_context.dart';
@@ -391,9 +394,12 @@ class AskCardView extends ConsumerWidget {
 
 /// 안내 카드.
 class InfoCardView extends StatelessWidget {
-  const InfoCardView({super.key, required this.card});
+  const InfoCardView({super.key, required this.card, this.onExample});
 
   final InfoCard card;
+
+  /// 정할 수 없는 규칙 안내의 예시 칩을 누르면 그 문장을 입력창에 넣는다. null이면 칩을 두지 않는다.
+  final ValueChanged<String>? onExample;
 
   @override
   Widget build(BuildContext context) {
@@ -417,13 +423,30 @@ class InfoCardView extends StatelessWidget {
       ),
       InfoKind.ruleOnly => (
         '내 규칙',
-        '아직 그런 조건은 정할 수 없어요',
-        '정해진 규칙 종류에 맞지 않아 저장하지 않았어요.',
+        unsavableRuleText,
+        '정해진 규칙 종류에 맞지 않아 저장하지 않았어요. 지금 정할 수 있는 건 아래와 같아요.',
       ),
-      InfoKind.notYet => (
-        '다시 말해 주세요',
-        '아직 이 말은 처리하지 못해요',
-        '지금은 일정·할 일·수업 변경·일정 바꾸기와 질문을 받아요. 예: 목요일 7시 동아리',
+      InfoKind.ruleUnsupported => (
+        '내 규칙',
+        unsavableRuleText,
+        switch (card.unsupported) {
+          UnsupportedRuleKind.notification =>
+            '알림은 다시 설계하고 있어서 지금은 정할 수 없어요. 지금 정할 수 있는 건 아래와 같아요.',
+          UnsupportedRuleKind.specificDate =>
+            '특정 날짜 하루만 바꾸는 규칙은 아직 없어요. 그날 일정은 일정으로 넣어 주세요.',
+          UnsupportedRuleKind.mode =>
+            '시험 기간·방학 모드는 다음 버전에 넣을 예정이에요. 지금은 아래 조건으로 정해 주세요.',
+          UnsupportedRuleKind.priority =>
+            '할 일 사이의 우선순위는 아직 정할 수 없어요. 순서는 마감과 남은 시간으로 정해요.',
+          UnsupportedRuleKind.other ||
+          null => '정해진 규칙 종류에 맞지 않아 저장하지 않았어요. 지금 정할 수 있는 건 아래와 같아요.',
+        },
+      ),
+      InfoKind.ruleQuestion => ('내 규칙', card.question ?? '', null),
+      InfoKind.noRuleToRemove => (
+        '내 규칙',
+        '켜진 ${card.question ?? ''} 규칙이 없어요',
+        '지울 규칙이 없어 아무것도 바꾸지 않았어요.',
       ),
       InfoKind.noClass => (
         '수업 변경',
@@ -477,6 +500,25 @@ class InfoCardView extends StatelessWidget {
               style: AppText.small.copyWith(color: colors.ink2),
             ),
           ),
+        if (onExample case final onExample?)
+          if (card.kind == InfoKind.ruleOnly ||
+              (card.kind == InfoKind.ruleUnsupported &&
+                  card.unsupported != UnsupportedRuleKind.specificDate &&
+                  card.unsupported != UnsupportedRuleKind.priority))
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpace.s12),
+              child: Wrap(
+                spacing: AppSpace.s8,
+                runSpacing: AppSpace.s8,
+                children: [
+                  for (final (kind, sentence) in ruleExamples)
+                    ActionChip(
+                      label: Text(ruleKindName(kind)),
+                      onPressed: () => onExample(sentence),
+                    ),
+                ],
+              ),
+            ),
       ],
     );
   }
