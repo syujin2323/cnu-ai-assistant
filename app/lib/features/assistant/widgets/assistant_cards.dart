@@ -592,7 +592,7 @@ class FailCardView extends StatelessWidget {
     final (kicker, title, body) = switch (card.kind) {
       FailKind.timeout => (
         'AI 응답 없음',
-        'AI가 5초 안에 답하지 않았어요',
+        'AI가 8초 안에 답하지 않았어요',
         '보낸 문장은 어디에도 저장하지 않았어요.',
       ),
       FailKind.offline => ('연결 안 됨', '인터넷에 연결하지 못했어요', '연결을 확인한 뒤 다시 보내 주세요.'),
