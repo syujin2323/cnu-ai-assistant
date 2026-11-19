@@ -5,8 +5,10 @@
 // (docs/decisions.md 2026-11-13 '하루를 넘긴 데모의 샘플은 다시 넣지 않는다'). 날짜는 넣는 때의 논리적
 // 하루(아래 '오늘')를 기준으로 만든다. 그때 데모 DB의 설정은 늘 비어 있으므로 하루 경계는 기본값이다.
 //
-// 샘플 학생 한 명의 한 주다. 수업은 어제부터 닷새에 걸쳐 놓는다. 요일은 넣는 날에 따라 바뀌고, 그래서 어느
-// 요일에 들어와도 오늘과 어제에 수업이 있다. 화면마다 보일 것이 있도록 아래를 넣는다.
+// 샘플 학생 한 명의 한 주다. 수업은 어제부터 닷새의 요일에 놓되 월–금에만 둔다(실제 시간표처럼 보이게.
+// docs/decisions.md 2026-11-19 '데모 시간표는 월–금에만 수업을 둔다'). 그 닷새 가운데 토·일에 걸린 날의 수업은
+// 닷새에 들지 않은 평일로 옮긴다. 그래서 평일에 들어오면 오늘 수업이 있고, 주말에 들어오면 오늘은 수업이 없는
+// 날이다. 화면마다 보일 것이 있도록 아래를 넣는다.
 // - 휴강과 시험이 하나씩 있다.
 // - 할 일에 마감 지남·공개 전·마감 변경·마감 없음·끝낸 일(앱에서 끝냄, LMS 제출 확인)이 있다.
 // - 블록은 어제 놓친 것과 끝낸 것, 오늘 직접 놓은 것과 제안, 내일 제안이다.
@@ -63,6 +65,39 @@ class _Days {
 
   /// 오늘에서 [offset]일 떨어진 날의 `YYYY-MM-DD`.
   String date(int offset) => isoDate(at(offset, 0));
+
+  /// 시간표가 쓰는 날([_timetable]의 offset)의 처음과 끝.
+  static const int _firstClassOffset = -1;
+  static const int _lastClassOffset = 3;
+
+  /// 오늘에서 [offset]일 떨어진 날에 놓을 수업의 요일(1 월–5 금). 그날이 평일이면 그 요일이고, 토·일이면
+  /// 시간표의 닷새에 들지 않은 평일이다(토요일이 먼저 이른 평일을 받는다).
+  int classWeekday(int offset) {
+    final day = weekday(offset);
+    if (day <= DateTime.friday) return day;
+    final used = {
+      for (var o = _firstClassOffset; o <= _lastClassOffset; o++) weekday(o),
+    };
+    final free = [
+      for (var d = DateTime.monday; d <= DateTime.friday; d++)
+        if (!used.contains(d)) d,
+    ];
+    final weekend = [
+      for (final d in [DateTime.saturday, DateTime.sunday])
+        if (used.contains(d)) d,
+    ];
+    return free[weekend.indexOf(day)];
+  }
+
+  /// [offset]의 수업이 실제로 열리는 날의 offset: 그날이거나, 옮긴 수업이면 그 뒤 처음 오는 그 요일이다.
+  int classOffset(int offset) {
+    final target = classWeekday(offset);
+    var o = offset;
+    while (weekday(o) != target) {
+      o++;
+    }
+    return o;
+  }
 }
 
 /// 과목. 모두 LMS 과목이고 같은 학기다.
@@ -100,7 +135,8 @@ Future<Map<_Course, int>> _insertCourses(AppDatabase db, DateTime now) async =>
             ),
     };
 
-/// 수업 칸 하나. [offset]은 오늘에서 떨어진 날이고 그날의 요일에 매주 열린다.
+/// 수업 칸 하나. [offset]은 오늘에서 떨어진 날이고 그날의 요일([_Days.classWeekday], 토·일이면 옮긴 평일)에
+/// 매주 열린다.
 typedef _Slot = ({
   _Course course,
   int offset,
@@ -196,13 +232,13 @@ Future<List<int>> _insertTimetable(
         .insert(
           ClassSlotsCompanion.insert(
             courseId: courses[slot.course]!,
-            weekday: days.weekday(slot.offset),
+            weekday: days.classWeekday(slot.offset),
             startMin: slot.startMin,
             endMin: slot.endMin,
             place: Value(slot.place),
             online: slot.place == null,
             source: SlotSource.auto,
-            importedWeekday: Value(days.weekday(slot.offset)),
+            importedWeekday: Value(days.classWeekday(slot.offset)),
             importedStartMin: Value(slot.startMin),
             importedEndMin: Value(slot.endMin),
             importedPlace: Value(slot.place),
@@ -210,7 +246,7 @@ Future<List<int>> _insertTimetable(
         ),
 ];
 
-/// 모레 컴퓨터네트워크 휴강, 다음 주 오늘 선형대수 시험.
+/// 모레 컴퓨터네트워크 휴강, 다음 주 오늘 선형대수 시험(수업을 평일로 옮긴 때는 그 수업이 열리는 날).
 Future<void> _insertClassExceptions(
   AppDatabase db,
   _Days days,
@@ -224,7 +260,7 @@ Future<void> _insertClassExceptions(
       .into(db.classExceptions)
       .insert(
         ClassExceptionsCompanion.insert(
-          date: days.date(2),
+          date: days.date(days.classOffset(2)),
           classSlotId: slotOf(_Course.networks, 2),
           kind: ClassExceptionKind.cancelled,
           source: EntrySource.manual,
@@ -234,7 +270,7 @@ Future<void> _insertClassExceptions(
       .into(db.classExceptions)
       .insert(
         ClassExceptionsCompanion.insert(
-          date: days.date(7),
+          date: days.date(days.classOffset(0) + 7),
           classSlotId: slotOf(_Course.linearAlgebra, 0),
           kind: ClassExceptionKind.exam,
           place: const Value('자연과학관 대강의실'),
@@ -673,8 +709,9 @@ Future<void> _insertBlocks(
   await block(
     _Task.teamReport,
     1,
-    630,
-    720,
+    // 내일이 평일이면 수업·이동 뒤, 주말이면 수업이 없는 날의 점심 뒤다(어느 쪽이어도 빈 시간).
+    900,
+    990,
     PlanBlockStatus.suggested,
     reason: reason(
       _Task.teamReport,

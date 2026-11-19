@@ -87,7 +87,7 @@ void main() {
     );
   });
 
-  test('어느 요일에 넣어도 오늘과 어제에 수업이 둘씩 있고 수업은 닷새에 걸친다', () async {
+  test('수업은 어느 요일에 넣어도 월–금 닷새에만 있고, 평일인 오늘·어제에는 둘씩 있다', () async {
     for (var day = 0; day < 7; day++) {
       final now = DateTime(2026, 11, 16 + day, 9);
       final db = await open(now);
@@ -99,9 +99,23 @@ void main() {
       }
       final today = now.weekday;
       final yesterday = today == 1 ? 7 : today - 1;
-      expect(byWeekday[today], 2, reason: '$now');
-      expect(byWeekday[yesterday], 2, reason: '$now');
-      expect(byWeekday.length, 5, reason: '$now');
+      expect(byWeekday.keys.toSet(), {1, 2, 3, 4, 5}, reason: '$now');
+      expect(entries, hasLength(10), reason: '$now');
+      if (today <= DateTime.friday) {
+        expect(byWeekday[today], 2, reason: '$now');
+      }
+      if (yesterday <= DateTime.friday) {
+        expect(byWeekday[yesterday], 2, reason: '$now');
+      }
+      // 수업 예외는 그 수업이 열리는 요일의 날짜에 있다.
+      final slotDay = {for (final e in entries) e.slot.id: e.slot.weekday};
+      for (final exception in await db.select(db.classExceptions).get()) {
+        expect(
+          DateTime.parse(exception.date).weekday,
+          slotDay[exception.classSlotId],
+          reason: '$now',
+        );
+      }
       expect(entries.every((e) => e.slot.source == SlotSource.auto), isTrue);
       expect(entries.map((e) => e.course.name).toSet(), hasLength(6));
     }
@@ -116,9 +130,10 @@ void main() {
             .getSingle();
     expect(quiz.startAt, DateTime(2026, 11, 13, 13));
     expect((await db.select(db.briefings).getSingle()).date, '2026-11-12');
+    // 모레(일요일)의 수업은 수요일로 옮겨 놓으므로 휴강도 그 수요일(11-18)이다.
     expect([
       for (final e in await db.select(db.classExceptions).get()) e.date,
-    ], unorderedEquals(['2026-11-15', '2026-11-20']));
+    ], unorderedEquals(['2026-11-18', '2026-11-20']));
     final slots = _ok(await ClassSlotRepository(db).read());
     expect(slots.where((e) => e.slot.weekday == DateTime.friday), hasLength(2));
   });
@@ -180,7 +195,11 @@ void main() {
   });
 
   test('블록은 어제 놓침·완료, 오늘 직접 놓은 확정과 제안, 내일 제안이고 모두 그날의 빈 시간 안이다', () async {
-    for (final now in [friday, DateTime(2026, 11, 16, 23)]) {
+    // 수업을 월–금에만 두므로 요일마다 그날의 수업이 달라진다. 일곱 요일 모두 본다.
+    for (final now in [
+      for (var day = 0; day < 7; day++) DateTime(2026, 11, 13 + day, 9),
+      DateTime(2026, 11, 16, 23),
+    ]) {
       final db = await open(now);
       final today = logicalDate(now, dayBoundaryMin: Defaults.dayBoundaryMin);
       DateTime dayAt(int offset) =>
