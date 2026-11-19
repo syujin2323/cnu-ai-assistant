@@ -10,9 +10,9 @@
 // 위에서부터 위 막대(뒤로, 주 범위와 '오늘', ‹ ›), 날짜 줄 7칸, 머리(날짜와 요약 줄), 종일 일정, '모두 확정' 띠,
 // 빈 날 카드, 마감 줄, 시간표다. 시간표는 02 홈과 같은 `DayTimeline`이고 제안 블록('제안')도 그리며, 지난 일정을
 // 접지 않고 지난 날에는 빈 시간 카드를 그리지 않는다. 누르면: 블록 → 근거 시트, 체크 → 블록 완료, 수업·일정 →
-// 일정 정보 시트, 빈 시간 → 빈 시간에 놓기 시트, 마감 줄 → 작은 할 일 시트. 보일 것은
-// `domain/day_view.dart`가 정하고, 모양은 최종 프로토타입(09 일간)을 따른다. 'HH:MM에 놓기'와 학사일정·공휴일은
-// 그 PR(S6 2부, H1)에서 더한다.
+// 일정 정보 시트, 빈 시간·'HH:MM에 놓기'(빈 시간 카드 아래 정시마다) → 빈 시간에 놓기 시트(그 [일정은 말로 추가하기]는
+// 06 AI 비서에 날짜·시각을 넘김), 마감 줄 → 작은 할 일 시트. 보일 것은 `domain/day_view.dart`가 정하고, 모양은
+// 최종 프로토타입(09 일간)을 따른다. 공휴일 이름은 H1의 표로 그 PR에서 더한다.
 
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
@@ -134,6 +134,7 @@ class DayScreen extends ConsumerWidget {
       windowEndMin: home.windowEndMin,
       showPast: true,
       showTravelMeal: home.showTravelMeal,
+      slots: true,
     );
     return ListView(
       padding: EdgeInsets.fromLTRB(
@@ -230,7 +231,8 @@ class DayScreen extends ConsumerWidget {
             onBlockCheck: ref.read(homeAnswerProvider.notifier).toggleBlock,
             onFreeTap: past
                 ? null
-                : (gap) => openFreeSlotSheet(context, ref, gap),
+                : (gap) =>
+                      openFreeSlotSheet(context, ref, gap, fillAssistant: true),
           ),
         ),
       ],
