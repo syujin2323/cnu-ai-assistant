@@ -206,7 +206,7 @@ class AssistantController extends Notifier<AssistantState> {
       case Ok():
         // 이 화면에서 동의하지 않았다가 [AI 켜기]로 동의했으면 다시 보낼 수 있다.
         state = state.copyWith(declined: false);
-        toast.show('AI 사용에 동의했어요 · 나 › AI에서 언제든 끌 수 있어요');
+        toast.show('AI 사용에 동의했어요 · ‘나’ 탭 › AI에서 언제든 끌 수 있어요');
         return true;
       case Err(:final error):
         appLog(

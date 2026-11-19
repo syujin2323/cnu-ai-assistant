@@ -1,6 +1,7 @@
 // 온보딩 3단계(고정 일정) 테스트. docs/screens.md '14 온보딩'의 3단계.
 
 import 'package:cnu_ai_assistant/design/widgets/form_parts.dart';
+import 'package:cnu_ai_assistant/design/widgets/minute_wheel.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/features/onboarding/steps/fixed_blocks_step.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -27,34 +28,37 @@ Future<void> _tapIn(WidgetTester tester, Finder finder) async {
 Finder _chip(String label) => find.widgetWithText(ChoiceChipButton, label);
 
 void main() {
-  testWidgets('점심을 골라 추가하면 고정 일정으로 넣고 목록에 보이며, 지우면 뺀다', (tester) async {
+  testWidgets('알바를 골라 추가하면 고정 일정으로 넣고 목록에 보이며, 지우면 뺀다', (tester) async {
     final app = await pumpProviderHarness(
       tester,
       FixedBlocksStep(onNext: () {}),
     );
 
     expect(find.text('아직 넣은 고정 일정이 없어요'), findsOneWidget);
-    await _tapIn(tester, _chip('점심'));
-    expect(find.text('점심 일정'), findsOneWidget);
+    // 점심은 배치 엔진이 기본으로 비워 두므로 빠르게 더하기에 없다.
+    expect(_chip('점심'), findsNothing);
+    await _tapIn(tester, _chip('알바'));
+    expect(find.text('알바 일정'), findsOneWidget);
     expect(find.text('앞뒤 여유'), findsNothing);
+    expect(find.text('준비물'), findsNothing);
     await _tapIn(tester, find.widgetWithText(FilledButton, '추가'));
 
     final row = await app.db.select(app.db.fixedBlocks).getSingle();
     expect(
       (row.name, row.kind, row.startMin, row.endMin, row.source),
-      ('점심', FixedBlockKind.meal, 720, 780, EntrySource.manual),
+      ('알바', FixedBlockKind.work, 840, 1080, EntrySource.manual),
     );
-    expect(app.toast, '점심을 매주 일정으로 넣었어요');
-    expect(find.text('월·화·수·목·금 12:00–13:00'), findsOneWidget);
-    expect(find.text('점심 일정'), findsNothing);
+    expect(app.toast, '알바를 매주 일정으로 넣었어요');
+    expect(find.text('토·일 14:00–18:00'), findsOneWidget);
+    expect(find.text('알바 일정'), findsNothing);
 
-    await _tapIn(tester, find.byTooltip('점심 지우기'));
+    await _tapIn(tester, find.byTooltip('알바 지우기'));
     expect(await app.db.select(app.db.fixedBlocks).get(), isEmpty);
-    expect(app.toast, '점심을 지웠어요');
+    expect(app.toast, '알바를 지웠어요');
     await app.dispose();
   });
 
-  testWidgets('통학은 시간 칩으로 내 규칙의 이동 시간(하루 첫 수업 전·마지막 수업 뒤)을 저장하고 고칠 수 있다', (
+  testWidgets('통학은 시간 휠로 내 규칙의 이동 시간(하루 첫 수업 전·마지막 수업 뒤)을 저장하고 고칠 수 있다', (
     tester,
   ) async {
     final app = await pumpProviderHarness(
@@ -64,7 +68,15 @@ void main() {
 
     await _tapIn(tester, _chip('통학'));
     expect(find.text('학교까지 얼마나 걸려요?'), findsOneWidget);
-    await _tapIn(tester, _chip('30분'));
+    // 처음 값은 40분이고, 휠을 두 칸 내리면(5분 단위) 30분이다.
+    expect(tester.widget<MinuteWheel>(find.byType(MinuteWheel)).value, 40);
+    await tester.drag(
+      find.byType(MinuteWheel),
+      const Offset(0, MinuteWheel.itemExtent * 2),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<MinuteWheel>(find.byType(MinuteWheel)).value, 30);
+    expect(find.text('준비물'), findsNothing);
     await _tapIn(tester, find.widgetWithText(FilledButton, '저장'));
 
     final rules = await app.db.select(app.db.rules).get();
@@ -79,7 +91,7 @@ void main() {
     expect(await app.db.select(app.db.fixedBlocks).get(), isEmpty);
 
     await _tapIn(tester, find.byTooltip('통학 시간 바꾸기'));
-    expect(tester.widget<ChoiceChipButton>(_chip('30분')).selected, isTrue);
+    expect(tester.widget<MinuteWheel>(find.byType(MinuteWheel)).value, 30);
     await app.dispose();
   });
 

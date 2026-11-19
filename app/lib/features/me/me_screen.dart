@@ -423,7 +423,7 @@ class _AiGroup extends ConsumerWidget {
       SettingKeys.aiConsentAt: ref.read(clockProvider).now(),
     });
     toast.show(switch (saved) {
-      Ok() => 'AI 사용에 동의했어요 · 나 › AI에서 언제든 끌 수 있어요',
+      Ok() => 'AI 사용에 동의했어요 · ‘나’ 탭 › AI에서 언제든 끌 수 있어요',
       Err() => _saveFailedText,
     });
   }
