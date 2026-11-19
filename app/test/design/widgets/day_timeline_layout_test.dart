@@ -146,7 +146,7 @@ void main() {
     ]);
   });
 
-  test('오늘은 끝난 항목을 접어 세고(이동·점심은 세지 않음), 펼치면 08시부터 보인다', () {
+  test('오늘은 끝난 항목을 접어 세고(이동·점심은 세지 않음), 펼치면 하루 경계(04시)부터 보인다', () {
     final items = [
       lesson(at(9), at(10)),
       MealItem(span(at(12), at(12, 40))),
@@ -160,19 +160,20 @@ void main() {
 
     final open = layout(items, now: at(14, 30), showPast: true);
     expect(open.pastCount, 0);
-    expect(open.hours.first.hour, 8);
+    expect(open.hours.first.hour, 4);
     expect(describe(open).where((d) => d.contains('지남')), hasLength(2));
   });
 
-  test('시 글자는 지금과 첫 남은 항목 가운데 이른 시부터 하루 창 끝과 마지막 항목 가운데 늦은 쪽(최대 01시)까지다', () {
+  test('시 글자는 지금과 첫 남은 항목 가운데 이른 시부터 다음 날 하루 경계(04시)까지다', () {
     final late = layout([lesson(at(22), at(1, 30, 17))], now: at(20, 10));
     expect(late.hours.first.hour, 20);
-    expect(late.hours.last.hour, 1);
-    expect(late.height, (25 - 20) * 60 + 14);
+    expect(late.hours.last.hour, 4);
+    expect(late.height, (28 - 20) * 60 + 14);
 
     final normal = layout([lesson(at(10), at(11))], now: at(9, 30));
     expect(normal.hours.first.hour, 9);
-    expect(normal.hours.last.hour, 23);
+    expect(normal.hours.last.hour, 4);
+    expect(normal.hours.length, 28 - 9 + 1);
   });
 
   test('지금 선은 오늘에만 그리고, 가리는 시 글자는 숨긴다', () {
@@ -184,7 +185,7 @@ void main() {
     final other = layout([lesson(at(10), at(11))], today: false);
     expect(other.nowTop, isNull);
     expect(other.pastCount, 0);
-    expect(other.hours.first.hour, 8);
+    expect(other.hours.first.hour, 4);
   });
 
   test('지금 하는 것은 하나만 표시하고 할 일 블록을 먼저 고른다', () {
@@ -214,7 +215,7 @@ void main() {
 
   group('09 일간의 HH:MM에 놓기 칸', () {
     test('빈 시간 카드는 112pt까지이고 그 아래 정시마다 칸을 둔다', () {
-      // 08시부터 그리므로 09:00은 60pt. 카드는 63–175pt이고 그 아래 첫 정시는 12시다.
+      // 04시부터 그리므로 09:00은 300pt. 카드는 303–415pt이고 그 아래 첫 정시는 12시다.
       // 빈 시간 뒤에 오는 수업은 칸을 줄이지 않는다.
       final result = layout(
         [lesson(at(14), at(15))],
@@ -224,10 +225,10 @@ void main() {
       );
 
       expect(describe(result), [
-        '빈 63 112',
-        '칸 12시 243 54',
-        '칸 13시 303 24',
-        '카드 360 56 short',
+        '빈 303 112',
+        '칸 12시 483 54',
+        '칸 13시 543 24',
+        '카드 600 56 short',
       ]);
       final slots = result.entries.whereType<TimelineSlot>().toList();
       expect(slots.first.span, TimeSpan(at(12), at(13, 30)));
@@ -240,11 +241,11 @@ void main() {
               .join(', ');
 
       // 13:29까지: 13시 칸은 30분이 안 남는다.
-      expect(shape(TimeSpan(at(9), at(13, 29))), '빈 63 112, 칸 12시 243 54');
+      expect(shape(TimeSpan(at(9), at(13, 29))), '빈 303 112, 칸 12시 483 54');
       // 카드 아래 남은 높이가 40pt 이하면, 정시가 바로 아래라 30분이 들어가도 두지 않는다.
-      expect(shape(TimeSpan(at(9), at(11, 40))), '빈 63 112');
-      expect(shape(TimeSpan(at(9, 57), at(12, 35))), '빈 120 112');
-      expect(shape(TimeSpan(at(9, 57), at(12, 36))), '빈 120 112, 칸 12시 243 30');
+      expect(shape(TimeSpan(at(9), at(11, 40))), '빈 303 112');
+      expect(shape(TimeSpan(at(9, 57), at(12, 35))), '빈 360 112');
+      expect(shape(TimeSpan(at(9, 57), at(12, 36))), '빈 360 112, 칸 12시 483 30');
       // 빈 시간 안의 휴강 수업(시간을 막지 않음)은 줄인 카드 아래로 오므로, 그 수업이 시작하기 전까지만 둔다.
       expect(
         describe(
@@ -255,7 +256,7 @@ void main() {
             slots: true,
           ),
         ),
-        ['빈 63 112', '칸 12시 243 54', '카드 300 56 short'],
+        ['빈 303 112', '칸 12시 483 54', '카드 540 56 short'],
       );
       expect(
         describe(
@@ -266,14 +267,14 @@ void main() {
             slots: true,
           ),
         ),
-        ['빈 63 112', '카드 179 44 short'],
+        ['빈 303 112', '카드 419 44 short'],
       );
       // 칸을 두지 않으면(02 홈) 카드가 빈 시간을 다 차지한다.
       expect(
         describe(
           layout(const [], free: [TimeSpan(at(9), at(13, 30))], today: false),
         ),
-        ['빈 63 264'],
+        ['빈 303 264'],
       );
     });
   });

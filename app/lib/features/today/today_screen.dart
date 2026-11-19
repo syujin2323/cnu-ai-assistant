@@ -111,6 +111,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       now: home.now,
       today: true,
       windowEndMin: home.windowEndMin,
+      dayBoundaryMin: home.dayBoundaryMin,
       showPast: _showPast,
       showTravelMeal: home.showTravelMeal,
     );
