@@ -370,7 +370,7 @@ class _AiGroup extends ConsumerWidget {
             icon: AppIconName.send,
             label: '사용 지표 보내기',
             sub: 'AI와 따로 정해요. 날짜별 숫자만 보내고 내용은 보내지 않아요',
-            value: settings?.metricsEnabled ?? false,
+            value: settings?.metricsEnabled ?? true,
             onChanged: settings == null
                 ? null
                 : (on) => _setMetrics(ref, on, settings.dayBoundaryMin),
@@ -379,7 +379,7 @@ class _AiGroup extends ConsumerWidget {
     );
   }
 
-  /// 사용 지표 보내기를 켜고 끈다. 켤 때는 어제를 보낸 날로 적어 켠 날부터의 숫자만 보내고, 끌 때는 적어 둔 제안·
+  /// 사용 지표 보내기를 켜고 끈다(기본은 켜짐). 다시 켤 때는 어제를 보낸 날로 적어 켠 날부터의 숫자만 보내고, 끌 때는 적어 둔 제안·
   /// 확정 날짜를 비운다.
   Future<void> _setMetrics(WidgetRef ref, bool on, int dayBoundaryMin) async {
     final repository = SettingsRepository(ref.read(realDatabaseProvider));

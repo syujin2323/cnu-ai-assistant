@@ -86,7 +86,7 @@ class AppSettings {
     aiConsentAt: null,
     aiLimitReachedOn: null,
     privacyConsentAt: null,
-    metricsEnabled: false,
+    metricsEnabled: true,
     metricsLastSentOn: null,
     metricsSuggestedDays: [],
     metricsConfirmedDays: [],
