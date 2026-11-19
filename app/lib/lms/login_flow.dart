@@ -206,7 +206,8 @@ class LmsLoginFlow implements LoginFlow {
   }
 
   /// 진행 줄의 뒤 단계를 차례로 부르고 단계마다 [_stageWait]까지 기다린다. 넘으면 그 동기화는 화면 뒤에서 이어 가고
-  /// 다음 단계로 넘어간다(다음 동기화는 코디네이터가 앞 동기화가 끝난 뒤에 함). 결과는 보지 않는다.
+  /// 다음 단계로 넘어간다(다음 동기화는 코디네이터가 앞 동기화가 끝난 뒤에 함). 결과는 보지 않고, 오류로 끝나도 종류만
+  /// 남기고 넘어간다.
   Future<void> _loadAfterLogin(
     LoginMode mode,
     void Function(LoginStage stage) onStage,
@@ -222,13 +223,22 @@ class LmsLoginFlow implements LoginFlow {
     };
     for (final (stage, scope) in stages) {
       onStage(stage);
-      var finished = true;
-      await sync(scope).timeout(
-        _stageWait,
-        onTimeout: () {
-          finished = false;
-        },
-      );
+      // 동기화의 Future는 실제로는 `Future<SyncResult>`라, 그 위에 바로 `timeout`을 걸면 값을 돌려주지 않는
+      // `onTimeout`이 형식 검사에서 실패한다(아이폰에서 진행 줄이 멈춘 원인). 끝났는지를 bool로 바꾼 뒤 기다리고,
+      // 오류로 끝나도 다음 단계로 간다.
+      final finished = await sync(scope)
+          .then(
+            (_) => true,
+            onError: (Object error) {
+              appLog(
+                'lms_login_stage_failed',
+                area: 'lms',
+                data: {'stage': stage.name, 'error': errorKind(error)},
+              );
+              return true;
+            },
+          )
+          .timeout(_stageWait, onTimeout: () => false);
       if (!finished) {
         appLog(
           'lms_login_stage_timeout',
