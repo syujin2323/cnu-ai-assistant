@@ -1,10 +1,12 @@
 // 09 일간의 시간표 밖에 보일 것. docs/screens.md '09 일간'.
 //
-// 위 막대의 주 범위와 날짜 줄 7칸, 머리(날짜와 '오늘 · 수업 N개 · 할 일 N개 · 일정 N개 · 빈 시간 N'), 종일 일정,
-// '모두 확정' 띠가 확정할 제안, 빈 날 카드, 마감 줄을 정한다. 시간표는 02 홈과 같은 `dayItems`와 `DayTimeline`이다
-// (09는 제안 블록도 넣음). 모양과 문구는 최종 프로토타입(09 일간)을 따르고, 문구는 디자인 전 임시 문구다.
+// 위 막대의 주 범위와 날짜 줄 7칸(공휴일은 붉게), 머리(날짜와 '오늘 · 수업 N개 · 할 일 N개 · 일정 N개 · 빈 시간 N'),
+// 공휴일 카드, 종일 일정, '모두 확정' 띠가 확정할 제안, 빈 날 카드, 마감 줄을 정한다. 시간표는 02 홈과 같은
+// `dayItems`와 `DayTimeline`이다(09는 제안 블록도 넣음). 모양과 문구는 최종 프로토타입(09 일간)을 따르고, 문구는 디자인
+// 전 임시 문구다.
 
 import 'package:cnu_ai_assistant/domain/clock.dart';
+import 'package:cnu_ai_assistant/domain/holidays.dart';
 import 'package:cnu_ai_assistant/domain/models/event.dart';
 import 'package:cnu_ai_assistant/domain/models/plan_block.dart';
 import 'package:cnu_ai_assistant/domain/models/task.dart';
@@ -23,6 +25,7 @@ final class DayStripDay {
     required this.label,
     required this.today,
     required this.selected,
+    this.holiday,
   });
 
   /// 그날 0시.
@@ -34,8 +37,26 @@ final class DayStripDay {
   final bool today;
   final bool selected;
 
-  /// 일요일(날짜를 붉게 씀).
+  /// 그날 공휴일의 이름(`domain/holidays.dart`). 공휴일이 아니면 null이다.
+  final String? holiday;
+
+  /// 일요일.
   bool get sunday => date.weekday == DateTime.sunday;
+
+  /// 날짜를 붉게 쓰는 날(일요일과 공휴일).
+  bool get red => sunday || holiday != null;
+}
+
+/// 그날의 공휴일 카드. 공휴일에도 수업은 그대로라(docs/decisions.md 2026-11-19 '학사일정은 넣지 않고 공휴일은 앱 안
+/// 표로 둔다') 이름만 알리고, 수업이 있으면 휴강으로 바꾸는 길을 알린다.
+final class DayHoliday {
+  const DayHoliday({required this.name, required this.meta});
+
+  /// 공휴일 이름('성탄절').
+  final String name;
+
+  /// 이름 아래 줄('공휴일', 그날 수업이 있으면 '공휴일 · 쉬는 수업은 눌러서 휴강으로 바꿔요').
+  final String meta;
 }
 
 /// 마감 줄 하나.
@@ -97,6 +118,7 @@ final class DayView {
     required this.confirmedToast,
     required this.dues,
     required this.free,
+    this.holiday,
     this.empty,
   });
 
@@ -117,6 +139,9 @@ final class DayView {
 
   /// 머리 아래 줄('오늘 · 수업 2개 · 할 일 3개 · 일정 1개 · 빈 시간 2시간 30분', 아무것도 없으면 '일정 없음').
   final String sub;
+
+  /// 그날이 공휴일이면 머리 아래(종일 일정 위)에 둘 카드.
+  final DayHoliday? holiday;
 
   final List<DayAllDay> allDay;
 
@@ -213,11 +238,19 @@ DayView dayView({
             label: d == today ? '오늘' : weekdayText(d.weekday),
             today: d == today,
             selected: d == day,
+            holiday: holidayName(d),
           ),
     ],
     showToday: offset != 0,
     title: monthDayText(day, today: today),
     sub: sub.isEmpty ? '일정 없음' : sub.join(' · '),
+    holiday: switch (holidayName(day)) {
+      final name? => DayHoliday(
+        name: name,
+        meta: classes > 0 ? '공휴일 · 쉬는 수업은 눌러서 휴강으로 바꿔요' : '공휴일',
+      ),
+      null => null,
+    },
     allDay: [
       for (final event in allDayEvents)
         DayAllDay(

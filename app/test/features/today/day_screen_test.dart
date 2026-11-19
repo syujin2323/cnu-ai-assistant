@@ -7,6 +7,7 @@
 import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
+import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/free_slot_sheet.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
@@ -315,6 +316,27 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('공휴일은 날짜 줄에서 붉게 쓰고, 그날을 보면 머리 아래 공휴일 카드를 둔다', (tester) async {
+    // 2026-12-25(금)은 성탄절이다. 그 전날을 열면 날짜 줄에만 보인다.
+    final app = await openDay(tester, DateTime(2026, 12, 24));
+    final colors = AppColors.light;
+    Color? dateColor(String day) =>
+        tester.widget<Text>(find.text(day)).style?.color;
+
+    expect(find.bySemanticsLabel('12월 25일 (금), 성탄절'), findsOneWidget);
+    expect(dateColor('25'), colors.alert);
+    expect(dateColor('23'), colors.ink);
+    expect(dateColor('27'), colors.alert, reason: '일요일');
+    expect(find.bySemanticsLabel(RegExp('^성탄절, ')), findsNothing);
+
+    await tester.tap(find.bySemanticsLabel('12월 25일 (금), 성탄절'));
+    await tester.pumpAndSettle();
+    expect(find.text('12월 25일 (금)'), findsOneWidget);
+    expect(find.bySemanticsLabel('성탄절, 공휴일'), findsOneWidget);
+
+    await app.dispose(tester);
+  });
+
   testWidgets('종일 일정은 위에 따로 두고 누르면 일정 정보 시트를 연다', (tester) async {
     final app = await openDay(tester, DateTime(2026, 11, 18));
 
@@ -388,6 +410,10 @@ void main() {
         size: size,
       );
       expect(find.byType(DayScreen), findsOneWidget);
+      // 공휴일 카드도 넘치지 않는다.
+      app.router.go(Routes.day(DateTime(2026, 12, 25)));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('성탄절, 공휴일'), findsOneWidget);
       await app.dispose(tester);
     });
   }
