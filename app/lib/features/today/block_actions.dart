@@ -6,9 +6,12 @@
 // 오늘부터 배치 지평의 일정으로 계산하고(`suggestSlots`), 고르면 그 자리의 직접 정한 확정 블록으로 옮긴다.
 // 토스트 문구는 디자인 전 임시 문구다.
 
+import 'dart:async';
+
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/toast_controller.dart';
+import 'package:cnu_ai_assistant/data/metrics_reporter.dart';
 import 'package:cnu_ai_assistant/design/widgets/block_sheet.dart';
 import 'package:cnu_ai_assistant/design/widgets/move_sheet.dart';
 import 'package:cnu_ai_assistant/domain/block_sheet.dart';
@@ -49,6 +52,7 @@ Future<void> openBlockSheet(
   final repository = ref.read(planBlockRepositoryProvider);
   final toast = ref.read(toastControllerProvider.notifier);
   final clock = ref.read(clockProvider);
+  final metrics = ref.read(metricsReporterProvider);
   final action = await showBlockSheet(
     context,
     ref.read(motionLevelProvider),
@@ -85,6 +89,9 @@ Future<void> openBlockSheet(
   switch (result) {
     case Ok(value: true):
       toast.show(done, undoable: true);
+      if (action == BlockSheetAction.confirm) {
+        unawaited(metrics.noteConfirmed());
+      }
     case Ok(value: false):
       _changed(toast);
     case Err():

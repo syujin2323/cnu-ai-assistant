@@ -22,6 +22,7 @@ abstract final class SettingKeys {
   static const metricsEnabled = 'metricsEnabled';
   static const metricsLastSentOn = 'metricsLastSentOn';
   static const metricsSuggestedDays = 'metricsSuggestedDays';
+  static const metricsConfirmedDays = 'metricsConfirmedDays';
   static const lmsSessionState = 'lmsSessionState';
   static const lmsLastSuccessAt = 'lmsLastSuccessAt';
   static const lmsLastConnectedAt = 'lmsLastConnectedAt';
@@ -42,6 +43,7 @@ abstract final class SettingKeys {
     metricsEnabled,
     metricsLastSentOn,
     metricsSuggestedDays,
+    metricsConfirmedDays,
     lmsSessionState,
     lmsLastSuccessAt,
     lmsLastConnectedAt,
@@ -65,6 +67,7 @@ class AppSettings {
     required this.metricsEnabled,
     required this.metricsLastSentOn,
     required this.metricsSuggestedDays,
+    required this.metricsConfirmedDays,
     required this.lmsSessionState,
     required this.lmsLastSuccessAt,
     required this.lmsLastConnectedAt,
@@ -86,6 +89,7 @@ class AppSettings {
     metricsEnabled: false,
     metricsLastSentOn: null,
     metricsSuggestedDays: [],
+    metricsConfirmedDays: [],
     lmsSessionState: LmsSessionState.disconnected,
     lmsLastSuccessAt: null,
     lmsLastConnectedAt: null,
@@ -122,6 +126,9 @@ class AppSettings {
       metricsSuggestedDays:
           _isoDatesOrNull(values[SettingKeys.metricsSuggestedDays]) ??
           d.metricsSuggestedDays,
+      metricsConfirmedDays:
+          _isoDatesOrNull(values[SettingKeys.metricsConfirmedDays]) ??
+          d.metricsConfirmedDays,
       lmsSessionState:
           tryEnumFromSnake(
             LmsSessionState.values,
@@ -187,6 +194,11 @@ class AppSettings {
   /// 비운다.
   final List<String> metricsSuggestedDays;
 
+  /// (R1) 09 일간의 '모두 확정'이나 근거 시트의 [확정]으로 블록을 확정한 논리적 하루(`YYYY-MM-DD`, 오름차순,
+  /// 겹치지 않음. 확정한 블록의 날이 아니라 누른 날). 01 계획의 확정은 `briefings.confirmedAt`에 있으므로, 지표를
+  /// 켠 동안 이 둘의 확정을 적어 두었다가 지표의 `planConfirmed`에 함께 쓴다. 지표를 끄면 비운다.
+  final List<String> metricsConfirmedDays;
+
   /// LMS 세션 상태.
   final LmsSessionState lmsSessionState;
 
@@ -247,7 +259,8 @@ class AppSettings {
       SettingKeys.lmsSessionState => snakeName(
         _require<LmsSessionState>(key, value),
       ),
-      SettingKeys.metricsSuggestedDays => _requireIsoDates(key, value),
+      SettingKeys.metricsSuggestedDays ||
+      SettingKeys.metricsConfirmedDays => _requireIsoDates(key, value),
       SettingKeys.onboardingSkipped => _requireOnboardingSteps(key, value),
       _ => throw ArgumentError.value(key, 'key', 'Unknown settings key'),
     };
@@ -267,6 +280,7 @@ class AppSettings {
     SettingKeys.metricsEnabled => metricsEnabled,
     SettingKeys.metricsLastSentOn => metricsLastSentOn,
     SettingKeys.metricsSuggestedDays => metricsSuggestedDays,
+    SettingKeys.metricsConfirmedDays => metricsConfirmedDays,
     SettingKeys.lmsSessionState => lmsSessionState,
     SettingKeys.lmsLastSuccessAt => lmsLastSuccessAt,
     SettingKeys.lmsLastConnectedAt => lmsLastConnectedAt,
@@ -289,6 +303,7 @@ class AppSettings {
     bool? metricsEnabled,
     Object? metricsLastSentOn = _keep,
     List<String>? metricsSuggestedDays,
+    List<String>? metricsConfirmedDays,
     LmsSessionState? lmsSessionState,
     Object? lmsLastSuccessAt = _keep,
     Object? lmsLastConnectedAt = _keep,
@@ -316,6 +331,7 @@ class AppSettings {
           ? this.metricsLastSentOn
           : metricsLastSentOn as String?,
       metricsSuggestedDays: metricsSuggestedDays ?? this.metricsSuggestedDays,
+      metricsConfirmedDays: metricsConfirmedDays ?? this.metricsConfirmedDays,
       lmsSessionState: lmsSessionState ?? this.lmsSessionState,
       lmsLastSuccessAt: identical(lmsLastSuccessAt, _keep)
           ? this.lmsLastSuccessAt
@@ -349,6 +365,7 @@ class AppSettings {
       other.metricsEnabled == metricsEnabled &&
       other.metricsLastSentOn == metricsLastSentOn &&
       _sameStrings(other.metricsSuggestedDays, metricsSuggestedDays) &&
+      _sameStrings(other.metricsConfirmedDays, metricsConfirmedDays) &&
       other.lmsSessionState == lmsSessionState &&
       other.lmsLastSuccessAt == lmsLastSuccessAt &&
       other.lmsLastConnectedAt == lmsLastConnectedAt &&
@@ -369,6 +386,7 @@ class AppSettings {
     metricsEnabled,
     metricsLastSentOn,
     Object.hashAll(metricsSuggestedDays),
+    Object.hashAll(metricsConfirmedDays),
     lmsSessionState,
     lmsLastSuccessAt,
     lmsLastConnectedAt,

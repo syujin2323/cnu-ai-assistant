@@ -6,7 +6,9 @@
 
 import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
+import 'package:cnu_ai_assistant/data/repositories/settings_repository.dart';
 import 'package:cnu_ai_assistant/design/widgets/free_slot_sheet.dart';
+import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_screen.dart';
 import 'package:cnu_ai_assistant/features/tasks/widgets/task_sheet.dart';
@@ -141,6 +143,20 @@ DateTime shown(WidgetTester tester) =>
 Future<List<PlanBlock>> blocks(AppDatabase db) =>
     db.select(db.planBlocks).get();
 
+/// 사용 지표를 켜 둔다(실제 DB).
+Future<void> enableMetrics(AppDatabase db) async {
+  final saved = await SettingsRepository(db)
+      .write(SettingKeys.metricsEnabled, true);
+  expect(saved, isA<Ok<void>>());
+}
+
+/// 지표에 적어 둔, 09 일간·근거 시트에서 확정한 날.
+Future<List<String>> confirmedDays(AppDatabase db) async =>
+    switch (await SettingsRepository(db).read()) {
+      Ok(:final value) => value.metricsConfirmedDays,
+      Err(:final error) => fail('설정을 읽지 못했다: $error'),
+    };
+
 void main() {
   testWidgets('위 막대·날짜 줄·머리와 마감 줄을 보이고, 마감 줄은 작은 할 일 시트를 연다', (tester) async {
     final app = await openDay(tester, DateTime(2026, 11, 16));
@@ -210,6 +226,7 @@ void main() {
 
   testWidgets('제안이 있는 날은 모두 확정 띠를 두고, 누르면 확정한 뒤 되돌린다', (tester) async {
     final app = await openDay(tester, DateTime(2026, 11, 16));
+    await enableMetrics(app.db);
     // '과제 2'의 제안이 놓인 날을 연다.
     final first = (await blocks(app.db))
         .firstWhere((block) => block.status == PlanBlockStatus.suggested);
@@ -245,6 +262,8 @@ void main() {
       expect(confirmed[block.id], PlanBlockStatus.confirmed);
     }
     expect(find.widgetWithText(FilledButton, '모두 확정'), findsNothing);
+    // 사용 지표에는 확정한 블록의 날이 아니라 누른 날(오늘)을 적는다.
+    expect(await confirmedDays(app.db), ['2026-11-16']);
 
     await tester.tap(find.text('되돌리기'));
     await tester.pumpAndSettle();
@@ -254,6 +273,44 @@ void main() {
     for (final block in suggested) {
       expect(undone[block.id], PlanBlockStatus.suggested);
     }
+    // 되돌려도 확정한 날은 지우지 않는다(01 계획의 처음 확정 시각처럼).
+    expect(await confirmedDays(app.db), ['2026-11-16']);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('제안 블록의 근거 시트에서 확정하면 사용 지표에 오늘을 적고, 지우기는 적지 않는다', (tester) async {
+    final app = await openDay(tester, DateTime(2026, 11, 16));
+    await enableMetrics(app.db);
+    final first = (await blocks(app.db))
+        .firstWhere((block) => block.status == PlanBlockStatus.suggested);
+    app.router.go(
+      Routes.day(
+        DateTime(first.startAt.year, first.startAt.month, first.startAt.day),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    Future<void> openSheet() async {
+      final card = find.text('과제 2').first;
+      await tester.ensureVisible(card);
+      await tester.pumpAndSettle();
+      await tester.tap(card);
+      await tester.pumpAndSettle();
+    }
+
+    await openSheet();
+    await tester.tap(find.widgetWithText(OutlinedButton, '지우기'));
+    await tester.pumpAndSettle();
+    expect(await confirmedDays(app.db), isEmpty);
+    await tester.tap(find.text('되돌리기'));
+    await tester.pumpAndSettle();
+
+    await openSheet();
+    await tester.tap(find.widgetWithText(FilledButton, '확정'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('에 확정했어요'), findsOneWidget);
+    expect(await confirmedDays(app.db), ['2026-11-16']);
 
     await app.dispose(tester);
   });

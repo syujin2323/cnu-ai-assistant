@@ -89,6 +89,33 @@ class SettingsRepository {
     );
   }
 
+  /// 사용 지표를 켠 동안(`metricsEnabled`)만 [day](`YYYY-MM-DD`)를 `metricsConfirmedDays`에 더하고, 더했으면 true다.
+  /// [earliest](`YYYY-MM-DD`)보다 이른 날은 함께 버린다. 지표를 끄는 쓰기(10 나. `metricsEnabled`를 끄고 이 키를
+  /// 비움)와 엇갈려 끈 뒤에 날짜가 남지 않도록 한 트랜잭션에서 읽고 쓴다(docs/architecture.md '앱과 서버 사이 약속
+  /// (API)'의 지표).
+  Future<Result<bool>> addMetricsConfirmedDay(
+    String day, {
+    required String earliest,
+  }) {
+    return guardStorage(
+      'settings.addMetricsConfirmedDay',
+      () => _db.transaction(() async {
+        final settings = _toSettings(await _db.select(_db.settings).get());
+        if (!settings.metricsEnabled) return false;
+        final days = {
+          for (final known in [...settings.metricsConfirmedDays, day])
+            if (known.compareTo(earliest) >= 0) known,
+        }.toList()..sort();
+        await _db
+            .into(_db.settings)
+            .insertOnConflictUpdate(
+              _row(SettingKeys.metricsConfirmedDays, days),
+            );
+        return true;
+      }),
+    );
+  }
+
   /// 저장된 JSON 값의 시각. 깨졌거나 시각이 아니면 null이다.
   static DateTime? _dateTimeOf(String json) {
     try {
