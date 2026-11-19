@@ -20,6 +20,7 @@ import 'package:cnu_ai_assistant/lms/lms_client.dart';
 import 'package:cnu_ai_assistant/lms/lms_config.dart';
 import 'package:cnu_ai_assistant/lms/login_flow.dart';
 import 'package:cnu_ai_assistant/lms/request_params.dart';
+import 'package:cnu_ai_assistant/lms/sync_coordinator.dart' show SyncResult;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -551,12 +552,34 @@ void main() {
       final calls = <SyncScope>[];
       final flow = flowWith(
         FakeLmsServer(syntheticLoginRoutes()),
-        // 끝나지 않는 불러오기.
+        // 끝나지 않는 불러오기. 실제 코디네이터처럼 값을 내는 Future(`Future<SyncResult>`)를 돌려준다(기다림 상한이
+        // 그 형식에서도 듣는지).
         syncAfterLogin: (scope) {
           calls.add(scope);
-          return Completer<void>().future;
+          return Completer<SyncResult>().future;
         },
         stageWait: const Duration(milliseconds: 20),
+      );
+
+      final (result, stages) = await login(flow);
+
+      expect(result, const Ok<void>(null));
+      expect(stages, [
+        LoginStage.login,
+        LoginStage.timetable,
+        LoginStage.tasks,
+      ]);
+      expect(calls, [SyncScope.timetable, SyncScope.full]);
+    });
+
+    test('불러오기가 오류로 끝나도 다음 단계로 넘어가 성공으로 끝난다', () async {
+      final calls = <SyncScope>[];
+      final flow = flowWith(
+        FakeLmsServer(syntheticLoginRoutes()),
+        syncAfterLogin: (scope) {
+          calls.add(scope);
+          return Future<SyncResult>.error(StateError('boom'));
+        },
       );
 
       final (result, stages) = await login(flow);
