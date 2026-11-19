@@ -8,6 +8,7 @@ import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/design/widgets/free_slot_sheet.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
+import 'package:cnu_ai_assistant/features/assistant/assistant_screen.dart';
 import 'package:cnu_ai_assistant/features/tasks/widgets/task_sheet.dart';
 import 'package:cnu_ai_assistant/features/today/day_screen.dart';
 import 'package:drift/drift.dart' show Value;
@@ -281,6 +282,29 @@ void main() {
     await tester.tap(find.bySemanticsLabel(RegExp(r'빈 시간, 할 일 놓기$')).first);
     await tester.pumpAndSettle();
     expect(find.byType(FreeSlotSheet), findsOneWidget);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('빈 시간 카드 아래 정시마다 놓기 칸을 두고, 시트의 말로 추가하기는 06에 날짜·시각을 넘긴다', (
+    tester,
+  ) async {
+    final app = await openDay(tester, DateTime(2026, 11, 21));
+
+    // 토요일은 09:00–18:00이 모두 비어 있다. 카드 아래 첫 정시는 12시다.
+    expect(find.bySemanticsLabel('11:00부터 빈 시간, 할 일 놓기'), findsNothing);
+    final slot = find.bySemanticsLabel('14:00부터 빈 시간, 할 일 놓기');
+    await scrollTo(tester, slot);
+    await tester.tap(slot);
+    await tester.pumpAndSettle();
+    expect(find.text('토요일 14:00–18:00 · 4시간 비어 있어요'), findsOneWidget);
+
+    await tester.tap(find.text('일정은 말로 추가하기'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<AssistantScreen>(find.byType(AssistantScreen)).args.at,
+      at(21, 14),
+    );
 
     await app.dispose(tester);
   });

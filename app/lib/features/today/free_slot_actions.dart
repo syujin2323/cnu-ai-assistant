@@ -26,13 +26,14 @@ import 'package:material_ui/material_ui.dart';
 
 /// [gap] 빈 시간에 놓기 시트를 연다. 할 일·규칙·설정은 열 때 저장소에서 읽고(그 값을 지켜보지 않는 화면에서
 /// 불러도 열리게. 듣는 쪽이 없는 provider는 Riverpod이 멈춰 둠), 읽지 못하면 알린다. 빈 시간이 이미 지났으면 알린다.
-/// [speech]가 false면 [일정은 말로 추가하기]를 두지 않는다(06 AI 비서 안에서 열 때). 09 일간에서 열 때 그 버튼이
-/// 06 AI 비서에 날짜·시각을 채우는 것은 09 일간 PR에서 더한다.
+/// [speech]가 false면 [일정은 말로 추가하기]를 두지 않는다(06 AI 비서 안에서 열 때). [fillAssistant]면 그 버튼이
+/// 06 AI 비서에 빈 시간의 날짜·시각을 넘긴다(09 일간, [AssistantArgs.at]).
 Future<void> openFreeSlotSheet(
   BuildContext context,
   WidgetRef ref,
   TimeSpan gap, {
   bool speech = true,
+  bool fillAssistant = false,
 }) async {
   final clock = ref.read(clockProvider);
   final repository = ref.read(planBlockRepositoryProvider);
@@ -53,6 +54,7 @@ Future<void> openFreeSlotSheet(
       context,
       gap,
       speech: speech,
+      fillAssistant: fillAssistant,
       entries: entries,
       rules: rules,
       boundary: settings.dayBoundaryMin,
@@ -77,6 +79,7 @@ Future<void> _open(
   BuildContext context,
   TimeSpan gap, {
   required bool speech,
+  required bool fillAssistant,
   required List<TaskEntry> entries,
   required List<Rule> rules,
   required int boundary,
@@ -109,7 +112,10 @@ Future<void> _open(
       return;
     case FreeSlotSpeak():
       if (!context.mounted) return;
-      context.push(Routes.assistant, extra: const AssistantArgs());
+      context.push(
+        Routes.assistant,
+        extra: AssistantArgs(at: fillAssistant ? content.span.start : null),
+      );
     case FreeSlotPlace(:final choice):
       final span = TimeSpan(
         content.span.start,

@@ -51,6 +51,12 @@ abstract final class TimelineMetrics {
 
   /// 시간표 아래 여백.
   static const double bottomPad = 14;
+
+  /// 09 일간에서 빈 시간 카드의 가장 큰 높이. 그 아래 남은 빈 시간에는 'HH:MM에 놓기' 칸을 둔다.
+  static const double freeCardMax = 112;
+
+  /// 카드 아래 남은 높이가 이보다 클 때만 'HH:MM에 놓기' 칸을 둔다.
+  static const double slotRoom = 40;
 }
 
 /// 카드의 모양. 높이로 정한다.
@@ -110,6 +116,13 @@ final class TimelineFree extends TimelineEntry {
   final TimeSpan span;
 }
 
+/// 09 일간 빈 시간 카드 아래의 'HH:MM에 놓기' 칸. [span]은 그 시(時)부터 그 빈 시간 끝까지다.
+final class TimelineSlot extends TimelineEntry {
+  const TimelineSlot(this.span, {required super.top, required super.height});
+
+  final TimeSpan span;
+}
+
 /// 시 글자 하나.
 final class TimelineHour {
   const TimelineHour({
@@ -166,6 +179,7 @@ TimelineLayout layoutDayTimeline({
   required int windowEndMin,
   bool showPast = false,
   bool showTravelMeal = true,
+  bool slots = false,
 }) {
   final base = DateTime(day.year, day.month, day.day);
   int minuteOf(DateTime at) => at.difference(base).inMinutes;
@@ -233,7 +247,7 @@ TimelineLayout layoutDayTimeline({
   final entries = <TimelineEntry>[];
   var lastBottom = -99.0;
   var pastCount = 0;
-  for (final entry in stream) {
+  for (final (index, entry) in stream.indexed) {
     final item = entry.item;
     if (collapse && entry.end <= nowMin) {
       if (item != null && item is! TravelItem && item is! MealItem) {
@@ -246,10 +260,39 @@ TimelineLayout layoutDayTimeline({
         toY(entry.start) + 3,
         lastBottom + TimelineMetrics.gap,
       );
-      final height = toY(entry.end) - 3 - top;
-      if (height < TimelineMetrics.softMin) continue;
+      final full = toY(entry.end) - 3 - top;
+      if (full < TimelineMetrics.softMin) continue;
+      final height = slots ? math.min(full, TimelineMetrics.freeCardMax) : full;
       lastBottom = top + height;
       entries.add(TimelineFree(entry.free!, top: top, height: height));
+      if (slots && full - height > TimelineMetrics.slotRoom) {
+        // 카드 아래(6pt 띄움) 처음 오는 정시부터, 30분 넘게 남은 시마다 하나씩. 빈 시간 안에서 시작하는 다른
+        // 카드(시간을 막지 않는 휴강 수업 등)는 줄인 카드 바로 아래로 오므로, 그 카드가 시작하는 시각까지만 둔다.
+        var limit = entry.end;
+        for (final later in stream.skip(index + 1)) {
+          if (later.start >= entry.end) break;
+          if (later.free == null) {
+            limit = later.start;
+            break;
+          }
+        }
+        final below =
+            top0 + (top + height + 6) / TimelineMetrics.hourHeight * 60;
+        for (
+          var hour = (below / 60).ceil() * 60;
+          hour + 30 <= limit;
+          hour += 60
+        ) {
+          final end = math.min(hour + 60, limit);
+          entries.add(
+            TimelineSlot(
+              TimeSpan(base.add(Duration(minutes: hour)), entry.free!.end),
+              top: toY(hour) + 3,
+              height: toY(end) - toY(hour) - 6,
+            ),
+          );
+        }
+      }
       continue;
     }
     final top = math.max(toY(entry.start), lastBottom + TimelineMetrics.gap);
