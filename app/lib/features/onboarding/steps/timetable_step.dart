@@ -44,6 +44,18 @@ class TimetableStep extends ConsumerWidget {
     final groups = groupClassSlots(entries);
     final courses = {for (final e in entries) e.slot.courseId}.length;
     final empty = entries.isEmpty;
+    final weekly = entries.where((e) => !e.slot.recorded).length;
+    final recorded = [
+      for (final group in groups)
+        if (group.recorded) group,
+    ];
+
+    void openGroup(ClassGroup group) => showClassSlotSheet(
+      context,
+      ref,
+      group: group,
+      mode: ClassSheetMode.placeOnly,
+    );
 
     void open(ClassSlotEntry entry) {
       final group = groups.firstWhere((g) => g.slotIds.contains(entry.slot.id));
@@ -85,7 +97,7 @@ class TimetableStep extends ConsumerWidget {
             alignment: WrapAlignment.spaceBetween,
             children: [
               Text(
-                '수업 $courses개 · 주 ${entries.length}회',
+                '수업 $courses개 · 주 $weekly회',
                 style: AppText.small.copyWith(
                   fontWeight: AppText.semibold,
                   fontFeatures: const [FontFeature.tabularFigures()],
@@ -103,8 +115,19 @@ class TimetableStep extends ConsumerWidget {
           today: today,
           showTime: true,
           onTap: open,
-          empty: _EmptyCard(),
+          empty: empty ? _EmptyCard() : null,
         ),
+        if (!empty) ...[
+          const SizedBox(height: AppSpace.s8),
+          Text(
+            '수업을 누르면 녹화 강의·실시간 온라인으로 바꾸거나 시간표에서 뺄 수 있어요',
+            style: AppText.caption.copyWith(color: colors.muted),
+          ),
+        ],
+        for (final group in recorded) ...[
+          const SizedBox(height: AppSpace.s8),
+          _RecordedRow(name: group.course.name, onTap: () => openGroup(group)),
+        ],
       ],
     );
   }
@@ -136,6 +159,63 @@ class _EmptyCard extends StatelessWidget {
             style: AppText.small.copyWith(color: colors.muted),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 녹화 강의로 표시한 수업 한 줄. 격자에 그리지 않으므로 여기서 눌러 다시 고친다.
+class _RecordedRow extends StatelessWidget {
+  const _RecordedRow({required this.name, required this.onTap});
+
+  final String name;
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    return Semantics(
+      button: true,
+      label: '$name, 녹화 강의',
+      excludeSemantics: true,
+      onTap: onTap,
+      child: Material(
+        color: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.listGroup),
+          side: BorderSide(color: colors.edge),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: AppSize.minTouch),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpace.s16,
+                vertical: AppSpace.s8,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: AppText.body.copyWith(
+                        fontWeight: AppText.semibold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpace.s8),
+                  Text(
+                    '녹화 강의',
+                    style: AppText.small.copyWith(color: colors.muted),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -308,6 +308,20 @@
             "default_dart": "const CustomExpression('0')",
             "default_client_dart": null,
             "dsl_features": []
+          },
+          {
+            "name": "recorded",
+            "getter_name": "recorded",
+            "moor_type": "bool",
+            "nullable": false,
+            "customConstraints": null,
+            "defaultConstraints": "CHECK (\"recorded\" IN (0, 1))",
+            "dialectAwareDefaultConstraints": {
+              "sqlite": "CHECK (\"recorded\" IN (0, 1))"
+            },
+            "default_dart": "const CustomExpression('0')",
+            "default_client_dart": null,
+            "dsl_features": []
           }
         ],
         "is_virtual": false,
@@ -316,6 +330,7 @@
           "CHECK (\"weekday\" BETWEEN 1 AND 7)",
           "CHECK (\"start_min\" BETWEEN 0 AND 1439)",
           "CHECK (\"end_min\" > \"start_min\" AND \"end_min\" < \"start_min\" + 1440)",
+          "CHECK (\"recorded\" = 0 OR \"online\" = 1)",
           "CHECK (\"imported_weekday\" BETWEEN 1 AND 7)",
           "CHECK (\"imported_start_min\" BETWEEN 0 AND 1439)",
           "CHECK (\"imported_end_min\" > \"imported_start_min\" AND \"imported_end_min\" < \"imported_start_min\" + 1440)",
@@ -2088,7 +2103,7 @@
       "sql": [
         {
           "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"class_slots\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"course_id\" INTEGER NOT NULL REFERENCES courses (id), \"weekday\" INTEGER NOT NULL, \"start_min\" INTEGER NOT NULL, \"end_min\" INTEGER NOT NULL, \"place\" TEXT NULL, \"online\" INTEGER NOT NULL CHECK (\"online\" IN (0, 1)), \"repeat_rule\" TEXT NULL, \"source\" TEXT NOT NULL, \"imported_weekday\" INTEGER NULL, \"imported_start_min\" INTEGER NULL, \"imported_end_min\" INTEGER NULL, \"imported_place\" TEXT NULL, \"place_edited\" INTEGER NOT NULL DEFAULT 0 CHECK (\"place_edited\" IN (0, 1)), \"online_edited\" INTEGER NOT NULL DEFAULT 0 CHECK (\"online_edited\" IN (0, 1)), \"hidden\" INTEGER NOT NULL DEFAULT 0 CHECK (\"hidden\" IN (0, 1)), CHECK (\"weekday\" BETWEEN 1 AND 7), CHECK (\"start_min\" BETWEEN 0 AND 1439), CHECK (\"end_min\" > \"start_min\" AND \"end_min\" < \"start_min\" + 1440), CHECK (\"imported_weekday\" BETWEEN 1 AND 7), CHECK (\"imported_start_min\" BETWEEN 0 AND 1439), CHECK (\"imported_end_min\" > \"imported_start_min\" AND \"imported_end_min\" < \"imported_start_min\" + 1440), CHECK ((\"imported_weekday\" IS NULL) = (\"imported_start_min\" IS NULL) AND (\"imported_start_min\" IS NULL) = (\"imported_end_min\" IS NULL)));"
+          "sql": "CREATE TABLE IF NOT EXISTS \"class_slots\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"course_id\" INTEGER NOT NULL REFERENCES courses (id), \"weekday\" INTEGER NOT NULL, \"start_min\" INTEGER NOT NULL, \"end_min\" INTEGER NOT NULL, \"place\" TEXT NULL, \"online\" INTEGER NOT NULL CHECK (\"online\" IN (0, 1)), \"repeat_rule\" TEXT NULL, \"source\" TEXT NOT NULL, \"imported_weekday\" INTEGER NULL, \"imported_start_min\" INTEGER NULL, \"imported_end_min\" INTEGER NULL, \"imported_place\" TEXT NULL, \"place_edited\" INTEGER NOT NULL DEFAULT 0 CHECK (\"place_edited\" IN (0, 1)), \"online_edited\" INTEGER NOT NULL DEFAULT 0 CHECK (\"online_edited\" IN (0, 1)), \"hidden\" INTEGER NOT NULL DEFAULT 0 CHECK (\"hidden\" IN (0, 1)), \"recorded\" INTEGER NOT NULL DEFAULT 0 CHECK (\"recorded\" IN (0, 1)), CHECK (\"weekday\" BETWEEN 1 AND 7), CHECK (\"start_min\" BETWEEN 0 AND 1439), CHECK (\"end_min\" > \"start_min\" AND \"end_min\" < \"start_min\" + 1440), CHECK (\"recorded\" = 0 OR \"online\" = 1), CHECK (\"imported_weekday\" BETWEEN 1 AND 7), CHECK (\"imported_start_min\" BETWEEN 0 AND 1439), CHECK (\"imported_end_min\" > \"imported_start_min\" AND \"imported_end_min\" < \"imported_start_min\" + 1440), CHECK ((\"imported_weekday\" IS NULL) = (\"imported_start_min\" IS NULL) AND (\"imported_start_min\" IS NULL) = (\"imported_end_min\" IS NULL)));"
         }
       ]
     },

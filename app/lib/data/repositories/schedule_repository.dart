@@ -62,7 +62,7 @@ class ScheduleRepository {
     final lastDate = isoDate(end);
     final classSlots =
         await (_db.select(_db.classSlots)
-              ..where((t) => t.hidden.equals(false))
+              ..where((t) => t.hidden.equals(false) & t.recorded.equals(false))
               ..orderBy([(t) => OrderingTerm(expression: t.id)]))
             .get();
     final classExceptions =

@@ -464,6 +464,21 @@ class $ClassSlotsTable extends ClassSlots
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _recordedMeta = const VerificationMeta(
+    'recorded',
+  );
+  @override
+  late final GeneratedColumn<bool> recorded = GeneratedColumn<bool>(
+    'recorded',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("recorded" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -482,6 +497,7 @@ class $ClassSlotsTable extends ClassSlots
     placeEdited,
     onlineEdited,
     hidden,
+    recorded,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -610,6 +626,12 @@ class $ClassSlotsTable extends ClassSlots
         hidden.isAcceptableOrUnknown(data['hidden']!, _hiddenMeta),
       );
     }
+    if (data.containsKey('recorded')) {
+      context.handle(
+        _recordedMeta,
+        recorded.isAcceptableOrUnknown(data['recorded']!, _recordedMeta),
+      );
+    }
     return context;
   }
 
@@ -685,6 +707,10 @@ class $ClassSlotsTable extends ClassSlots
         DriftSqlType.bool,
         data['${effectivePrefix}hidden'],
       )!,
+      recorded: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}recorded'],
+      )!,
     );
   }
 
@@ -714,6 +740,7 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
   final Value<bool> placeEdited;
   final Value<bool> onlineEdited;
   final Value<bool> hidden;
+  final Value<bool> recorded;
   const ClassSlotsCompanion({
     this.id = const Value.absent(),
     this.courseId = const Value.absent(),
@@ -731,6 +758,7 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     this.placeEdited = const Value.absent(),
     this.onlineEdited = const Value.absent(),
     this.hidden = const Value.absent(),
+    this.recorded = const Value.absent(),
   });
   ClassSlotsCompanion.insert({
     this.id = const Value.absent(),
@@ -749,6 +777,7 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     this.placeEdited = const Value.absent(),
     this.onlineEdited = const Value.absent(),
     this.hidden = const Value.absent(),
+    this.recorded = const Value.absent(),
   }) : courseId = Value(courseId),
        weekday = Value(weekday),
        startMin = Value(startMin),
@@ -772,6 +801,7 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     Expression<bool>? placeEdited,
     Expression<bool>? onlineEdited,
     Expression<bool>? hidden,
+    Expression<bool>? recorded,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -790,6 +820,7 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
       if (placeEdited != null) 'place_edited': placeEdited,
       if (onlineEdited != null) 'online_edited': onlineEdited,
       if (hidden != null) 'hidden': hidden,
+      if (recorded != null) 'recorded': recorded,
     });
   }
 
@@ -810,6 +841,7 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     Value<bool>? placeEdited,
     Value<bool>? onlineEdited,
     Value<bool>? hidden,
+    Value<bool>? recorded,
   }) {
     return ClassSlotsCompanion(
       id: id ?? this.id,
@@ -828,6 +860,7 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
       placeEdited: placeEdited ?? this.placeEdited,
       onlineEdited: onlineEdited ?? this.onlineEdited,
       hidden: hidden ?? this.hidden,
+      recorded: recorded ?? this.recorded,
     );
   }
 
@@ -884,6 +917,9 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
     if (hidden.present) {
       map['hidden'] = Variable<bool>(hidden.value);
     }
+    if (recorded.present) {
+      map['recorded'] = Variable<bool>(recorded.value);
+    }
     return map;
   }
 
@@ -905,7 +941,8 @@ class ClassSlotsCompanion extends UpdateCompanion<ClassSlot> {
           ..write('importedPlace: $importedPlace, ')
           ..write('placeEdited: $placeEdited, ')
           ..write('onlineEdited: $onlineEdited, ')
-          ..write('hidden: $hidden')
+          ..write('hidden: $hidden, ')
+          ..write('recorded: $recorded')
           ..write(')'))
         .toString();
   }
@@ -6306,6 +6343,7 @@ typedef $$ClassSlotsTableCreateCompanionBuilder = ClassSlotsCompanion Function({
   Value<bool> placeEdited,
   Value<bool> onlineEdited,
   Value<bool> hidden,
+  Value<bool> recorded,
 });
 typedef $$ClassSlotsTableUpdateCompanionBuilder = ClassSlotsCompanion Function({
   Value<int> id,
@@ -6324,6 +6362,7 @@ typedef $$ClassSlotsTableUpdateCompanionBuilder = ClassSlotsCompanion Function({
   Value<bool> placeEdited,
   Value<bool> onlineEdited,
   Value<bool> hidden,
+  Value<bool> recorded,
 });
 
 final class $$ClassSlotsTableReferences
@@ -6450,6 +6489,11 @@ class $$ClassSlotsTableFilterComposer
 
   ColumnFilters<bool> get hidden => $composableBuilder(
     column: $table.hidden,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get recorded => $composableBuilder(
+    column: $table.recorded,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6586,6 +6630,11 @@ class $$ClassSlotsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get recorded => $composableBuilder(
+    column: $table.recorded,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$CoursesTableOrderingComposer get courseId {
     final $$CoursesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -6677,6 +6726,9 @@ class $$ClassSlotsTableAnnotationComposer
 
   GeneratedColumn<bool> get hidden =>
       $composableBuilder(column: $table.hidden, builder: (column) => column);
+
+  GeneratedColumn<bool> get recorded =>
+      $composableBuilder(column: $table.recorded, builder: (column) => column);
 
   $$CoursesTableAnnotationComposer get courseId {
     final $$CoursesTableAnnotationComposer composer = $composerBuilder(
@@ -6771,6 +6823,7 @@ class $$ClassSlotsTableTableManager
                 Value<bool> placeEdited = const Value.absent(),
                 Value<bool> onlineEdited = const Value.absent(),
                 Value<bool> hidden = const Value.absent(),
+                Value<bool> recorded = const Value.absent(),
               }) => ClassSlotsCompanion(
                 id: id,
                 courseId: courseId,
@@ -6788,6 +6841,7 @@ class $$ClassSlotsTableTableManager
                 placeEdited: placeEdited,
                 onlineEdited: onlineEdited,
                 hidden: hidden,
+                recorded: recorded,
               ),
           createCompanionCallback:
               ({
@@ -6807,6 +6861,7 @@ class $$ClassSlotsTableTableManager
                 Value<bool> placeEdited = const Value.absent(),
                 Value<bool> onlineEdited = const Value.absent(),
                 Value<bool> hidden = const Value.absent(),
+                Value<bool> recorded = const Value.absent(),
               }) => ClassSlotsCompanion.insert(
                 id: id,
                 courseId: courseId,
@@ -6824,6 +6879,7 @@ class $$ClassSlotsTableTableManager
                 placeEdited: placeEdited,
                 onlineEdited: onlineEdited,
                 hidden: hidden,
+                recorded: recorded,
               ),
           withReferenceMapper: (p0) => p0
               .map(

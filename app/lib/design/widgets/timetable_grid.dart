@@ -136,7 +136,7 @@ class TimetableGrid extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (entries.isEmpty && empty != null)
+                if (layout.byDay.isEmpty && empty != null)
                   Positioned(
                     left: labelWidth + AppSpace.s12,
                     right: AppSpace.s8,

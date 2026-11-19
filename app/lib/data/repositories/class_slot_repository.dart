@@ -4,7 +4,8 @@
 // 함께 준다. 넣기는 직접 넣은 수업(`source` `manual`)만이다.
 // 통합정보시스템에서 불러온 수업(`auto`)을 넣는 일과 새로 고침의 비교·반영은 LMS의 시간표 불러오기가 한다.
 // 사용자가 불러온 수업을 고치면 출처와 불러온 원래 값(`imported*`)은 그대로 두고, 장소나 실시간 온라인을
-// 바꿨으면 그 표시(`placeEdited`·`onlineEdited`)를 켠다. 새로 고침이 고친 값을 덮어쓰지 않게 하려는
+// 바꿨으면 그 표시(`placeEdited`·`onlineEdited`)를 켠다(녹화 강의 `recorded`를 바꿔도 `onlineEdited`를 켜고, 녹화
+// 강의는 늘 온라인으로 적는다). 새로 고침이 고친 값을 덮어쓰지 않게 하려는
 // 것이다(docs/lms.md '시간표 (통합정보시스템)'). 수업을 빼면 직접 넣은 수업은 행을 지우고, 불러온 수업은 행을 남겨
 // 숨긴다(`hidden`. 새로 고침이 학교 시간표의 그 수업을 다시 넣지 않게. 시간표 새로 고침의 비교는 숨긴 수업까지
 // `LmsSyncRepository.importedSlots`로 읽는다). 수업 시트의 [직접 입력] 과목은 같은 트랜잭션에서
@@ -71,6 +72,7 @@ class ClassSlotRepository {
     required int endMin,
     String? place,
     required bool online,
+    bool recorded = false,
     required DateTime now,
   }) {
     _check(course, weekday, startMin, endMin);
@@ -88,7 +90,8 @@ class ClassSlotRepository {
                 startMin: startMin,
                 endMin: endMin,
                 place: Value(place),
-                online: online,
+                online: online || recorded,
+                recorded: Value(recorded),
                 source: SlotSource.manual,
               ),
             );
@@ -110,6 +113,7 @@ class ClassSlotRepository {
     required int endMin,
     String? place,
     required bool online,
+    bool recorded = false,
     required DateTime now,
   }) {
     _check(course, weekday, startMin, endMin);
@@ -131,11 +135,15 @@ class ClassSlotRepository {
             startMin: Value(startMin),
             endMin: Value(endMin),
             place: Value(place),
-            online: Value(online),
+            online: Value(online || recorded),
+            recorded: Value(recorded),
             placeEdited: imported && place != current.place
                 ? const Value(true)
                 : const Value.absent(),
-            onlineEdited: imported && online != current.online
+            onlineEdited:
+                imported &&
+                    ((online || recorded) != current.online ||
+                        recorded != current.recorded)
                 ? const Value(true)
                 : const Value.absent(),
           ),
@@ -178,6 +186,7 @@ class ClassSlotRepository {
     required int endMin,
     String? place,
     required bool online,
+    bool recorded = false,
     required DateTime now,
   }) {
     if (weekdays.isEmpty) throw ArgumentError.value(weekdays, 'weekdays');
@@ -227,11 +236,15 @@ class ClassSlotRepository {
               startMin: Value(startMin),
               endMin: Value(endMin),
               place: Value(place),
-              online: Value(online),
+              online: Value(online || recorded),
+              recorded: Value(recorded),
               placeEdited: imported && place != row.place
                   ? const Value(true)
                   : const Value.absent(),
-              onlineEdited: imported && online != row.online
+              onlineEdited:
+                  imported &&
+                      ((online || recorded) != row.online ||
+                          recorded != row.recorded)
                   ? const Value(true)
                   : const Value.absent(),
             ),
@@ -251,7 +264,8 @@ class ClassSlotRepository {
                   startMin: startMin,
                   endMin: endMin,
                   place: Value(place),
-                  online: online,
+                  online: online || recorded,
+                  recorded: Value(recorded),
                   source: SlotSource.manual,
                 ),
               );

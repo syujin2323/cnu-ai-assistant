@@ -59,13 +59,15 @@ class ClassSlots extends Table {
   BoolColumn get placeEdited => boolean().withDefault(const Constant(false))();
   BoolColumn get onlineEdited => boolean().withDefault(const Constant(false))();
   BoolColumn get hidden => boolean().withDefault(const Constant(false))();
+  BoolColumn get recorded => boolean().withDefault(const Constant(false))();
 
-  /// 불러온 원래 요일·시각도 같은 규칙이고, 셋은 함께 있거나(불러온 수업) 함께 없다(직접 넣은 수업).
+  /// 녹화 강의는 온라인 수업이다. 불러온 원래 요일·시각도 같은 규칙이고, 셋은 함께 있거나(불러온 수업) 함께 없다(직접 넣은 수업).
   @override
   List<String> get customConstraints => const [
     'CHECK ("weekday" BETWEEN 1 AND 7)',
     'CHECK ("start_min" BETWEEN 0 AND 1439)',
     'CHECK ("end_min" > "start_min" AND "end_min" < "start_min" + 1440)',
+    'CHECK ("recorded" = 0 OR "online" = 1)',
     'CHECK ("imported_weekday" BETWEEN 1 AND 7)',
     'CHECK ("imported_start_min" BETWEEN 0 AND 1439)',
     'CHECK ("imported_end_min" > "imported_start_min" AND '

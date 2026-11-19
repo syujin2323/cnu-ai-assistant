@@ -196,6 +196,7 @@ class _TimetableTabBody extends ConsumerWidget {
     final loggedIn = !(settings?.lmsSessionState.beforeLogin ?? true);
     final demo = ref.watch(appModeProvider) == AppMode.demo;
     final groups = groupClassSlots(entries);
+    final weekly = entries.where((e) => !e.slot.recorded).length;
 
     void open(ClassGroup group) =>
         showClassSlotSheet(context, ref, group: group);
@@ -227,7 +228,7 @@ class _TimetableTabBody extends ConsumerWidget {
           ),
         ),
         if (groups.isNotEmpty) ...[
-          FormLabel('수업 ${groups.length}개', trailing: '주 ${entries.length}회'),
+          FormLabel('수업 ${groups.length}개', trailing: '주 $weekly회'),
           _Group(
             children: [
               for (final group in groups)
@@ -236,7 +237,9 @@ class _TimetableTabBody extends ConsumerWidget {
                   ink: colors.classInk,
                   icon: AppIconName.school,
                   title: group.course.name,
-                  sub: '${group.whenText} · ${_where(group)}',
+                  sub: group.recorded
+                      ? '녹화 강의 · 시간표에 그리지 않아요'
+                      : '${group.whenText} · ${_where(group)}',
                   onTap: () => open(group),
                 ),
             ],
