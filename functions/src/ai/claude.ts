@@ -71,6 +71,13 @@ export function buildParseRequest(
   input: ParseInput,
 ): MessageCreateParamsNonStreaming {
   const user = {
+    // 고쳐 말하기가 아닐 때의 본문은 예전과 같게 둔다(previous 키를 넣지 않음).
+    ...(input.previous !== undefined && input.previous.length > 0
+      ? {
+          previous: input.previous,
+          ...(input.question !== undefined ? { question: input.question } : {}),
+        }
+      : {}),
     text: input.text,
     today: input.today,
     weekday: input.weekday,

@@ -144,6 +144,49 @@ describe("POST /v1/parse", () => {
     expect(h.providerInputs[0]!.courses).toEqual([{ name: "데이터구조" }]);
   });
 
+  it("passes previous sentences to the provider and rejects malformed ones", async () => {
+    const h = harness();
+
+    const ok = await post(h, {
+      ...sampleInput("5시까지"),
+      previous: ["내일 3시 스터디"],
+    });
+    const empty = await post(h, {
+      ...sampleInput(),
+      previous: [],
+      question: "previous 없이 온 질문은 넘기지 않는다",
+    });
+    const asked = await post(h, {
+      ...sampleInput("응"),
+      previous: ["그거 지워 줘"],
+      question: "어떤 일정을 지울까요?",
+    });
+
+    expect(ok.status).toBe(200);
+    expect(empty.status).toBe(200);
+    expect(asked.status).toBe(200);
+    expect(h.providerInputs).toEqual([
+      { ...sampleInput("5시까지"), previous: ["내일 3시 스터디"] },
+      sampleInput(),
+      {
+        ...sampleInput("응"),
+        previous: ["그거 지워 줘"],
+        question: "어떤 일정을 지울까요?",
+      },
+    ]);
+    for (const previous of [
+      "내일 3시 스터디",
+      ["a", "b", "c", "d"],
+      [""],
+      ["가".repeat(301)],
+      [1],
+    ]) {
+      const res = await post(h, { ...sampleInput(), previous });
+      expect(res.status).toBe(400);
+    }
+    expect(h.providerInputs).toHaveLength(3);
+  });
+
   describe("install token", () => {
     for (const [name, headers] of [
       ["missing", {}],

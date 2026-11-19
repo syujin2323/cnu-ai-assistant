@@ -21,6 +21,28 @@ Object? _sample(String name) => jsonDecode(
 
 void main() {
   group('ParseRequest.at', () {
+    test('앞 문장은 뒤에서 세 개까지, 질문은 앞 문장이 있을 때만 보낸다', () {
+      final plain = ParseRequest.at(
+        '내일 3시 회의',
+        now: _now,
+        courseNames: const [],
+        question: '앞 문장 없이 온 질문',
+      );
+      expect(plain.toJson().containsKey('previous'), isFalse);
+      expect(plain.toJson().containsKey('question'), isFalse);
+
+      final request = ParseRequest.at(
+        '6시까지',
+        now: _now,
+        courseNames: const [],
+        previous: ['하나', ' ', '둘', '가' * 301, ' 셋 ', '넷'],
+        question: ' 몇 시까지인가요? ',
+      );
+      expect(request.previous, ['둘', '셋', '넷']);
+      expect(request.toJson()['previous'], ['둘', '셋', '넷']);
+      expect(request.toJson()['question'], '몇 시까지인가요?');
+    });
+
     test('달력 날짜·요일·시각을 적고 과목 이름을 그대로 보낸다', () {
       final request = ParseRequest.at(
         '내일 스터디',

@@ -20,15 +20,32 @@ final class ParseRequest {
     required this.weekday,
     required this.now,
     required this.courses,
+    this.previous = const [],
+    this.question,
   });
 
   /// [now](한국 시각 벽시계 값)의 달력 날짜·요일·시각으로 만든다. 하루 경계는 적용하지 않는다. 과목 이름은
   /// 앞뒤 공백을 지우고, 비었거나 40자를 넘는 이름과 겹친 이름은 빼고, 앞에서부터 20개만 보낸다.
+  ///
+  /// [previous]는 고쳐 말하기의 앞 문장들(오래된 순서)이다. 비었거나 300자를 넘는 문장은 빼고 뒤에서부터
+  /// [maxPrevious]개만 보낸다. [question]은 앞 문장에 AI가 되물은 질문이고, 앞 문장이 있을 때만 보낸다(300자를
+  /// 넘으면 보내지 않음).
   factory ParseRequest.at(
     String text, {
     required DateTime now,
     required Iterable<String> courseNames,
+    Iterable<String> previous = const [],
+    String? question,
   }) {
+    final before = [
+      for (final raw in previous)
+        if (raw.trim().isNotEmpty && raw.trim().runes.length <= maxTextLength)
+          raw.trim(),
+    ];
+    final kept = before.length > maxPrevious
+        ? before.sublist(before.length - maxPrevious)
+        : before;
+    final asked = question?.trim() ?? '';
     final courses = <String>[];
     for (final raw in courseNames) {
       final name = raw.trim();
@@ -47,6 +64,11 @@ final class ParseRequest {
       weekday: _koreanWeekdays[now.weekday - 1],
       now: '${_two(now.hour)}:${_two(now.minute)}',
       courses: courses,
+      previous: kept,
+      question:
+          kept.isEmpty || asked.isEmpty || asked.runes.length > maxTextLength
+          ? null
+          : asked,
     );
   }
 
@@ -57,17 +79,28 @@ final class ParseRequest {
   static const int maxCourses = 20;
   static const int maxCourseNameLength = 40;
 
+  /// 서버가 받는 앞 문장 수(고쳐 말하기).
+  static const int maxPrevious = 3;
+
   final String text;
   final String today;
   final String weekday;
   final String now;
   final List<String> courses;
 
+  /// 고쳐 말하기의 앞 문장들(오래된 순서). 없으면 빈 목록이고 보내지 않는다.
+  final List<String> previous;
+
+  /// 앞 문장에 AI가 되물은 질문. [previous]가 있을 때만 있다.
+  final String? question;
+
   /// 문장이 비지 않았고 [maxTextLength]자를 넘지 않는지.
   bool get hasValidText =>
       text.trim().isNotEmpty && text.runes.length <= maxTextLength;
 
   Map<String, Object?> toJson() => {
+    if (previous.isNotEmpty) 'previous': previous,
+    if (previous.isNotEmpty && question != null) 'question': question,
     'text': text,
     'today': today,
     'weekday': weekday,

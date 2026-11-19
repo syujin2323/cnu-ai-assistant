@@ -135,6 +135,21 @@ describe("buildParseRequest", () => {
     });
   });
 
+  it("adds previous sentences to the user message only when there are any", () => {
+    const input = { ...sampleInput("5시까지"), previous: ["내일 3시 스터디"] };
+    const withPrevious = buildParseRequest(input);
+    const without = buildParseRequest({ ...sampleInput(), previous: [] });
+
+    expect(JSON.parse(withPrevious.messages[0]!.content as string)).toEqual({
+      ...input,
+      calendar: calendarAround(input.today),
+    });
+    expect(
+      JSON.parse(without.messages[0]!.content as string),
+    ).not.toHaveProperty("previous");
+    expect(withPrevious.system).toEqual(without.system);
+  });
+
   it("sends no sampling parameters, tools, metadata or prefill", () => {
     const params = buildParseRequest(sampleInput()) as unknown as Record<
       string,
