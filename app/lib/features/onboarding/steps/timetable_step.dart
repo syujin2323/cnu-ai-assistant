@@ -131,7 +131,7 @@ class _EmptyCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpace.s4),
           Text(
-            '나 › 시간표·고정 일정에서 넣을 수 있어요',
+            '‘나’ 탭 › 시간표·고정 일정에서 넣을 수 있어요',
             textAlign: TextAlign.center,
             style: AppText.small.copyWith(color: colors.muted),
           ),

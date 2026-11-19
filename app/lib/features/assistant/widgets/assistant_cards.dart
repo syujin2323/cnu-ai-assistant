@@ -490,7 +490,7 @@ class InfoCardView extends StatelessWidget {
       InfoKind.noClass => (
         '수업 변경',
         '2주 안에 그 수업이 없어요',
-        '시간표에 있는 과목인지 확인해 주세요. 시간표는 나 › 시간표·고정 일정에서 고칠 수 있어요.',
+        '시간표에 있는 과목인지 확인해 주세요. 시간표는 ‘나’ 탭 › 시간표·고정 일정에서 고칠 수 있어요.',
       ),
       InfoKind.makeupNeedsWhen => (
         '수업 변경',
@@ -521,7 +521,7 @@ class InfoCardView extends StatelessWidget {
       InfoKind.aiDeclined => (
         'AI 사용 안 함',
         '문장을 보내지 않았어요',
-        'AI 사용에 동의하지 않아 보내지 않았어요. 나 › AI에서 언제든 켤 수 있어요.',
+        'AI 사용에 동의하지 않아 보내지 않았어요. ‘나’ 탭 › AI에서 언제든 켤 수 있어요.',
       ),
       InfoKind.limitReached => ('오늘 사용량', '오늘 AI 사용량을 다 썼어요', '내일 다시 쓸 수 있어요.'),
       InfoKind.aiClosed => ('AI 비서', '아직 AI 비서를 쓸 수 없어요', '지금은 문장을 보내지 않아요.'),

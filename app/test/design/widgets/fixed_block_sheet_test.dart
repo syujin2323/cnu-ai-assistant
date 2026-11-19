@@ -153,7 +153,7 @@ void main() {
     await app.dispose();
   });
 
-  testWidgets('14 온보딩의 작은 폼은 종류와 앞뒤 여유 없이 이름·요일·시간·준비물이고 바뀌면 알린다', (
+  testWidgets('14 온보딩의 작은 폼은 종류·앞뒤 여유·준비물 없이 이름·요일·시간이고 바뀌면 알린다', (
     tester,
   ) async {
     FixedBlockDraft? last;
@@ -173,9 +173,10 @@ void main() {
     );
     await app.open();
 
-    for (final label in ['이름', '요일', '시간', '준비물']) {
+    for (final label in ['이름', '요일', '시간']) {
       expect(find.text(label), findsOneWidget, reason: label);
     }
+    expect(find.text('준비물'), findsNothing);
     expect(find.text('종류'), findsNothing);
     expect(find.text('앞뒤 여유'), findsNothing);
     await tester.enterText(find.widgetWithText(TextField, '알바'), '편의점 알바');

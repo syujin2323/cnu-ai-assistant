@@ -3,7 +3,7 @@
 // [FixedBlockForm]은 칸들이다. 값은 [FixedBlockDraft]로 주고받고, 저장은 부르는 쪽이 한다.
 // - [FixedBlockFormMode.full](13 시트): 이름, 종류(식사·알바·운동·통학·기타), 요일, 시간, 앞뒤 여유(0–60분, 5분
 //   단위), 준비물.
-// - [FixedBlockFormMode.quick](14 온보딩 3단계 '빠르게 더하기'의 작은 폼): 이름, 요일, 시간, 준비물. 종류와 앞뒤
+// - [FixedBlockFormMode.quick](14 온보딩 3단계 '빠르게 더하기'의 작은 폼): 이름, 요일, 시간(준비물 칸 없음). 종류와 앞뒤
 //   여유는 고른 칩의 처음 값(`domain/fixed_block_templates.dart`) 그대로다.
 // 수업과 겹치면 알리기만 하고 막지 않는다. 식사 종류는 점심 시간대와 겹치는 날 점심을 대신한다고 알린다. 준비물의
 // 알림 안내는 적지 않는다(알림은 재설계 예정). 시작은 05:00–23:45이고, 끝은 다음 날 06:00까지 받아 밤 알바처럼
@@ -35,7 +35,7 @@ enum FixedBlockFormMode {
   /// 13 시트: 모든 칸.
   full,
 
-  /// 14 온보딩 3단계의 작은 폼: 이름, 요일, 시간, 준비물.
+  /// 14 온보딩 3단계의 작은 폼: 이름, 요일, 시간.
   quick,
 }
 
@@ -211,17 +211,19 @@ class _FixedBlockFormState extends ConsumerState<FixedBlockForm> {
           FormNote('${weekdaysText(overlapDays)}요일 수업과 겹쳐요. 막지 않고 알려만 드려요'),
         if (full && draft.kind == FixedBlockKind.meal)
           const FormNote('점심 시간과 겹치는 날은 이 일정이 점심을 대신해요'),
-        const FormLabel('준비물'),
-        TextField(
-          controller: _prep,
-          enabled: enabled,
-          textInputAction: TextInputAction.done,
-          inputFormatters: [
-            LengthLimitingTextInputFormatter(FixedBlockFormLimits.prepLength),
-          ],
-          decoration: formInputDecoration(context, hint: '예: 운동복'),
-          onChanged: (text) => _set(draft.copyWith(prep: text)),
-        ),
+        if (full) ...[
+          const FormLabel('준비물'),
+          TextField(
+            controller: _prep,
+            enabled: enabled,
+            textInputAction: TextInputAction.done,
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(FixedBlockFormLimits.prepLength),
+            ],
+            decoration: formInputDecoration(context, hint: '예: 운동복'),
+            onChanged: (text) => _set(draft.copyWith(prep: text)),
+          ),
+        ],
       ],
     );
   }
