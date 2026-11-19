@@ -996,3 +996,15 @@
   - 하루 루프의 세 화면 맨 위에 두면 받아 둔 정보를 보고 있다는 것을 바로 안다.
 - 다른 후보: 연결 상태 감지 플러그인(네이티브가 늘어 새 release가 필요함), `sync_runs.result`에 `offline` 값을 더하기(새 열거값이라 패치로 낼 수 없음), 02 홈에만 띠 두기.
 - 영향: screens.md 'LMS 상태 줄과 다시 로그인'·'20 시스템', lms.md '응답 판별', architecture.md '폴더 구조'·'화면과 기능 폴더'·'폰 DB'(`sync_runs.detail`), `app/lib/lms/lms_client.dart`(`isOfflineFailure`)·`response_classifier.dart`·`sync_coordinator.dart`, `app/lib/domain/errors.dart`(`LmsOutcome.offline`)·`lms_status.dart`(`LmsStatusKind.offline`, `lmsBand`, `lmsRetryMessage`)·`models/sync_run.dart`(`SyncRunDetail.offline`), `app/lib/design/widgets/lms_system_band.dart`, `app/lib/features/lms_connect/lms_system_band_slot.dart`, 01·02·03 화면.
+
+## 2026-11-19 학사일정은 넣지 않고 공휴일은 앱 안 표로 둔다 (2026-11-05 'R0·R1 범위'의 학사일정·공휴일 바꿈)
+
+- 결정:
+  - 학사일정은 앱에 넣지 않는다. 서버가 공개 데이터(Firestore `public/academic-calendar`)를 내려주는 일도, 폰 DB의 `public_calendar` 표도 두지 않는다.
+  - 대한민국 공휴일만 앱 안 Dart 표(`app/lib/domain/holidays.dart`)로 둔다. 2026–2027년이고 설날·추석 연휴, 대체공휴일, 선거일을 넣는다. 2026년부터 공휴일이 된 노동절(5월 1일)과 제헌절(7월 17일)도 넣는다. 표는 Shorebird 패치로 고치고, 임시공휴일이 생기거나 다음 해를 더할 때도 이 표만 고친다.
+  - 공휴일에도 수업은 그대로다. 쉬면 사용자가 일정 정보 시트에서 휴강을 고른다. 그래서 배치 엔진과 빈 시간 계산은 공휴일을 보지 않고, 일정 정보 시트도 공휴일 수업을 막지 않는다.
+  - 공휴일은 08 월간·11 주간·09 일간이 날짜에 이름을 붙이는 데 쓴다(그 화면 PR에서 붙임).
+  - `firestore.rules`의 `public/{doc}` 공개 읽기를 뺀다. 읽을 공개 데이터가 없다(규칙은 다음 서버 배포 때 반영).
+- 이유: 학사일정은 학교 발표를 사람이 옮겨 적어야 하고 틀리면 고칠 길이 서버 배포뿐이다. 공휴일은 해마다 정해진 규칙과 공표로 미리 알 수 있어 앱 안 표로 충분하다. 공휴일에 수업을 하는 과목도 있어 공휴일을 자동 휴강으로 보지 않는다.
+- 다른 후보: 서버가 학사일정·공휴일을 Firestore로 내려주기(2026-11-05까지의 계획), 공휴일 계산 라이브러리(음력 공휴일과 대체공휴일 규칙이 바뀌어도 패치로 고치기 어려움), 공휴일을 자동 휴강으로 보기.
+- 영향: architecture.md '한눈에 보기'·'폴더 구조'·'디자인 토큰'(`stripe`)·'폰 DB'·'앱과 서버 사이 약속 (API)', screens.md '일정 정보 시트'·'11 주간'·'08 월간'·'09 일간'·'10 나'(학기 카드의 학사일정 줄을 뺌), `firestore.rules`, `app/lib/domain/holidays.dart`.

@@ -164,7 +164,7 @@ class AppColors extends ThemeExtension<AppColors> {
   /// 경고 배경.
   final Color alertSoft;
 
-  /// 점선, 오늘 테두리, 학사일정 띠 선.
+  /// 점선, 오늘 테두리.
   final Color stripe;
 
   /// 수업.

@@ -13,8 +13,8 @@
 //   `domain/timetable_checks.dart`처럼 저장소가 먼저 부르는 Dart 검사에 둔다. CHECK에 걸리면
 //   저장소는 `StorageError`를 돌려준다.
 // - 열거형은 `EnumConverter`로 영문 snake_case, 구조가 있는 값은 JSON 문자열.
-// - `public_calendar`(R1)와 `suggestions`(07 알림 감지, 스토어 공개 뒤)는 아직 두지 않는다. 알림 기록 표는
-//   알림 재설계 때 정한다.
+// - `suggestions`(07 알림 감지, 스토어 공개 뒤)는 아직 두지 않는다. 공휴일은 표가 아니라 `domain/holidays.dart`의
+//   Dart 표이고 학사일정은 두지 않는다. 알림 기록 표는 알림 재설계 때 정한다.
 
 import 'package:cnu_ai_assistant/data/db/enum_converter.dart';
 import 'package:cnu_ai_assistant/data/db/json_converters.dart';
