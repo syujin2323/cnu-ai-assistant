@@ -235,8 +235,10 @@ void main() {
 
       // 13:29까지: 13시 칸은 30분이 안 남는다.
       expect(shape(TimeSpan(at(9), at(13, 29))), '빈 63 112, 칸 12시 243 54');
-      // 카드 아래 남은 높이 40pt 이하.
+      // 카드 아래 남은 높이가 40pt 이하면, 정시가 바로 아래라 30분이 들어가도 두지 않는다.
       expect(shape(TimeSpan(at(9), at(11, 40))), '빈 63 112');
+      expect(shape(TimeSpan(at(9, 57), at(12, 35))), '빈 120 112');
+      expect(shape(TimeSpan(at(9, 57), at(12, 36))), '빈 120 112, 칸 12시 243 30');
       // 칸을 두지 않으면(02 홈) 카드가 빈 시간을 다 차지한다.
       expect(
         describe(
