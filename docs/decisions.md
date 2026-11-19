@@ -1075,6 +1075,14 @@
 - 다른 후보: 시간표에 흐리게 그리고 시간은 막지 않기, 그냥 빼기(숨김)만 쓰기.
 - 영향: architecture.md '폰 DB', screens.md '14 온보딩' 2단계·'13 시간표·고정 일정', `app/lib/data/db/tables.dart`, `app/lib/data/repositories/schedule_repository.dart`·`class_slot_repository.dart`, `app/lib/domain/class_groups.dart`, `app/lib/design/widgets/class_slot_sheet.dart`.
 
+## 2026-11-19 수업을 과목마다 다른 색으로 보인다
+
+- 결정: 수업을 과목마다 다른 색으로 그린다. 13·14의 시간표 격자와 수업 목록, 01·02·09·11의 수업 카드, 일정 정보 시트에 모두 적용한다. 색은 바탕·테두리·글자 한 벌이 여덟 가지인 팔레트(라이트·다크, 임시값)에서 과목 id를 8로 나눈 나머지로 고른다. 사용자가 색을 고르는 기능은 두지 않는다.
+- 이유: 관리자가 실제 계정으로 쓰다 찾았다. 수업이 모두 같은 파란색이라 격자에서 과목을 한눈에 가리기 어렵다(관리자 결정: 온보딩 격자뿐 아니라 기본으로).
+- 받아들인 점: 하루 화면에서 수업 카드의 색이 할 일(보라)·개인 일정(주황)·마감(분홍)의 종류 색과 비슷한 과목이 생긴다. 종류는 지금처럼 아이콘과 카드 모양으로 가린다. 과목이 아홉 개를 넘거나 과목 id가 이어지지 않으면 두 과목이 같은 색일 수 있다.
+- 다른 후보: 격자와 수업 목록에만 과목 색을 쓰고 하루 화면은 종류 색 유지, `courses.color`에 색을 적어 겹치지 않게 나눠 주기(쓰기가 생김), 사용자가 색 고르기.
+- 영향: architecture.md '디자인 토큰', screens.md '공용 규칙'의 '과목 색', `app/lib/design/course_colors.dart`, `app/lib/design/widgets/timetable_grid.dart`·`day_timeline.dart`·`event_info_sheet.dart`, `app/lib/features/briefing/widgets/briefing_day.dart`, `app/lib/features/me/timetable_screen.dart`.
+
 ## 2026-11-19 카드가 떠 있을 때 이어 쓴 말은 앞 문장과 함께 보낸다 (K2 '아니요 뒤 고쳐 말하기' 구현, 2026-11-19 'AI가 되물으면 그 답을 앞 문장과 함께 받는다' 구현)
 
 - 결정:

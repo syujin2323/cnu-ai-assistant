@@ -8,6 +8,7 @@
 // - 일정: [말로 바꾸기](06 AI 비서. 지난 일정은 06이 찾지 못하므로 숨김), [지우기].
 // - 고정 일정: 매주 반복한다는 안내와 [시간표·고정 일정에서 바꾸기].
 
+import 'package:cnu_ai_assistant/design/course_colors.dart';
 import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/motion.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
@@ -95,11 +96,13 @@ class _EventInfoSheetState extends State<EventInfoSheet> {
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
     final content = widget.content;
+    final courseId = content.courseId;
+    final course = courseId == null ? null : CourseColors.of(context, courseId);
     final (tint, line, ink) = switch (content.kind) {
       EventInfoKind.classItem => (
-        colors.classTint,
-        colors.classLine,
-        colors.classInk,
+        course?.tint ?? colors.classTint,
+        course?.line ?? colors.classLine,
+        course?.ink ?? colors.classInk,
       ),
       _ => (colors.personalTint, colors.personalLine, colors.personalInk),
     };

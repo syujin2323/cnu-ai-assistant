@@ -5,6 +5,7 @@
 // 프로토타입의 값이다(임시). 칸을 누르면 [TimetableGrid.onTap]이 그 칸을 받는다. 글자를 키워도 칸 높이는 시각을
 // 따르고, 칸 안 글자는 넘치면 줄여 끊는다.
 
+import 'package:cnu_ai_assistant/design/course_colors.dart';
 import 'package:cnu_ai_assistant/design/motion/press.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/domain/class_groups.dart';
@@ -260,6 +261,7 @@ class _ClassBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
     final slot = entry.slot;
+    final look = CourseColors.of(context, slot.courseId);
     final place = slot.online ? '온라인' : slot.place;
     final time = timeRangeText(slot.startMin, slot.endMin);
     final where = slot.online ? '실시간 온라인' : slot.place;
@@ -278,10 +280,10 @@ class _ClassBlock extends StatelessWidget {
       child: Press(
         enabled: tap != null,
         child: Material(
-          color: slot.online ? colors.surface : colors.classTint,
+          color: slot.online ? colors.surface : look.tint,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.timetableBlock),
-            side: BorderSide(color: colors.classLine),
+            side: BorderSide(color: look.line),
           ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
@@ -309,7 +311,7 @@ class _ClassBlock extends StatelessWidget {
                     if (place != null && place.isNotEmpty)
                       TextSpan(
                         text: '\n$place',
-                        style: AppText.caption.copyWith(color: colors.classInk),
+                        style: AppText.caption.copyWith(color: look.ink),
                       ),
                   ],
                 ),
