@@ -55,6 +55,18 @@ enum CardStatus {
   declined,
 }
 
+/// 일정·할 일 카드가 어디서 왔는지.
+enum CardOrigin {
+  /// AI가 문장에서 읽었다.
+  ai,
+
+  /// AI 카드를 직접 추가 폼으로 고쳐 넣었다(06 카드의 [고치기]).
+  edited,
+
+  /// 직접 추가 폼으로 넣었다(대화에서 연 폼).
+  manual,
+}
+
 /// 새 일정 카드(screens.md '06 AI 비서'의 카드 1). 한 번뿐인 일정은 `events`, 매주 반복이면 `fixed_blocks`에
 /// 저장한다.
 final class EventCard extends AssistantMessage {
@@ -66,6 +78,7 @@ final class EventCard extends AssistantMessage {
     this.planNote,
     this.editPlace = false,
     this.editPrep = false,
+    this.origin = CardOrigin.ai,
   });
 
   final EventDraft draft;
@@ -82,12 +95,16 @@ final class EventCard extends AssistantMessage {
   final bool editPlace;
   final bool editPrep;
 
+  /// 어디서 온 카드인지(카드 위 이름과 저장한 줄의 문구).
+  final CardOrigin origin;
+
   EventCard copyWith({
     EventDraft? draft,
     CardStatus? status,
     String? Function()? planNote,
     bool? editPlace,
     bool? editPrep,
+    CardOrigin? origin,
   }) => EventCard(
     id,
     draft: draft ?? this.draft,
@@ -96,6 +113,7 @@ final class EventCard extends AssistantMessage {
     planNote: planNote == null ? this.planNote : planNote(),
     editPlace: editPlace ?? this.editPlace,
     editPrep: editPrep ?? this.editPrep,
+    origin: origin ?? this.origin,
   );
 }
 
@@ -108,6 +126,7 @@ final class TaskCard extends AssistantMessage {
     this.status = CardStatus.pending,
     this.savedTaskId,
     this.planNote,
+    this.origin = CardOrigin.ai,
   });
 
   final TaskDraft draft;
@@ -123,11 +142,15 @@ final class TaskCard extends AssistantMessage {
   /// 저장한 뒤 놓인 자리('먼저 내일 15:00–16:00에 놓았어요 · 확정 전 제안이에요'). 없으면 null이다.
   final String? planNote;
 
+  /// 어디서 온 카드인지(카드 위 이름과 저장한 줄의 문구).
+  final CardOrigin origin;
+
   TaskCard copyWith({
     TaskDraft? draft,
     CardStatus? status,
     int? Function()? savedTaskId,
     String? Function()? planNote,
+    CardOrigin? origin,
   }) => TaskCard(
     id,
     draft: draft ?? this.draft,
@@ -135,6 +158,7 @@ final class TaskCard extends AssistantMessage {
     status: status ?? this.status,
     savedTaskId: savedTaskId == null ? this.savedTaskId : savedTaskId(),
     planNote: planNote == null ? this.planNote : planNote(),
+    origin: origin ?? this.origin,
   );
 }
 
@@ -839,6 +863,28 @@ final class TaskDraft {
     dueTimeMin: dueTimeMin,
     saidEstimateMin: saidEstimateMin,
     pickedEstimateMin: minutes,
+  );
+
+  @override
+  bool operator ==(Object other) =>
+      other is TaskDraft &&
+      other.title == title &&
+      other.courseName == courseName &&
+      other.kind == kind &&
+      other.dueDate == dueDate &&
+      other.dueTimeMin == dueTimeMin &&
+      other.saidEstimateMin == saidEstimateMin &&
+      other.pickedEstimateMin == pickedEstimateMin;
+
+  @override
+  int get hashCode => Object.hash(
+    title,
+    courseName,
+    kind,
+    dueDate,
+    dueTimeMin,
+    saidEstimateMin,
+    pickedEstimateMin,
   );
 
   /// 제목·과목은 적지 않는다(사용자가 쓴 말).

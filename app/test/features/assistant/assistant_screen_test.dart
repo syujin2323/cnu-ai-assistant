@@ -16,6 +16,9 @@ import 'package:cnu_ai_assistant/features/assistant/assistant_args.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_controller.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_screen.dart';
 import 'package:cnu_ai_assistant/design/widgets/block_sheet.dart';
+import 'package:cnu_ai_assistant/design/widgets/free_slot_sheet.dart';
+import 'package:cnu_ai_assistant/domain/fixed_block_templates.dart';
+import 'package:cnu_ai_assistant/features/assistant/widgets/assistant_cards.dart';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -24,13 +27,17 @@ import '../../helpers/pump_app.dart';
 
 final _now = DateTime(2026, 11, 19, 10, 30);
 
-/// 받은 요청을 모으고 [reply]로 답하는 /v1/parse 클라이언트.
+/// 받은 요청을 모으고 [reply]로 답하는 /v1/parse 클라이언트. [open]이 false면 AI 경로가 닫혀 있다(`ai_open`).
 class _FakeParse extends ParseClient {
-  _FakeParse(this.reply)
+  _FakeParse(this.reply, {this.open = true})
     : super(ServerApi(baseUrl: 'https://example.invalid'), aiOpen: () => true);
 
   Result<ParseResult> Function(ParseRequest request) reply;
   final requests = <ParseRequest>[];
+  bool open;
+
+  @override
+  bool get isOpen => open;
 
   @override
   Future<Result<ParseResult>> parse(ParseRequest request) async {
@@ -66,8 +73,9 @@ Future<(TestApp, _FakeParse)> _open(
   double textScale = 1.0,
   TestStart start = TestStart.loggedIn,
   Future<void> Function(AppDatabase db)? seed,
+  bool aiOpen = true,
 }) async {
-  final parse = _FakeParse(reply);
+  final parse = _FakeParse(reply, open: aiOpen);
   final app = await pumpTestApp(
     tester,
     start: start,
@@ -86,6 +94,12 @@ Future<void> _say(WidgetTester tester, String text) async {
   await tester.enterText(find.byType(TextField), text);
   await tester.pump();
   await tester.tap(find.byTooltip('보내기'));
+  await tester.pumpAndSettle();
+}
+
+/// 대화 위에 연 직접 추가 폼을 닫는다.
+Future<void> _closeForm(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('닫기'));
   await tester.pumpAndSettle();
 }
 
@@ -171,8 +185,7 @@ void main() {
         final (app, parse) = await _open(tester, textScale: textScale);
         expect(find.text('일정 추가·변경이나 배치 규칙처럼'), findsOneWidget);
         expect(find.text('확인 버튼을 누르기 전에는 저장하지 않아요'), findsOneWidget);
-        // 직접 추가 폼은 S8b에서 붙인다(눌러도 반응 없는 버튼을 두지 않음).
-        expect(find.text('직접 추가'), findsNothing);
+        expect(find.text('직접 추가'), findsOneWidget);
 
         await _say(tester, '내일 오후 3시 회의');
         expect(parse.requests.single.text, '내일 오후 3시 회의');
@@ -446,16 +459,25 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets('동의하지 않으면 보내지 않고, 이 화면에서는 다시 묻지 않는다', (tester) async {
+  testWidgets('동의하지 않으면 보내지 않고 그 문장과 함께 폼을 열며, 이 화면에서는 다시 묻지 않는다', (
+    tester,
+  ) async {
     final (app, parse) = await _open(tester, settings: const {});
     await _say(tester, '내일 오후 3시 회의');
     await tester.tap(find.text('동의하지 않음'));
     await tester.pumpAndSettle();
+    expect(find.text('AI를 쓰지 않도록 설정했어요'), findsOneWidget);
+    expect(find.text('보내려던 문장'), findsOneWidget);
+    expect(find.text('내일 오후 3시 회의'), findsOneWidget);
+
+    await _closeForm(tester);
     expect(find.text('문장을 보내지 않았어요'), findsOneWidget);
     expect(find.text('내일 오후 3시 회의'), findsOneWidget);
 
     await _say(tester, '토요일 2시 영화');
     expect(find.text('동의하면 보낼 문장'), findsNothing);
+    expect(find.text('AI를 쓰지 않도록 설정했어요'), findsOneWidget);
+    await _closeForm(tester);
     expect(find.text('문장을 보내지 않았어요'), findsNWidgets(2));
     expect(parse.requests, isEmpty);
 
@@ -472,6 +494,10 @@ void main() {
     );
     await _say(tester, '내일 오후 3시 회의');
     expect(parse.requests, isEmpty);
+    // 폼을 그 까닭과 문장으로 열고, 닫으면 대화에도 안내가 있다.
+    expect(find.text('내일 다시 쓸 수 있어요. 지금은 직접 넣어 주세요.'), findsOneWidget);
+    expect(find.text('보내려던 문장'), findsOneWidget);
+    await _closeForm(tester);
     expect(find.text('오늘 AI 사용량을 다 썼어요'), findsOneWidget);
     await app.dispose(tester);
   });
@@ -482,6 +508,9 @@ void main() {
       reply: (_) => const Err(ApiError(429, 'install_limit')),
     );
     await _say(tester, '내일 오후 3시 회의');
+    expect(find.text('내일 다시 쓸 수 있어요. 지금은 직접 넣어 주세요.'), findsOneWidget);
+    expect(find.text('AI 켜기'), findsNothing);
+    await _closeForm(tester);
     expect(find.text('오늘 AI 사용량을 다 썼어요'), findsOneWidget);
     final settings = switch (await SettingsRepository(app.db).read()) {
       Ok(:final value) => value,
@@ -489,9 +518,10 @@ void main() {
     };
     expect(settings.aiLimitReachedOn, '2026-11-19');
 
-    // 그날은 다시 보내지 않는다.
+    // 그날은 다시 보내지 않고 폼을 연다.
     await _say(tester, '토요일 2시 영화');
     expect(parse.requests, hasLength(1));
+    expect(find.text('보내려던 문장'), findsOneWidget);
     await app.dispose(tester);
   });
 
@@ -509,14 +539,40 @@ void main() {
     expect(parse.requests.last.text, '내일 오후 3시 회의');
     expect(find.text('11월 20일 (금) 15:00 회의로 정리했어요.'), findsOneWidget);
 
+    // 오프라인이면 그 까닭과 문장으로 폼을 연다.
     parse.reply = (_) => const Err(ApiError(null, null));
     await _say(tester, '토요일 2시 영화');
+    expect(find.text('인터넷에 연결되어 있지 않아요'), findsOneWidget);
+    await _closeForm(tester);
     expect(find.text('인터넷에 연결하지 못했어요'), findsOneWidget);
+    // 앞서 받은 '응답 없음' 카드도 남아 있으므로 마지막 카드의 것을 누른다.
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(FailCardView),
+            matching: find.text('직접 추가'),
+          )
+          .last,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('인터넷에 연결되어 있지 않아요'), findsOneWidget);
+    await _closeForm(tester);
+    // 그 밖의 안내 카드에는 [직접 추가]가 없다.
+    expect(
+      find.descendant(
+        of: find.byType(InfoCardView),
+        matching: find.text('직접 추가'),
+      ),
+      findsNothing,
+    );
     parse.reply = (_) => const Err(ApiError(503, 'provider_error'));
     await _say(tester, '토요일 2시 영화');
     expect(find.text('AI가 지금 답하지 못했어요'), findsOneWidget);
+    expect(find.text('보내려던 문장'), findsNothing);
     parse.reply = (_) => const Err(ApiError(null, 'ai_closed'));
     await _say(tester, '토요일 2시 영화');
+    expect(find.text('AI 비서는 아직 준비 중이에요'), findsOneWidget);
+    await _closeForm(tester);
     expect(find.text('아직 AI 비서를 쓸 수 없어요'), findsOneWidget);
 
     await app.dispose(tester);
@@ -568,8 +624,11 @@ void main() {
     );
     expect(find.text('이동 시간이나 공부할 시간대처럼'), findsOneWidget);
     expect(find.text('폼으로 정하기'), findsOneWidget);
+    expect(find.text('직접 추가'), findsNothing);
     await _say(tester, '내일 오후 3시 회의');
     expect(find.text('아직 그런 조건은 정할 수 없어요'), findsOneWidget);
+    // 규칙 모드는 위 막대에 [직접 추가]를 두지 않는다.
+    expect(find.text('직접 추가'), findsNothing);
     await app.dispose(tester);
   });
 
@@ -583,12 +642,14 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets('데모 모드는 서버를 부르지 않고 미리 적은 응답을 보인다', (tester) async {
+  testWidgets('데모 모드는 서버를 부르지 않고 미리 적은 응답을 보인다(AI가 닫혀 있어도)', (tester) async {
     final (app, parse) = await _open(
       tester,
       start: TestStart.demo,
       settings: const {},
+      aiOpen: false,
     );
+    expect(find.text('일정 추가·변경이나 배치 규칙처럼'), findsOneWidget);
     await tester.enterText(find.byType(TextField), '목요일 7시 동아리');
     await tester.pump();
     await tester.tap(find.byTooltip('보내기'));
@@ -848,6 +909,15 @@ void main() {
     );
     await _say(tester, '독서 모임 지워 줘');
     expect(find.text('「독서 모임」 일정을 찾지 못했어요'), findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(InfoCardView),
+        matching: find.text('직접 추가'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('독서 모임 지워 줘'), findsOneWidget);
+    expect(find.text('보내려던 문장'), findsOneWidget);
     await app.dispose(tester);
   });
 
@@ -1637,6 +1707,524 @@ void main() {
       await tapText(tester, '저장');
       await tapText(tester, '옮기기');
       expect(find.textContaining('에 다시 제안했어요'), findsOneWidget);
+      await app.dispose(tester);
+    });
+  });
+  group('직접 추가 폼', () {
+    /// 빈 화면의 [직접 추가]로 폼을 연다.
+    Future<void> openForm(WidgetTester tester) async {
+      await tester.tap(find.text('직접 추가'));
+      await tester.pumpAndSettle();
+      expect(find.text('입력한 그대로 저장해요 · 겹치는 일정은 미리 알려 드려요'), findsOneWidget);
+    }
+
+    /// 폼의 제목 칸(덮개 아래 대화의 입력창은 화면 밖이라 찾지 않음).
+    Finder title() => find.byType(TextField).first;
+
+    Future<void> tapLabel(WidgetTester tester, String label) async {
+      await scrollTo(tester, find.bySemanticsLabel(label));
+      await tester.tap(find.bySemanticsLabel(label));
+      await tester.pumpAndSettle();
+    }
+
+    for (final textScale in [1.0, 2.0]) {
+      testWidgets('글자 배율 $textScale: [직접 추가]로 일정을 넣으면 대화에 카드를 남기고, 되돌리면 뺀다', (
+        tester,
+      ) async {
+        final semantics = tester.ensureSemantics();
+        final (app, parse) = await _open(tester, textScale: textScale);
+        await openForm(tester);
+        // 지금(10:30) 10분 뒤의 다음 30분 칸부터 한 시간이다.
+        expect(find.text('11:00'), findsOneWidget);
+        expect(find.text('12:00'), findsOneWidget);
+        await tester.enterText(title(), '  팀플 회의  ');
+        await tester.pump();
+        await tapLabel(tester, '11월 20일 (금)');
+        expect(find.text('11월 20일 (금) · 내일'), findsOneWidget);
+        await tapLabel(tester, '끝 30분 늦추기');
+        expect(find.text('12:30'), findsOneWidget);
+        await tapText(tester, '10분 전');
+        await tester.enterText(find.byType(TextField).at(1), '공대 5호관');
+        await tester.pump();
+        await tapText(tester, '캘린더에 추가');
+
+        final saved = (await _events(app.db)).single;
+        expect(saved.title, '팀플 회의');
+        expect(saved.startAt, DateTime(2026, 11, 20, 11));
+        expect(saved.endAt, DateTime(2026, 11, 20, 12, 30));
+        expect(saved.allDay, isFalse);
+        expect(saved.place, '공대 5호관');
+        expect(saved.prep, isNull);
+        expect(saved.reminderMinutes, 10);
+        expect(saved.source, EventSource.manual);
+        expect(parse.requests, isEmpty);
+        // 폼을 닫고 대화에 넣은 카드를 남긴다.
+        expect(find.text('직접 넣었어요 · 11월 20일 (금) 11:00'), findsOneWidget);
+        expect(find.text('팀플 회의를 11월 20일 (금) 11:00에 넣었어요'), findsOneWidget);
+
+        await tester.tap(find.text('되돌리기'));
+        await tester.pumpAndSettle();
+        expect(await _events(app.db), isEmpty);
+        expect(find.text('직접 넣었어요 · 11월 20일 (금) 11:00'), findsNothing);
+        semantics.dispose();
+        await app.dispose(tester);
+      });
+    }
+
+    testWidgets('제목·반복 요일·지난 마감을 검사하고 저장하지 않는다', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final (app, _) = await _open(tester);
+      await openForm(tester);
+      await tapText(tester, '캘린더에 추가');
+      expect(find.text('제목을 넣어 주세요'), findsOneWidget);
+      // 제목 칸으로 초점을 옮긴다.
+      expect(tester.widget<TextField>(title()).focusNode!.hasFocus, isTrue);
+      expect(await _events(app.db), isEmpty);
+      // 칸을 고치면 까닭을 지운다.
+      await tester.enterText(title(), '알바');
+      await tester.pump();
+      expect(find.text('제목을 넣어 주세요'), findsNothing);
+
+      await tapText(tester, '반복 일정');
+      expect(find.text('고른 요일마다 반복해요'), findsOneWidget);
+      await tapText(tester, '캘린더에 추가');
+      expect(find.text('반복할 요일을 하나 이상 골라 주세요'), findsOneWidget);
+      expect(await app.db.select(app.db.fixedBlocks).get(), isEmpty);
+
+      await tapText(tester, '할 일');
+      await tapLabel(tester, '11월 19일 (목)');
+      expect(find.text('마감까지 13시간 29분'), findsOneWidget);
+      // 23:59에서 한 칸씩 앞당겨 지금(10:30)까지 온다.
+      for (var i = 0; i < 27; i++) {
+        await tapLabel(tester, '마감 30분 앞당기기');
+      }
+      expect(find.text('마감 시각이 지났어요'), findsOneWidget);
+      await tapText(tester, '할 일에 추가');
+      expect(find.text('마감 시각이 이미 지났어요. 시각이나 날짜를 바꿔 주세요'), findsOneWidget);
+      expect(await app.db.select(app.db.tasks).get(), isEmpty);
+      semantics.dispose();
+      await app.dispose(tester);
+    });
+
+    testWidgets('반복 일정은 고정 일정으로 넣고 제목으로 종류를 짐작한다', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final (app, _) = await _open(tester);
+      await openForm(tester);
+      await tapText(tester, '반복 일정');
+      await tester.enterText(title(), '헬스');
+      await tester.pump();
+      await tapLabel(tester, '토요일');
+      await tapLabel(tester, '일요일');
+      expect(find.text('주말마다'), findsOneWidget);
+      await tapText(tester, '캘린더에 추가');
+
+      final block = (await app.db.select(app.db.fixedBlocks).get()).single;
+      expect(block.name, '헬스');
+      expect(block.weekdays, [6, 7]);
+      expect(block.startMin, 11 * 60);
+      expect(block.endMin, 12 * 60);
+      expect(block.kind, FixedBlockKind.exercise);
+      expect(
+        block.bufferMin,
+        fixedBlockTemplate(FixedBlockKind.exercise).bufferMin,
+      );
+      // 준비물 칸을 비운 채 넣었으므로 운동복을 채우지 않는다(말로 넣은 운동은 채움).
+      expect(block.prep, isNull);
+      expect(block.source, EntrySource.manual);
+      expect(find.text('직접 추가 · 반복'), findsOneWidget);
+      expect(find.text('직접 넣었어요 · 주말마다 11:00'), findsOneWidget);
+      semantics.dispose();
+      await app.dispose(tester);
+    });
+
+    testWidgets('시간 미정이면 그날 종일 일정으로 넣는다', (tester) async {
+      final (app, _) = await _open(tester);
+      await openForm(tester);
+      await tester.enterText(title(), '병원');
+      await tester.pump();
+      await tapText(tester, '시간 미정');
+      expect(find.text('시간 없이 그날 일정으로 넣어요 · 캘린더에는 종일로 보여요'), findsOneWidget);
+      expect(find.text('알림'), findsNothing);
+      await tapText(tester, '캘린더에 추가');
+      final saved = (await _events(app.db)).single;
+      expect(saved.allDay, isTrue);
+      expect(saved.startAt, DateTime(2026, 11, 19));
+      expect(saved.endAt, DateTime(2026, 11, 20));
+      expect(saved.reminderMinutes, isNull);
+      expect(find.text('직접 넣었어요 · 11월 19일 (목) · 시간 미정'), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('겹치면 알리기만 하고, 오늘 이미 끝난 시각이면 알린다', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final (app, _) = await _open(tester, seed: _seedDesign);
+      await openForm(tester);
+      expect(find.text('겹치는 일정이 없어요'), findsOneWidget);
+      await tapLabel(tester, '11월 20일 (금)');
+      await tapLabel(tester, '시작 30분 앞당기기');
+      await tapLabel(tester, '시작 30분 앞당기기');
+      expect(find.text('공학설계 수업과 30분 겹쳐요'), findsOneWidget);
+
+      await tapLabel(tester, '11월 19일 (목)');
+      for (var i = 0; i < 4; i++) {
+        await tapLabel(tester, '시작 30분 앞당기기');
+      }
+      await tapLabel(tester, '끝 30분 앞당기기');
+      await tapLabel(tester, '끝 30분 앞당기기');
+      await tapLabel(tester, '끝 30분 앞당기기');
+      expect(
+        find.text('오늘 08:00–10:30은 이미 지났어요 · 그대로 넣으면 지난 일정으로 보여요'),
+        findsOneWidget,
+      );
+      semantics.dispose();
+      await app.dispose(tester);
+    });
+
+    testWidgets('할 일은 놓일 자리를 미리 보이고 개인 할 일로 넣는다', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final (app, _) = await _open(tester, seed: _seedDesign);
+      await openForm(tester);
+      await tapText(tester, '할 일');
+      expect(find.text('마감과 예상 시간을 알려 주면 빈 시간에 놓아 둘게요'), findsOneWidget);
+      expect(find.text('마감이 없어 자동으로 놓지 않아요'), findsOneWidget);
+      await tester.enterText(title(), '추천서 메일 보내기');
+      await tester.pump();
+      await tapLabel(tester, '11월 21일 (토)');
+      expect(find.text('11월 21일 (토) 23:59'), findsOneWidget);
+      expect(find.textContaining('넣으면 오늘 '), findsOneWidget);
+      await tapLabel(tester, '마감 없음');
+      expect(find.text('마감이 없어 자동으로 놓지 않아요'), findsOneWidget);
+      await tapLabel(tester, '11월 21일 (토)');
+      await tapText(tester, '30분');
+      await tapText(tester, '할 일에 추가');
+
+      final task = (await app.db.select(app.db.tasks).get()).single;
+      expect(task.title, '추천서 메일 보내기');
+      expect(task.kind, TaskKind.personal);
+      expect(task.dueAt, DateTime(2026, 11, 21, 23, 59));
+      expect(task.dueTimeUnknown, isFalse);
+      expect(task.estimateMin, 30);
+      expect(task.courseId, isNull);
+      expect(task.source, EntrySource.manual);
+      expect(find.text('직접 추가 · 할 일'), findsOneWidget);
+      expect(find.text('직접 넣었어요 · 30분 걸린다고 보고 놓아요'), findsOneWidget);
+      expect(find.textContaining('에 놓았어요 · 확정 전 제안이에요'), findsOneWidget);
+      semantics.dispose();
+      await app.dispose(tester);
+    });
+
+    testWidgets('예상 시간을 고르지 않으면 저장하지 않는다(종류별 기본값으로 놓음)', (tester) async {
+      final (app, _) = await _open(tester);
+      await openForm(tester);
+      await tapText(tester, '할 일');
+      await tester.enterText(title(), '책 반납');
+      await tester.pump();
+      await tapText(tester, '할 일에 추가');
+      final task = (await app.db.select(app.db.tasks).get()).single;
+      expect(task.estimateMin, isNull);
+      expect(task.dueAt, isNull);
+      expect(find.text('직접 넣었어요 · 1시간 걸린다고 보고 놓아요'), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('일정 카드의 [고치기]로 고쳐 넣으면 그 카드를 바꾸고, 되돌리면 고친 값으로 저장 전이다', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      final (app, _) = await _open(tester);
+      await _say(tester, '내일 오후 3시 회의');
+      await tapText(tester, '고치기');
+      expect(find.text('일정 고치기'), findsOneWidget);
+      expect(find.text('고친 내용 그대로 저장해요'), findsOneWidget);
+      expect(find.text('11월 20일 (금) · 내일'), findsOneWidget);
+      expect(find.text('15:00'), findsOneWidget);
+      await tapLabel(tester, '끝 30분 늦추기');
+      await tapText(tester, '캘린더에 추가');
+
+      final saved = (await _events(app.db)).single;
+      expect(saved.title, '회의');
+      expect(saved.endAt, DateTime(2026, 11, 20, 16, 30));
+      expect(saved.source, EventSource.ai);
+      expect(find.text('고친 일정'), findsOneWidget);
+      expect(find.text('캘린더에 넣었어요 · 11월 20일 (금) 15:00'), findsOneWidget);
+      // 대화에는 카드가 하나뿐이다(새 카드를 붙이지 않음).
+      expect(find.byType(EventCardView), findsOneWidget);
+
+      await tester.tap(find.text('되돌리기'));
+      await tester.pumpAndSettle();
+      expect(await _events(app.db), isEmpty);
+      expect(find.text('새 일정'), findsOneWidget);
+      expect(find.text('15:00–16:30 · 1시간 30분'), findsOneWidget);
+      semantics.dispose();
+      await app.dispose(tester);
+    });
+
+    testWidgets('할 일 카드의 [고치기]는 과목과 종류를 그대로 둔다', (tester) async {
+      final (app, _) = await _open(
+        tester,
+        seed: _seedDesign,
+        reply: (_) => Ok(
+          ParseResult(
+            intent: ParseIntent.createTask,
+            items: [
+              ParseItem(
+                title: '설계 보고서',
+                kind: ParseItemKind.task,
+                category: ParseCategory.course,
+                course: '공학설계',
+                due: DateTime(2026, 11, 21),
+              ),
+            ],
+          ),
+        ),
+      );
+      await _say(tester, '토요일까지 공학설계 설계 보고서');
+      await tapText(tester, '퀴즈');
+      await tapText(tester, '고치기');
+      expect(find.text('할 일 고치기'), findsOneWidget);
+      expect(find.text('공학설계 · 퀴즈로 넣어요'), findsOneWidget);
+      await tapText(tester, '할 일에 추가');
+
+      final task = (await app.db.select(app.db.tasks).get()).single;
+      final course = (await app.db.select(app.db.courses).get()).single;
+      expect(task.courseId, course.id);
+      expect(task.kind, TaskKind.quiz);
+      expect(task.source, EntrySource.ai);
+      // 마감 시각을 말하지 않은 카드여도 폼에서 넣으면 정한 시각(23:59)이다.
+      expect(task.dueAt, DateTime(2026, 11, 21, 23, 59));
+      expect(task.dueTimeUnknown, isFalse);
+      expect(find.text('고친 할 일'), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('폼으로 열면 화면 자체가 폼이고, 넣은 뒤 저장 띠를 남기며 말로 넣기로 대화로 간다', (
+      tester,
+    ) async {
+      final (app, _) = await _open(
+        tester,
+        args: const AssistantArgs(form: DirectAddKind.task),
+      );
+      expect(find.text('마감과 예상 시간을 알려 주면 빈 시간에 놓아 둘게요'), findsOneWidget);
+      expect(find.byType(BackButton), findsOneWidget);
+      expect(find.byTooltip('닫기'), findsNothing);
+      await tester.enterText(title(), '도서관 책 반납');
+      await tester.pump();
+      await tapText(tester, '할 일에 추가');
+
+      expect(
+        (await app.db.select(app.db.tasks).get()).single.title,
+        '도서관 책 반납',
+      );
+      expect(find.text('할 일에 넣었어요 · 도서관 책 반납'), findsOneWidget);
+      expect(find.text('할 일 보기'), findsOneWidget);
+      // 폼은 남아 같은 종류의 새 폼으로 비운다.
+      expect(find.text('마감과 예상 시간을 알려 주면 빈 시간에 놓아 둘게요'), findsOneWidget);
+      expect(tester.widget<TextField>(title()).controller!.text, isEmpty);
+
+      await tester.tap(find.text('되돌리기'));
+      await tester.pumpAndSettle();
+      expect(await app.db.select(app.db.tasks).get(), isEmpty);
+      expect(find.text('할 일에 넣었어요 · 도서관 책 반납'), findsNothing);
+
+      await tapText(tester, '말로 넣기');
+      expect(find.text('일정 추가·변경이나 배치 규칙처럼'), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('저장 띠의 [캘린더 보기]는 그날 일간을 연다', (tester) async {
+      final (app, _) = await _open(
+        tester,
+        args: const AssistantArgs(form: DirectAddKind.event),
+      );
+      await tester.enterText(title(), '동아리');
+      await tester.pump();
+      await tapText(tester, '캘린더에 추가');
+      expect(find.text('캘린더에 넣었어요 · 11월 19일 (목) 11:00 동아리'), findsOneWidget);
+      await tapText(tester, '캘린더 보기');
+      expect(app.router.state.uri.path, Routes.day(DateTime(2026, 11, 19)));
+      await app.dispose(tester);
+    });
+
+    testWidgets('AI가 닫혀 있으면 화면 자체가 폼이고 받은 문장을 보내지 않고 보인다', (tester) async {
+      final (app, parse) = await _open(
+        tester,
+        aiOpen: false,
+        args: const AssistantArgs(prefill: '내일 3시 회의', sendNow: true),
+      );
+      expect(parse.requests, isEmpty);
+      expect(find.text('AI 비서는 아직 준비 중이에요'), findsOneWidget);
+      expect(find.text('보내려던 문장'), findsOneWidget);
+      expect(find.text('내일 3시 회의'), findsOneWidget);
+      expect(find.text('말로 넣기'), findsNothing);
+      // 대화 위에 덮은 폼이 아니라 이 화면 자체다.
+      expect(find.byTooltip('닫기'), findsNothing);
+      expect(find.byType(BackButton), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('AI를 켜지 않은 사람이 폼으로 열면 [AI 켜기]로 동의하고 대화로 간다', (tester) async {
+      final (app, _) = await _open(
+        tester,
+        settings: const {},
+        args: const AssistantArgs(form: DirectAddKind.event),
+      );
+      expect(find.text('AI를 쓰지 않도록 설정했어요'), findsOneWidget);
+      expect(find.text('말로 넣기'), findsNothing);
+      await tapText(tester, 'AI 켜기');
+      await tester.tap(find.text('동의하고 켜기'));
+      await tester.pumpAndSettle();
+      expect(find.text('일정 추가·변경이나 배치 규칙처럼'), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('동의하지 않아 연 폼에서 [AI 켜기]로 동의하면 그 문장을 보낸다', (tester) async {
+      final (app, parse) = await _open(tester, settings: const {});
+      await _say(tester, '내일 오후 3시 회의');
+      await tester.tap(find.text('동의하지 않음'));
+      await tester.pumpAndSettle();
+      await tapText(tester, 'AI 켜기');
+      expect(find.text('동의하면 보낼 문장'), findsOneWidget);
+      await tester.tap(find.text('동의하고 켜기'));
+      await tester.pumpAndSettle();
+      expect(parse.requests.single.text, '내일 오후 3시 회의');
+      expect(find.text('11월 20일 (금) 15:00 회의로 정리했어요.'), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('규칙 모드에서 AI를 쓸 수 없으면 폼에 규칙 띠를 두고, 누르면 이 화면을 닫는다', (
+      tester,
+    ) async {
+      final (app, _) = await _open(
+        tester,
+        settings: const {
+          SettingKeys.aiEnabled: true,
+          SettingKeys.aiLimitReachedOn: '2026-11-19',
+        },
+        args: const AssistantArgs(mode: AssistantMode.rule),
+      );
+      await _say(tester, '하루 공부는 4시간까지만');
+      expect(find.text('규칙은 내 규칙 화면의 폼으로 정해요'), findsOneWidget);
+      await tapText(tester, '규칙은 내 규칙 화면의 폼으로 정해요');
+      expect(find.byType(AssistantScreen), findsNothing);
+      await app.dispose(tester);
+    });
+
+    testWidgets('못 알아들으면 [직접 추가]로 그 문장과 함께 폼을 연다', (tester) async {
+      final (app, _) = await _open(
+        tester,
+        reply: (_) => const Ok(ParseResult(intent: ParseIntent.other)),
+      );
+      await _say(tester, '음 그거');
+      expect(find.text('이 문장에서는 일정을 찾지 못했어요'), findsOneWidget);
+      // 대화가 시작되면 위 막대에도 [직접 추가]가 있다.
+      expect(find.text('직접 추가'), findsNWidgets(2));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(InfoCardView),
+          matching: find.text('직접 추가'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('보내려던 문장'), findsOneWidget);
+      expect(find.text('음 그거'), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('보내지 못한 카드의 [직접 추가]는 까닭과 그 문장으로 폼을 연다', (tester) async {
+      final (app, _) = await _open(
+        tester,
+        reply: (_) => const Err(ApiError(null, 'timeout')),
+      );
+      await _say(tester, '내일 오후 3시 회의');
+      await tester.tap(
+        find.descendant(
+          of: find.byType(FailCardView),
+          matching: find.text('직접 추가'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('AI가 답하지 않아 직접 추가로 열었어요'), findsOneWidget);
+      expect(find.text('내일 오후 3시 회의'), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('빈 시간 답의 [놓기]는 말로 추가하기 없이 빈 시간에 놓기 시트를 연다', (tester) async {
+      final (app, _) = await _open(
+        tester,
+        reply: (_) => const Ok(
+          ParseResult(
+            intent: ParseIntent.query,
+            queryType: ParseQueryType.freeTime,
+          ),
+        ),
+      );
+      await _say(tester, '오늘 빈 시간 언제야?');
+      await tester.tap(find.text('놓기').first);
+      await tester.pumpAndSettle();
+      expect(find.byType(FreeSlotSheet), findsOneWidget);
+      expect(find.text('일정은 말로 추가하기'), findsNothing);
+      await app.dispose(tester);
+    });
+
+    testWidgets('대화 중에 AI가 닫히면 그 까닭과 문장으로 폼을 연다', (tester) async {
+      final (app, parse) = await _open(tester);
+      parse.open = false;
+      await _say(tester, '내일 오후 3시 회의');
+      expect(parse.requests, isEmpty);
+      expect(find.text('AI 비서는 아직 준비 중이에요'), findsOneWidget);
+      expect(find.text('보내려던 문장'), findsOneWidget);
+      await _closeForm(tester);
+      expect(find.text('아직 AI 비서를 쓸 수 없어요'), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('오늘 사용량을 다 쓴 날 폼으로 열면 그 까닭을 보이고 말로 넣기를 두지 않는다', (tester) async {
+      final (app, _) = await _open(
+        tester,
+        settings: const {
+          SettingKeys.aiEnabled: true,
+          SettingKeys.aiLimitReachedOn: '2026-11-19',
+        },
+        args: const AssistantArgs(form: DirectAddKind.event),
+      );
+      expect(find.text('오늘 AI 사용량을 다 썼어요'), findsOneWidget);
+      expect(find.text('말로 넣기'), findsNothing);
+      expect(find.text('AI 켜기'), findsNothing);
+      await app.dispose(tester);
+    });
+
+    testWidgets('빈 시간에서 날짜·시각을 받아 열면 [직접 추가] 폼을 그 시각으로 채운다', (tester) async {
+      final (app, _) = await _open(
+        tester,
+        args: AssistantArgs(at: DateTime(2026, 11, 21, 14)),
+      );
+      await openForm(tester);
+      expect(find.text('11월 21일 (토) · 모레'), findsOneWidget);
+      expect(find.text('14:00'), findsOneWidget);
+      expect(find.text('15:00'), findsOneWidget);
+      await app.dispose(tester);
+    });
+
+    testWidgets('알림을 없음으로 고르면 알림 없이 넣는다', (tester) async {
+      final (app, _) = await _open(tester);
+      await openForm(tester);
+      await tester.enterText(title(), '스터디');
+      await tester.pump();
+      await tapText(tester, '30분 전');
+      await tapText(tester, '없음');
+      await tapText(tester, '캘린더에 추가');
+      expect((await _events(app.db)).single.reminderMinutes, isNull);
+      await app.dispose(tester);
+    });
+
+    testWidgets('시간표가 없으면 할 일을 아직 자동으로 놓지 않는다고 보인다', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final (app, _) = await _open(tester);
+      await openForm(tester);
+      await tapText(tester, '할 일');
+      await tapLabel(tester, '11월 21일 (토)');
+      expect(find.text('시간표가 없어 아직 자동으로 놓지 않아요'), findsOneWidget);
+      semantics.dispose();
       await app.dispose(tester);
     });
   });

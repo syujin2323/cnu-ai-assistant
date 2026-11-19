@@ -101,6 +101,9 @@ class ParseClient {
   final ServerApi _api;
   final bool Function() _aiOpen;
 
+  /// AI 경로가 열려 있는지(Remote Config `ai_open`을 지금 읽음). 닫혀 있으면 06 AI 비서는 직접 추가 폼으로 연다.
+  bool get isOpen => _aiOpen();
+
   Future<Result<ParseResult>> parse(ParseRequest request) async {
     if (!_aiOpen()) return const Err(ApiError(null, 'ai_closed'));
     if (!request.hasValidText) {

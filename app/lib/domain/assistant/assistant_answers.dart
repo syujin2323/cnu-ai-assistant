@@ -38,6 +38,7 @@ final class AnswerRow {
     this.right,
     this.urgent = false,
     this.block,
+    this.gap,
   });
 
   final AnswerRowKind kind;
@@ -52,6 +53,9 @@ final class AnswerRow {
 
   /// 누르면 근거 시트를 여는 할 일 블록.
   final PlanBlock? block;
+
+  /// 누르면 빈 시간에 놓기 시트를 여는 빈 시간([놓기]).
+  final TimeSpan? gap;
 }
 
 /// 답의 아래 링크가 여는 곳.
@@ -294,6 +298,7 @@ AnswerContent freeTimeAnswer(
                 case (_, final title?))
               '제안: $title',
           ].join(' · '),
+          gap: span,
         ),
     ],
     emptyText: '수업과 일정으로 꽉 찼어요. 할 일은 다른 날 빈 시간에 놓아 둘게요',

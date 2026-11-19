@@ -1,6 +1,7 @@
-// 06 AI 비서 카드가 폰 DB를 보고 정하는 것: 겹치는 일정, 시간 미정 일정의 시간 칩, 질문 답의 내용.
-// docs/screens.md '06 AI 비서'의 카드 1(겹치면 알리기만 함, 시간 미정이면 시간을 고르거나 그대로 넣음)·5(바꾼
-// 뒤와 겹치는 것)·6(질문 답).
+// 06 AI 비서 카드가 폰 DB를 보고 정하는 것: 겹치는 일정, 시간 미정 일정의 시간 칩, 질문 답의 내용, 직접 추가
+// 폼에서 넣기 전에 보이는 할 일이 놓일 자리. docs/screens.md '06 AI 비서'의 카드 1(겹치면 알리기만 함, 시간
+// 미정이면 시간을 고르거나 그대로 넣음)·5(바꾼 뒤와 겹치는 것)·6(질문 답), '직접 추가 폼'(할 일은 놓일 자리를
+// 미리 보임).
 //
 // 한 번뿐인 일정은 그 논리적 하루의 시간표 항목(`dayItems`: 수업·일정·고정 일정·확정 블록)과 견주고, 매주 반복
 // 일정은 그 요일의 수업 칸·고정 일정과 견준다(프로토타입처럼 수업 예외는 보지 않음). 바꾸기 카드는 바꿀 일정
@@ -12,11 +13,15 @@ import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_answers.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_message.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_targets.dart';
+import 'package:cnu_ai_assistant/domain/assistant/assistant_text.dart';
+import 'package:cnu_ai_assistant/domain/assistant/direct_add.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
+import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/free_slots.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/domain/models/parse_result.dart';
 import 'package:cnu_ai_assistant/domain/planner/day_items.dart';
+import 'package:cnu_ai_assistant/domain/planner/plan_range.dart';
 import 'package:cnu_ai_assistant/domain/planner/schedule.dart';
 import 'package:cnu_ai_assistant/domain/text/time_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -315,6 +320,96 @@ final answerContentProvider = Provider.autoDispose
           );
       }
     });
+
+/// 직접 추가 폼에서 할 일 [draft]를 넣으면 놓일 자리(`domain/assistant/direct_add.dart`의 [taskPreview]). 그 할 일을
+/// 넣었다고 보고 오늘부터 배치 지평의 일정·할 일·규칙으로 배치 엔진을 돌린다(저장하지 않음). 아직 읽는 중이면
+/// null이다.
+final directTaskPreviewProvider = Provider.autoDispose
+    .family<({String text, bool alert})?, TaskDraft>((ref, draft) {
+      final now = ref.watch(clockProvider).now();
+      final settings = ref.watch(settingsProvider).value;
+      final config = ref.watch(plannerConfigProvider);
+      final tasks = ref.watch(taskEntriesProvider).value;
+      final slots = ref.watch(classSlotEntriesProvider).value;
+      final courses = draft.courseName == null
+          ? const <Course>[]
+          : ref.watch(selectableCoursesProvider).value;
+      if (settings == null ||
+          config == null ||
+          tasks == null ||
+          slots == null ||
+          courses == null) {
+        return null;
+      }
+      final boundary = settings.dayBoundaryMin;
+      final course = courses
+          .where((course) => course.name == draft.courseName)
+          .firstOrNull;
+      final estimate = taskEstimateOf(
+        draft,
+        courseId: course?.id,
+        config: config,
+      ).minutes;
+      // 배치 엔진 없이 정해지는 것(마감 없음, 지난 마감, 예상 시간 모름, 시간표 없음)은 먼저 답한다.
+      final quick = taskPreview(
+        draft: draft,
+        taskId: _previewTaskId,
+        estimate: estimate,
+        plan: null,
+        hasTimetable: slots.isNotEmpty,
+        now: now,
+        dayBoundaryMin: boundary,
+      );
+      if (quick != null) return quick;
+      final today = logicalDate(now, dayBoundaryMin: boundary);
+      final last = DateTime(
+        today.year,
+        today.month,
+        today.day + Defaults.planHorizonDays - 1,
+      );
+      final schedule = ref
+          .watch(
+            _rangeScheduleProvider((
+              logicalDayStart(today, dayBoundaryMin: boundary),
+              logicalDayEnd(last, dayBoundaryMin: boundary),
+            )),
+          )
+          .value;
+      if (schedule == null) return null;
+      final probe = Task(
+        id: _previewTaskId,
+        title: draft.title,
+        kind: draft.kind,
+        dueAt: draft.dueAt,
+        dueTimeUnknown: draft.dueTimeUnknown,
+        estimateMin: draft.estimateToStore,
+        status: TaskStatus.todo,
+        courseId: course?.id,
+        source: EntrySource.manual,
+      );
+      return taskPreview(
+        draft: draft,
+        taskId: _previewTaskId,
+        estimate: estimate,
+        plan: planRange(
+          now: now,
+          from: today,
+          schedule: schedule,
+          tasks: [
+            ...tasks,
+            TaskEntry(task: probe, course: course),
+          ],
+          config: config,
+          dayBoundaryMin: boundary,
+        ),
+        hasTimetable: true,
+        now: now,
+        dayBoundaryMin: boundary,
+      );
+    });
+
+/// 미리 보기에서 넣었다고 보는 할 일의 id(폰 DB의 id와 겹치지 않음).
+const _previewTaskId = -1;
 
 /// [start]부터 [end] 전까지의 일정(`ScheduleRepository.watch`).
 final _rangeScheduleProvider = StreamProvider.autoDispose

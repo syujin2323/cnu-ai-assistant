@@ -14,6 +14,11 @@
 // 확인 버튼을 누를 때만 저장하고, 저장할 때마다 되돌리기 토스트를 띄운다. 토스트의 '되돌리기'로 되돌리면 그
 // 카드를 저장 전으로 돌린다. 저장한 뒤에는 바로 다시 계산해 옮겨진 제안이나 놓인 자리를 카드에 적는다. 대화는
 // 화면을 닫으면 버린다(autoDispose). 로그에는 문장·제목을 남기지 않고 의도 이름과 카드 수만 남긴다.
+//
+// 직접 추가 폼([DirectAddDraft])도 여기서 저장한다([AssistantController.saveDirect]). 대화에서 연 폼은 넣은
+// 것을 카드로 남기고, 카드의 [고치기]로 연 폼은 그 카드를 넣은 것으로 바꾸며, 폼이 화면 자체면 대화에 남기지
+// 않는다. AI를 쓸 수 없어 보내지 못하면(동의 안 함, 오늘 사용량 다 씀, AI 닫힘, 오프라인) 화면이 폼을 열도록
+// 그 까닭([DirectAddNotice])을 돌려준다.
 
 import 'dart:async';
 
@@ -28,6 +33,7 @@ import 'package:cnu_ai_assistant/domain/assistant/assistant_reply.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_rules.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_targets.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_text.dart';
+import 'package:cnu_ai_assistant/domain/assistant/direct_add.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
 import 'package:cnu_ai_assistant/domain/errors.dart';
@@ -50,6 +56,9 @@ enum AiGate {
   /// 보낼 수 있다.
   open,
 
+  /// AI 경로가 닫혀 있다(Remote Config `ai_open`). 06 AI 비서는 직접 추가 폼으로 연다.
+  closed,
+
   /// AI 사용에 동의하지 않았다(화면이 동의 시트를 연다).
   needsConsent,
 
@@ -62,6 +71,55 @@ enum AiGate {
   /// 데모 모드(미리 적은 응답).
   demo,
 }
+
+/// AI를 쓸 수 없어 직접 추가 폼을 열 때 폼 위에 보이는 까닭(docs/screens.md '06 AI 비서').
+enum DirectAddNotice {
+  /// AI 사용에 동의하지 않았다([AI 켜기]를 둠).
+  aiOff,
+
+  /// 오늘 AI 사용량을 다 썼다.
+  limit,
+
+  /// AI 경로가 아직 닫혀 있다(Remote Config `ai_open`).
+  closed,
+
+  /// 인터넷에 연결하지 못했다.
+  offline,
+
+  /// AI가 답하지 않았다(못 보낸 카드의 [직접 추가]).
+  failed,
+}
+
+/// 직접 추가 폼을 어디서 열었는지. 저장한 뒤 할 일이 다르다.
+enum DirectAddOrigin {
+  /// 대화에서 열었다: 넣은 것을 대화에 카드로 남긴다.
+  chat,
+
+  /// 카드의 [고치기]로 열었다: 그 카드를 넣은 것으로 바꾼다.
+  card,
+
+  /// 폼이 화면 자체다: 대화에 남기지 않는다(폼이 저장 띠를 보임).
+  screen,
+}
+
+/// 지금 AI를 쓸 수 있는지(화면이 폼 위의 까닭과 '말로 넣기'를 정할 때 봄). 보낼 때는 [AssistantController.gate]가
+/// 폰 DB를 새로 읽어 정한다. 설정을 읽는 중이면 null이다.
+final aiGateProvider = Provider.autoDispose<AiGate?>((ref) {
+  if (ref.watch(appModeProvider) == AppMode.demo) return AiGate.demo;
+  if (!ref.watch(parseClientProvider).isOpen) return AiGate.closed;
+  if (ref.watch(
+    assistantControllerProvider.select((state) => state.declined),
+  )) {
+    return AiGate.declined;
+  }
+  final settings = ref.watch(settingsProvider).value;
+  if (settings == null) return null;
+  if (!settings.aiEnabled) return AiGate.needsConsent;
+  if (settings.aiLimitReachedOn == isoDate(ref.watch(clockProvider).now())) {
+    return AiGate.limitReached;
+  }
+  return AiGate.open;
+});
 
 /// 대화.
 final class AssistantState {
@@ -116,6 +174,7 @@ class AssistantController extends Notifier<AssistantState> {
   /// 지금 문장을 보낼 수 있는지. 설정을 읽지 못하면 동의를 다시 묻는다.
   Future<AiGate> gate() async {
     if (ref.read(appModeProvider) == AppMode.demo) return AiGate.demo;
+    if (!ref.read(parseClientProvider).isOpen) return AiGate.closed;
     if (state.declined) return AiGate.declined;
     switch (await ref.read(settingsRepositoryProvider).read()) {
       case Err(:final error):
@@ -145,6 +204,8 @@ class AssistantController extends Notifier<AssistantState> {
     final toast = ref.read(toastControllerProvider.notifier);
     switch (saved) {
       case Ok():
+        // 이 화면에서 동의하지 않았다가 [AI 켜기]로 동의했으면 다시 보낼 수 있다.
+        state = state.copyWith(declined: false);
         toast.show('AI 사용에 동의했어요 · 나 › AI에서 언제든 끌 수 있어요');
         return true;
       case Err(:final error):
@@ -170,22 +231,29 @@ class AssistantController extends Notifier<AssistantState> {
     );
   }
 
-  /// [raw]를 보낸다. 화면은 먼저 [gate]를 보고 동의를 받는다. 보낼 수 없으면 문장을 남기고 까닭을 안내한다.
-  Future<void> send(String raw, {required bool ruleMode}) async {
+  /// [raw]를 보낸다. 화면은 먼저 [gate]를 보고 동의를 받는다. 보낼 수 없으면 문장을 남기고 까닭을 안내하며, 직접
+  /// 추가 폼을 열어야 하면(AI를 쓸 수 없음) 그 까닭을 돌려준다. 그 밖에는 null이다.
+  Future<DirectAddNotice?> send(String raw, {required bool ruleMode}) async {
     final text = raw.trim();
-    if (text.isEmpty || state.sending) return;
+    if (text.isEmpty || state.sending) return null;
     final gate = await this.gate();
-    if (!ref.mounted) return;
+    if (!ref.mounted) return null;
     switch (gate) {
       case AiGate.needsConsent || AiGate.declined:
         decline(text);
-        return;
+        return DirectAddNotice.aiOff;
       case AiGate.limitReached:
         _append([
           UserMessage(_nextId(), text),
           InfoCard(_nextId(), InfoKind.limitReached),
         ]);
-        return;
+        return DirectAddNotice.limit;
+      case AiGate.closed:
+        _append([
+          UserMessage(_nextId(), text),
+          InfoCard(_nextId(), InfoKind.aiClosed),
+        ]);
+        return DirectAddNotice.closed;
       case AiGate.open || AiGate.demo:
         break;
     }
@@ -197,9 +265,9 @@ class AssistantController extends Notifier<AssistantState> {
     final watch = Stopwatch()..start();
     final now = ref.read(clockProvider).now();
     final courses = await _courses();
-    if (!ref.mounted) return;
+    if (!ref.mounted) return null;
     _snapshot = await _readSnapshot(courses, now);
-    if (!ref.mounted) return;
+    if (!ref.mounted) return null;
     final Result<ParseResult> result;
     if (gate == AiGate.demo) {
       await Future<void>.delayed(demoDelay);
@@ -221,12 +289,12 @@ class AssistantController extends Notifier<AssistantState> {
             ),
           );
     }
-    if (!ref.mounted) return;
+    if (!ref.mounted) return null;
     final replies = switch (result) {
       Ok(:final value) => _replyTo(value, now: now, ruleMode: ruleMode),
       Err(:final error) => await _failed(error, text, now),
     };
-    if (!ref.mounted) return;
+    if (!ref.mounted) return null;
     appLog(
       'assistant_reply',
       area: 'assistant',
@@ -247,6 +315,12 @@ class AssistantController extends Notifier<AssistantState> {
         ...replies,
       ],
     );
+    return switch (result) {
+      Err(error: ApiError(status: 429)) => DirectAddNotice.limit,
+      Err(error: ApiError(code: 'ai_closed')) => DirectAddNotice.closed,
+      Err(error: ApiError(status: null, code: null)) => DirectAddNotice.offline,
+      _ => null,
+    };
   }
 
   List<AssistantMessage> _replyTo(
@@ -432,7 +506,14 @@ class AssistantController extends Notifier<AssistantState> {
     _noteIfSaved(cardId, eventPlanNote(before, after));
   }
 
-  Future<Result<int>> _saveDraft(EventDraft draft, DateTime now) async {
+  /// [draft]를 저장한다. [source]는 출처이고, [templatePrep]이면 준비물을 말하지 않은 반복 일정에 종류별 처음
+  /// 준비물을 넣는다(직접 추가 폼은 준비물 칸을 보였으므로 비운 채면 그대로 둠).
+  Future<Result<int>> _saveDraft(
+    EventDraft draft,
+    DateTime now, {
+    EntrySource source = EntrySource.ai,
+    bool templatePrep = true,
+  }) async {
     try {
       if (draft.weekdays case final weekdays?) {
         final kind = draft.fixedKind ?? FixedBlockKind.other;
@@ -448,9 +529,12 @@ class AssistantController extends Notifier<AssistantState> {
               bufferMin: template.bufferMin,
               kind: kind,
               prep:
-                  draft.prep ?? (template.prep.isEmpty ? null : template.prep),
+                  draft.prep ??
+                  (templatePrep && template.prep.isNotEmpty
+                      ? template.prep
+                      : null),
               place: draft.place,
-              source: EntrySource.ai,
+              source: source,
               now: now,
             );
       }
@@ -466,11 +550,14 @@ class AssistantController extends Notifier<AssistantState> {
             place: draft.place,
             prep: draft.prep,
             reminderMinutes: draft.reminderMinutes,
-            source: EventSource.ai,
+            source: switch (source) {
+              EntrySource.ai => EventSource.ai,
+              EntrySource.manual => EventSource.manual,
+            },
             now: now,
           );
     } on ArgumentError {
-      // 카드가 만든 값은 검사를 통과하므로 여기에 오지 않는다(오면 저장하지 못한 것으로 알림).
+      // 카드·폼이 만든 값은 검사를 통과하므로 여기에 오지 않는다(오면 저장하지 못한 것으로 알림).
       return const Err(
         StorageError('assistant.saveEvent', causeType: 'ArgumentError'),
       );
@@ -549,6 +636,16 @@ class AssistantController extends Notifier<AssistantState> {
           undoable: true,
           onUndone: () => _unsave(cardId),
         );
+    await _noteTaskPlan(cardId, draft, taskId: taskId, courseId: courseId);
+  }
+
+  /// 넣은 할 일 카드 [cardId]에 다시 계산한 뒤 놓인 자리를 적는다.
+  Future<void> _noteTaskPlan(
+    int cardId,
+    TaskDraft draft, {
+    required int taskId,
+    required int? courseId,
+  }) async {
     final after = await _recalculated();
     if (!ref.mounted) return;
     final estimate = taskEstimateOf(
@@ -577,6 +674,204 @@ class AssistantController extends Notifier<AssistantState> {
         dayBoundaryMin: settings?.dayBoundaryMin ?? Defaults.dayBoundaryMin,
       ),
     );
+  }
+
+  /// 직접 추가 폼의 [form]을 저장한다(폼에서 새로 넣은 것은 출처 `manual`, 카드의 [고치기]로 고친 것은 출처
+  /// `ai`). 저장하면 되돌리기 토스트를 띄우고, [origin]에 따라 대화에 카드를 남기거나([DirectAddOrigin.chat]) 고친
+  /// 카드 [cardId]를 넣은 것으로 바꾼다([DirectAddOrigin.card]). 되돌리면 그 카드를 빼거나 저장 전으로 돌리고
+  /// [onUndone]을 부른다. 저장하지 못하면 알리고 false다.
+  Future<bool> saveDirect(
+    DirectAddDraft form, {
+    required DirectAddOrigin origin,
+    int? cardId,
+    void Function()? onUndone,
+  }) async {
+    final edited = origin == DirectAddOrigin.card;
+    final source = edited ? EntrySource.ai : EntrySource.manual;
+    final before = ref.read(planControllerProvider);
+    final now = ref.read(clockProvider).now();
+    final toast = ref.read(toastControllerProvider.notifier);
+    final previous = cardId == null ? null : _find<AssistantMessage>(cardId);
+    final say = switch (previous) {
+      EventCard(:final say) || TaskCard(:final say) => say,
+      _ => null,
+    };
+    // 고친 카드가 그사이 없어졌으면 대화에 새로 남긴다.
+    final where = edited && previous == null ? DirectAddOrigin.chat : origin;
+    if (form.kind == DirectAddKind.task) {
+      final draft = form.toTaskDraft();
+      final courseName = draft.courseName;
+      final courses = courseName == null ? const <Course>[] : await _courses();
+      if (!ref.mounted) return false;
+      final courseId = courses
+          .where((course) => course.name == courseName)
+          .firstOrNull
+          ?.id;
+      final Result<int> saved;
+      try {
+        saved = await ref
+            .read(taskRepositoryProvider)
+            .add(
+              title: draft.title,
+              kind: draft.kind,
+              dueAt: draft.dueAt,
+              dueTimeUnknown: draft.dueTimeUnknown,
+              estimateMin: draft.estimateToStore,
+              courseId: courseId,
+              source: source,
+              now: now,
+            );
+      } on ArgumentError {
+        return _directFailed(
+          const StorageError(
+            'assistant.saveDirect',
+            causeType: 'ArgumentError',
+          ),
+        );
+      }
+      if (!ref.mounted) return false;
+      final int taskId;
+      switch (saved) {
+        case Err(:final error):
+          return _directFailed(error);
+        case Ok(:final value):
+          taskId = value;
+      }
+      final card = switch (where) {
+        DirectAddOrigin.screen => null,
+        DirectAddOrigin.chat => TaskCard(
+          _nextId(),
+          draft: draft,
+          status: CardStatus.saved,
+          savedTaskId: taskId,
+          origin: CardOrigin.manual,
+        ),
+        DirectAddOrigin.card => TaskCard(
+          cardId!,
+          draft: draft,
+          say: say,
+          status: CardStatus.saved,
+          savedTaskId: taskId,
+          origin: CardOrigin.edited,
+        ),
+      };
+      _placeDirect(card, where);
+      toast.show(
+        '${withJosa(draft.title, Josa.eulReul)} 할 일에 넣었어요',
+        undoable: true,
+        onUndone: () => _undoDirect(card?.id, where, onUndone),
+      );
+      // 다시 계산은 기다리지 않는다(폼은 바로 닫고, 놓인 자리는 카드에 나중에 적음).
+      if (card != null) {
+        unawaited(
+          _noteTaskPlan(card.id, draft, taskId: taskId, courseId: courseId),
+        );
+      }
+      return true;
+    }
+    final draft = form.toEventDraft();
+    final saved = await _saveDraft(
+      draft,
+      now,
+      source: source,
+      templatePrep: false,
+    );
+    if (!ref.mounted) return false;
+    if (saved case Err(:final error)) return _directFailed(error);
+    final card = switch (where) {
+      DirectAddOrigin.screen => null,
+      DirectAddOrigin.chat => EventCard(
+        _nextId(),
+        draft: draft,
+        status: CardStatus.saved,
+        origin: CardOrigin.manual,
+      ),
+      DirectAddOrigin.card => EventCard(
+        cardId!,
+        draft: draft,
+        say: say,
+        status: CardStatus.saved,
+        origin: CardOrigin.edited,
+      ),
+    };
+    _placeDirect(card, where);
+    toast.show(
+      '${withJosa(draft.title, Josa.eulReul)} '
+      '${eventWhenText(draft, today: _dateOf(now))}에 넣었어요',
+      undoable: true,
+      onUndone: () => _undoDirect(card?.id, where, onUndone),
+    );
+    if (card != null) unawaited(_noteEventPlan(card.id, before));
+    return true;
+  }
+
+  /// 넣은 일정 카드 [cardId]에 다시 계산한 뒤 옮긴 제안을 적는다. [before]는 넣기 직전의 배치 결과다.
+  Future<void> _noteEventPlan(int cardId, PlanResult? before) async {
+    final after = await _recalculated();
+    if (!ref.mounted) return;
+    _noteIfSaved(cardId, eventPlanNote(before, after));
+  }
+
+  /// 폼으로 넣은 카드를 대화에 붙이거나 고친 카드와 바꾼다.
+  void _placeDirect(AssistantMessage? card, DirectAddOrigin where) {
+    if (card == null) return;
+    if (where == DirectAddOrigin.card) {
+      _replace(card);
+    } else {
+      _append([card]);
+    }
+  }
+
+  /// 폼으로 넣은 것을 되돌렸다. 대화에 남긴 카드는 빼고, 고친 카드는 고친 값 그대로 저장 전으로 돌린다.
+  void _undoDirect(int? cardId, DirectAddOrigin where, void Function()? done) {
+    if (ref.mounted && cardId != null) {
+      switch (where) {
+        case DirectAddOrigin.chat:
+          state = state.copyWith(
+            messages: [
+              for (final message in state.messages)
+                if (message.id != cardId) message,
+            ],
+          );
+        case DirectAddOrigin.card:
+          switch (_find<AssistantMessage>(cardId)) {
+            case final EventCard card when card.status == CardStatus.saved:
+              _replace(
+                card.copyWith(
+                  status: CardStatus.pending,
+                  planNote: () => null,
+                  origin: CardOrigin.ai,
+                ),
+              );
+            case final TaskCard card when card.status == CardStatus.saved:
+              _replace(
+                card.copyWith(
+                  status: CardStatus.pending,
+                  savedTaskId: () => null,
+                  planNote: () => null,
+                  origin: CardOrigin.ai,
+                ),
+              );
+            default:
+              break;
+          }
+        case DirectAddOrigin.screen:
+          break;
+      }
+    }
+    done?.call();
+  }
+
+  bool _directFailed(AppError error) {
+    appLog(
+      'assistant_save_failed',
+      area: 'assistant',
+      data: errorLogData(error),
+    );
+    if (ref.mounted) {
+      ref.read(toastControllerProvider.notifier).show(AppStrings.saveFailed);
+    }
+    return false;
   }
 
   void _taskSaveFailed(TaskCard card, AppError error) {

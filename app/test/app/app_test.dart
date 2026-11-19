@@ -11,6 +11,8 @@ import 'dart:io';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
 import 'package:cnu_ai_assistant/app/toast_controller.dart';
+import 'package:cnu_ai_assistant/data/api/parse_client.dart';
+import 'package:cnu_ai_assistant/data/api/server_api.dart';
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/data/repositories/briefing_repository.dart';
 import 'package:cnu_ai_assistant/data/repositories/event_repository.dart';
@@ -49,6 +51,15 @@ import '../helpers/pump_app.dart';
 
 /// 14 온보딩 1단계 아래의 데모 들어가기 문구(docs/screens.md '1단계 · LMS 로그인').
 const _browseDemo = '로그인 없이 둘러보기 · 샘플 학생의 하루';
+
+/// AI 경로가 열린 /v1/parse 클라이언트(테스트에는 Remote Config가 없어 그대로 두면 `ai_open`이 닫힌 것으로 보여
+/// 06 AI 비서가 직접 추가 폼으로 열림). 보내는 요청은 없다.
+final _aiOpen = parseClientProvider.overrideWithValue(
+  ParseClient(
+    ServerApi(baseUrl: 'https://example.invalid'),
+    aiOpen: () => true,
+  ),
+);
 
 /// 지금 데모 모드인지.
 bool inDemo(TestApp app) => app.container.read(appModeProvider) == AppMode.demo;
@@ -149,7 +160,11 @@ void main() {
       testWidgets('탭바 옆 AI 비서 버튼은 06 AI 비서를 열고, 뒤로 가면 그 탭으로 돌아온다', (
         tester,
       ) async {
-        final app = await pumpTestApp(tester, textScale: textScale);
+        final app = await pumpTestApp(
+          tester,
+          textScale: textScale,
+          overrides: [_aiOpen],
+        );
         await tapTab(tester, '할 일');
 
         final button = assistantButton();
@@ -801,6 +816,7 @@ void main() {
             tester,
             briefingOpenedToday: false,
             textScale: textScale,
+            overrides: [_aiOpen],
           );
           AssistantArgs args() =>
               tester.widget<AssistantScreen>(find.byType(AssistantScreen)).args;
@@ -815,9 +831,13 @@ void main() {
           await tester.pumpAndSettle();
           expect(args(), fromBriefing);
           expect(app.router.state.uri.toString(), Routes.assistant);
-          // AI 사용이 꺼져 있어 보내기 전에 AI 사용 동의 시트가 뜬다(동의하지 않으면 보내지 않음).
+          // AI 사용이 꺼져 있어 보내기 전에 AI 사용 동의 시트가 뜬다(동의하지 않으면 보내지 않고, 그 문장으로
+          // 직접 추가 폼을 대화 위에 연다).
           expect(find.text('동의하면 보낼 문장'), findsOneWidget);
           await tapText(tester, '동의하지 않음');
+          expect(find.text('보내려던 문장'), findsOneWidget);
+          await tester.tap(find.byTooltip('닫기'));
+          await tester.pumpAndSettle();
           await tester.tap(find.byType(BackButton));
           await tester.pumpAndSettle();
           expect(find.byType(AssistantScreen), findsNothing);
