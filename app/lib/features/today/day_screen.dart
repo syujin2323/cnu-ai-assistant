@@ -14,8 +14,11 @@
 // `domain/day_view.dart`가 정하고, 모양은 최종 프로토타입(09 일간)을 따른다. 'HH:MM에 놓기'와 학사일정·공휴일은
 // 그 PR(S6 2부, H1)에서 더한다.
 
+import 'dart:async';
+
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/app/router.dart';
+import 'package:cnu_ai_assistant/data/metrics_reporter.dart';
 import 'package:cnu_ai_assistant/design/icons.dart';
 import 'package:cnu_ai_assistant/design/motion/press.dart';
 import 'package:cnu_ai_assistant/design/motion/rise.dart';
@@ -240,12 +243,14 @@ class DayScreen extends ConsumerWidget {
   /// '모두 확정': 그날 확정 전 제안을 엔진 자리 그대로 확정한다(되돌리기 토스트).
   Future<void> _confirmAll(WidgetRef ref, DayView view) async {
     final toast = ref.read(toastControllerProvider.notifier);
+    final metrics = ref.read(metricsReporterProvider);
     final result = await ref.read(planBlockRepositoryProvider).confirm([
       for (final block in view.confirmable) block.id,
     ], now: ref.read(clockProvider).now());
     switch (result) {
       case Ok(value: true):
         toast.show(view.confirmedToast, undoable: true);
+        unawaited(metrics.noteConfirmed());
       case Ok():
         // 그사이 재계산이 제안을 바꿔 끼웠다.
         toast.show('제안이 바뀌었어요. 다시 확인해 주세요');
