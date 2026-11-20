@@ -15,8 +15,6 @@
 // 제안 블록은 배치 엔진이 다시 계산하면 새로 놓인다. 과목·장소·LMS 키는 모두 지어낸 값이고 실제 LMS의
 // 값이 아니다.
 
-import 'dart:convert';
-
 import 'package:cnu_ai_assistant/data/db/database.dart';
 import 'package:cnu_ai_assistant/domain/clock.dart';
 import 'package:cnu_ai_assistant/domain/defaults.dart';
@@ -25,7 +23,6 @@ import 'package:drift/drift.dart';
 
 /// 데모 DB에 샘플을 넣는다. [now]는 넣는 때다. 데모 동작에 맞는 설정도 함께 적는다.
 Future<void> seedDemo(AppDatabase db, DateTime now) async {
-  await _enableAi(db);
   final days = _Days(logicalDate(now, dayBoundaryMin: Defaults.dayBoundaryMin));
   final courses = await _insertCourses(db, now);
   final slots = await _insertTimetable(db, days, courses);
@@ -37,17 +34,6 @@ Future<void> seedDemo(AppDatabase db, DateTime now) async {
   await _insertRules(db, days);
   await _insertBriefing(db, days);
 }
-
-/// 데모에서는 AI를 부르지 않고 미리 적은 응답을 보이므로(서버 클라이언트가 요청을 막음) AI 사용을 켜 둔다.
-/// 꺼 두면 06 AI 비서가 그 응답 대신 AI 사용 동의 화면을 연다.
-Future<void> _enableAi(AppDatabase db) => db
-    .into(db.settings)
-    .insertOnConflictUpdate(
-      SettingsCompanion.insert(
-        key: SettingKeys.aiEnabled,
-        value: jsonEncode(AppSettings.encodeValue(SettingKeys.aiEnabled, true)),
-      ),
-    );
 
 /// 오늘(논리적 하루의 날짜)을 기준으로 한 날짜와 시각.
 class _Days {

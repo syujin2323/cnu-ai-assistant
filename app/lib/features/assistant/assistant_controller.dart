@@ -3,8 +3,7 @@
 //
 // 문장을 보내기 전에 AI를 쓸 수 있는지 본다([AssistantController.gate]). AI 사용에 동의하지 않았으면 화면이 AI
 // 사용 동의 시트를 열고(먼저 쓴 문장은 '동의하면 보낼 문장'), 동의하면 적은 뒤 보낸다. 오늘 사용량을 다 썼으면
-// 보내지 않는다. 데모 모드는 서버·AI를 부르지 않고 미리 적은 응답 가운데 가장 비슷한 것을 쓴다
-// (`data/demo/demo_parse.dart`). 응답은 오전·오후를 말하지 않은 1–7시를 오후로 고친 뒤 카드로 바꾼다
+// 보내지 않는다. 데모 모드도 실제 모드와 똑같이 묻고 보낸다(동의·한도는 데모 DB의 설정). 응답은 오전·오후를 말하지 않은 1–7시를 오후로 고친 뒤 카드로 바꾼다
 // (`domain/assistant/assistant_reply.dart`).
 //
 // 수업 변경·일정 바꾸기·지우기·내 규칙은 보낼 때 읽어 둔 폰 DB의 값(과목·수업 칸·수업 예외·고정 일정·오늘부터
@@ -25,9 +24,7 @@ import 'dart:async';
 import 'package:cnu_ai_assistant/app/logging.dart';
 import 'package:cnu_ai_assistant/app/providers.dart';
 import 'package:cnu_ai_assistant/data/api/parse_client.dart';
-import 'package:cnu_ai_assistant/data/demo/demo_parse.dart';
 import 'package:cnu_ai_assistant/design/strings.dart';
-import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_message.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_reply.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_rules.dart';
@@ -68,9 +65,6 @@ enum AiGate {
 
   /// 오늘 사용량을 다 썼다.
   limitReached,
-
-  /// 데모 모드(미리 적은 응답).
-  demo,
 }
 
 /// AI를 쓸 수 없어 직접 추가 폼을 열 때 폼 위에 보이는 까닭(docs/screens.md '06 AI 비서').
@@ -106,7 +100,6 @@ enum DirectAddOrigin {
 /// 지금 AI를 쓸 수 있는지(화면이 폼 위의 까닭과 '말로 넣기'를 정할 때 봄). 보낼 때는 [AssistantController.gate]가
 /// 폰 DB를 새로 읽어 정한다. 설정을 읽는 중이면 null이다.
 final aiGateProvider = Provider.autoDispose<AiGate?>((ref) {
-  if (ref.watch(appModeProvider) == AppMode.demo) return AiGate.demo;
   if (!ref.watch(parseClientProvider).isOpen) return AiGate.closed;
   if (ref.watch(
     assistantControllerProvider.select((state) => state.declined),
@@ -156,9 +149,6 @@ final assistantControllerProvider =
     );
 
 class AssistantController extends Notifier<AssistantState> {
-  /// 데모 응답을 보이기 전에 기다리는 시간(답을 읽는 것처럼 보이게, 임시).
-  static const demoDelay = Duration(milliseconds: 700);
-
   /// 바꾸거나 지울 일정을 찾는 날 수(오늘부터, 임시).
   static const targetSearchDays = 60;
 
@@ -177,7 +167,6 @@ class AssistantController extends Notifier<AssistantState> {
 
   /// 지금 문장을 보낼 수 있는지. 설정을 읽지 못하면 동의를 다시 묻는다.
   Future<AiGate> gate() async {
-    if (ref.read(appModeProvider) == AppMode.demo) return AiGate.demo;
     if (!ref.read(parseClientProvider).isOpen) return AiGate.closed;
     if (state.declined) return AiGate.declined;
     switch (await ref.read(settingsRepositoryProvider).read()) {
@@ -258,7 +247,7 @@ class AssistantController extends Notifier<AssistantState> {
           InfoCard(_nextId(), InfoKind.aiClosed),
         ]);
         return DirectAddNotice.closed;
-      case AiGate.open || AiGate.demo:
+      case AiGate.open:
         break;
     }
     // 앞 답의 카드가 아직 열려 있으면 이어 쓴 말로 보고 앞 문장과 함께 보낸다(고쳐 말하기).
@@ -275,32 +264,17 @@ class AssistantController extends Notifier<AssistantState> {
     if (!ref.mounted) return null;
     _snapshot = await _readSnapshot(courses, now);
     if (!ref.mounted) return null;
-    final Result<ParseResult> result;
-    if (gate == AiGate.demo) {
-      await Future<void>.delayed(demoDelay);
-      result = Ok(
-        demoParseResult(
-          // 되물은 것에 답했으면 그 질문을 받은 문장과 이어 읽는다(데모는 대화를 기억하지 않음).
-          followUp?.question == null || previous.isEmpty
-              ? text
-              : '${previous.last} $text',
-          now: now,
-          courseNames: [for (final course in courses) course.name],
-        ),
-      );
-    } else {
-      result = await ref
-          .read(parseClientProvider)
-          .parse(
-            ParseRequest.at(
-              text,
-              now: now,
-              courseNames: [for (final course in courses) course.name],
-              previous: previous,
-              question: followUp?.question,
-            ),
-          );
-    }
+    final result = await ref
+        .read(parseClientProvider)
+        .parse(
+          ParseRequest.at(
+            text,
+            now: now,
+            courseNames: [for (final course in courses) course.name],
+            previous: previous,
+            question: followUp?.question,
+          ),
+        );
     if (!ref.mounted) return null;
     final replies = switch (result) {
       Ok(:final value) => _replyTo(value, now: now, ruleMode: ruleMode),

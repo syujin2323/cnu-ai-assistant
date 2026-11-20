@@ -49,10 +49,10 @@ void main() {
   // 2026-11-13(금) 09:00.
   final friday = DateTime(2026, 11, 13, 9);
 
-  test('데모 DB는 AI 사용을 켠 채로 열고, 다른 설정은 기본값이다', () async {
+  test('데모 DB의 설정은 기본값이다(AI 사용 동의는 06 AI 비서가 처음 쓸 때 받음)', () async {
     final db = await open(friday);
     final settings = _ok(await SettingsRepository(db).read());
-    expect(settings, AppSettings.defaults.copyWith(aiEnabled: true));
+    expect(settings, AppSettings.defaults);
   });
 
   test('표마다 정한 수만큼 넣는다', () async {
@@ -81,7 +81,7 @@ void main() {
         'briefings': 1,
         'sync_runs': 0,
         'sync_lease': 0,
-        'settings': 1,
+        'settings': 0,
         'undo_log': 0,
       },
     );

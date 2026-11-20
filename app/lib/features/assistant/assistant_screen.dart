@@ -27,7 +27,6 @@ import 'package:cnu_ai_assistant/design/motion/rise.dart';
 import 'package:cnu_ai_assistant/design/tokens.dart';
 import 'package:cnu_ai_assistant/design/widgets/ai_consent_sheet.dart';
 import 'package:cnu_ai_assistant/design/widgets/app_toast.dart';
-import 'package:cnu_ai_assistant/domain/app_mode.dart';
 import 'package:cnu_ai_assistant/domain/assistant/assistant_message.dart';
 import 'package:cnu_ai_assistant/domain/assistant/direct_add.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_args.dart';
@@ -80,9 +79,7 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
   void initState() {
     super.initState();
     final args = widget.args;
-    final closed =
-        ref.read(appModeProvider) != AppMode.demo &&
-        !ref.read(parseClientProvider).isOpen;
+    final closed = !ref.read(parseClientProvider).isOpen;
     _formRoot = args.form != null || closed;
     _rootInitial = DirectAddDraft.initial(
       args.form ?? DirectAddKind.event,
@@ -259,11 +256,11 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
           AiGate.closed => DirectAddNotice.closed,
           AiGate.needsConsent || AiGate.declined => DirectAddNotice.aiOff,
           AiGate.limitReached => DirectAddNotice.limit,
-          AiGate.open || AiGate.demo || null => null,
+          AiGate.open || null => null,
         },
         quote: _rootQuote,
         ruleMode: _ruleMode,
-        onChat: gate == AiGate.open || gate == AiGate.demo ? _toChat : null,
+        onChat: gate == AiGate.open ? _toChat : null,
         onAiOn: () => unawaited(_turnAiOn(_rootQuote, layer: false)),
         onRules: _ruleMode ? () => context.pop() : null,
       );

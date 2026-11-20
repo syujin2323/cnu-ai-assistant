@@ -13,7 +13,6 @@ import 'package:cnu_ai_assistant/domain/errors.dart';
 import 'package:cnu_ai_assistant/domain/models/models.dart';
 import 'package:cnu_ai_assistant/domain/models/parse_result.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_args.dart';
-import 'package:cnu_ai_assistant/features/assistant/assistant_controller.dart';
 import 'package:cnu_ai_assistant/features/assistant/assistant_screen.dart';
 import 'package:cnu_ai_assistant/design/widgets/block_sheet.dart';
 import 'package:cnu_ai_assistant/design/widgets/free_slot_sheet.dart';
@@ -751,53 +750,35 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets('데모 모드는 서버를 부르지 않고 미리 적은 응답을 보인다(AI가 닫혀 있어도)', (tester) async {
+  testWidgets('데모 모드도 실제 모드처럼 AI에 묻는다: 처음에는 AI 사용 동의를 받고, 동의하면 보낸다', (
+    tester,
+  ) async {
+    final (app, parse) = await _open(
+      tester,
+      start: TestStart.demo,
+      settings: const {},
+    );
+    expect(find.text('일정 추가·변경이나 배치 규칙처럼'), findsOneWidget);
+    await _say(tester, '내일 3시 회의');
+    // 데모 DB에는 동의가 없어 먼저 묻는다(동의 전에는 보내지 않음).
+    expect(find.text('동의하고 켜기'), findsOneWidget);
+    expect(parse.requests, isEmpty);
+
+    await tester.tap(find.text('동의하고 켜기'));
+    await tester.pumpAndSettle();
+    expect(parse.requests.single.text, '내일 3시 회의');
+    expect(find.textContaining('회의로 정리했어요.'), findsOneWidget);
+    await app.dispose(tester);
+  });
+
+  testWidgets('데모 모드에서도 AI 경로가 닫혀 있으면 직접 추가 폼이다', (tester) async {
     final (app, parse) = await _open(
       tester,
       start: TestStart.demo,
       settings: const {},
       aiOpen: false,
     );
-    expect(find.text('일정 추가·변경이나 배치 규칙처럼'), findsOneWidget);
-    await tester.enterText(find.byType(TextField), '목요일 7시 동아리');
-    await tester.pump();
-    await tester.tap(find.byTooltip('보내기'));
-    await tester.pump();
-    expect(find.text('문장을 읽고 있어요'), findsOneWidget);
-    await tester.pump(AssistantController.demoDelay);
-    await tester.pumpAndSettle();
-    expect(parse.requests, isEmpty);
-    // 오늘(목) 오후 7시(오전·오후를 말하지 않은 7시).
-    expect(find.text('11월 19일 (목) 19:00 동아리로 정리했어요.'), findsOneWidget);
-    await app.dispose(tester);
-  });
-
-  testWidgets('데모 모드는 예시가 아닌 문장도 읽고, 되물은 것의 답을 앞 문장과 이어 읽는다', (tester) async {
-    final (app, parse) = await _open(
-      tester,
-      start: TestStart.demo,
-      settings: const {},
-    );
-    Future<void> say(String text) async {
-      await tester.enterText(find.byType(TextField), text);
-      await tester.pump();
-      await tester.tap(find.byTooltip('보내기'));
-      await tester.pump();
-      await tester.pump(AssistantController.demoDelay);
-      await tester.pumpAndSettle();
-    }
-
-    await say('내일 2시에 팀 회의');
-    expect(find.text('11월 20일 (금) 14:00 팀 회의로 정리했어요.'), findsOneWidget);
-
-    await say('토요일 치과');
-    expect(find.text('몇 시인가요?'), findsOneWidget);
-    await say('오전 10시');
-    expect(find.text('11월 21일 (토) 10:00 치과로 정리했어요.'), findsOneWidget);
-
-    await say('하루 공부는 4시간까지만');
-    expect(find.text('이 문장에서는 일정을 찾지 못했어요'), findsNothing);
-    expect(find.textContaining('4시간'), findsWidgets);
+    expect(find.text('일정 추가·변경이나 배치 규칙처럼'), findsNothing);
     expect(parse.requests, isEmpty);
     await app.dispose(tester);
   });
