@@ -142,7 +142,8 @@ class ParseClient {
     if (!request.hasValidText) {
       return const Err(ApiError(null, 'invalid_request'));
     }
-    switch (await _api.postJson(path, request.toJson())) {
+    // 데모 모드의 06 AI 비서도 실제 모드처럼 AI에 묻는다(AI 사용 동의를 받은 뒤).
+    switch (await _api.postJson(path, request.toJson(), inDemo: true)) {
       case Err(:final error):
         return Err(error);
       case Ok(:final value):

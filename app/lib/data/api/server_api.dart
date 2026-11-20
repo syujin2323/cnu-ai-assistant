@@ -48,7 +48,7 @@ class ServerApi {
   final Dio _dio;
 
   /// 데모 모드인지. 그러면 요청을 보내지 않고 `ApiError(null, 'demo')`를 돌려준다(docs/architecture.md
-  /// '데모 모드': 데모에서는 서버·AI를 부르지 않는다). 부르는 쪽마다 앱 모드를 따로 보지 않아도 되게 여기서
+  /// '데모 모드': 06 AI 비서의 요청 말고는 보내지 않는다). 부르는 쪽마다 앱 모드를 따로 보지 않아도 되게 여기서
   /// 막는다.
   final bool demo;
 
@@ -61,11 +61,14 @@ class ServerApi {
 
   /// [path]에 JSON [body]를 POST하고 성공 응답의 JSON 본문을 돌려준다. 성공이 아니면 상태 코드와 오류
   /// 본문의 `error.code`를 담은 [ApiError]다.
+  ///
+  /// 데모 모드에서는 보내지 않는다. [inDemo]가 true인 요청(06 AI 비서의 `/v1/parse`)만 데모에서도 보낸다.
   Future<Result<Object?>> postJson(
     String path,
-    Map<String, Object?> body,
-  ) async {
-    if (demo) return const Err(ApiError(null, 'demo'));
+    Map<String, Object?> body, {
+    bool inDemo = false,
+  }) async {
+    if (demo && !inDemo) return const Err(ApiError(null, 'demo'));
     final cancel = CancelToken();
     final timer = Timer(totalTimeout, () => cancel.cancel('timeout'));
     try {

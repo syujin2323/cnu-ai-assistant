@@ -191,16 +191,13 @@ void main() {
       );
     });
 
-    test('데모 모드에서는 보내지 않는다', () async {
+    test('데모 모드에서도 보낸다(다른 서버 요청은 데모에서 보내지 않음)', () async {
       final (:client, :adapter) = clientWith(
         _FakeAdapter((_) => _json(200, _sample('other'))),
         demo: true,
       );
-      expect(
-        await client.parse(request),
-        const Err<ParseResult>(ApiError(null, 'demo')),
-      );
-      expect(adapter.requests, isEmpty);
+      expect(await client.parse(request), isA<Ok<ParseResult>>());
+      expect(adapter.requests, hasLength(1));
     });
   });
 }
