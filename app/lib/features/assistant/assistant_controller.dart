@@ -280,7 +280,10 @@ class AssistantController extends Notifier<AssistantState> {
       await Future<void>.delayed(demoDelay);
       result = Ok(
         demoParseResult(
-          text,
+          // 되물은 것에 답했으면 그 질문을 받은 문장과 이어 읽는다(데모는 대화를 기억하지 않음).
+          followUp?.question == null || previous.isEmpty
+              ? text
+              : '${previous.last} $text',
           now: now,
           courseNames: [for (final course in courses) course.name],
         ),

@@ -772,6 +772,36 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('데모 모드는 예시가 아닌 문장도 읽고, 되물은 것의 답을 앞 문장과 이어 읽는다', (tester) async {
+    final (app, parse) = await _open(
+      tester,
+      start: TestStart.demo,
+      settings: const {},
+    );
+    Future<void> say(String text) async {
+      await tester.enterText(find.byType(TextField), text);
+      await tester.pump();
+      await tester.tap(find.byTooltip('보내기'));
+      await tester.pump();
+      await tester.pump(AssistantController.demoDelay);
+      await tester.pumpAndSettle();
+    }
+
+    await say('내일 2시에 팀 회의');
+    expect(find.text('11월 20일 (금) 14:00 팀 회의로 정리했어요.'), findsOneWidget);
+
+    await say('토요일 치과');
+    expect(find.text('몇 시인가요?'), findsOneWidget);
+    await say('오전 10시');
+    expect(find.text('11월 21일 (토) 10:00 치과로 정리했어요.'), findsOneWidget);
+
+    await say('하루 공부는 4시간까지만');
+    expect(find.text('이 문장에서는 일정을 찾지 못했어요'), findsNothing);
+    expect(find.textContaining('4시간'), findsWidgets);
+    expect(parse.requests, isEmpty);
+    await app.dispose(tester);
+  });
+
   testWidgets('300자까지 받고 240자부터 글자 수를 보인다', (tester) async {
     final (app, _) = await _open(tester);
     await tester.enterText(find.byType(TextField), '가' * 239);
